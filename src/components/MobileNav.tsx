@@ -12,7 +12,6 @@ export function MobileNav() {
     { href: "/", label: "Inicio", icon: Home },
     { href: "/categories", label: "Categorías", icon: Grid },
     { href: "/messages", label: "Mensajes", icon: MessageSquare },
-    { href: "/cart", label: "Carrito", icon: ShoppingCart },
     { href: "/account", label: "Mi Cuenta", icon: User },
   ];
 

@@ -1,5 +1,6 @@
 import { CategorySidebar } from "@/components/CategorySidebar";
 import { ProductCard } from "@/components/ProductCard";
+import { WelcomeSection } from "@/components/WelcomeSection";
 
 // Dummy Data
 const products = [
@@ -16,19 +17,10 @@ const products = [
 ];
 
 export default function Home() {
-  const userName = "Usuario Demo"; // Demo user
-
   return (
     <div className="container mx-auto px-4 py-6">
       {/* Welcome Section */}
-      <div className="mb-6 bg-gradient-to-r from-orange-100 to-white p-6 rounded-2xl border border-orange-200">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-          ¡Hola, <span className="text-primary">{userName}</span>!
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Bienvenido a SafeEasy. Encuentra los mejores productos para tu negocio.
-        </p>
-      </div>
+      <WelcomeSection />
 
       <div className="flex gap-6 relative">
         {/* Sidebar - Desktop Only */}

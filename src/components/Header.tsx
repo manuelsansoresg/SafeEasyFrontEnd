@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Camera, User, ChevronDown, ShoppingBag } from "lucide-react";
+import { Search, Camera, User, ChevronDown, ShoppingBag, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/useAuthStore";
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const { isAuthenticated, user, logout } = useAuthStore();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -81,20 +83,36 @@ export function Header() {
             onMouseEnter={() => setIsUserMenuOpen(true)}
             onMouseLeave={() => setIsUserMenuOpen(false)}
           >
-            <button className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors py-2">
-              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                <User size={18} />
-              </div>
-              <div className="flex flex-col items-start leading-none">
-                <span className="text-xs text-muted-foreground">Hola, Inicia sesión</span>
-                <span className="flex items-center gap-1 font-bold">
-                  Mi Cuenta <ChevronDown size={14} />
-                </span>
-              </div>
-            </button>
+            {isAuthenticated ? (
+              <button className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors py-2">
+                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                  <span className="text-primary font-bold text-xs">
+                    {user?.name?.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex flex-col items-start leading-none">
+                  <span className="text-xs text-muted-foreground">
+                    Hola, {user?.name}
+                  </span>
+                  <span className="flex items-center gap-1 font-bold">
+                    Mi Cuenta <ChevronDown size={14} />
+                  </span>
+                </div>
+              </button>
+            ) : (
+              <Link href="/login" className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors py-2">
+                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                  <User size={18} />
+                </div>
+                <div className="flex flex-col items-start leading-none">
+                  <span className="text-xs text-muted-foreground">Hola, Inicia sesión</span>
+                  <span className="font-bold">Inicia sesión</span>
+                </div>
+              </Link>
+            )}
 
             <AnimatePresence>
-              {isUserMenuOpen && (
+              {isUserMenuOpen && isAuthenticated && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -103,10 +121,7 @@ export function Header() {
                   className="absolute right-0 top-full w-64 bg-white rounded-xl shadow-xl border border-border overflow-hidden py-2"
                 >
                   <div className="px-4 py-3 border-b border-border bg-secondary/30">
-                    <p className="font-semibold text-sm">Bienvenido de nuevo</p>
-                    <Link href="/login" className="text-xs text-primary hover:underline">
-                      Inicia sesión o regístrate
-                    </Link>
+                    <p className="font-semibold text-sm">Tu cuenta</p>
                   </div>
                   <nav className="flex flex-col">
                     <Link href="/orders" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
@@ -125,9 +140,12 @@ export function Header() {
                       <span>🎫</span> Mis Cupones
                     </Link>
                     <div className="h-px bg-border my-1" />
-                    <Link href="/help" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
-                      <span>❓</span> Centro de Ayuda
-                    </Link>
+                    <button
+                      onClick={() => logout()}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3 text-red-500"
+                    >
+                      <LogOut size={16} /> Cerrar Sesión
+                    </button>
                   </nav>
                 </motion.div>
               )}
