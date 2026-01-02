@@ -1,65 +1,60 @@
-import Image from "next/image";
+import { CategorySidebar } from "@/components/CategorySidebar";
+import { ProductCard } from "@/components/ProductCard";
+
+// Dummy Data
+const products = [
+  { id: "1", title: "Auriculares Inalámbricos Bluetooth 5.0 Cancelación de Ruido", price: 25.99, image: "/p1.jpg" },
+  { id: "2", title: "Smartwatch Deportivo Resistente al Agua IP68", price: 45.50, image: "/p2.jpg" },
+  { id: "3", title: "Funda para iPhone 13 Pro Max Silicona", price: 5.99, image: "/p3.jpg", minOrder: "10 piezas" },
+  { id: "4", title: "Cargador Rápido USB-C 20W Original", price: 12.00, image: "/p4.jpg" },
+  { id: "5", title: "Soporte para Celular Coche Magnético", price: 8.50, image: "/p5.jpg" },
+  { id: "6", title: "Cable HDMI 4K Ultra HD 2 Metros", price: 7.99, image: "/p6.jpg" },
+  { id: "7", title: "Teclado Mecánico RGB Gaming Switch Blue", price: 55.00, image: "/p7.jpg" },
+  { id: "8", title: "Mouse Inalámbrico Ergonómico Vertical", price: 18.25, image: "/p8.jpg" },
+  { id: "9", title: "Lámpara LED de Escritorio con Cargador Inalámbrico", price: 32.00, image: "/p9.jpg" },
+  { id: "10", title: "Mochila Antirrobo Impermeable con Puerto USB", price: 29.99, image: "/p10.jpg" },
+];
 
 export default function Home() {
+  const userName = "Usuario Demo"; // Demo user
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="container mx-auto px-4 py-6">
+      {/* Welcome Section */}
+      <div className="mb-6 bg-gradient-to-r from-orange-100 to-white p-6 rounded-2xl border border-orange-200">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+          ¡Hola, <span className="text-primary">{userName}</span>!
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          Bienvenido a SafeEasy. Encuentra los mejores productos para tu negocio.
+        </p>
+      </div>
+
+      <div className="flex gap-6 relative">
+        {/* Sidebar - Desktop Only */}
+        <CategorySidebar />
+
+        {/* Main Content - Product Grid */}
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-800">Recomendado para ti</h2>
+            <button className="text-primary text-sm font-medium hover:underline">Ver todo</button>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {products.map((product) => (
+              <ProductCard
+                key={product.id}
+                id={product.id}
+                title={product.title}
+                price={product.price}
+                image={product.image}
+                minOrder={product.minOrder}
+              />
+            ))}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
