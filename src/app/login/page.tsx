@@ -20,8 +20,6 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-      
       const formData = new URLSearchParams();
       formData.append('grant_type', 'password');
       formData.append('username', email);
