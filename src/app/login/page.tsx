@@ -41,7 +41,20 @@ export default function LoginPage() {
       });
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error('Error login:', errorData);
+
         if (response.status === 401 || response.status === 400) {
+            // Manejar "Incorrect email or password" explícitamente si viene en 'detail'
+            const serverMessage = errorData?.detail || errorData?.message;
+            if (serverMessage) {
+                 const msg = typeof serverMessage === 'object' ? JSON.stringify(serverMessage) : serverMessage;
+                 // Traducir mensaje común del backend
+                 if (msg === "Incorrect email or password") {
+                     throw new Error('Correo o contraseña incorrectos.');
+                 }
+                 throw new Error(msg);
+            }
             throw new Error('Correo o contraseña incorrectos. Por favor verifícalos.');
         }
         throw new Error('Error en el servidor. Intenta más tarde.');
