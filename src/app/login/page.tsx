@@ -41,12 +41,21 @@ export default function LoginPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        console.error('Error login:', errorData);
+        const errorText = await response.text();
+        let errorData = {};
+        try {
+            errorData = JSON.parse(errorText);
+        } catch (e) {
+            console.error('No se pudo parsear error JSON:', errorText);
+            // Si no es JSON, crear un objeto con el texto crudo para mostrarlo si es necesario
+            errorData = { message: errorText || `Error ${response.status}` };
+        }
+        
+        console.error('Error login response:', { status: response.status, data: errorData });
 
         if (response.status === 401 || response.status === 400) {
             // Manejar "Incorrect email or password" explícitamente si viene en 'detail'
-            const serverMessage = errorData?.detail || errorData?.message;
+            const serverMessage = (errorData as any)?.detail || (errorData as any)?.message;
             if (serverMessage) {
                  const msg = typeof serverMessage === 'object' ? JSON.stringify(serverMessage) : serverMessage;
                  // Traducir mensaje común del backend
@@ -57,13 +66,37 @@ export default function LoginPage() {
             }
             throw new Error('Correo o contraseña incorrectos. Por favor verifícalos.');
         }
-        throw new Error('Error en el servidor. Intenta más tarde.');
+        throw new Error(`Error en el servidor (${response.status}). Intenta más tarde.`);
       }
 
       const data = await response.json();
       
       // Assuming data contains access_token
       login(data.access_token, email);
+      
+      // Check for admin role using /users/me since /users/has-role has routing issues
+      try {
+        const meResponse = await fetch('/api/users/me', {
+           method: 'GET',
+           headers: {
+             'Authorization': `Bearer ${data.access_token}`,
+             'Content-Type': 'application/json'
+           }
+        });
+        
+        if (meResponse.ok) {
+            const userData = await meResponse.json();
+            // Check if role is admin (adjust property name based on your API, verified as 'role')
+            if (userData.role === 'admin') {
+                console.log("El usuario es admin, redirigiendo a panel...");
+                router.push('/admin/dashboard');
+                return;
+            }
+        }
+      } catch (roleError) {
+          console.error("Error verificando rol de admin:", roleError);
+      }
+
       router.push('/');
       
     } catch (err) {

@@ -2,18 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Obtener la URL base. Prioridad: Variable de entorno -> Fallback local
-    // Nota: Usamos 127.0.0.1:8080 como fallback porque parece ser el puerto del backend en el servidor
     const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8080';
     const targetUrl = `${baseUrl}/login/access-token`;
 
-    console.log(`[API Proxy] Intentando conectar a: ${targetUrl}`);
+    console.log(`[API Proxy] ------------------------------------------------`);
+    console.log(`[API Proxy] Request entrante para: ${targetUrl}`);
 
-    // 2. Leer el cuerpo de la petición (form-urlencoded)
+    // Leer el cuerpo de la petición
     const contentType = request.headers.get('content-type') || 'application/x-www-form-urlencoded';
     const bodyText = await request.text();
+    
+    console.log(`[API Proxy] Body enviado al backend (${bodyText.length} chars):`, bodyText);
 
-    // 3. Hacer la petición al backend real
+    // Hacer la petición al backend real
     const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
@@ -23,34 +24,34 @@ export async function POST(request: NextRequest) {
       body: bodyText,
     });
 
-    console.log(`[API Proxy] Respuesta del backend: ${response.status} ${response.statusText}`);
+    console.log(`[API Proxy] Status backend: ${response.status} ${response.statusText}`);
 
-    // 4. Leer la respuesta del backend
-    // Intentamos leer como texto primero por si no es JSON válido (ej. error HTML de Nginx)
     const responseText = await response.text();
-    
+    console.log(`[API Proxy] Respuesta backend raw:`, responseText);
+
     let data;
     try {
-        data = JSON.parse(responseText);
+        data = responseText ? JSON.parse(responseText) : {};
     } catch (e) {
-        console.error('[API Proxy] La respuesta no es JSON válido:', responseText.substring(0, 200));
-        // Si no es JSON, devolvemos el texto como error genérico o tal cual
-        return NextResponse.json(
-            { error: 'Invalid JSON response from backend', details: responseText.substring(0, 200) }, 
-            { status: response.status >= 400 ? response.status : 500 }
-        );
+        console.error('[API Proxy] Error parseando JSON del backend:', e);
+        // Si falla el parseo, devolvemos el texto en un objeto de error para que el frontend vea algo
+        data = { 
+            error: 'Invalid JSON from backend', 
+            raw_response: responseText,
+            status: response.status
+        };
     }
 
-    // 5. Devolver la respuesta al cliente
+    // Asegurarnos de que devolvemos un JSON válido
     return NextResponse.json(data, { status: response.status });
 
   } catch (error: any) {
-    console.error('[API Proxy] Error interno:', error);
+    console.error('[API Proxy] Error CRÍTICO en el proxy:', error);
     return NextResponse.json(
       { 
         error: 'Internal Server Error (Proxy)', 
         message: error.message,
-        cause: error.cause ? String(error.cause) : undefined
+        details: error.toString()
       }, 
       { status: 500 }
     );
