@@ -71,10 +71,9 @@ export default function LoginPage() {
 
       const data = await response.json();
       
-      // Assuming data contains access_token
-      login(data.access_token, email);
+      // Fetch user data to get ID and role
+      let userData = { id: 0, name: email.split('@')[0], email, role: 'user' };
       
-      // Check for admin role using /users/me since /users/has-role has routing issues
       try {
         const meResponse = await fetch('/api/users/me', {
            method: 'GET',
@@ -85,16 +84,29 @@ export default function LoginPage() {
         });
         
         if (meResponse.ok) {
-            const userData = await meResponse.json();
-            // Check if role is admin (adjust property name based on your API, verified as 'role')
-            if (userData.role === 'admin') {
-                console.log("El usuario es admin, redirigiendo a panel...");
-                router.push('/admin/dashboard');
-                return;
-            }
+            const fetchedUser = await meResponse.json();
+            userData = {
+                id: fetchedUser.id || 0,
+                name: fetchedUser.full_name || fetchedUser.name || email.split('@')[0],
+                email: fetchedUser.email || email,
+                role: fetchedUser.role || 'user'
+            };
         }
       } catch (roleError) {
-          console.error("Error verificando rol de admin:", roleError);
+          console.error("Error obteniendo datos del usuario:", roleError);
+      }
+
+      // Login with full user data including ID
+      login(data.access_token, {
+          id: userData.id,
+          name: userData.name,
+          email: userData.email
+      });
+      
+      if (userData.role === 'admin') {
+          console.log("El usuario es admin, redirigiendo a panel...");
+          router.push('/admin/dashboard');
+          return;
       }
 
       router.push('/');
