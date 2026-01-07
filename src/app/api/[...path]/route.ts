@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8080';
 
-async function handler(request: NextRequest, { params }: { params: { path: string[] } }) {
+async function handler(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   // Await the params object
-  const { path } = await Promise.resolve(params);
+  const { path } = await params;
   
   // Construct target URL
   // We prefer using the incoming pathname to preserve trailing slashes that Next.js params might strip
