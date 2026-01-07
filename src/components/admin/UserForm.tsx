@@ -1,0 +1,237 @@
+"use client";
+
+import { useState } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useRouter } from "next/navigation";
+import { Loader2, CheckCircle } from "lucide-react";
+
+interface User {
+  id: number;
+  email: string;
+  is_active: boolean;
+  is_superuser?: boolean;
+  name?: string;
+  role?: string;
+}
+
+interface UserFormData {
+  email: string;
+  name: string;
+  password: string;
+  is_active: boolean;
+  role: string;
+}
+
+const initialFormData: UserFormData = {
+  email: "",
+  name: "",
+  password: "",
+  is_active: true,
+  role: "client",
+};
+
+interface UserFormProps {
+  initialData?: User;
+  isEditMode?: boolean;
+}
+
+export default function UserForm({ initialData, isEditMode = false }: UserFormProps) {
+  const { token } = useAuthStore();
+  const router = useRouter();
+
+  const [formData, setFormData] = useState<UserFormData>(
+    initialData
+      ? {
+          email: initialData.email,
+          name: initialData.full_name || initialData.name || "",
+          password: "", // Password usually not returned
+          is_active: initialData.is_active,
+          role: initialData.role || "client",
+        }
+      : initialFormData
+  );
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) {
+      setError("No hay sesión activa");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const url = isEditMode && initialData ? `/api/users/${initialData.id}` : "/api/users";
+      const method = isEditMode ? "PUT" : "POST";
+
+      // Prepare payload
+      const payload: any = {
+        email: formData.email,
+        name: formData.name,
+        is_active: formData.is_active,
+        role: formData.role,
+      };
+
+      // Only include password if it's provided (or if creating a new user)
+      if (formData.password) {
+        payload.password = formData.password;
+      } else if (!isEditMode) {
+        throw new Error("La contraseña es obligatoria para nuevos usuarios");
+      }
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        let errorMessage = "Error al guardar usuario";
+        try {
+            const text = await response.text();
+            try {
+                const errorData = JSON.parse(text);
+                if (errorData.detail) {
+                    errorMessage = typeof errorData.detail === 'string' 
+                        ? errorData.detail 
+                        : JSON.stringify(errorData.detail);
+                }
+            } catch {
+                errorMessage = `Error ${response.status}: ${text || response.statusText}`;
+            }
+        } catch (e) {
+            errorMessage = `Error ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      router.push("/admin/users");
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+      {error && (
+        <div className="p-4 bg-red-50 text-red-600 text-sm rounded-xl">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Nombre Completo</label>
+          <input
+            type="text"
+            name="name"
+            required
+            value={formData.name}
+            onChange={handleInputChange}
+            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Email</label>
+          <input
+            type="email"
+            name="email"
+            required
+            value={formData.email}
+            onChange={handleInputChange}
+            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">
+            Contraseña {isEditMode && <span className="text-gray-400 font-normal">(Dejar en blanco para no cambiar)</span>}
+          </label>
+          <input
+            type="password"
+            name="password"
+            required={!isEditMode}
+            value={formData.password}
+            onChange={handleInputChange}
+            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-gray-700">Rol</label>
+          <select
+            name="role"
+            value={formData.role}
+            onChange={handleInputChange}
+            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white"
+          >
+            <option value="client">Cliente</option>
+            <option value="admin">Administrador</option>
+            <option value="supplier">Proveedor</option>
+          </select>
+        </div>
+
+        <div className="col-span-2 space-y-2 flex items-center gap-3">
+          <input
+            type="checkbox"
+            id="is_active"
+            name="is_active"
+            checked={formData.is_active}
+            onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+            className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
+          />
+          <label htmlFor="is_active" className="text-sm font-medium text-gray-700 select-none cursor-pointer">
+            Usuario Activo
+          </label>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="cursor-pointer px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+          disabled={isSubmitting}
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="cursor-pointer px-6 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 flex items-center gap-2"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              Guardando...
+            </>
+          ) : (
+            <>
+              <CheckCircle size={18} />
+              Guardar Usuario
+            </>
+          )}
+        </button>
+      </div>
+    </form>
+  );
+}

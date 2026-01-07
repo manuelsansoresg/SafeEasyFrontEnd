@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { 
   User, 
   Users,
+  Users2,
   Grid, 
   Layers, 
   Package, 
@@ -43,6 +44,11 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       title: "Subcategorias", 
       path: "/admin/subcategories", 
       icon: Layers 
+    },
+    { 
+      title: "Usuarios", 
+      path: "/admin/users", 
+      icon: Users2 
     },
     { 
       title: "Proveedores", 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Fragment } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
+import { fetchWithAuth } from "@/lib/api";
 import { 
   Plus, 
   Search, 
@@ -89,11 +90,8 @@ export default function AdminSuppliersPage() {
     if (!token) return;
 
     try {
-      const response = await fetch(`/api/suppliers/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await fetchWithAuth(`/api/suppliers/${id}`, {
+        method: 'DELETE'
       });
 
       if (response.ok) {

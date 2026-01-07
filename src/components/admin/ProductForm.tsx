@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
+import { fetchWithAuth } from "@/lib/api";
 import { 
   Loader2, 
   CheckCircle, 
@@ -180,9 +181,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   const fetchCategories = async () => {
     if (!token) return;
     try {
-      const response = await fetch(`/api/categories/?skip=0&limit=100`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await fetchWithAuth(`/api/categories/?skip=0&limit=100`);
       if (response.ok) {
         const data = await response.json();
         setCategories(Array.isArray(data) ? data : []);
@@ -195,9 +194,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   const fetchSubcategories = async (categoryId: number) => {
     if (!token) return;
     try {
-      const response = await fetch(`/api/subcategories/?category_id=${categoryId}&skip=0&limit=100`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await fetchWithAuth(`/api/subcategories/?category_id=${categoryId}&skip=0&limit=100`);
       if (response.ok) {
         const data = await response.json();
         setSubcategories(Array.isArray(data) ? data : []);
@@ -211,9 +208,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     if (!token) return;
     setLoadingSuppliers(true);
     try {
-      const response = await fetch(`/api/suppliers/?skip=${supplierSkip}&limit=${supplierLimit}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await fetchWithAuth(`/api/suppliers/?skip=${supplierSkip}&limit=${supplierLimit}`);
       if (response.ok) {
         const data = await response.json();
         setSuppliers(Array.isArray(data) ? data : []);
@@ -269,6 +264,12 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       console.error("Error deleting media:", error);
       alert("Error al eliminar la imagen");
     }
+  };
+
+  const getMediaUrl = (media: ProductMedia) => {
+    if (!media.url) return "/placeholder.png";
+    if (media.url.startsWith("http")) return media.url;
+    return media.url;
   };
 
   // -- Handlers --
@@ -345,12 +346,8 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       
       const method = isEditMode ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await fetchWithAuth(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(payload)
       });
 
@@ -385,11 +382,8 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           const mediaFormData = new FormData();
           mediaFormData.append('file', file);
           
-          const mediaRes = await fetch(`/api/products/${productId}/media`, {
+          const mediaRes = await fetchWithAuth(`/api/products/${productId}/media`, {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            },
             body: mediaFormData
           });
 
@@ -578,13 +572,17 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                  {mediaList.map((media) => (
                    <div key={media.id} className="relative group border border-gray-200 rounded-xl overflow-hidden aspect-square bg-gray-50">
                      <img 
-                       src={media.url} 
+                       src={getMediaUrl(media)} 
                        alt={media.filename}
                        className="w-full h-full object-contain p-2"
+                       onError={(e) => {
+                           console.error("Image load error:", getMediaUrl(media));
+                           (e.target as HTMLImageElement).src = "/placeholder.png";
+                       }}
                      />
                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <a 
-                          href={media.url} 
+                          href={getMediaUrl(media)} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="p-2 bg-white/90 rounded-full text-gray-700 hover:text-blue-600 hover:bg-white transition-colors"

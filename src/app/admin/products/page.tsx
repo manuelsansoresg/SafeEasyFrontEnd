@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
+import { fetchWithAuth } from "@/lib/api";
 import { 
   Plus, 
   Edit2, 
@@ -49,9 +50,7 @@ export default function AdminProductsPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/products/?skip=${skip}&limit=${limit}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await fetchWithAuth(`/api/products/?skip=${skip}&limit=${limit}`);
       if (response.ok) {
         const data = await response.json();
         setProducts(Array.isArray(data) ? data : []);

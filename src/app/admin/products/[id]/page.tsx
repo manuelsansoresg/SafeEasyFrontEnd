@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
+import { fetchWithAuth } from "@/lib/api";
 
 interface Product {
   id: string;
@@ -36,11 +37,7 @@ export default function EditProductPage() {
       
       try {
         // Try to fetch specific product first
-        const response = await fetch(`/api/products/${id}/`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await fetchWithAuth(`/api/products/${id}/`);
         
         if (response.ok) {
           const data = await response.json();
@@ -50,9 +47,7 @@ export default function EditProductPage() {
             
             // Fallback: Fetch list and find product
             // This is useful if GET /products/{id} is not implemented (405)
-            const listResponse = await fetch(`/api/products/?skip=0&limit=1000`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const listResponse = await fetchWithAuth(`/api/products/?skip=0&limit=1000`);
 
             if (listResponse.ok) {
                 const listData = await listResponse.json();

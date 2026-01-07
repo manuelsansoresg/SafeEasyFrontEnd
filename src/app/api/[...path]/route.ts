@@ -5,64 +5,101 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8080'
 async function handler(request: NextRequest, { params }: { params: { path: string[] } }) {
   // Await the params object
   const { path } = await Promise.resolve(params);
-  const pathString = path.join('/');
   
-  // Backend requires trailing slash for some endpoints (FastAPI default behavior sometimes)
-  // If pathString doesn't end with slash and no query params, maybe add it?
-  // But let's check query params first.
+  // Construct target URL
+  // We prefer using the incoming pathname to preserve trailing slashes that Next.js params might strip
+  const pathname = request.nextUrl.pathname;
+  // pathname starts with /api/... 
+  // We want to append everything after /api/ to BASE_URL
   
-  let targetUrl = `${BASE_URL}/${pathString}`;
-  
-  // Append trailing slash if it's likely a collection resource and missing it, 
-  // but be careful not to break IDs like /suppliers/1
-  // The redirect was /suppliers?skip.. -> /suppliers/?skip...
-  // So if we are hitting a root resource without ID, we might need a slash.
-  
-  if (!pathString.includes('.') && !targetUrl.endsWith('/')) {
-      // Very naive check: if the last part is not a number, add slash?
-      // Or just rely on 'redirect: follow' added below.
-      // Let's rely on redirect: follow for now, but if it fails for POST, we might need to force slash.
+  let relativePath = pathname.replace(/^\/api\//, '');
+  // If the replace didn't work (e.g. path is just /api), fall back to params
+  if (relativePath === pathname) {
+      relativePath = path.join('/');
   }
 
+  let targetUrl = `${BASE_URL}/${relativePath}`;
+  
+  // Backend requires trailing slash for some endpoints (FastAPI default behavior sometimes)
+  // If the original request didn't have a slash, but it's a known collection, force it.
+  const pathString = path.join('/');
+  if ((pathString.endsWith('users') || pathString.endsWith('products') || pathString.endsWith('suppliers')) && !targetUrl.endsWith('/')) {
+      targetUrl += '/';
+  }
+  
   targetUrl += request.nextUrl.search;
 
   console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
+  const authHeader = request.headers.get('Authorization') || '';
+  console.log(`[Generic Proxy] Auth Header Present: ${!!authHeader} (Length: ${authHeader.length})`);
 
   try {
     // Use blob to handle body safely for both text and binary (multipart)
     const body = ['GET', 'HEAD'].includes(request.method) ? undefined : await request.blob();
     
-    let response = await fetch(targetUrl, {
-      method: request.method,
-      headers: {
-        'Content-Type': request.headers.get('Content-Type') || 'application/json',
-        'Authorization': request.headers.get('Authorization') || '',
-        'accept': 'application/json',
-      },
-      body,
-      redirect: 'follow', // Ensure fetch follows redirects
-    });
+    // Explicitly construct headers to ensure nothing is lost
+    const forwardHeaders = new Headers();
+    if (request.headers.get('Content-Type')) {
+        forwardHeaders.set('Content-Type', request.headers.get('Content-Type')!);
+    }
+    if (request.headers.get('Authorization')) {
+        forwardHeaders.set('Authorization', request.headers.get('Authorization')!);
+    }
+    forwardHeaders.set('accept', 'application/json');
 
-    // Manually handle 307 if fetch doesn't follow (sometimes happens with POST/PUT in node-fetch depending on version)
-    // But standard fetch should follow. However, let's check if we got a redirect and just return it to browser or follow it.
-    // If backend returns 307 to a URL with trailing slash, we should probably just return the response
-    // and let the browser follow, OR follow it here.
-    
-    // Better: Fix the target URL to include trailing slash if missing? 
-    // The curl showed redirect from /suppliers to /suppliers/
-    // Let's try to detect if we need a trailing slash or just follow.
-    
+    const fetchOptions: RequestInit = {
+      method: request.method,
+      headers: forwardHeaders,
+      body,
+      redirect: 'manual', // Do not follow redirects automatically
+      cache: 'no-store',
+    };
+
+    console.log(`[Generic Proxy] Fetching ${targetUrl} with Auth: ${!!forwardHeaders.get('Authorization')}`);
+
+    let response = await fetch(targetUrl, fetchOptions);
+
     console.log(`[Generic Proxy] Response status: ${response.status}`);
+
+    // Manually follow redirect (once) to preserve Authorization header
+    if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('Location');
+        if (location) {
+             console.log(`[Generic Proxy] Redirect detected to: ${location}`);
+             
+             let newUrlString = location;
+             if (!location.startsWith('http')) {
+                 const baseUrlObj = new URL(targetUrl);
+                 newUrlString = new URL(location, baseUrlObj).toString();
+             }
+             
+             console.log(`[Generic Proxy] Following redirect manually to: ${newUrlString}`);
+             
+             response = await fetch(newUrlString, fetchOptions);
+             console.log(`[Generic Proxy] Followed response status: ${response.status}`);
+        }
+    }
 
     const data = await response.text();
     
     if (!response.ok) {
         console.error(`[Generic Proxy] Backend error ${response.status} for ${targetUrl}:`, data);
+        
+        // Return debug info to frontend for ANY error
+        // We wrap the backend error in our own JSON if it's not a successful response
+        return new NextResponse(JSON.stringify({
+             error_source: "proxy_debug",
+             status: response.status,
+             detail: "Backend returned error",
+             backend_response: data, // Include the raw backend response
+             debug_target_url: targetUrl,
+             debug_auth_header_sent: !!forwardHeaders.get('Authorization'),
+             debug_auth_header_len: (forwardHeaders.get('Authorization') || '').length
+        }), { 
+            status: response.status, 
+            headers: { 'Content-Type': 'application/json' } 
+        });
     }
-    
-    // Attempt to parse JSON to ensure we're returning valid JSON if possible, 
-    // but returning text/blob is fine too depending on content-type.
-    // For now, let's just return the body with the correct status and headers.
     
     return new NextResponse(data, {
       status: response.status,

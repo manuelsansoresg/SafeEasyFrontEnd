@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
+import { fetchWithAuth } from "@/lib/api";
 import { Loader2, CheckCircle } from "lucide-react";
 
 interface Supplier {
@@ -101,12 +102,8 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
       
       const method = isEditMode ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await fetchWithAuth(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(payload)
       });
 

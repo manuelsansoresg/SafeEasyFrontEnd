@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
+import { fetchWithAuth } from "@/lib/api";
 
 interface Supplier {
   id: number;
@@ -35,20 +36,36 @@ export default function EditSupplierPage() {
       if (!token || !id) return;
       
       try {
-        const response = await fetch(`/api/suppliers/${id}/`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await fetchWithAuth(`/api/suppliers/${id}/`);
         
         if (response.ok) {
           const data = await response.json();
           setSupplier(data);
         } else {
-          setError("No se pudo cargar la información del proveedor");
+          console.warn(`Direct fetch failed (${response.status}), trying fallback via list...`);
+          
+          // Fallback: Fetch list and find supplier
+          const listResponse = await fetchWithAuth(`/api/suppliers/?skip=0&limit=1000`);
+          
+          if (listResponse.ok) {
+             const listData = await listResponse.json();
+             const found = Array.isArray(listData) 
+                 ? listData.find((s: Supplier) => String(s.id) === String(id))
+                 : null;
+             
+             if (found) {
+                 setSupplier(found);
+                 return;
+             }
+          }
+          
+          const text = await response.text();
+          console.error(`Error loading supplier ${id}:`, response.status, text);
+          setError(`No se pudo cargar la información del proveedor (Error ${response.status})`);
         }
-      } catch (err) {
-        setError("Error de conexión");
+      } catch (err: any) {
+        console.error("Fetch error:", err);
+        setError(`Error de conexión: ${err.message}`);
       } finally {
         setLoading(false);
       }
