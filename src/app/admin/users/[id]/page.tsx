@@ -6,12 +6,14 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
+import { fetchWithAuth } from "@/lib/api";
 
 interface User {
   id: number;
   email: string;
   is_active: boolean;
   name?: string;
+  full_name?: string;
   role?: string;
 }
 
@@ -30,11 +32,7 @@ export default function EditUserPage() {
       
       try {
         // Try to fetch specific user first
-        const response = await fetch(`/api/users/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await fetchWithAuth(`/api/users/${id}`);
         
         if (response.ok) {
           const data = await response.json();
@@ -43,9 +41,7 @@ export default function EditUserPage() {
             console.warn(`Direct fetch failed (${response.status}), trying fallback via list...`);
             
             // Fallback: Fetch list and find user
-            const listResponse = await fetch(`/api/users?skip=0&limit=1000`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const listResponse = await fetchWithAuth(`/api/users?skip=0&limit=1000`);
 
             if (listResponse.ok) {
                 const listData = await listResponse.json();
