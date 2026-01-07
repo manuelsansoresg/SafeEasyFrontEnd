@@ -29,7 +29,8 @@ async function handler(request: NextRequest, { params }: { params: { path: strin
   console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
 
   try {
-    const body = ['GET', 'HEAD'].includes(request.method) ? undefined : await request.text();
+    // Use blob to handle body safely for both text and binary (multipart)
+    const body = ['GET', 'HEAD'].includes(request.method) ? undefined : await request.blob();
     
     let response = await fetch(targetUrl, {
       method: request.method,
@@ -54,6 +55,10 @@ async function handler(request: NextRequest, { params }: { params: { path: strin
     console.log(`[Generic Proxy] Response status: ${response.status}`);
 
     const data = await response.text();
+    
+    if (!response.ok) {
+        console.error(`[Generic Proxy] Backend error ${response.status} for ${targetUrl}:`, data);
+    }
     
     // Attempt to parse JSON to ensure we're returning valid JSON if possible, 
     // but returning text/blob is fine too depending on content-type.

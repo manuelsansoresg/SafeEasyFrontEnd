@@ -17,6 +17,9 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.69.0",
+    "react-quill-new": "^3.7.0",
+    "react-simple-wysiwyg": "^3.4.1",
+    "slugify": "^1.6.6",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.3.3",
     "zustand": "^5.0.9"

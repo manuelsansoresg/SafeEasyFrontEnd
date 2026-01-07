@@ -15,6 +15,7 @@ import {
   MapPin
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 interface Supplier {
   id: number;
@@ -30,30 +31,6 @@ interface Supplier {
   user_id: number;
 }
 
-interface SupplierFormData {
-  name: string;
-  short_name: string;
-  rfc: string;
-  phone: string;
-  email: string;
-  city: string;
-  state: string;
-  country: string;
-  is_active: boolean;
-}
-
-const initialFormData: SupplierFormData = {
-  name: "",
-  short_name: "",
-  rfc: "",
-  phone: "",
-  email: "",
-  city: "",
-  state: "",
-  country: "Mexico",
-  is_active: true,
-};
-
 export default function AdminSuppliersPage() {
   const { token, user } = useAuthStore();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -62,13 +39,9 @@ export default function AdminSuppliersPage() {
   
   // Pagination
   const [skip, setSkip] = useState(0);
-  const [limit, setLimit] = useState(100);
+  const [limit, setLimit] = useState(50);
 
   // Modal & Form
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState<SupplierFormData>(initialFormData);
-  const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -110,83 +83,6 @@ export default function AdminSuppliersPage() {
     setExpandedRows(newExpanded);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token || !user) {
-        setError("No hay sesión activa");
-        return;
-    }
-
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      const payload = {
-        ...formData,
-        user_id: user.id
-      };
-
-      const url = editingId 
-        ? `/api/suppliers/${editingId}/` 
-        : '/api/suppliers/';
-      
-      const method = editingId ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        let errorData;
-        try {
-            errorData = await response.json();
-        } catch (e) {
-            // Fallback if response is not JSON
-            const text = await response.text();
-            throw new Error(`Error ${response.status}: ${text || response.statusText}`);
-        }
-        
-        throw new Error(errorData.detail || errorData.message || "Error al guardar proveedor");
-      }
-
-      await fetchSuppliers();
-      closeModal();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleEdit = (supplier: Supplier) => {
-    setFormData({
-      name: supplier.name,
-      short_name: supplier.short_name || "",
-      rfc: supplier.rfc || "",
-      phone: supplier.phone || "",
-      email: supplier.email || "",
-      city: supplier.city || "",
-      state: supplier.state || "",
-      country: supplier.country || "Mexico",
-      is_active: supplier.is_active,
-    });
-    setEditingId(supplier.id);
-    setIsModalOpen(true);
-  };
-
   const handleDelete = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este proveedor?")) return;
     
@@ -210,19 +106,6 @@ export default function AdminSuppliersPage() {
     }
   };
 
-  const openNewModal = () => {
-    setFormData(initialFormData);
-    setEditingId(null);
-    setError(null);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingId(null);
-    setError(null);
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -230,13 +113,13 @@ export default function AdminSuppliersPage() {
           <h1 className="text-2xl font-bold text-gray-800">Gestión de Proveedores</h1>
           <p className="text-gray-500 mt-1">Administra la lista de proveedores del sistema.</p>
         </div>
-        <button 
-          onClick={openNewModal}
+        <Link 
+          href="/admin/suppliers/create"
           className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
         >
           <Plus size={20} />
           <span>Nuevo Proveedor</span>
-        </button>
+        </Link>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -300,13 +183,13 @@ export default function AdminSuppliersPage() {
                             >
                               {expandedRows.has(supplier.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                             </button>
-                            <button 
-                              onClick={() => handleEdit(supplier)}
+                            <Link 
+                              href={`/admin/suppliers/${supplier.id}`}
                               className="cursor-pointer p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
                               title="Editar"
                             >
                               <Edit2 size={18} />
-                            </button>
+                            </Link>
                             <button 
                               onClick={() => handleDelete(supplier.id)}
                               className="cursor-pointer p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -344,168 +227,6 @@ export default function AdminSuppliersPage() {
           </div>
         )}
       </div>
-
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-bold text-gray-800">
-                {editingId ? "Editar Proveedor" : "Nuevo Proveedor"}
-              </h2>
-              <button onClick={closeModal} className="cursor-pointer text-gray-400 hover:text-gray-600">
-                <XCircle size={24} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {error && (
-                <div className="p-4 bg-red-50 text-red-600 text-sm rounded-xl">
-                  {error}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Nombre *</label>
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                    placeholder="Nombre de la empresa"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Nombre Corto</label>
-                  <input
-                    type="text"
-                    name="short_name"
-                    value={formData.short_name}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                    placeholder="Alias o nombre comercial"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">RFC</label>
-                  <input
-                    type="text"
-                    name="rfc"
-                    value={formData.rfc}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                    placeholder="Registro Federal de Contribuyentes"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Teléfono</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                    placeholder="Número de contacto"
-                  />
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">Correo Electrónico</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                    placeholder="correo@empresa.com"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Ciudad</label>
-                  <input
-                    type="text"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Estado</label>
-                  <input
-                    type="text"
-                    name="state"
-                    value={formData.state}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">País</label>
-                  <input
-                    type="text"
-                    name="country"
-                    value={formData.country}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  />
-                </div>
-
-                <div className="space-y-2 flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id="is_active"
-                    name="is_active"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
-                    className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
-                  />
-                  <label htmlFor="is_active" className="text-sm font-medium text-gray-700 select-none cursor-pointer">
-                    Proveedor Activo
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="cursor-pointer px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
-                  disabled={isSubmitting}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="cursor-pointer px-6 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 flex items-center gap-2"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle size={18} />
-                      Guardar Proveedor
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
