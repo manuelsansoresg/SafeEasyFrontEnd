@@ -22,6 +22,7 @@ interface User {
   email: string;
   is_active: boolean;
   name?: string;
+  full_name?: string;
   role?: string;
 }
 

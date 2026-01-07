@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle } from "lucide-react";
+import { fetchWithAuth } from "@/lib/api";
 
 interface User {
   id: number;
@@ -11,6 +12,7 @@ interface User {
   is_active: boolean;
   is_superuser?: boolean;
   name?: string;
+  full_name?: string;
   role?: string;
 }
 
@@ -91,12 +93,8 @@ export default function UserForm({ initialData, isEditMode = false }: UserFormPr
         throw new Error("La contraseña es obligatoria para nuevos usuarios");
       }
 
-      const response = await fetch(url, {
+      const response = await fetchWithAuth(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify(payload),
       });
 
