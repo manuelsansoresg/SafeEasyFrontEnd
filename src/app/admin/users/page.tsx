@@ -46,6 +46,7 @@ export default function UsersPage() {
     }
 
     setLoading(true);
+    setError(null);
     try {
       // Reverting to trailing slash because user confirmed it's required and screenshot shows it.
       // Proxy will be updated to handle it correctly without dropping auth.
@@ -74,13 +75,16 @@ export default function UsersPage() {
             // If it's our proxy debug object, show it nicely
             if (json.error_source === "proxy_debug") {
                 console.error("[UsersPage] PROXY DEBUG INFO:", json);
-                // Try to extract the real message
+                
+                // Construct a visible error message with debug details
+                const backendRes = json.backend_response;
+                let backendDetails = backendRes;
                 try {
-                    const backendJson = JSON.parse(json.backend_response);
-                    errorMsg = backendJson.detail || backendJson.message || json.backend_response;
-                } catch {
-                    errorMsg = json.backend_response;
-                }
+                    const parsed = JSON.parse(backendRes);
+                    backendDetails = parsed.detail || parsed.message || JSON.stringify(parsed);
+                } catch {}
+
+                errorMsg = `Backend Error (${json.status}): ${backendDetails} | URL: ${json.debug_target_url}`;
             } else {
                 errorMsg = JSON.stringify(json, null, 2);
             }
@@ -137,6 +141,13 @@ export default function UsersPage() {
           Nuevo Usuario
         </Link>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
+          <XCircle size={20} />
+          <span>{error}</span>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex gap-4">

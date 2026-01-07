@@ -51,7 +51,11 @@ export default function LoginPage() {
             errorData = { message: errorText || `Error ${response.status}` };
         }
         
-        console.error('Error login response:', { status: response.status, data: errorData });
+        if (response.status >= 500) {
+            console.error('Error login response:', { status: response.status, data: errorData });
+        } else {
+            console.warn('Login failed:', { status: response.status, data: errorData });
+        }
 
         if (response.status === 401 || response.status === 400) {
             // Manejar "Incorrect email or password" explícitamente si viene en 'detail'
@@ -97,7 +101,9 @@ export default function LoginPage() {
       }
 
       // Login with full user data including ID
-      login(data.access_token, {
+      console.log("Login successful. Data:", { ...data, access_token: '***', refresh_token: data.refresh_token ? '***' : 'undefined' });
+      
+      login(data.access_token, data.refresh_token || null, {
           id: userData.id,
           name: userData.name,
           email: userData.email
