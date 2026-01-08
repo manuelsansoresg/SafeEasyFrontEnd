@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import slugify from "slugify";
 
 // List of available icons for selection
 const AVAILABLE_ICONS = [
@@ -65,6 +66,7 @@ interface CategoryFormData {
   description: string;
   icon: string | null;
   is_active: boolean;
+  slug?: string;
 }
 
 const initialFormData: CategoryFormData = {
