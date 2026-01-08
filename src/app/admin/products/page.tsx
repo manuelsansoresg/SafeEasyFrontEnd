@@ -25,6 +25,7 @@ interface Product {
   category_id: number;
   subcategory_id: number;
   slug: string;
+  thumbnail_url?: string;
 }
 
 export default function AdminProductsPage() {
