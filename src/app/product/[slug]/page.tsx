@@ -88,7 +88,7 @@ export default function ProductDetailPage() {
       console.log(`[ProductDetail] Fetching slug: ${slug} from ${baseUrl}`);
 
       // Strategy 1: Try direct fetch (ID or Slug supported?)
-      let res = await fetch(`${baseUrl}/products/${slug}`, {
+      let res = await fetch(`${baseUrl}/products/${encodeURIComponent(slug)}`, {
         headers: { 'Accept': 'application/json' }
       });
       

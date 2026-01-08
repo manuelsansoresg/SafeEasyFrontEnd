@@ -18,7 +18,17 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
       relativePath = path.join('/');
   }
 
-  let targetUrl = `${BASE_URL}/${relativePath}`;
+  // Use URL object to ensure proper encoding of path segments (e.g. spaces)
+  let targetUrlObj: URL;
+  try {
+     targetUrlObj = new URL(relativePath, BASE_URL);
+  } catch (e) {
+     // Fallback if BASE_URL + relativePath is somehow invalid or relativePath is absolute
+     targetUrlObj = new URL(relativePath, 'http://placeholder'); // Should not happen if logic is correct
+     console.error("[Generic Proxy] Error constructing URL object:", e);
+  }
+  
+  let targetUrl = targetUrlObj.toString();
   
   // Backend requires trailing slash for some endpoints (FastAPI default behavior sometimes)
   // If the original request didn't have a slash, but it's a known collection, force it.
@@ -27,6 +37,9 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
       targetUrl += '/';
   }
   
+  // Append query string (search params)
+  // targetUrlObj.toString() might already include params if relativePath had them? No, relativePath is path.
+  // We use request.nextUrl.search which includes '?'
   targetUrl += request.nextUrl.search;
 
   console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
