@@ -14,10 +14,16 @@ export interface Product {
   thumbnail_url?: string;
 }
 
-export async function getProducts(page: number = 1, limit: number = 20, query: string = ""): Promise<Product[]> {
+export async function getProducts(
+  page: number = 1, 
+  limit: number = 20, 
+  query: string = "",
+  categoryId?: number,
+  subcategoryId?: number
+): Promise<Product[]> {
   const skip = (page - 1) * limit;
   // Use the internal API URL or fallback
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8080';
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
   
   let url = `${baseUrl}/products/?skip=${skip}&limit=${limit}`;
   
@@ -25,6 +31,14 @@ export async function getProducts(page: number = 1, limit: number = 20, query: s
   // Assuming 'search' for now as it's common.
   if (query) {
     url += `&search=${encodeURIComponent(query)}`;
+  }
+
+  if (categoryId) {
+    url += `&category_id=${categoryId}`;
+  }
+
+  if (subcategoryId) {
+    url += `&subcategory_id=${subcategoryId}`;
   }
   
   try {

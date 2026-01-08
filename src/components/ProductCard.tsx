@@ -7,11 +7,12 @@ interface ProductCardProps {
   price: number;
   image: string;
   minOrder?: string;
+  slug: string;
 }
 
-export function ProductCard({ id, title, price, image, minOrder = "1 pieza" }: ProductCardProps) {
+export function ProductCard({ id, title, price, image, minOrder = "1 pieza", slug }: ProductCardProps) {
   return (
-    <Link href={`/product/${id}`} className="group block bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-shadow duration-300">
+    <Link href={`/product/${slug}`} className="group block bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-shadow duration-300">
       <div className="relative aspect-square overflow-hidden bg-secondary">
         {image ? (
           <img 

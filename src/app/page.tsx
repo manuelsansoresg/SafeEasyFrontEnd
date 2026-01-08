@@ -15,9 +15,20 @@ export default async function Home({
   const resolvedSearchParams = await searchParams;
   const page = Number(resolvedSearchParams.page) || 1;
   const query = typeof resolvedSearchParams.q === "string" ? resolvedSearchParams.q : "";
+  const categoryId = resolvedSearchParams.category ? Number(resolvedSearchParams.category) : undefined;
+  const subcategoryId = resolvedSearchParams.subcategory ? Number(resolvedSearchParams.subcategory) : undefined;
   const limit = 20;
 
-  const products = await getProducts(page, limit, query);
+  const products = await getProducts(page, limit, query, categoryId, subcategoryId);
+
+  const getPageUrl = (newPage: number) => {
+    const params = new URLSearchParams();
+    params.set("page", String(newPage));
+    if (query) params.set("q", query);
+    if (categoryId) params.set("category", String(categoryId));
+    if (subcategoryId) params.set("subcategory", String(subcategoryId));
+    return `/?${params.toString()}`;
+  };
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -32,9 +43,13 @@ export default async function Home({
         <div className="flex-1">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-800">
-              {query ? `Resultados para "${query}"` : "Recomendado para ti"}
+              {query 
+                ? `Resultados para "${query}"` 
+                : categoryId 
+                  ? "Productos de la categoría" 
+                  : "Recomendado para ti"}
             </h2>
-            {!query && (
+            {!query && !categoryId && !subcategoryId && (
               <button className="text-primary text-sm font-medium hover:underline">
                 Ver todo
               </button>
@@ -50,14 +65,15 @@ export default async function Home({
                   title={product.title}
                   price={product.price}
                   image={product.thumbnail_url || ""}
-                  minOrder="1 pieza" // Default value as it's not in API yet
+                  minOrder="1 pieza"
+                  slug={product.slug}
                 />
               ))}
             </div>
           ) : (
             <div className="text-center py-12 bg-gray-50 rounded-xl">
               <p className="text-gray-500">No se encontraron productos.</p>
-              {query && (
+              {(query || categoryId || subcategoryId) && (
                 <Link href="/" className="text-primary hover:underline mt-2 inline-block">
                   Ver todos los productos
                 </Link>
@@ -69,7 +85,7 @@ export default async function Home({
           <div className="flex justify-center items-center gap-4 mt-8">
             {page > 1 ? (
               <Link
-                href={`/?page=${page - 1}${query ? `&q=${encodeURIComponent(query)}` : ""}`}
+                href={getPageUrl(page - 1)}
                 className="flex items-center gap-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
               >
                 <ChevronLeft size={16} />
@@ -91,7 +107,7 @@ export default async function Home({
 
             {products.length === limit ? (
               <Link
-                href={`/?page=${page + 1}${query ? `&q=${encodeURIComponent(query)}` : ""}`}
+                href={getPageUrl(page + 1)}
                 className="flex items-center gap-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
               >
                 Siguiente

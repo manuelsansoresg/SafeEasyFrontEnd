@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8080';
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
 
 async function handler(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   // Await the params object

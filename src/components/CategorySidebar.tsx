@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -118,7 +119,8 @@ export function CategorySidebar() {
             onMouseEnter={() => setActiveCategory(cat.id)}
             onMouseLeave={() => setActiveCategory(null)}
           >
-            <button
+            <Link
+              href={`/?category=${cat.id}`}
               className={cn(
                 "w-full px-4 py-3 text-sm text-left flex items-center justify-between hover:bg-secondary transition-colors",
                 activeCategory === cat.id && "bg-secondary text-primary font-medium"
@@ -131,7 +133,7 @@ export function CategorySidebar() {
                 {cat.name}
               </span>
               <ChevronRight size={14} className="opacity-50 group-hover:opacity-100" />
-            </button>
+            </Link>
             
             {/* Flyout Menu */}
             <AnimatePresence>
@@ -148,7 +150,11 @@ export function CategorySidebar() {
                   {getSubcategories(cat.id).length > 0 ? (
                       <div className="grid grid-cols-3 gap-4">
                         {getSubcategories(cat.id).map((sub) => (
-                            <div key={sub.id} className="flex flex-col items-center gap-2 p-2 hover:bg-secondary rounded-lg cursor-pointer transition-colors">
+                            <Link 
+                              key={sub.id} 
+                              href={`/?subcategory=${sub.id}`}
+                              className="flex flex-col items-center gap-2 p-2 hover:bg-secondary rounded-lg cursor-pointer transition-colors"
+                            >
                             {/* Image */}
                             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden border border-gray-100">
                                 {sub.image ? (
@@ -158,7 +164,7 @@ export function CategorySidebar() {
                                 )}
                             </div>
                             <span className="text-sm text-center font-medium text-gray-700">{sub.name}</span>
-                            </div>
+                            </Link>
                         ))}
                       </div>
                   ) : (
