@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Grid, MessageSquare, ShoppingCart, User } from "lucide-react";
+import { Home, Grid, MessageSquare, User } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 

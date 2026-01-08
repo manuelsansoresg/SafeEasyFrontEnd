@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { 
   MessageCircle, 
-  ShoppingCart, 
   Truck, 
   Check, 
   ShieldCheck, 
@@ -336,10 +335,6 @@ export default function ProductDetailPage() {
                   <button className="flex-1 bg-primary text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                     <MessageCircle size={24} />
                     Chat con Proveedor
-                  </button>
-                  <button className="flex-1 bg-white text-gray-900 border-2 border-gray-200 px-8 py-4 rounded-xl font-bold text-lg hover:border-gray-300 hover:bg-gray-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                    <ShoppingCart size={24} />
-                    Agregar al carrito
                   </button>
                 </div>
 

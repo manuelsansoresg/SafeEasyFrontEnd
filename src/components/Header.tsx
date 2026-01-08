@@ -185,9 +185,6 @@ export function Header() {
                     <Link href="/messages" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
                       <span>💬</span> Mensajes
                     </Link>
-                    <Link href="/cart" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
-                      <span>🛒</span> Carrito
-                    </Link>
                     <Link href="/favorites" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
                       <span>❤️</span> Favoritos
                     </Link>
