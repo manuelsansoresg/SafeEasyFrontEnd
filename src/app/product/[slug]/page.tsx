@@ -104,6 +104,8 @@ export default function ProductDetailPage() {
         
         if (searchRes.ok) {
             const searchData = await searchRes.json();
+            console.log(`[ProductDetail] Search fallback result:`, searchData);
+
             if (Array.isArray(searchData) && searchData.length > 0) {
                 const productSummary = searchData[0];
                 // Check slug match to avoid fuzzy search false positives
@@ -113,13 +115,21 @@ export default function ProductDetailPage() {
                      res = await fetch(`${baseUrl}/products/${productSummary.id}`, {
                         headers: { 'Accept': 'application/json' }
                      });
+                } else {
+                     console.warn(`[ProductDetail] Slug mismatch. Expected: ${slug}, Found: ${productSummary.slug}`);
                 }
+            } else {
+                console.warn(`[ProductDetail] Search returned empty list.`);
             }
+        } else {
+             console.error(`[ProductDetail] Search fallback failed (${searchRes.status}).`);
         }
       }
 
       if (!res.ok) {
-          throw new Error(`Producto no encontrado (${res.status})`);
+          const errorData = await res.json().catch(() => null);
+          console.error(`[ProductDetail] Final fetch failed. Status: ${res.status}`, errorData);
+          throw new Error(`Producto no encontrado (${res.status}). ${errorData ? JSON.stringify(errorData) : ''}`);
       }
       
       const data = await res.json();
@@ -366,7 +376,7 @@ export default function ProductDetailPage() {
               Descripción del Producto
             </h3>
             <div 
-              className="prose prose-sm sm:prose max-w-none text-gray-600 bg-white p-6 rounded-xl border border-gray-200 shadow-sm"
+              className="prose prose-sm sm:prose !max-w-none w-full break-words whitespace-normal text-gray-600 bg-white p-6 rounded-xl border border-gray-200 shadow-sm"
               dangerouslySetInnerHTML={{ __html: product.description }}
             />
           </div>
