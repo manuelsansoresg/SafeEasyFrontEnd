@@ -53,6 +53,7 @@ interface Product {
   category_id: number;
   subcategory_id: number;
   slug: string;
+  thumbnail_url?: string;
 }
 
 interface ProductMedia {
@@ -125,6 +126,10 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [mediaList, setMediaList] = useState<ProductMedia[]>([]);
 
+  // Cover Image
+  const [coverImage, setCoverImage] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+
   // Aux Data
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -157,6 +162,10 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         // We will load suppliers when the modal opens, but we can try to load them now or just wait.
         setSelectedSupplierDisplay(`ID: ${initialData.supplier_id}`);
         fetchMedia(initialData.id);
+        
+        if (initialData.thumbnail_url) {
+            setCoverPreview(initialData.thumbnail_url);
+        }
     }
   }, [initialData, token]);
 
@@ -274,6 +283,19 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
   // -- Handlers --
 
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setCoverImage(file);
+      setCoverPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleRemoveCover = () => {
+    setCoverImage(null);
+    setCoverPreview(null);
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     setFormData(prev => ({
@@ -325,20 +347,27 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       const randomSuffix = Math.floor(Math.random() * 10000);
       const slug = slugify(`${formData.title}-${randomSuffix}`, { lower: true, strict: true });
 
-      const payload = {
-        title: formData.title,
-        description: formData.description,
-        price: Number(formData.price),
-        stock: Number(formData.stock),
-        sku: formData.sku,
-        is_active: formData.is_active,
-        supplier_id: formData.supplier_id,
-        category_id: formData.category_id,
-        subcategory_id: formData.subcategory_id,
-        slug: slug 
-      };
+      const payload = new FormData();
+      payload.append('title', formData.title);
+      payload.append('description', formData.description);
+      payload.append('price', String(formData.price));
+      payload.append('stock', String(formData.stock));
+      payload.append('sku', formData.sku);
+      payload.append('is_active', String(formData.is_active));
+      if (formData.supplier_id) payload.append('supplier_id', String(formData.supplier_id));
+      if (formData.category_id) payload.append('category_id', String(formData.category_id));
+      if (formData.subcategory_id) payload.append('subcategory_id', String(formData.subcategory_id));
+      payload.append('slug', slug);
 
-      console.log("Sending payload:", payload);
+      if (coverImage) {
+        payload.append('image', coverImage);
+      } else if (coverPreview === null && initialData?.thumbnail_url) {
+         if (isEditMode) {
+              payload.append('delete_image', 'true');
+         }
+      }
+
+      console.log("Sending payload (FormData)");
 
       const url = isEditMode && initialData
         ? `/api/products/${initialData.id}` 
@@ -348,7 +377,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
       const response = await fetchWithAuth(url, {
         method,
-        body: JSON.stringify(payload)
+        body: payload
       });
 
       if (!response.ok) {
@@ -423,6 +452,43 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
               onChange={handleInputChange}
               className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             />
+          </div>
+
+          <div className="col-span-2 space-y-2">
+            <label className="text-sm font-medium text-gray-700">Imagen de Portada</label>
+            <div className="flex items-start gap-4">
+              <div className="relative w-32 h-32 bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl overflow-hidden flex items-center justify-center group hover:border-primary/50 transition-colors">
+                {coverPreview ? (
+                  <>
+                    <img 
+                      src={coverPreview} 
+                      alt="Preview" 
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveCover}
+                      className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <ImageIcon className="text-gray-300" size={32} />
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleCoverChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </div>
+              <div className="flex-1 text-sm text-gray-500">
+                <p>Sube una imagen de portada para el producto.</p>
+                <p>Formatos permitidos: JPG, PNG, WEBP.</p>
+                <p>Tamaño máximo recomendado: 2MB.</p>
+              </div>
+            </div>
           </div>
 
           <div className="col-span-2 space-y-2">

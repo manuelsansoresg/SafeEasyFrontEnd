@@ -127,6 +127,19 @@ export default function AdminProductsPage() {
                   products.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="p-4">
+                        <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center border border-gray-200">
+                          {product.thumbnail_url ? (
+                            <img 
+                              src={product.thumbnail_url} 
+                              alt={product.title} 
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Package className="text-gray-300" size={24} />
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4">
                         <div className="font-medium text-gray-800">{product.title}</div>
                         <div 
                           className="text-xs text-gray-400 truncate max-w-[200px]" 
