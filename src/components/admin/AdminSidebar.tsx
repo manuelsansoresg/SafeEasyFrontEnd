@@ -30,8 +30,13 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
   
   // Menu items configuration
   const menuItems = [
+    {
+      title: "Dashboard",
+      path: "/admin/dashboard",
+      icon: LayoutDashboard
+    },
     { 
-      title: "Perfíl", 
+      title: "Perfil", 
       path: "/admin/profile", 
       icon: User 
     },
