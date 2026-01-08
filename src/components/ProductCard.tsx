@@ -13,11 +13,18 @@ export function ProductCard({ id, title, price, image, minOrder = "1 pieza" }: P
   return (
     <Link href={`/product/${id}`} className="group block bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-shadow duration-300">
       <div className="relative aspect-square overflow-hidden bg-secondary">
-        {/* Placeholder for Image */}
-        <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-gray-100 group-hover:scale-105 transition-transform duration-500">
-           {/* In real app, use next/image */}
-           <span className="text-4xl">📦</span>
-        </div>
+        {image ? (
+          <img 
+            src={image} 
+            alt={title} 
+            className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500" 
+          />
+        ) : (
+          /* Placeholder for Image */
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-gray-100 group-hover:scale-105 transition-transform duration-500">
+             <span className="text-4xl">📦</span>
+          </div>
+        )}
         <button className="absolute top-2 right-2 p-1.5 bg-white/80 rounded-full text-gray-500 hover:text-red-500 hover:bg-white transition-colors opacity-0 group-hover:opacity-100">
           <Heart size={18} />
         </button>

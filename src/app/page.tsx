@@ -1,22 +1,24 @@
 import { CategorySidebar } from "@/components/CategorySidebar";
 import { ProductCard } from "@/components/ProductCard";
 import { WelcomeSection } from "@/components/WelcomeSection";
+import { getProducts } from "@/lib/products";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
-// Dummy Data
-const products = [
-  { id: "1", title: "Auriculares Inalámbricos Bluetooth 5.0 Cancelación de Ruido", price: 25.99, image: "/p1.jpg" },
-  { id: "2", title: "Smartwatch Deportivo Resistente al Agua IP68", price: 45.50, image: "/p2.jpg" },
-  { id: "3", title: "Funda para iPhone 13 Pro Max Silicona", price: 5.99, image: "/p3.jpg", minOrder: "10 piezas" },
-  { id: "4", title: "Cargador Rápido USB-C 20W Original", price: 12.00, image: "/p4.jpg" },
-  { id: "5", title: "Soporte para Celular Coche Magnético", price: 8.50, image: "/p5.jpg" },
-  { id: "6", title: "Cable HDMI 4K Ultra HD 2 Metros", price: 7.99, image: "/p6.jpg" },
-  { id: "7", title: "Teclado Mecánico RGB Gaming Switch Blue", price: 55.00, image: "/p7.jpg" },
-  { id: "8", title: "Mouse Inalámbrico Ergonómico Vertical", price: 18.25, image: "/p8.jpg" },
-  { id: "9", title: "Lámpara LED de Escritorio con Cargador Inalámbrico", price: 32.00, image: "/p9.jpg" },
-  { id: "10", title: "Mochila Antirrobo Impermeable con Puerto USB", price: 29.99, image: "/p10.jpg" },
-];
+type SearchParams = { [key: string]: string | string[] | undefined };
 
-export default function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const page = Number(resolvedSearchParams.page) || 1;
+  const query = typeof resolvedSearchParams.q === "string" ? resolvedSearchParams.q : "";
+  const limit = 20;
+
+  const products = await getProducts(page, limit, query);
+
   return (
     <div className="container mx-auto px-4 py-6">
       {/* Welcome Section */}
@@ -29,21 +31,81 @@ export default function Home() {
         {/* Main Content - Product Grid */}
         <div className="flex-1">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-800">Recomendado para ti</h2>
-            <button className="text-primary text-sm font-medium hover:underline">Ver todo</button>
+            <h2 className="text-xl font-bold text-gray-800">
+              {query ? `Resultados para "${query}"` : "Recomendado para ti"}
+            </h2>
+            {!query && (
+              <button className="text-primary text-sm font-medium hover:underline">
+                Ver todo
+              </button>
+            )}
           </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {products.map((product) => (
-              <ProductCard
-                key={product.id}
-                id={product.id}
-                title={product.title}
-                price={product.price}
-                image={product.image}
-                minOrder={product.minOrder}
-              />
-            ))}
+
+          {products.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {products.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  id={String(product.id)}
+                  title={product.title}
+                  price={product.price}
+                  image={product.thumbnail_url || ""}
+                  minOrder="1 pieza" // Default value as it's not in API yet
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 bg-gray-50 rounded-xl">
+              <p className="text-gray-500">No se encontraron productos.</p>
+              {query && (
+                <Link href="/" className="text-primary hover:underline mt-2 inline-block">
+                  Ver todos los productos
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* Pagination */}
+          <div className="flex justify-center items-center gap-4 mt-8">
+            {page > 1 ? (
+              <Link
+                href={`/?page=${page - 1}${query ? `&q=${encodeURIComponent(query)}` : ""}`}
+                className="flex items-center gap-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+              >
+                <ChevronLeft size={16} />
+                Anterior
+              </Link>
+            ) : (
+              <button
+                disabled
+                className="flex items-center gap-1 px-4 py-2 border rounded-lg text-gray-300 cursor-not-allowed text-sm font-medium"
+              >
+                <ChevronLeft size={16} />
+                Anterior
+              </button>
+            )}
+
+            <span className="text-sm text-gray-600 font-medium">
+              Página {page}
+            </span>
+
+            {products.length === limit ? (
+              <Link
+                href={`/?page=${page + 1}${query ? `&q=${encodeURIComponent(query)}` : ""}`}
+                className="flex items-center gap-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+              >
+                Siguiente
+                <ChevronRight size={16} />
+              </Link>
+            ) : (
+              <button
+                disabled
+                className="flex items-center gap-1 px-4 py-2 border rounded-lg text-gray-300 cursor-not-allowed text-sm font-medium"
+              >
+                Siguiente
+                <ChevronRight size={16} />
+              </button>
+            )}
           </div>
         </div>
       </div>

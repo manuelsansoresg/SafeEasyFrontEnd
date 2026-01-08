@@ -1,11 +1,84 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { Search, Camera, User, ChevronDown, ShoppingBag, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useRouter, useSearchParams } from "next/navigation";
+
+function SearchBar() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    setQuery(searchParams.get("q") || "");
+  }, [searchParams]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query.trim()) {
+      router.push(`/?q=${encodeURIComponent(query)}`);
+    } else {
+      router.push("/");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSearch} className="relative w-full flex items-center">
+      <input
+        type="text"
+        placeholder="¿Qué estás buscando?"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="w-full h-10 pl-4 pr-24 rounded-full border-2 border-primary/50 focus:border-primary focus:outline-none transition-colors"
+      />
+      <button type="button" className="absolute right-24 p-1 text-muted-foreground hover:text-primary transition-colors">
+        <Camera size={20} />
+      </button>
+      <button type="submit" className="absolute right-0 top-0 bottom-0 px-6 bg-primary text-primary-foreground rounded-r-full font-medium hover:bg-primary/90 transition-colors flex items-center gap-2">
+        <Search size={18} />
+        Buscar
+      </button>
+    </form>
+  );
+}
+
+function MobileSearchBar() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    setQuery(searchParams.get("q") || "");
+  }, [searchParams]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query.trim()) {
+      router.push(`/?q=${encodeURIComponent(query)}`);
+    } else {
+      router.push("/");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSearch} className="relative w-full flex items-center">
+      <input
+        type="text"
+        placeholder="Buscar..."
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="w-full h-9 pl-3 pr-10 rounded-full border border-border bg-secondary focus:border-primary focus:outline-none text-sm"
+      />
+      <button type="submit" className="absolute right-3 p-1 text-muted-foreground">
+        <Search size={16} />
+      </button>
+    </form>
+  );
+}
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -37,34 +110,16 @@ export function Header() {
 
         {/* Search Bar - Hidden on very small screens if needed, or adapted */}
         <div className="flex-1 max-w-2xl mx-4 hidden md:flex relative group">
-          <div className="relative w-full flex items-center">
-            <input
-              type="text"
-              placeholder="¿Qué estás buscando?"
-              className="w-full h-10 pl-4 pr-24 rounded-full border-2 border-primary/50 focus:border-primary focus:outline-none transition-colors"
-            />
-            <button className="absolute right-24 p-1 text-muted-foreground hover:text-primary transition-colors">
-              <Camera size={20} />
-            </button>
-            <button className="absolute right-0 top-0 bottom-0 px-6 bg-primary text-primary-foreground rounded-r-full font-medium hover:bg-primary/90 transition-colors flex items-center gap-2">
-              <Search size={18} />
-              Buscar
-            </button>
-          </div>
+          <Suspense fallback={<div className="w-full h-10 bg-gray-100 rounded-full" />}>
+            <SearchBar />
+          </Suspense>
         </div>
 
         {/* Mobile Search - Simplified */}
         <div className="flex-1 md:hidden mx-2">
-           <div className="relative w-full flex items-center">
-            <input
-              type="text"
-              placeholder="Buscar..."
-              className="w-full h-9 pl-3 pr-10 rounded-full border border-border bg-secondary focus:border-primary focus:outline-none text-sm"
-            />
-             <button className="absolute right-3 p-1 text-muted-foreground">
-              <Search size={16} />
-            </button>
-           </div>
+           <Suspense fallback={<div className="w-full h-9 bg-gray-100 rounded-full" />}>
+             <MobileSearchBar />
+           </Suspense>
         </div>
 
         {/* Desktop Actions */}
