@@ -179,9 +179,11 @@ export function Header() {
                     <p className="font-semibold text-sm">Tu cuenta</p>
                   </div>
                   <nav className="flex flex-col">
-                    <Link href="/orders" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
-                      <span>📦</span> Gestionar Pedidos
-                    </Link>
+                    {user?.role === 'admin' && (
+                      <Link href="/admin/dashboard" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3 font-medium text-primary">
+                        <span>🛡️</span> Panel Admin
+                      </Link>
+                    )}
                     <Link href="/messages" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
                       <span>💬</span> Mensajes
                     </Link>

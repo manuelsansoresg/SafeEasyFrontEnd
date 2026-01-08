@@ -106,7 +106,8 @@ export default function LoginPage() {
       login(data.access_token, data.refresh_token || null, {
           id: userData.id,
           name: userData.name,
-          email: userData.email
+          email: userData.email,
+          role: userData.role
       });
       
       if (userData.role === 'admin') {

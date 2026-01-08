@@ -4,15 +4,18 @@ import Link from "next/link";
 import { Home, Grid, MessageSquare, User } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/useAuthStore";
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
 
   const navItems = [
     { href: "/", label: "Inicio", icon: Home },
     { href: "/categories", label: "Categorías", icon: Grid },
     { href: "/messages", label: "Mensajes", icon: MessageSquare },
-    { href: "/account", label: "Mi Cuenta", icon: User },
+    { href: isAdmin ? "/admin/dashboard" : "/account", label: "Mi Cuenta", icon: User },
   ];
 
   return (

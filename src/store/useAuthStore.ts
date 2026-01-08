@@ -3,10 +3,10 @@ import { persist } from 'zustand/middleware';
 
 interface AuthState {
   isAuthenticated: boolean;
-  user: { id: number; name: string; email: string } | null;
+  user: { id: number; name: string; email: string; role?: string } | null;
   token: string | null;
   refreshToken: string | null;
-  login: (token: string, refreshToken: string | null, user: { id: number; name: string; email: string }) => void;
+  login: (token: string, refreshToken: string | null, user: { id: number; name: string; email: string; role?: string }) => void;
   setToken: (token: string) => void;
   logout: () => void;
 }
