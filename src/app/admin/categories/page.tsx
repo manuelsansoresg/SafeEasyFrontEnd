@@ -89,8 +89,7 @@ export default function AdminCategoriesPage() {
   const renderIcon = (iconName: string | null) => {
     if (!iconName) return <Grid size={20} />;
     
-    // @ts-ignore
-    const IconComponent = Icons[iconName as keyof typeof Icons];
+    const IconComponent = Icons[iconName as keyof typeof Icons] as any;
     return IconComponent ? <IconComponent size={20} /> : <Grid size={20} />;
   };
 
