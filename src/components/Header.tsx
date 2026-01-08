@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { Search, Camera, User, ChevronDown, ShoppingBag, LogOut } from "lucide-react";
+import { Search, User, ChevronDown, ShoppingBag, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -33,11 +33,8 @@ function SearchBar() {
         placeholder="¿Qué estás buscando?"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="w-full h-10 pl-4 pr-24 rounded-full border-2 border-primary/50 focus:border-primary focus:outline-none transition-colors"
+        className="w-full h-10 pl-4 pr-32 rounded-full border-2 border-primary/50 focus:border-primary focus:outline-none transition-colors"
       />
-      <button type="button" className="absolute right-24 p-1 text-muted-foreground hover:text-primary transition-colors">
-        <Camera size={20} />
-      </button>
       <button type="submit" className="absolute right-0 top-0 bottom-0 px-6 bg-primary text-primary-foreground rounded-r-full font-medium hover:bg-primary/90 transition-colors flex items-center gap-2">
         <Search size={18} />
         Buscar

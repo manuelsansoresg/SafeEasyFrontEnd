@@ -120,7 +120,7 @@ export function CategorySidebar() {
             onMouseLeave={() => setActiveCategory(null)}
           >
             <Link
-              href={`/?category=${cat.id}`}
+              href={`/?category=${cat.slug}`}
               className={cn(
                 "w-full px-4 py-3 text-sm text-left flex items-center justify-between hover:bg-secondary transition-colors",
                 activeCategory === cat.id && "bg-secondary text-primary font-medium"
@@ -152,7 +152,7 @@ export function CategorySidebar() {
                         {getSubcategories(cat.id).map((sub) => (
                             <Link 
                               key={sub.id} 
-                              href={`/?subcategory=${sub.id}`}
+                              href={`/?category=${cat.slug}&subcategory=${sub.slug}`}
                               className="flex flex-col items-center gap-2 p-2 hover:bg-secondary rounded-lg cursor-pointer transition-colors"
                             >
                             {/* Image */}

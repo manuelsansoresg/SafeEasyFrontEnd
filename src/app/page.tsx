@@ -15,18 +15,18 @@ export default async function Home({
   const resolvedSearchParams = await searchParams;
   const page = Number(resolvedSearchParams.page) || 1;
   const query = typeof resolvedSearchParams.q === "string" ? resolvedSearchParams.q : "";
-  const categoryId = resolvedSearchParams.category ? Number(resolvedSearchParams.category) : undefined;
-  const subcategoryId = resolvedSearchParams.subcategory ? Number(resolvedSearchParams.subcategory) : undefined;
+  const categorySlug = typeof resolvedSearchParams.category === "string" ? resolvedSearchParams.category : undefined;
+  const subcategorySlug = typeof resolvedSearchParams.subcategory === "string" ? resolvedSearchParams.subcategory : undefined;
   const limit = 20;
 
-  const products = await getProducts(page, limit, query, categoryId, subcategoryId);
+  const products = await getProducts(page, limit, query, categorySlug, subcategorySlug);
 
   const getPageUrl = (newPage: number) => {
     const params = new URLSearchParams();
     params.set("page", String(newPage));
     if (query) params.set("q", query);
-    if (categoryId) params.set("category", String(categoryId));
-    if (subcategoryId) params.set("subcategory", String(subcategoryId));
+    if (categorySlug) params.set("category", categorySlug);
+    if (subcategorySlug) params.set("subcategory", subcategorySlug);
     return `/?${params.toString()}`;
   };
 
@@ -45,11 +45,11 @@ export default async function Home({
             <h2 className="text-xl font-bold text-gray-800">
               {query 
                 ? `Resultados para "${query}"` 
-                : categoryId 
-                  ? "Productos de la categoría" 
+                : categorySlug 
+                  ? `Productos de ${subcategorySlug || categorySlug}`.replace(/-/g, ' ') 
                   : "Recomendado para ti"}
             </h2>
-            {!query && !categoryId && !subcategoryId && (
+            {!query && !categorySlug && !subcategorySlug && (
               <button className="text-primary text-sm font-medium hover:underline">
                 Ver todo
               </button>
@@ -73,7 +73,7 @@ export default async function Home({
           ) : (
             <div className="text-center py-12 bg-gray-50 rounded-xl">
               <p className="text-gray-500">No se encontraron productos.</p>
-              {(query || categoryId || subcategoryId) && (
+              {(query || categorySlug || subcategorySlug) && (
                 <Link href="/" className="text-primary hover:underline mt-2 inline-block">
                   Ver todos los productos
                 </Link>
