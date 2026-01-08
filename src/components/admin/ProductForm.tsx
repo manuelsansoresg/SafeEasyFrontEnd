@@ -18,6 +18,8 @@ import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
+const MAX_IMAGES = 6; // Variable para controlar el número máximo de imágenes
+
 // --- Interfaces ---
 
 interface Category {
@@ -282,6 +284,34 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   };
 
   // -- Handlers --
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
+      const currentCount = mediaList.length;
+      const newCount = files.length;
+      
+      if (currentCount + newCount > MAX_IMAGES) {
+        const remainingSlots = Math.max(0, MAX_IMAGES - currentCount);
+        
+        if (remainingSlots === 0) {
+          alert(`Ya has alcanzado el límite de ${MAX_IMAGES} archivos.`);
+          e.target.value = ""; // Reset input
+          setSelectedFiles(null);
+          return;
+        }
+
+        alert(`Has superado el límite de ${MAX_IMAGES} archivos. Solo se añadirán ${remainingSlots} archivos.`);
+        
+        const allowedFiles = files.slice(0, remainingSlots);
+        const dataTransfer = new DataTransfer();
+        allowedFiles.forEach(file => dataTransfer.items.add(file));
+        setSelectedFiles(dataTransfer.files);
+      } else {
+        setSelectedFiles(e.target.files);
+      }
+    }
+  };
 
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -613,12 +643,18 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                   multiple 
                   id="media-upload" 
                   className="hidden" 
-                  onChange={(e) => setSelectedFiles(e.target.files)}
+                  accept="image/*,video/*"
+                  onChange={handleFileSelect}
+                  disabled={mediaList.length >= MAX_IMAGES}
                 />
-                <label htmlFor="media-upload" className="cursor-pointer flex flex-col items-center gap-2">
+                <label htmlFor="media-upload" className={`cursor-pointer flex flex-col items-center gap-2 ${mediaList.length >= MAX_IMAGES ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <Upload className="text-gray-400" size={32} />
-                    <span className="text-gray-600 font-medium">Click para subir archivos</span>
-                    <span className="text-xs text-gray-400">Soporta imágenes y videos</span>
+                    <span className="text-gray-600 font-medium">
+                      {mediaList.length >= MAX_IMAGES ? "Límite de contenido alcanzado" : "Click para subir archivos"}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      Soporta imágenes y videos (Máx. {MAX_IMAGES} archivos en total)
+                    </span>
                 </label>
                 {selectedFiles && selectedFiles.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2 justify-center">
