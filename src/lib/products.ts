@@ -12,6 +12,7 @@ export interface Product {
   subcategory_id: number;
   slug: string;
   thumbnail_url?: string;
+  average_rating?: number;
 }
 
 export async function getProducts(

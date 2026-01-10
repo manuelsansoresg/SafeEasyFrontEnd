@@ -67,6 +67,7 @@ export default async function Home({
                   image={product.thumbnail_url || ""}
                   minOrder="1 pieza"
                   slug={product.slug}
+                  rating={Number(product.average_rating || 0)}
                 />
               ))}
             </div>
