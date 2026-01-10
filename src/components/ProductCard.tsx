@@ -28,9 +28,6 @@ export function ProductCard({ id, title, price, image, minOrder = "1 pieza", slu
              <span className="text-4xl">📦</span>
           </div>
         )}
-        <button className="absolute top-2 right-2 p-1.5 bg-white/80 rounded-full text-gray-500 hover:text-red-500 hover:bg-white transition-colors opacity-0 group-hover:opacity-100">
-          <Heart size={18} />
-        </button>
       </div>
       <div className="p-4">
         <h3 className="text-sm font-medium text-gray-800 line-clamp-2 group-hover:text-primary transition-colors mb-2 h-10">
