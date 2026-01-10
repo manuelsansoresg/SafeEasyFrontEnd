@@ -107,6 +107,7 @@ export default function ProductDetailPage() {
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [ratingError, setRatingError] = useState<string | null>(null);
   const [ratingSuccess, setRatingSuccess] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   useEffect(() => {
     if (slug) {
@@ -765,6 +766,12 @@ export default function ProductDetailPage() {
           </div>
         </div>
       </main>
+
+      {/* Login Modal */}
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setIsLoginModalOpen(false)} 
+      />
 
       {/* Zoom Modal */}
       {isZoomOpen && currentMedia && (
