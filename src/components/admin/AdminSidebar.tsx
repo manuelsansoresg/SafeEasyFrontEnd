@@ -26,46 +26,64 @@ interface AdminSidebarProps {
 
 export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) {
   const pathname = usePathname();
-  const logout = useAuthStore((state) => state.logout);
+  const { user, logout } = useAuthStore();
+  const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
   
   // Menu items configuration
   const menuItems = [
     {
       title: "Dashboard",
       path: "/admin/dashboard",
-      icon: LayoutDashboard
+      icon: LayoutDashboard,
+      roles: ['admin', 'superuser', 'supplier']
+    },
+    { 
+      title: "Mi Empresa", 
+      path: "/admin/my-company", 
+      icon: Grid,
+      roles: ['supplier']
     },
     { 
       title: "Perfil", 
       path: "/admin/profile", 
-      icon: User 
+      icon: User,
+      roles: ['admin', 'superuser', 'supplier']
     },
     { 
       title: "Categorías", 
       path: "/admin/categories", 
-      icon: Grid 
+      icon: Grid,
+      roles: ['admin', 'superuser']
     },
     { 
       title: "Subcategorias", 
       path: "/admin/subcategories", 
-      icon: Layers 
+      icon: Layers,
+      roles: ['admin', 'superuser']
     },
     { 
       title: "Usuarios", 
       path: "/admin/users", 
-      icon: Users2 
+      icon: Users2,
+      roles: ['admin', 'superuser']
     },
     { 
       title: "Proveedores", 
       path: "/admin/suppliers", 
-      icon: Users 
+      icon: Users,
+      roles: ['admin', 'superuser']
     },
     { 
-      title: "Producto", 
+      title: "Mis Productos", 
       path: "/admin/products", 
-      icon: Package 
+      icon: Package,
+      roles: ['admin', 'superuser', 'supplier']
     }
   ];
+
+  const filteredMenuItems = menuItems.filter(item => 
+    !item.roles || (user?.role && item.roles.includes(user.role)) || (isAdmin && item.roles?.includes('admin'))
+  );
 
   return (
     <motion.aside
@@ -105,7 +123,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       {/* Navigation Items */}
       <div className="flex-1 py-6 overflow-y-auto overflow-x-hidden scrollbar-thin">
         <nav className="space-y-2 px-3">
-          {menuItems.map((item) => {
+          {filteredMenuItems.map((item) => {
             const isActive = pathname === item.path || pathname.startsWith(item.path);
             
             return (
@@ -116,7 +134,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
                   "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative",
                   isActive 
                     ? "bg-primary text-white shadow-md shadow-primary/20" 
-                    : "text-gray-600 hover:bg-orange-50 hover:text-primary"
+                    : "text-gray-600 hover:bg-primary/5 hover:text-primary"
                 )}
                 title={isCollapsed ? item.title : undefined}
               >

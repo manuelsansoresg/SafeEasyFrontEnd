@@ -7,7 +7,7 @@ export function WelcomeSection() {
   const { user, isAuthenticated } = useAuthStore();
 
   return (
-    <div className="mb-6 bg-gradient-to-r from-orange-100 to-white p-6 rounded-2xl border border-orange-200">
+    <div className="mb-6 bg-gradient-to-r from-purple-50 to-white p-6 rounded-2xl border border-purple-100">
       <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
         ¡Hola, <span className="text-primary">{isAuthenticated ? user?.name : "Invitado"}</span>!
       </h1>

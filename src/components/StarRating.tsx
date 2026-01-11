@@ -48,19 +48,19 @@ export default function StarRating({
               {isFull ? (
                 <Star 
                   size={size} 
-                  className="fill-orange-500 text-orange-500" 
+                  className="fill-primary text-primary" 
                 />
               ) : isHalf ? (
                 <div className="relative">
-                    <Star size={size} className="text-orange-500" />
+                    <Star size={size} className="text-gray-200" />
                     <div className="absolute top-0 left-0 w-1/2 overflow-hidden">
-                         <Star size={size} className="fill-orange-500 text-orange-500" />
+                         <Star size={size} className="fill-primary text-primary" />
                     </div>
                 </div>
               ) : (
                 <Star 
                   size={size} 
-                  className="text-orange-500" 
+                  className="text-gray-200" 
                 />
               )}
             </button>

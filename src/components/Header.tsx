@@ -123,9 +123,9 @@ export function Header() {
         <div className="hidden md:flex items-center gap-6">
           <Link
             href="/sell"
-            className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors"
+            className="flex items-center gap-2 text-sm font-bold text-white bg-primary hover:bg-primary/90 py-2 px-4 rounded-full transition-all shadow-md hover:shadow-lg transform hover:scale-105"
           >
-            <ShoppingBag size={20} />
+            <ShoppingBag size={18} />
             <span>Vende en SafeEasy</span>
           </Link>
 

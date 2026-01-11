@@ -24,7 +24,7 @@ export default function AdminDashboardPage() {
         
         {/* Add more stats or content here */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <div className="p-3 bg-orange-50 text-primary rounded-xl">
+            <div className="p-3 bg-primary/10 text-primary rounded-xl">
                 <LayoutDashboard size={24} />
             </div>
             <div>
