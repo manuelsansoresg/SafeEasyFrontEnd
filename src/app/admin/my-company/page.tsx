@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import SupplierForm from '@/components/admin/SupplierForm';
 import StepCarousel from '@/components/sell/wizard/StepCarousel';
 import StepCertificates from '@/components/sell/wizard/StepCertificates';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-export default function MyCompanyPage() {
+function MyCompanyContent() {
   const { user, token } = useAuthStore();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -123,5 +123,13 @@ export default function MyCompanyPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function MyCompanyPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Cargando...</div>}>
+      <MyCompanyContent />
+    </Suspense>
   );
 }
