@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Edit2, X } from 'lucide-react';
+import FileUpload from '@/components/ui/FileUpload';
 
 interface StepCarouselProps {
   supplierId: number;
@@ -13,7 +14,10 @@ interface CarouselItem {
   id: number;
   title: string;
   description: string;
-  image_url: string; // Assuming backend returns URL
+  image_url?: string;
+  url?: string;
+  path?: string;
+  image?: string;
 }
 
 export default function StepCarousel({ supplierId, token, onNext }: StepCarouselProps) {
@@ -23,19 +27,24 @@ export default function StepCarousel({ supplierId, token, onNext }: StepCarousel
   const [error, setError] = useState<string | null>(null);
 
   // Form State
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState<File | null>(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
 
   const fetchItems = async () => {
     setFetching(true);
     try {
-      const res = await fetch(`/api/suppliers/${supplierId}/carousel`, {
+      // Changed to fetch supplier details directly as per instruction
+      const res = await fetch(`/api/suppliers/${supplierId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        setItems(Array.isArray(data) ? data : []);
+        console.log("Carousel Items Response:", data);
+        // The user specified that the array is in 'carousel_images'
+        setItems(Array.isArray(data.carousel_images) ? data.carousel_images : []);
       }
     } catch (e) {
       console.error("Error fetching carousel items", e);
@@ -50,10 +59,45 @@ export default function StepCarousel({ supplierId, token, onNext }: StepCarousel
     }
   }, [supplierId]);
 
-  const handleAdd = async (e: React.FormEvent) => {
+  const getImageUrl = (path: string | null) => {
+    if (!path) return '/placeholder.png';
+    if (path.startsWith('http') || path.startsWith('data:')) return path;
+    
+    // Use the env var or fallback
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
+    
+    // Remove leading slash for consistency
+    let cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    
+    // If path doesn't start with static, assume it needs it (common in FastAPI/backend setups)
+    if (!cleanPath.startsWith('static/')) {
+        cleanPath = `static/${cleanPath}`;
+    }
+    
+    return `${baseUrl}/${cleanPath}`;
+  };
+
+  const handleEdit = (item: CarouselItem) => {
+    setEditingId(item.id);
+    setTitle(item.title || '');
+    setDescription(item.description || '');
+    setCurrentImageUrl(getImageUrl(item.image_url || item.url || item.path || item.image || null));
+    setImage(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setTitle('');
+    setDescription('');
+    setImage(null);
+    setCurrentImageUrl(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!image) {
-      setError("La imagen es obligatoria");
+    if (!image && !editingId) {
+      setError("La imagen es obligatoria para nuevos elementos");
       return;
     }
     
@@ -64,26 +108,31 @@ export default function StepCarousel({ supplierId, token, onNext }: StepCarousel
       const formData = new FormData();
       formData.append('title', title);
       formData.append('description', description);
-      formData.append('image', image);
+      if (image) {
+        formData.append('image', image);
+      }
 
-      const res = await fetch(`/api/suppliers/${supplierId}/carousel`, {
-        method: 'POST',
+      const url = editingId 
+        ? `/api/suppliers/carousel/${editingId}`
+        : `/api/suppliers/${supplierId}/carousel`;
+      
+      const method = editingId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method: method,
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
       if (!res.ok) {
-        throw new Error('Error al subir imagen');
+        throw new Error(`Error al ${editingId ? 'actualizar' : 'crear'} elemento`);
       }
 
       // Refresh list
       await fetchItems();
       
       // Reset form
-      setTitle('');
-      setDescription('');
-      setImage(null);
-      // Reset file input manually if needed or just use key
+      handleCancelEdit();
       
     } catch (err: any) {
       setError(err.message);
@@ -96,20 +145,17 @@ export default function StepCarousel({ supplierId, token, onNext }: StepCarousel
     if (!confirm('¿Estás seguro de eliminar esta imagen?')) return;
     
     try {
-      // Assuming endpoint structure. If failed, might need adjustments.
-      // Usually it's /api/suppliers/{sid}/carousel/{id} or /api/carousel/{id}
-      // I'll try the nested one first as per prompt pattern.
-      const res = await fetch(`/api/suppliers/${supplierId}/carousel/${itemId}`, {
+      // Updated to match the requested endpoint structure: DELETE /suppliers/carousel/{carousel_id}
+      const res = await fetch(`/api/suppliers/carousel/${itemId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
       
       if (res.ok) {
         fetchItems();
-      } else {
-        // Fallback: maybe it's just /api/carousel/{id}? 
-        // But let's stick to the prompt's implied structure.
-        console.error("Failed to delete");
+        if (editingId === itemId) {
+          handleCancelEdit();
+        }
       }
     } catch (e) {
       console.error("Error deleting", e);
@@ -124,88 +170,142 @@ export default function StepCarousel({ supplierId, token, onNext }: StepCarousel
       </p>
 
       {/* Upload Form */}
-      <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-8">
-        <h3 className="font-bold text-lg mb-4">Agregar Nueva Imagen</h3>
-        {error && <div className="text-red-500 mb-4">{error}</div>}
+      <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-8 transition-all">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-lg text-primary">
+            {editingId ? 'Editar Imagen' : 'Agregar Nueva Imagen'}
+          </h3>
+          {editingId && (
+            <button 
+              onClick={handleCancelEdit}
+              className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+            >
+              <X size={16} /> Cancelar Edición
+            </button>
+          )}
+        </div>
         
-        <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
+        
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Título</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700">Título</label>
             <input 
               type="text" 
               value={title} 
               onChange={(e) => setTitle(e.target.value)} 
-              className="w-full px-3 py-2 border rounded-md" 
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
               required
+              placeholder="Ej. Bienvenidos a mi tienda"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Imagen</label>
-            <input 
-              type="file" 
-              accept="image/*"
-              onChange={(e) => setImage(e.target.files?.[0] || null)} 
-              className="w-full" 
-              required
+          
+          <div className="md:col-span-2">
+            <FileUpload
+                label={editingId ? "Cambiar Imagen (Opcional)" : "Imagen del Carrusel"}
+                value={image}
+                onChange={setImage}
+                currentImageUrl={currentImageUrl}
+                helperText="1920x600px recomendado. Formatos: JPG, PNG, WEBP."
             />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-1">Descripción</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700">Descripción</label>
             <textarea 
               value={description} 
               onChange={(e) => setDescription(e.target.value)} 
-              className="w-full px-3 py-2 border rounded-md" 
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
               rows={2}
+              placeholder="Una breve descripción para tus clientes..."
             />
           </div>
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 flex justify-end gap-3">
+            {editingId && (
+              <button 
+                type="button"
+                onClick={handleCancelEdit}
+                className="px-6 py-2 text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+            )}
             <button 
               type="submit" 
-              disabled={loading || items.length >= 5}
-              className="bg-secondary text-primary font-bold py-2 px-6 rounded-lg hover:bg-secondary/80 disabled:opacity-50"
+              disabled={loading || (!editingId && items.length >= 5)}
+              className="bg-primary text-white font-bold py-2 px-6 rounded-xl hover:bg-primary/90 disabled:opacity-50 shadow-lg shadow-primary/20 transition-all"
             >
-              {loading ? 'Subiendo...' : 'Agregar Imagen'}
+              {loading ? 'Guardando...' : (editingId ? 'Actualizar Imagen' : 'Agregar Imagen')}
             </button>
-            {items.length >= 5 && <span className="ml-4 text-sm text-red-500">Máximo 5 imágenes alcanzado.</span>}
           </div>
+          {!editingId && items.length >= 5 && (
+            <div className="md:col-span-2 text-center mt-2">
+              <span className="text-sm text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
+                Máximo 5 imágenes alcanzado.
+              </span>
+            </div>
+          )}
         </form>
       </div>
 
       {/* List */}
       <div className="space-y-4 mb-8">
         {fetching ? (
-          <p className="text-center text-gray-500">Cargando imágenes...</p>
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
         ) : items.length === 0 ? (
-          <p className="text-center text-gray-400 italic">No hay imágenes subidas aún.</p>
+          <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+            <p className="text-gray-400">No hay imágenes subidas aún.</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {items.map((item) => (
-              <div key={item.id} className="relative group border rounded-lg overflow-hidden flex flex-col">
-                <div className="h-40 bg-gray-200">
-                  {/* Using img tag for simplicity, or Next Image if domain allowed */}
-                  <img src={item.image_url || '/placeholder.png'} alt={item.title} className="w-full h-full object-cover" />
+              <div 
+                key={item.id} 
+                className={`relative group border rounded-2xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all bg-white ${
+                  editingId === item.id ? 'ring-2 ring-primary border-primary' : 'border-gray-200'
+                }`}
+              >
+                <div className="h-48 bg-gray-100 relative overflow-hidden">
+                  <img 
+                    src={getImageUrl(item.image_url || item.url || item.path || item.image || null)} 
+                    alt={item.title} 
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500" 
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                 </div>
-                <div className="p-4">
-                  <h4 className="font-bold">{item.title}</h4>
-                  <p className="text-sm text-gray-600">{item.description}</p>
+                
+                <div className="p-5 flex-grow">
+                  <h4 className="font-bold text-gray-800 text-lg mb-1">{item.title}</h4>
+                  <p className="text-sm text-gray-600 line-clamp-2">{item.description}</p>
                 </div>
-                <button 
-                  onClick={() => handleDelete(item.id)}
-                  className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Eliminar"
-                >
-                  <Trash2 size={16} />
-                </button>
+                
+                <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => handleEdit(item)}
+                    className="p-2 bg-white text-blue-600 rounded-full shadow-sm hover:bg-blue-50 transition-colors"
+                    title="Editar"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(item.id)}
+                    className="p-2 bg-white text-red-600 rounded-full shadow-sm hover:bg-red-50 transition-colors"
+                    title="Eliminar"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end pt-4 border-t border-gray-100">
         <button
           onClick={onNext}
-          className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-colors"
+          className="bg-gray-800 text-white font-bold py-3 px-8 rounded-xl hover:bg-gray-900 transition-colors shadow-lg"
         >
           Continuar
         </button>

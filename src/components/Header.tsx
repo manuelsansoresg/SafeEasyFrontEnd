@@ -176,9 +176,9 @@ export function Header() {
                     <p className="font-semibold text-sm">Tu cuenta</p>
                   </div>
                   <nav className="flex flex-col">
-                    {user?.role === 'admin' && (
+                    {(user?.role === 'admin' || user?.role === 'supplier') && (
                       <Link href="/admin/dashboard" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3 font-medium text-primary">
-                        <span>🛡️</span> Panel Admin
+                        <span>🛡️</span> {user.role === 'admin' ? 'Panel Admin' : 'Mi Empresa'}
                       </Link>
                     )}
                     <Link href="/messages" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">

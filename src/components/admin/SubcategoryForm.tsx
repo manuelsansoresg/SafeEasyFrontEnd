@@ -7,11 +7,11 @@ import {
   Loader2, 
   CheckCircle, 
   X, 
-  Upload, 
   Image as ImageIcon
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import slugify from "slugify";
+import FileUpload from "@/components/ui/FileUpload";
 
 interface Category {
   id: number;
@@ -64,10 +64,6 @@ export default function SubcategoryForm({ initialData }: SubcategoryFormProps) {
     } : initialFormData
   );
 
-  const [previewUrl, setPreviewUrl] = useState<string | null>(
-    initialData?.image || null
-  );
-
   useEffect(() => {
     fetchCategories();
   }, []);
@@ -94,14 +90,8 @@ export default function SubcategoryForm({ initialData }: SubcategoryFormProps) {
     setFormData(prev => ({ ...prev, name, slug }));
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFormData(prev => ({ ...prev, image: file }));
-      // Create preview
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    }
+  const handleImageChange = (file: File | null) => {
+    setFormData(prev => ({ ...prev, image: file }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -209,36 +199,13 @@ export default function SubcategoryForm({ initialData }: SubcategoryFormProps) {
 
         {/* Image Upload */}
         <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Imagen</label>
-            <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center gap-4 hover:bg-gray-50 transition-colors relative">
-                {previewUrl ? (
-                    <div className="relative w-40 h-40 rounded-lg overflow-hidden border border-gray-200">
-                        <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
-                        <button 
-                            type="button"
-                            onClick={() => {
-                                setFormData(prev => ({ ...prev, image: null }));
-                                setPreviewUrl(null);
-                            }}
-                            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                        >
-                            <X size={16} />
-                        </button>
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center justify-center text-gray-400 gap-2">
-                        <ImageIcon size={40} />
-                        <span className="text-sm">Haz clic para subir una imagen</span>
-                    </div>
-                )}
-                
-                <input 
-                    type="file"
-                    accept="image/*"
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    onChange={handleImageChange}
-                />
-            </div>
+            <FileUpload
+                label="Imagen"
+                value={formData.image}
+                onChange={handleImageChange}
+                currentImageUrl={initialData?.image}
+                helperText="Haz clic para subir una imagen"
+            />
         </div>
 
         {/* Active Status */}

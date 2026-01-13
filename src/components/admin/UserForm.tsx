@@ -164,43 +164,56 @@ export default function UserForm({ initialData, isEditMode = false }: UserFormPr
           <label className="text-sm font-medium text-gray-700">
             Contraseña {isEditMode && <span className="text-gray-400 font-normal">(Dejar en blanco para no cambiar)</span>}
           </label>
-          <input
-            type="password"
-            name="password"
-            required={!isEditMode}
-            value={formData.password}
-            onChange={handleInputChange}
-            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              name="password"
+              required={!isEditMode && !isProfileMode}
+              value={formData.password}
+              onChange={handleInputChange}
+              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">Rol</label>
-          <select
-            name="role"
-            value={formData.role}
-            onChange={handleInputChange}
-            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white"
-          >
-            <option value="client">Cliente</option>
-            <option value="admin">Administrador</option>
-            <option value="supplier">Proveedor</option>
-          </select>
-        </div>
+        {!isProfileMode && (
+          <>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Rol</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white"
+              >
+                <option value="client">Cliente</option>
+                <option value="admin">Administrador</option>
+                <option value="supplier">Proveedor</option>
+              </select>
+            </div>
 
-        <div className="col-span-2 space-y-2 flex items-center gap-3">
-          <input
-            type="checkbox"
-            id="is_active"
-            name="is_active"
-            checked={formData.is_active}
-            onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-            className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
-          />
-          <label htmlFor="is_active" className="text-sm font-medium text-gray-700 select-none cursor-pointer">
-            Usuario Activo
-          </label>
-        </div>
+            <div className="col-span-2 space-y-2 flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="is_active"
+                name="is_active"
+                checked={formData.is_active}
+                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
+              />
+              <label htmlFor="is_active" className="text-sm font-medium text-gray-700 select-none cursor-pointer">
+                Usuario Activo
+              </label>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">

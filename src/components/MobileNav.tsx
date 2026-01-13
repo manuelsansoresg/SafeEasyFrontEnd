@@ -9,13 +9,13 @@ import { useAuthStore } from "@/store/useAuthStore";
 export function MobileNav() {
   const pathname = usePathname();
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'admin';
+  const hasPanelAccess = user?.role === 'admin' || user?.role === 'supplier';
 
   const navItems = [
     { href: "/", label: "Inicio", icon: Home },
     { href: "/categories", label: "Categorías", icon: Grid },
     { href: "/messages", label: "Mensajes", icon: MessageSquare },
-    { href: isAdmin ? "/admin/dashboard" : "/account", label: "Mi Cuenta", icon: User },
+    { href: hasPanelAccess ? "/admin/dashboard" : "/account", label: "Mi Cuenta", icon: User },
   ];
 
   return (

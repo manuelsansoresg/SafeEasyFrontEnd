@@ -8,13 +8,13 @@ import { fetchWithAuth } from "@/lib/api";
 import { 
   Loader2, 
   CheckCircle, 
-  Upload, 
   X, 
-  Image as ImageIcon,
   Eye
 } from "lucide-react";
 import slugify from "slugify";
 import 'react-quill-new/dist/quill.snow.css';
+import FileUpload from "@/components/ui/FileUpload";
+import MultiFileUpload from "@/components/ui/MultiFileUpload";
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
@@ -124,7 +124,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   const [error, setError] = useState<string | null>(null);
   
   // Media Upload
-  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [mediaList, setMediaList] = useState<ProductMedia[]>([]);
 
@@ -285,47 +285,6 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
   // -- Handlers --
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const files = Array.from(e.target.files);
-      const currentCount = mediaList.length;
-      const newCount = files.length;
-      
-      if (currentCount + newCount > MAX_IMAGES) {
-        const remainingSlots = Math.max(0, MAX_IMAGES - currentCount);
-        
-        if (remainingSlots === 0) {
-          alert(`Ya has alcanzado el límite de ${MAX_IMAGES} archivos.`);
-          e.target.value = ""; // Reset input
-          setSelectedFiles(null);
-          return;
-        }
-
-        alert(`Has superado el límite de ${MAX_IMAGES} archivos. Solo se añadirán ${remainingSlots} archivos.`);
-        
-        const allowedFiles = files.slice(0, remainingSlots);
-        const dataTransfer = new DataTransfer();
-        allowedFiles.forEach(file => dataTransfer.items.add(file));
-        setSelectedFiles(dataTransfer.files);
-      } else {
-        setSelectedFiles(e.target.files);
-      }
-    }
-  };
-
-  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setCoverImage(file);
-      setCoverPreview(URL.createObjectURL(file));
-    }
-  };
-
-  const handleRemoveCover = () => {
-    setCoverImage(null);
-    setCoverPreview(null);
-  };
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     setFormData(prev => ({
@@ -434,7 +393,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       const productId = isEditMode && initialData ? initialData.id : savedProduct.id;
 
       // Handle Media Upload
-      if (selectedFiles && selectedFiles.length > 0) {
+      if (selectedFiles.length > 0) {
         setUploadProgress("Subiendo imágenes...");
         for (let i = 0; i < selectedFiles.length; i++) {
           const file = selectedFiles[i];
@@ -485,40 +444,13 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           </div>
 
           <div className="col-span-2 space-y-2">
-            <label className="text-sm font-medium text-gray-700">Imagen de Portada</label>
-            <div className="flex items-start gap-4">
-              <div className="relative w-32 h-32 bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl overflow-hidden flex items-center justify-center group hover:border-primary/50 transition-colors">
-                {coverPreview ? (
-                  <>
-                    <img 
-                      src={coverPreview} 
-                      alt="Preview" 
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleRemoveCover}
-                      className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X size={14} />
-                    </button>
-                  </>
-                ) : (
-                  <ImageIcon className="text-gray-300" size={32} />
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleCoverChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-              </div>
-              <div className="flex-1 text-sm text-gray-500">
-                <p>Sube una imagen de portada para el producto.</p>
-                <p>Formatos permitidos: JPG, PNG, WEBP.</p>
-                <p>Tamaño máximo recomendado: 2MB.</p>
-              </div>
-            </div>
+            <FileUpload
+                label="Imagen de Portada"
+                value={coverImage}
+                onChange={setCoverImage}
+                currentImageUrl={coverPreview}
+                helperText="Formatos: JPG, PNG, WEBP. Máx: 2MB."
+            />
           </div>
 
           <div className="col-span-2 space-y-2">
@@ -636,37 +568,13 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           </div>
           
           <div className="col-span-2 space-y-2">
-             <label className="text-sm font-medium text-gray-700">Imágenes / Videos (Opcional)</label>
-             <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors">
-                <input 
-                  type="file" 
-                  multiple 
-                  id="media-upload" 
-                  className="hidden" 
-                  accept="image/*,video/*"
-                  onChange={handleFileSelect}
-                  disabled={mediaList.length >= MAX_IMAGES}
-                />
-                <label htmlFor="media-upload" className={`cursor-pointer flex flex-col items-center gap-2 ${mediaList.length >= MAX_IMAGES ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                    <Upload className="text-gray-400" size={32} />
-                    <span className="text-gray-600 font-medium">
-                      {mediaList.length >= MAX_IMAGES ? "Límite de contenido alcanzado" : "Click para subir archivos"}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      Soporta imágenes y videos (Máx. {MAX_IMAGES} archivos en total)
-                    </span>
-                </label>
-                {selectedFiles && selectedFiles.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                        {Array.from(selectedFiles).map((file, i) => (
-                            <div key={i} className="flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs">
-                                <ImageIcon size={14} />
-                                <span className="truncate max-w-[150px]">{file.name}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-             </div>
+             <MultiFileUpload
+                label="Imágenes / Videos (Opcional)"
+                value={selectedFiles}
+                onChange={setSelectedFiles}
+                maxFiles={MAX_IMAGES}
+                helperText={`Soporta imágenes y videos (Máx. ${MAX_IMAGES} archivos en total)`}
+             />
 
              {/* Existing Media List */}
              {mediaList.length > 0 && (

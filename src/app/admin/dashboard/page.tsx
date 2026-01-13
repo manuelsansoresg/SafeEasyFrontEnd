@@ -1,6 +1,26 @@
+"use client";
+
 import { LayoutDashboard } from "lucide-react";
+import { useAuthStore } from "@/store/useAuthStore";
+import SupplierDashboard from "@/components/admin/SupplierDashboard";
+import { useEffect, useState } from "react";
 
 export default function AdminDashboardPage() {
+  const { user } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return <div className="p-8 text-center text-gray-500">Cargando panel...</div>;
+  }
+
+  if (user?.role === 'supplier') {
+    return <SupplierDashboard />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">

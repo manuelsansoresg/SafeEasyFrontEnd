@@ -110,8 +110,8 @@ export default function LoginPage() {
           role: userData.role
       });
       
-      if (userData.role === 'admin') {
-          console.log("El usuario es admin, redirigiendo a panel...");
+      if (userData.role === 'admin' || userData.role === 'supplier') {
+          console.log("El usuario es admin o supplier, redirigiendo a panel...");
           router.push('/admin/dashboard');
           return;
       }

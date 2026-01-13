@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
-import { Loader2, CheckCircle, Upload } from "lucide-react";
+import { Loader2, CheckCircle } from "lucide-react";
+import FileUpload from "@/components/ui/FileUpload";
 
 interface Supplier {
   id: number;
@@ -92,11 +93,36 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     try {
       const data = new FormData();
       
-      // Append all form fields
-      Object.entries(formData).forEach(([key, value]) => {
-        // Convert boolean to string for FormData if needed, or backend handles it
-        data.append(key, String(value));
-      });
+      const appendIfPresent = (key: string, value: any) => {
+        if (value !== null && value !== undefined && value !== '') {
+           data.append(key, String(value).trim());
+        }
+      };
+
+      appendIfPresent('name', formData.name);
+      
+      const slug = formData.short_name 
+        ? formData.short_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        : formData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      data.append('short_name', slug);
+
+      appendIfPresent('rfc', formData.rfc);
+      appendIfPresent('phone', formData.phone);
+      appendIfPresent('email', formData.email);
+      appendIfPresent('city', formData.city);
+      appendIfPresent('state', formData.state);
+      appendIfPresent('country', formData.country);
+      
+      // is_active is boolean, always send
+      data.append('is_active', String(formData.is_active));
+
+      appendIfPresent('short_description', formData.short_description);
+      appendIfPresent('description', formData.description);
+      appendIfPresent('address', formData.address);
+      appendIfPresent('exterior_number', formData.exterior_number);
+      appendIfPresent('interior_number', formData.interior_number);
+      appendIfPresent('neighborhood', formData.neighborhood);
+      appendIfPresent('about', formData.about);
       
       // Always ensure user_id is present
       data.append('user_id', String(user.id));
@@ -125,7 +151,18 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || `Error ${response.status}: ${response.statusText}`);
+        let errorMessage = `Error ${response.status}: ${response.statusText}`;
+        
+        if (errData.detail) {
+            if (typeof errData.detail === 'string') {
+                errorMessage = errData.detail;
+            } else if (Array.isArray(errData.detail)) {
+                errorMessage = errData.detail.map((err: any) => `${err.loc.join('.')} : ${err.msg}`).join(', ');
+            } else {
+                errorMessage = JSON.stringify(errData.detail);
+            }
+        }
+        throw new Error(errorMessage);
       }
 
       setSuccess(true);
@@ -356,37 +393,21 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-            <div className="border border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50">
-               <span className="font-medium text-gray-700 mb-2">Logo de la Empresa</span>
-               {initialData?.logo_url && !logo && (
-                 <div className="mb-4">
-                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                   <img src={initialData.logo_url} alt="Logo actual" className="h-20 object-contain" />
-                 </div>
-               )}
-               <label className="cursor-pointer bg-white border border-gray-300 rounded-md px-4 py-2 hover:bg-gray-50 flex items-center gap-2">
-                 <Upload size={16} />
-                 <span>Seleccionar archivo</span>
-                 <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, setLogo)} />
-               </label>
-               {logo && <span className="text-xs text-gray-500 mt-2">{logo.name}</span>}
-            </div>
+            <FileUpload
+              label="Logo de la Empresa"
+              value={logo}
+              onChange={setLogo}
+              currentImageUrl={initialData?.logo_url}
+              helperText="Recomendado: Formato cuadrado, mín. 400x400px"
+            />
 
-            <div className="border border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50">
-               <span className="font-medium text-gray-700 mb-2">Imagen "Sobre Nosotros"</span>
-               {initialData?.about_image_url && !aboutImage && (
-                 <div className="mb-4">
-                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                   <img src={initialData.about_image_url} alt="Imagen actual" className="h-20 object-contain" />
-                 </div>
-               )}
-               <label className="cursor-pointer bg-white border border-gray-300 rounded-md px-4 py-2 hover:bg-gray-50 flex items-center gap-2">
-                 <Upload size={16} />
-                 <span>Seleccionar archivo</span>
-                 <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, setAboutImage)} />
-               </label>
-               {aboutImage && <span className="text-xs text-gray-500 mt-2">{aboutImage.name}</span>}
-            </div>
+            <FileUpload
+              label="Imagen 'Sobre Nosotros'"
+              value={aboutImage}
+              onChange={setAboutImage}
+              currentImageUrl={initialData?.about_image_url}
+              helperText="Imagen representativa para su perfil"
+            />
           </div>
         </div>
       </div>

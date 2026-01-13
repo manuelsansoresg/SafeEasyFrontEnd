@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import FileUpload from '@/components/ui/FileUpload';
 
 interface StepSupplierProps {
   userId: number;
@@ -33,6 +34,32 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
   const [logo, setLogo] = useState<File | null>(null);
   const [aboutImage, setAboutImage] = useState<File | null>(null);
 
+  useEffect(() => {
+    // Check if supplier already exists for this user to avoid 500 Duplicate Key errors
+    const checkExisting = async () => {
+      if (!userId || !token) return;
+      try {
+        const res = await fetch('/api/suppliers', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : data.items || [];
+          const existing = items.find((s: any) => Number(s.user_id) === Number(userId));
+          
+          if (existing) {
+            console.log("Supplier already exists, advancing...", existing);
+            onSuccess(existing.id);
+          }
+        }
+      } catch (e) {
+        console.error("Error checking existing supplier", e);
+      }
+    };
+    
+    checkExisting();
+  }, [userId, token, onSuccess]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -48,12 +75,51 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     setLoading(true);
     setError(null);
 
+    if (!userId) {
+      setError("Error: No se ha identificado el usuario. Por favor intente registrarse nuevamente.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const data = new FormData();
+      
+      // Helper to append - sends empty string if value is falsy, which is safer for some backends
+      const append = (key: string, value: string) => {
+        data.append(key, value ? value.trim() : '');
+      };
+
       // Add text fields
-      Object.entries(formData).forEach(([key, value]) => {
-        data.append(key, value);
-      });
+      append('name', formData.name);
+      
+      // Generate slug
+      let slug = formData.short_name 
+        ? formData.short_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        : formData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      
+      // If slug is empty (e.g. name was only special chars), use 'empresa'
+      if (!slug) slug = 'empresa';
+      
+      // Append a timestamp to ensure uniqueness in case of retries/duplicates
+      // Ideally backend handles duplicates, but to avoid 500s during dev:
+      // const uniqueSlug = `${slug}-${Date.now()}`; 
+      // User requested clean urls, so let's try sending the clean slug first.
+      // If the user is retrying, maybe we should let them know if it fails.
+      data.append('short_name', slug);
+
+      append('rfc', formData.rfc);
+      append('phone', formData.phone);
+      append('email', formData.email);
+      append('city', formData.city);
+      append('state', formData.state);
+      append('country', formData.country);
+      append('short_description', formData.short_description);
+      append('description', formData.description);
+      append('address', formData.address);
+      append('exterior_number', formData.exterior_number);
+      append('interior_number', formData.interior_number);
+      append('neighborhood', formData.neighborhood);
+      append('about', formData.about);
       
       // Add user_id
       data.append('user_id', userId.toString());
@@ -74,14 +140,36 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || 'Error al guardar la información de la empresa');
+        let errorMessage = `Error ${response.status}: ${response.statusText}`;
+        
+        if (errData.detail) {
+            if (typeof errData.detail === 'string') {
+                errorMessage = errData.detail;
+            } else if (Array.isArray(errData.detail)) {
+                // Pydantic/FastAPI validation errors
+                errorMessage = errData.detail.map((err: any) => `${err.loc.join('.')} : ${err.msg}`).join(', ');
+            } else {
+                errorMessage = JSON.stringify(errData.detail);
+            }
+        }
+
+        // Include backend_response if available (from proxy)
+        if (errData.backend_response) {
+            errorMessage += ` | Detalles: ${typeof errData.backend_response === 'string' ? errData.backend_response : JSON.stringify(errData.backend_response)}`;
+        }
+        
+        // Show error in UI instead of throwing to avoid Next.js overlay
+        setError(errorMessage);
+        setLoading(false);
+        return; 
       }
 
       const result = await response.json();
       onSuccess(result.id);
 
     } catch (err: any) {
-      setError(err.message);
+      console.error("Error submitting supplier:", err);
+      setError(err.message || "Ocurrió un error inesperado");
       setLoading(false);
     }
   };
@@ -190,14 +278,18 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
            </div>
 
            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div>
-               <label className="block text-sm font-medium text-gray-700 mb-2">Logo</label>
-               <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, setLogo)} className="w-full" />
-             </div>
-             <div>
-               <label className="block text-sm font-medium text-gray-700 mb-2">Imagen "Sobre Nosotros"</label>
-               <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, setAboutImage)} className="w-full" />
-             </div>
+             <FileUpload
+                 label="Logo de la Empresa"
+                 value={logo}
+                 onChange={setLogo}
+                 helperText="Recomendado: 400x400px"
+             />
+             <FileUpload
+                 label="Imagen 'Sobre Nosotros'"
+                 value={aboutImage}
+                 onChange={setAboutImage}
+                 helperText="Imagen representativa para su perfil"
+             />
            </div>
         </div>
 
