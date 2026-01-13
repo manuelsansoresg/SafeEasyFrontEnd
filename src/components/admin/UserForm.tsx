@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
-import { Loader2, CheckCircle } from "lucide-react";
+import { Loader2, CheckCircle, Eye, EyeOff } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 
 interface User {
@@ -35,11 +35,13 @@ const initialFormData: UserFormData = {
 interface UserFormProps {
   initialData?: User;
   isEditMode?: boolean;
+  isProfileMode?: boolean;
 }
 
-export default function UserForm({ initialData, isEditMode = false }: UserFormProps) {
+export default function UserForm({ initialData, isEditMode = false, isProfileMode = false }: UserFormProps) {
   const { token } = useAuthStore();
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState<UserFormData>(
     initialData
