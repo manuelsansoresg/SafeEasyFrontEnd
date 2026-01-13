@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface StepAccountProps {
   plan: string;
@@ -18,6 +19,8 @@ export default function StepAccount({ plan, onSuccess }: StepAccountProps) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
