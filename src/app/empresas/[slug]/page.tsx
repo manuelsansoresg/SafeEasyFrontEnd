@@ -208,8 +208,8 @@ export default function SupplierPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm border-b sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-6 flex flex-col md:flex-row items-center gap-6">
+      <div className="bg-white shadow-sm border-b md:sticky md:top-0 md:z-50">
+        <div className="container mx-auto px-4 py-4 md:py-6 flex flex-col md:flex-row items-center gap-4 md:gap-6">
           <div className="w-24 h-24 md:w-32 md:h-32 relative shrink-0 bg-white border rounded-xl overflow-hidden shadow-sm">
             {supplier.logo ? (
               <img src={supplier.logo} alt={supplier.name} className="w-full h-full object-contain p-2" />
@@ -270,7 +270,7 @@ export default function SupplierPage() {
 
         <div className="border-t bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 backdrop-blur-sm">
           <div className="container mx-auto px-4">
-            <nav className="flex justify-center md:justify-start overflow-x-auto gap-3 py-3">
+            <nav className="flex justify-start md:justify-start overflow-x-auto gap-2 md:gap-3 py-2 md:py-3">
               {[
                 { id: "inicio", label: "Inicio" },
                 { id: "productos", label: "Productos" },
