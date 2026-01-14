@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Grid, MessageSquare, User } from "lucide-react";
+import { Home, Grid, MessageSquare, User, Package, Users } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -9,14 +9,25 @@ import { useAuthStore } from "@/store/useAuthStore";
 export function MobileNav() {
   const pathname = usePathname();
   const { user } = useAuthStore();
-  const hasPanelAccess = user?.role === 'admin' || user?.role === 'supplier';
+  const hasPanelAccess = user?.role === "admin" || user?.role === "supplier";
 
-  const navItems = [
-    { href: "/", label: "Inicio", icon: Home },
-    { href: "/categories", label: "Categorías", icon: Grid },
-    { href: "/messages", label: "Mensajes", icon: MessageSquare },
-    { href: hasPanelAccess ? "/admin/dashboard" : "/account", label: "Mi Cuenta", icon: User },
-  ];
+  const accountHref = hasPanelAccess ? "/admin/dashboard" : "/account";
+
+  const navItems =
+    pathname.startsWith("/empresas/") ?
+      [
+        { href: "/", label: "Inicio", icon: Home },
+        { href: `${pathname}#productos`, label: "Productos", icon: Package },
+        { href: `${pathname}#nosotros`, label: "Nosotros", icon: Users },
+        { href: `${pathname}#contacto`, label: "Contacto", icon: MessageSquare },
+        { href: accountHref, label: "Mi Cuenta", icon: User },
+      ] :
+      [
+        { href: "/", label: "Inicio", icon: Home },
+        { href: "/categories", label: "Categorías", icon: Grid },
+        { href: "/messages", label: "Mensajes", icon: MessageSquare },
+        { href: accountHref, label: "Mi Cuenta", icon: User },
+      ];
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-50 pb-safe">

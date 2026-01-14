@@ -246,7 +246,6 @@ export default function SupplierPage() {
                 )}
               </div>
 
-              {/* Rating Section */}
               <div className="flex flex-col items-center md:items-end bg-gray-50 p-3 rounded-lg border border-gray-100 min-w-[160px]">
                 <div className="flex items-center gap-2">
                   <div className="flex items-baseline gap-1">
@@ -268,9 +267,9 @@ export default function SupplierPage() {
           </div>
         </div>
 
-        <div className="border-t bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 backdrop-blur-sm">
+        <div className="hidden md:block border-t bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 backdrop-blur-sm">
           <div className="container mx-auto px-4">
-            <nav className="flex justify-start md:justify-start overflow-x-auto gap-2 md:gap-3 py-2 md:py-3">
+            <nav className="flex justify-start overflow-x-auto gap-2 md:gap-3 py-2 md:py-3">
               {[
                 { id: "inicio", label: "Inicio" },
                 { id: "productos", label: "Productos" },
