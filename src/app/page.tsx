@@ -68,6 +68,7 @@ export default async function Home({
                   minOrder="1 pieza"
                   slug={product.slug}
                   rating={Number(product.average_rating || 0)}
+                  supplier={product.supplier}
                 />
               ))}
             </div>

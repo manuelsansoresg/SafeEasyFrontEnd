@@ -13,6 +13,34 @@ export interface Product {
   slug: string;
   thumbnail_url?: string;
   average_rating?: number;
+  supplier?: Supplier;
+}
+
+export interface Supplier {
+  id: number;
+  name: string;
+  slug: string | null;
+  short_name: string | null;
+  rfc: string | null;
+  phone: string;
+  email: string;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  is_active: boolean;
+  about: string | null;
+  short_description: string | null;
+  description: string | null;
+  address: string | null;
+  exterior_number: string | null;
+  interior_number: string | null;
+  neighborhood: string | null;
+  user_id: number;
+  logo: string | null;
+  about_image: string | null;
+  carousel_images: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  certificates: any[];
 }
 
 export async function getProducts(
