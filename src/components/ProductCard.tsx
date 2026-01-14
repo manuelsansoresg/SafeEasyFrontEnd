@@ -70,7 +70,9 @@ export function ProductCard({
               <span className="font-medium text-gray-700">{supplier.name}</span>
             )}
             {supplier.certificates && supplier.certificates.length > 0 && (
-              <BadgeCheck className="w-4 h-4 text-blue-500" title="Empresa Certificada" />
+              <span className="inline-flex items-center" aria-label="Empresa certificada">
+                <BadgeCheck className="w-4 h-4 text-blue-500" />
+              </span>
             )}
           </div>
         )}
