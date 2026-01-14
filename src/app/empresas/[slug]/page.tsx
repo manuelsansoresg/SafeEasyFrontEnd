@@ -20,8 +20,9 @@ export default function SupplierPage() {
 
   const fetchSupplier = async (slug: string) => {
     try {
-      const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://3.15.176.110:8080").trim();
-      const res = await fetch(`${baseUrl}/suppliers/${slug}`);
+      const res = await fetch(`/api/suppliers/${slug}`, {
+        cache: "no-store",
+      });
       if (res.ok) {
         const data = await res.json();
         setSupplier(data);
@@ -330,4 +331,3 @@ function Carousel({ images }: { images: string[] }) {
     </div>
   );
 }
-
