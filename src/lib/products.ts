@@ -41,6 +41,8 @@ export interface Supplier {
   carousel_images: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   certificates: any[];
+  average_rating?: number;
+  rating_count?: number;
 }
 
 export async function getProducts(
