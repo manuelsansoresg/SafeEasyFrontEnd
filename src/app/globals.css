@@ -52,14 +52,3 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
-
-.description-html p,
-.about-html p {
-  display: inline;
-  margin: 0;
-}
-
-.description-html p + p::before,
-.about-html p + p::before {
-  content: " ";
-}
