@@ -89,6 +89,20 @@ interface ProductDetail {
   ratings: Rating[];
 }
 
+const sanitizeHtml = (html: string) => {
+  if (!html) return "";
+  return html
+    .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
+    .replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "")
+    .replace(/<object\b[^>]*>([\s\S]*?)<\/object>/gim, "")
+    .replace(/on\w+="[^"]*"/gim, "")
+    .replace(/on\w+='[^']*'/gim, "")
+    .replace(/javascript:/gim, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\sstyle="[^"]*"/gim, "")
+    .replace(/\sstyle='[^']*'/gim, "");
+};
+
 export default function ProductDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
@@ -705,9 +719,20 @@ export default function ProductDetailPage() {
               Descripción del Producto
             </h3>
             <div 
-              className="prose prose-sm sm:prose !max-w-none w-full break-words whitespace-normal text-gray-600 bg-white p-6 rounded-xl border border-gray-200 shadow-sm"
-              dangerouslySetInnerHTML={{ __html: product.description }}
-            />
+              className="prose prose-sm sm:prose !max-w-none w-full whitespace-normal text-gray-600 bg-white p-6 rounded-xl border border-gray-200 shadow-sm"
+            >
+              <div
+                className="whitespace-normal max-w-full description-html"
+                style={{ 
+                  textAlign: "left", 
+                  wordBreak: "normal", 
+                  overflowWrap: "normal",
+                  hyphens: "none",
+                  WebkitHyphens: "none"
+                }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }}
+              />
+            </div>
           </div>
 
           {/* Rating Section */}

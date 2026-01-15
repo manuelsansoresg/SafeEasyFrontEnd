@@ -149,7 +149,8 @@ export default function SupplierPage() {
       .replace(/<object\b[^>]*>([\s\S]*?)<\/object>/gim, "")
       .replace(/on\w+="[^"]*"/gim, "")
       .replace(/on\w+='[^']*'/gim, "")
-      .replace(/javascript:/gim, "");
+      .replace(/javascript:/gim, "")
+      .replace(/&nbsp;/gi, " ");
   };
 
   const categories = (() => {
@@ -207,7 +208,7 @@ export default function SupplierPage() {
     );
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+    <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow-sm border-b md:sticky md:top-0 md:z-50">
         <div className="container mx-auto px-4 py-4 md:py-6 flex flex-col md:flex-row items-center gap-4 md:gap-6">
           <div className="w-24 h-24 md:w-32 md:h-32 relative shrink-0 bg-white border rounded-xl overflow-hidden shadow-sm">
@@ -302,11 +303,18 @@ export default function SupplierPage() {
           )}
 
           {supplier.description && (
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+            <div className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100">
               <h2 className="text-xl font-bold mb-6 text-gray-900 border-b pb-4">Descripción de la Empresa</h2>
               <div className="prose prose-lg max-w-none w-full text-gray-600 prose-headings:text-gray-800 prose-a:text-primary">
                 <div
-                  className="break-words whitespace-normal max-w-full"
+                  className="whitespace-normal max-w-full description-html"
+                  style={{ 
+                    textAlign: "left", 
+                    wordBreak: "normal", 
+                    overflowWrap: "normal",
+                    hyphens: "none",
+                    WebkitHyphens: "none"
+                  }}
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(supplier.description) }}
                 />
               </div>
@@ -469,7 +477,7 @@ export default function SupplierPage() {
         </section>
 
         <section id="nosotros" className="scroll-mt-32">
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+          <div className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100">
             <h2 className="text-2xl font-bold mb-6 text-gray-900">Sobre Nosotros</h2>
 
             {supplier.about_image && (
@@ -481,7 +489,14 @@ export default function SupplierPage() {
             <div className="prose prose-lg max-w-none w-full text-gray-600">
               {supplier.about ? (
                 <div
-                  className="break-words whitespace-normal max-w-full"
+                  className="whitespace-normal max-w-full about-html"
+                  style={{ 
+                    textAlign: "left", 
+                    wordBreak: "normal", 
+                    overflowWrap: "normal",
+                    hyphens: "none",
+                    WebkitHyphens: "none"
+                  }}
                   dangerouslySetInnerHTML={{
                     __html: sanitizeHtml(supplier.about),
                   }}
