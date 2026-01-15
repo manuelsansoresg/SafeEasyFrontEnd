@@ -379,16 +379,72 @@ export default function ProductDetailPage() {
                 console.warn(`[ProductDetail] Search returned empty list.`);
             }
         } else {
-             console.error(`[ProductDetail] Search fallback failed (${searchRes.status}).`);
+          console.error(`[ProductDetail] Search fallback failed (${searchRes.status}).`);
+        }
+      }
+
+      // Strategy 3: As a final fallback, fetch product list and find by slug
+      if (!res.ok) {
+        try {
+          console.warn("[ProductDetail] Trying list fallback by slug...");
+          const listRes = await fetch(`${baseUrl}/products/?skip=0&limit=1000`, {
+            headers: { Accept: "application/json" },
+          });
+
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            const items = Array.isArray(listData)
+              ? listData
+              : listData.items || listData.results || [];
+            const found = (items as any[]).find((p) => p.slug === slug);
+
+            if (found) {
+              console.log("[ProductDetail] Found product via list fallback by slug.", found);
+              setProduct(found as any);
+              return;
+            } else {
+              console.warn("[ProductDetail] List fallback did not find product with slug:", slug);
+            }
+          } else {
+            console.warn(
+              "[ProductDetail] List fallback failed:",
+              listRes.status,
+              listRes.statusText
+            );
+          }
+        } catch (e) {
+          console.error("[ProductDetail] List fallback error:", e);
         }
       }
 
       if (!res.ok) {
-          const errorData = await res.json().catch(() => null);
-          console.error(`[ProductDetail] Final fetch failed. Status: ${res.status}`, errorData);
-          throw new Error(`Producto no encontrado (${res.status}). ${errorData ? JSON.stringify(errorData) : ''}`);
+        const errorData = await res.json().catch(() => null);
+        console.error(`[ProductDetail] Final fetch failed. Status: ${res.status}`, errorData);
+
+        let message = "El producto no se pudo cargar en este momento.";
+
+        if (errorData && typeof errorData === "object") {
+          const detail =
+            errorData.detail ||
+            errorData.message ||
+            (typeof errorData.backend_response === "string" ? errorData.backend_response : null);
+
+          if (detail && typeof detail === "string") {
+            message = `Producto no encontrado (${res.status}). ${detail}`;
+          } else if (errorData.status) {
+            message = `Producto no encontrado (${errorData.status}).`;
+          }
+        } else if (res.status === 404) {
+          message = "El producto que buscas no existe o ha sido eliminado.";
+        } else if (res.status >= 500) {
+          message = "Tenemos un problema en el servidor al cargar este producto. Intenta de nuevo más tarde.";
+        }
+
+        setError(message);
+        setProduct(null);
+        return;
       }
-      
+
       const data = await res.json();
       setProduct(data);
     } catch (err) {

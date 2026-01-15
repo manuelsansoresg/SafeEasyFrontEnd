@@ -207,7 +207,7 @@ export default function SupplierPage() {
     );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       <div className="bg-white shadow-sm border-b md:sticky md:top-0 md:z-50">
         <div className="container mx-auto px-4 py-4 md:py-6 flex flex-col md:flex-row items-center gap-4 md:gap-6">
           <div className="w-24 h-24 md:w-32 md:h-32 relative shrink-0 bg-white border rounded-xl overflow-hidden shadow-sm">
@@ -293,7 +293,7 @@ export default function SupplierPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-10 space-y-16">
+      <div className="container mx-auto px-4 py-10 space-y-16 overflow-x-hidden">
         <section id="inicio" className="space-y-8 scroll-mt-32">
           {supplier.carousel_images && supplier.carousel_images.length > 0 && (
             <div className="aspect-[21/9] w-full rounded-2xl overflow-hidden relative shadow-md bg-gray-900 group">
@@ -304,10 +304,12 @@ export default function SupplierPage() {
           {supplier.description && (
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
               <h2 className="text-xl font-bold mb-6 text-gray-900 border-b pb-4">Descripción de la Empresa</h2>
-              <div
-                className="prose prose-lg max-w-none w-full text-gray-600 prose-headings:text-gray-800 prose-a:text-primary break-words whitespace-normal overflow-x-hidden"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(supplier.description) }}
-              />
+              <div className="prose prose-lg max-w-none w-full text-gray-600 prose-headings:text-gray-800 prose-a:text-primary">
+                <div
+                  className="break-words whitespace-normal max-w-full"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(supplier.description) }}
+                />
+              </div>
             </div>
           )}
         </section>
@@ -469,36 +471,34 @@ export default function SupplierPage() {
         <section id="nosotros" className="scroll-mt-32">
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
             <h2 className="text-2xl font-bold mb-6 text-gray-900">Sobre Nosotros</h2>
-            <div className="flex flex-col lg:flex-row gap-8 items-start">
-              {supplier.about_image && (
-                <div className="w-full lg:w-1/2 rounded-xl overflow-hidden shadow-md">
-                  <img src={supplier.about_image} alt="Acerca de nosotros" className="w-full h-full object-cover" />
-                </div>
-              )}
-              <div className="flex-1">
-                <div className="prose max-w-none w-full text-gray-600">
-                  {supplier.about ? (
-                    <div
-                      className="break-words whitespace-normal overflow-x-hidden"
-                      dangerouslySetInnerHTML={{
-                        __html: sanitizeHtml(supplier.about),
-                      }}
-                    />
-                  ) : (
-                    <p className="italic text-gray-400">Información detallada no disponible.</p>
-                  )}
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
-                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                    <h3 className="font-semibold text-gray-900 mb-1">Año de Registro</h3>
-                    <p className="text-gray-600">2023</p>
-                  </div>
-                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                    <h3 className="font-semibold text-gray-900 mb-1">Tipo de Negocio</h3>
-                    <p className="text-gray-600">Fabricante / Distribuidor</p>
-                  </div>
-                </div>
+            {supplier.about_image && (
+              <div className="w-full mb-6 rounded-xl overflow-hidden shadow-md">
+                <img src={supplier.about_image} alt="Acerca de nosotros" className="w-full h-full object-cover" />
+              </div>
+            )}
+
+            <div className="prose prose-lg max-w-none w-full text-gray-600">
+              {supplier.about ? (
+                <div
+                  className="break-words whitespace-normal max-w-full"
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeHtml(supplier.about),
+                  }}
+                />
+              ) : (
+                <p className="italic text-gray-400">Información detallada no disponible.</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                <h3 className="font-semibold text-gray-900 mb-1">Año de Registro</h3>
+                <p className="text-gray-600">2023</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                <h3 className="font-semibold text-gray-900 mb-1">Tipo de Negocio</h3>
+                <p className="text-gray-600">Fabricante / Distribuidor</p>
               </div>
             </div>
           </div>
