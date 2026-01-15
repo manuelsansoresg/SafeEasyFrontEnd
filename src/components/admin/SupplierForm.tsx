@@ -105,74 +105,60 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
 
       let response: Response;
 
-      if (isEdit) {
-        const payload = {
-          name: formData.name.trim(),
-          short_name: slug,
-          rfc: formData.rfc?.trim() || undefined,
-          phone: formData.phone?.trim() || undefined,
-          email: formData.email?.trim() || undefined,
-          city: formData.city?.trim() || undefined,
-          state: formData.state?.trim() || undefined,
-          country: formData.country?.trim() || undefined,
-          is_active: formData.is_active,
-          short_description: formData.short_description?.trim() || undefined,
-          description: formData.description?.trim() || undefined,
-          address: formData.address?.trim() || undefined,
-          exterior_number: formData.exterior_number?.trim() || undefined,
-          interior_number: formData.interior_number?.trim() || undefined,
-          neighborhood: formData.neighborhood?.trim() || undefined,
-          about: formData.about?.trim() || undefined,
-          user_id: user.id,
+      const buildFormData = () => {
+        const data = new FormData();
+
+        const appendIfPresent = (key: string, value: any) => {
+          if (value !== null && value !== undefined && value !== "") {
+            data.append(key, String(value).trim());
+          }
         };
 
+        appendIfPresent("name", formData.name);
+        data.append("short_name", slug);
+
+        appendIfPresent("rfc", formData.rfc);
+        appendIfPresent("phone", formData.phone);
+        appendIfPresent("email", formData.email);
+        appendIfPresent("city", formData.city);
+        appendIfPresent("state", formData.state);
+        appendIfPresent("country", formData.country);
+        data.append("is_active", String(formData.is_active));
+        appendIfPresent("short_description", formData.short_description);
+        appendIfPresent("description", formData.description);
+        appendIfPresent("address", formData.address);
+        appendIfPresent("exterior_number", formData.exterior_number);
+        appendIfPresent("interior_number", formData.interior_number);
+        appendIfPresent("neighborhood", formData.neighborhood);
+        appendIfPresent("about", formData.about);
+        data.append("user_id", String(user.id));
+
+        if (logo) data.append("logo", logo);
+        if (aboutImage) data.append("about_image", aboutImage);
+
+        return data;
+      };
+
+      if (isEdit) {
         const url = `/api/suppliers/${initialData.id}/`;
+        const data = buildFormData();
 
         response = await fetch(url, {
           method: "PUT",
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(payload),
+          body: data,
         });
       } else {
-        const data = new FormData();
-        
-        const appendIfPresent = (key: string, value: any) => {
-          if (value !== null && value !== undefined && value !== '') {
-             data.append(key, String(value).trim());
-          }
-        };
-
-        appendIfPresent('name', formData.name);
-        data.append('short_name', slug);
-
-        appendIfPresent('rfc', formData.rfc);
-        appendIfPresent('phone', formData.phone);
-        appendIfPresent('email', formData.email);
-        appendIfPresent('city', formData.city);
-        appendIfPresent('state', formData.state);
-        appendIfPresent('country', formData.country);
-        data.append('is_active', String(formData.is_active));
-        appendIfPresent('short_description', formData.short_description);
-        appendIfPresent('description', formData.description);
-        appendIfPresent('address', formData.address);
-        appendIfPresent('exterior_number', formData.exterior_number);
-        appendIfPresent('interior_number', formData.interior_number);
-        appendIfPresent('neighborhood', formData.neighborhood);
-        appendIfPresent('about', formData.about);
-        data.append('user_id', String(user.id));
-
-        if (logo) data.append('logo', logo);
-        if (aboutImage) data.append('about_image', aboutImage);
+        const data = buildFormData();
 
         response = await fetch("/api/suppliers", {
           method: "POST",
           headers: {
-            'Authorization': `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
           },
-          body: data
+          body: data,
         });
       }
 
@@ -217,8 +203,8 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
       setSuccess(true);
       if (!isEditMode) {
         router.push("/admin/suppliers");
-        router.refresh();
       }
+      router.refresh();
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Ocurrió un error al guardar");

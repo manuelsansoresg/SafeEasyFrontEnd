@@ -305,7 +305,7 @@ export default function SupplierPage() {
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
               <h2 className="text-xl font-bold mb-6 text-gray-900 border-b pb-4">Descripción de la Empresa</h2>
               <div
-                className="prose prose-lg max-w-none text-gray-600 prose-headings:text-gray-800 prose-a:text-primary"
+                className="prose prose-lg max-w-none w-full text-gray-600 prose-headings:text-gray-800 prose-a:text-primary break-words whitespace-normal overflow-x-hidden"
                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(supplier.description) }}
               />
             </div>
@@ -476,9 +476,14 @@ export default function SupplierPage() {
                 </div>
               )}
               <div className="flex-1">
-                <div className="prose max-w-none text-gray-600">
+                <div className="prose max-w-none w-full text-gray-600">
                   {supplier.about ? (
-                    <p className="whitespace-pre-wrap">{supplier.about}</p>
+                    <div
+                      className="break-words whitespace-normal overflow-x-hidden"
+                      dangerouslySetInnerHTML={{
+                        __html: sanitizeHtml(supplier.about),
+                      }}
+                    />
                   ) : (
                     <p className="italic text-gray-400">Información detallada no disponible.</p>
                   )}
