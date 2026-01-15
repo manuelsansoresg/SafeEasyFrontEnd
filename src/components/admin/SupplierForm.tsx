@@ -5,6 +5,10 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle } from "lucide-react";
 import FileUpload from "@/components/ui/FileUpload";
+import dynamic from "next/dynamic";
+import "react-quill-new/dist/quill.snow.css";
+
+const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
 
 interface Supplier {
   id: number;
@@ -25,8 +29,10 @@ interface Supplier {
   exterior_number?: string;
   interior_number?: string;
   neighborhood?: string;
-  logo_url?: string; // Assuming backend returns URL
+  logo?: string;
+  logo_url?: string;
   about?: string;
+  about_image?: string;
   about_image_url?: string;
 }
 
@@ -413,26 +419,36 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Completa</label>
-            <textarea
-              name="description"
-              rows={4}
-              value={formData.description}
-              onChange={handleInputChange}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Completa (HTML)</label>
+            <div className="border border-gray-300 rounded-md overflow-hidden bg-white">
+              <ReactQuill
+                theme="snow"
+                value={formData.description}
+                onChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    description: value,
+                  }))
+                }
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sobre Nosotros (Historia)</label>
-            <textarea
-              name="about"
-              rows={4}
-              value={formData.about}
-              onChange={handleInputChange}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sobre Nosotros (Historia, HTML)</label>
+            <div className="border border-gray-300 rounded-md overflow-hidden bg-white">
+              <ReactQuill
+                theme="snow"
+                value={formData.about}
+                onChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    about: value,
+                  }))
+                }
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
@@ -440,7 +456,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
               label="Logo de la Empresa"
               value={logo}
               onChange={setLogo}
-              currentImageUrl={initialData?.logo_url}
+              currentImageUrl={initialData?.logo || initialData?.logo_url || undefined}
               helperText="Recomendado: Formato cuadrado, mín. 400x400px"
             />
 
@@ -448,7 +464,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
               label="Imagen 'Sobre Nosotros'"
               value={aboutImage}
               onChange={setAboutImage}
-              currentImageUrl={initialData?.about_image_url}
+              currentImageUrl={initialData?.about_image || initialData?.about_image_url || undefined}
               helperText="Imagen representativa para su perfil"
             />
           </div>

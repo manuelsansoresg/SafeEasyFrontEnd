@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import FileUpload from '@/components/ui/FileUpload';
+import dynamic from 'next/dynamic';
+import 'react-quill-new/dist/quill.snow.css';
+
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
 interface StepSupplierProps {
   userId: number;
@@ -267,15 +271,37 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
              <input type="text" name="short_description" required value={formData.short_description} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" maxLength={150} />
            </div>
 
-           <div>
-             <label className="block text-sm font-medium text-gray-700">Descripción Detallada</label>
-             <textarea name="description" rows={4} required value={formData.description} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Detallada (HTML)</label>
+            <div className="border border-gray-300 rounded-md overflow-hidden bg-white">
+              <ReactQuill
+                theme="snow"
+                value={formData.description}
+                onChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    description: value,
+                  }))
+                }
+              />
+            </div>
+          </div>
 
-           <div>
-             <label className="block text-sm font-medium text-gray-700">Sobre Nosotros (Historia)</label>
-             <textarea name="about" rows={4} required value={formData.about} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sobre Nosotros (Historia, HTML)</label>
+            <div className="border border-gray-300 rounded-md overflow-hidden bg-white">
+              <ReactQuill
+                theme="snow"
+                value={formData.about}
+                onChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    about: value,
+                  }))
+                }
+              />
+            </div>
+          </div>
 
            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
              <FileUpload
