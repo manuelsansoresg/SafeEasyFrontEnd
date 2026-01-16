@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { Supplier } from "@/lib/products";
-import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star } from "lucide-react";
+import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle } from "lucide-react";
+import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
 
 interface SupplierProductCategory {
@@ -43,6 +45,27 @@ interface SupplierProduct {
   subcategory?: SupplierProductSubcategory;
 }
 
+interface SupplierRating {
+  id: number;
+  rating: number;
+  comment: string;
+  user_name: string | null;
+  product_id: string;
+  product_title: string;
+  product_slug: string;
+  product_image?: string | null;
+  product_thumbnail_url?: string | null;
+  created_at?: string;
+}
+
+interface SupplierRatingsResponse {
+  supplier_slug: string;
+  total: number;
+  skip: number;
+  limit: number;
+  ratings: SupplierRating[];
+}
+
 export default function SupplierPage() {
   const { slug } = useParams();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
@@ -56,6 +79,14 @@ export default function SupplierPage() {
   const [hasMore, setHasMore] = useState(false);
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [selectedSubcategorySlug, setSelectedSubcategorySlug] = useState<string | null>(null);
+  const [ratings, setRatings] = useState<SupplierRating[]>([]);
+  const [ratingsTotal, setRatingsTotal] = useState(0);
+  const [ratingsSkip, setRatingsSkip] = useState(0);
+  const ratingsLimit = 50;
+  const [ratingsLoading, setRatingsLoading] = useState(false);
+  const [ratingsLoadingMore, setRatingsLoadingMore] = useState(false);
+  const [ratingsError, setRatingsError] = useState<string | null>(null);
+  const [ratingsHasMore, setRatingsHasMore] = useState(false);
 
   useEffect(() => {
     if (slug) {
@@ -64,6 +95,7 @@ export default function SupplierPage() {
       setSelectedCategorySlug(null);
       setSelectedSubcategorySlug(null);
       fetchProducts(slug as string, 1);
+      fetchRatings(slug as string, 0, false);
     }
   }, [slug]);
 
@@ -117,6 +149,67 @@ export default function SupplierPage() {
       setHasMore(false);
     } finally {
       setProductsLoading(false);
+    }
+  };
+
+  const fetchRatings = async (supplierSlug: string, skip: number = 0, append: boolean = false) => {
+    try {
+      if (append) {
+        setRatingsLoadingMore(true);
+      } else {
+        setRatingsLoading(true);
+      }
+      setRatingsError(null);
+
+      const params = new URLSearchParams();
+      params.set("skip", String(skip));
+      params.set("limit", String(ratingsLimit));
+
+      const res = await fetch(`/api/suppliers/${supplierSlug}/ratings?${params.toString()}`, {
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Error fetching supplier ratings", res.status, res.statusText, text);
+        setRatings([]);
+        setRatingsTotal(0);
+        setRatingsSkip(0);
+        setRatingsHasMore(false);
+        setRatingsError("No fue posible cargar las calificaciones.");
+        return;
+      }
+
+      const data = (await res.json()) as SupplierRatingsResponse | { ratings?: SupplierRating[]; total?: number; skip?: number; limit?: number };
+      const ratingsList = Array.isArray((data as SupplierRatingsResponse).ratings)
+        ? (data as SupplierRatingsResponse).ratings
+        : Array.isArray((data as any).ratings)
+        ? (data as any).ratings
+        : [];
+
+      const total = typeof (data as SupplierRatingsResponse).total === "number" ? (data as SupplierRatingsResponse).total : ratingsList.length;
+      const responseSkip = typeof (data as SupplierRatingsResponse).skip === "number" ? (data as SupplierRatingsResponse).skip : skip;
+      const responseLimit = typeof (data as SupplierRatingsResponse).limit === "number" ? (data as SupplierRatingsResponse).limit : ratingsLimit;
+
+      setRatings((prev) => {
+        const next = append ? [...prev, ...ratingsList] : ratingsList;
+        const hasMore = total > next.length && ratingsList.length >= responseLimit;
+        setRatingsHasMore(hasMore);
+        return next;
+      });
+
+      setRatingsTotal(total);
+      setRatingsSkip(responseSkip);
+    } catch (error) {
+      console.error("Error fetching supplier ratings", error);
+      setRatings([]);
+      setRatingsTotal(0);
+      setRatingsSkip(0);
+      setRatingsHasMore(false);
+      setRatingsError("Ocurrió un error al cargar las calificaciones.");
+    } finally {
+      setRatingsLoading(false);
+      setRatingsLoadingMore(false);
     }
   };
 
@@ -274,6 +367,7 @@ export default function SupplierPage() {
               {[
                 { id: "inicio", label: "Inicio" },
                 { id: "productos", label: "Productos" },
+                { id: "calificaciones", label: "Calificaciones" },
                 { id: "nosotros", label: "Nosotros" },
                 { id: "contacto", label: "Contacto" },
               ].map((item) => (
@@ -471,6 +565,135 @@ export default function SupplierPage() {
                     <ChevronRight size={16} />
                   </button>
                 </div>
+              </>
+            )}
+          </div>
+        </section>
+
+        <section id="calificaciones" className="scroll-mt-32">
+          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Calificaciones</h2>
+                <p className="text-gray-500 text-sm md:text-base">
+                  Opiniones de compradores sobre {supplier.name}.
+                </p>
+              </div>
+              <div className="flex flex-col items-center bg-gray-50 p-4 rounded-xl border border-gray-100 min-w-[180px]">
+                <div className="flex items-center gap-2">
+                  <StarRating rating={Number(supplier.average_rating || 0)} size={18} />
+                  <span className="text-xs text-gray-500 font-medium">/5</span>
+                </div>
+                <div className="mt-1 text-lg font-bold text-gray-900">
+                  {supplier.average_rating ? supplier.average_rating.toFixed(1) : "0.0"}
+                </div>
+                <div className="text-sm font-semibold text-gray-800">
+                  {supplier.average_rating ? getRatingLabel(supplier.average_rating) : "Sin calificaciones"}
+                </div>
+                <div className="text-primary text-xs mt-1">
+                  {supplier.rating_count || 0} calificaciones
+                </div>
+              </div>
+            </div>
+
+            {ratingsLoading && ratings.length === 0 ? (
+              <div className="flex justify-center py-10">
+                <div className="flex items-center gap-3 text-gray-500">
+                  <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm">Cargando calificaciones...</span>
+                </div>
+              </div>
+            ) : ratingsError ? (
+              <div className="py-8 text-center text-sm text-red-500">
+                {ratingsError}
+              </div>
+            ) : ratings.length === 0 ? (
+              <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-900 font-medium">Aún no hay calificaciones para este proveedor.</p>
+                <p className="text-sm text-gray-500">Cuando los compradores dejen su opinión, aparecerá aquí.</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-8">
+                  {ratings.map((rating) => (
+                    <div key={rating.id} className="border-b border-gray-100 pb-8 last:border-0 last:pb-0">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-600 uppercase">
+                            {rating.user_name ? rating.user_name[0] : "U"}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-900 text-sm">
+                                {rating.user_name || "Usuario"}
+                              </span>
+                             
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <StarRating rating={rating.rating} size={14} />
+                              <span className="text-xs text-gray-400 font-medium">
+                                {rating.rating.toFixed(1)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {rating.created_at && (
+                          <span className="text-xs text-gray-400 font-medium">
+                            {new Date(rating.created_at).toLocaleDateString("es-MX", {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-600 text-sm leading-relaxed pl-[52px] mb-4">{rating.comment}</p>
+                      <div className="pl-[52px]">
+                        <Link
+                          href={`/product/${rating.product_slug}`}
+                          className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-white flex items-center justify-center">
+                            {rating.product_thumbnail_url || rating.product_image ? (
+                              <img
+                                src={rating.product_thumbnail_url || rating.product_image || ""}
+                                alt={rating.product_title}
+                                className="w-full h-full object-contain"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-300 text-xl">
+                                <Store size={24} />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                              {rating.product_title}
+                            </p>
+                          </div>
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {ratingsHasMore && (
+                  <div className="flex justify-center mt-8">
+                    <button
+                      type="button"
+                      disabled={ratingsLoadingMore}
+                      onClick={() => {
+                        if (slug) {
+                          fetchRatings(slug as string, ratingsSkip + ratingsLimit, true);
+                        }
+                      }}
+                      className="px-6 py-2 rounded-full border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {ratingsLoadingMore ? "Cargando más..." : "Ver más calificaciones"}
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

@@ -816,10 +816,7 @@ export default function ProductDetailPage() {
                                              <span className="font-bold text-gray-900 text-sm">
                                                  {rating.user_name || (rating.user ? `${rating.user.first_name || 'Usuario'} ${rating.user.last_name ? rating.user.last_name[0] + '.' : ''}` : 'Usuario')}
                                              </span>
-                                             {/* Assuming all ratings shown are approved/verified for now */}
-                                             <span className="text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-green-100">
-                                                 <Check size={10} /> Compra verificada
-                                             </span>
+                                            
                                          </div>
                                          <div className="flex items-center gap-2 mt-0.5">
                                             <StarRating rating={rating.rating} size={14} />
