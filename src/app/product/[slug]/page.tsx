@@ -912,11 +912,11 @@ export default function ProductDetailPage() {
           productId={product.id}
           supplierId={product.supplier_id}
           supplierName={product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : undefined}
-          isOwner={user && (
+          isOwner={user ? (
             String(user.id) === String(product.supplier_id) || 
             user.role === 'admin' || 
             (user as any).supplier_id === product.supplier_id
-          )}
+          ) : false}
           productData={{
             title: product.title,
             price: product.price,
