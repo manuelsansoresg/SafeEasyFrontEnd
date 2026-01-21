@@ -59,12 +59,7 @@ export default function SimilarProductsPage() {
             <ArrowLeft className="w-5 h-5 mr-2" />
             Volver
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Te podría interesar
-          </h1>
-          <p className="text-gray-600 mt-2">
-            Basado en tu última selección
-          </p>
+          
         </div>
 
         {products.length > 0 ? (
