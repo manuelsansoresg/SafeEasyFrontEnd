@@ -6,6 +6,7 @@ import FileUpload from '@/components/ui/FileUpload';
 
 interface StepCarouselProps {
   supplierId: number;
+  slug?: string;
   token: string;
   onNext: () => void;
 }
@@ -18,9 +19,10 @@ interface CarouselItem {
   url?: string;
   path?: string;
   image?: string;
+  thumbnail?: string;
 }
 
-export default function StepCarousel({ supplierId, token, onNext }: StepCarouselProps) {
+export default function StepCarousel({ supplierId, slug, token, onNext }: StepCarouselProps) {
   const [items, setItems] = useState<CarouselItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -37,7 +39,9 @@ export default function StepCarousel({ supplierId, token, onNext }: StepCarousel
     setFetching(true);
     try {
       // Changed to fetch supplier details directly as per instruction
-      const res = await fetch(`/api/suppliers/${supplierId}`, {
+      // Prefer slug if available as user indicated it's the correct way to retrieve
+      const identifier = slug || supplierId;
+      const res = await fetch(`/api/suppliers/${identifier}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -70,7 +74,8 @@ export default function StepCarousel({ supplierId, token, onNext }: StepCarousel
     let cleanPath = path.startsWith('/') ? path.substring(1) : path;
     
     // If path doesn't start with static, assume it needs it (common in FastAPI/backend setups)
-    if (!cleanPath.startsWith('static/')) {
+    // Also check if it's already a full URL or if it's a relative path from static
+    if (!cleanPath.startsWith('static/') && !cleanPath.startsWith('http')) {
         cleanPath = `static/${cleanPath}`;
     }
     
@@ -81,7 +86,7 @@ export default function StepCarousel({ supplierId, token, onNext }: StepCarousel
     setEditingId(item.id);
     setTitle(item.title || '');
     setDescription(item.description || '');
-    setCurrentImageUrl(getImageUrl(item.image_url || item.url || item.path || item.image || null));
+    setCurrentImageUrl(getImageUrl(item.thumbnail || item.image_url || item.url || item.path || item.image || null));
     setImage(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -267,7 +272,7 @@ export default function StepCarousel({ supplierId, token, onNext }: StepCarousel
               >
                 <div className="h-48 bg-gray-100 relative overflow-hidden">
                   <img 
-                    src={getImageUrl(item.image_url || item.url || item.path || item.image || null)} 
+                    src={getImageUrl(item.thumbnail || item.image_url || item.url || item.path || item.image || null)} 
                     alt={item.title} 
                     className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500" 
                   />
@@ -275,8 +280,12 @@ export default function StepCarousel({ supplierId, token, onNext }: StepCarousel
                 </div>
                 
                 <div className="p-5 flex-grow">
-                  <h4 className="font-bold text-gray-800 text-lg mb-1">{item.title}</h4>
-                  <p className="text-sm text-gray-600 line-clamp-2">{item.description}</p>
+                  {item.title && item.title !== 'string' && (
+                    <h4 className="font-bold text-gray-800 text-lg mb-1">{item.title}</h4>
+                  )}
+                  {item.description && item.description !== 'string' && (
+                    <p className="text-sm text-gray-600 line-clamp-2">{item.description}</p>
+                  )}
                 </div>
                 
                 <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

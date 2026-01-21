@@ -115,7 +115,12 @@ function MyCompanyContent() {
         )}
         
         {activeTab === 'carousel' && token && (
-          <StepCarousel supplierId={supplier.id} token={token} onNext={() => setActiveTab('certificates')} />
+          <StepCarousel 
+            supplierId={supplier.id} 
+            slug={supplier.short_name || undefined}
+            token={token} 
+            onNext={() => setActiveTab('certificates')} 
+          />
         )}
 
         {activeTab === 'certificates' && token && (
