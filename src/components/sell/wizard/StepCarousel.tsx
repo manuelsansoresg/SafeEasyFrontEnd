@@ -99,6 +99,18 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
     setCurrentImageUrl(null);
   };
 
+  const handleImageChange = (file: File | null) => {
+    if (file) {
+      // Validate file size (e.g., 2MB limit)
+      if (file.size > 2 * 1024 * 1024) {
+        setError("La imagen es demasiado grande. El tamaño máximo permitido es 2MB.");
+        return;
+      }
+    }
+    setImage(file);
+    if (file) setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!image && !editingId) {
@@ -208,9 +220,9 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
             <FileUpload
                 label={editingId ? "Cambiar Imagen (Opcional)" : "Imagen del Carrusel"}
                 value={image}
-                onChange={setImage}
+                onChange={handleImageChange}
                 currentImageUrl={currentImageUrl}
-                helperText="1920x600px recomendado. Formatos: JPG, PNG, WEBP."
+                helperText="1920x600px recomendado. Máx 2MB. Formatos: JPG, PNG, WEBP."
             />
           </div>
           <div className="md:col-span-2">
