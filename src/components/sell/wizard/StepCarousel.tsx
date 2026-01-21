@@ -195,7 +195,6 @@ export default function StepCarousel({ supplierId, token, onNext }: StepCarousel
               value={title} 
               onChange={(e) => setTitle(e.target.value)} 
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
-              required
               placeholder="Ej. Bienvenidos a mi tienda"
             />
           </div>
