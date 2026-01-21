@@ -142,7 +142,20 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
       });
 
       if (!res.ok) {
-        throw new Error(`Error al ${editingId ? 'actualizar' : 'crear'} elemento`);
+        let errorMessage = `Error al ${editingId ? 'actualizar' : 'crear'} elemento`;
+        try {
+          const errorData = await res.json();
+          if (errorData.detail) {
+            errorMessage = typeof errorData.detail === 'string' ? errorData.detail : JSON.stringify(errorData.detail);
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch (e) {
+          // If not JSON, try text
+          const textError = await res.text().catch(() => null);
+          if (textError) errorMessage = textError;
+        }
+        throw new Error(errorMessage);
       }
 
       // Refresh list
