@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
+import { registerInteraction, getSimilarProducts } from "@/lib/interactions";
+import { ProductCard } from "@/components/ProductCard";
 import StarRating from "@/components/StarRating";
 import LoginModal from "@/components/LoginModal";
 import { 
@@ -62,6 +64,13 @@ interface ProductDetail {
   sku: string;
   is_active: boolean;
   supplier_id: number;
+  supplier?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    name?: string;
+    email?: string;
+  };
   category_id: number;
   subcategory_id: number;
   slug: string;
@@ -103,6 +112,8 @@ const sanitizeHtml = (html: string) => {
     .replace(/\sstyle='[^']*'/gim, "");
 };
 
+import ChatWindow from "@/components/chat/ChatWindow";
+
 export default function ProductDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
@@ -112,6 +123,23 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [similarProducts, setSimilarProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (product?.id) {
+        registerInteraction({
+            product_id: product.id,
+            interaction_type: 'view'
+        });
+    }
+  }, [product?.id]);
+
+  useEffect(() => {
+    if (slug) {
+        getSimilarProducts(slug).then(setSimilarProducts);
+    }
+  }, [slug]);
 
   // Rating State
   const { user, token } = useAuthStore();
@@ -175,7 +203,8 @@ export default function ProductDetailPage() {
             console.log(`[Debug] Checking for existing rating via API for user ${targetUserId} on product ${product.id}...`);
             
             // Refetch full product details to get fresh ratings list
-            const res = await fetchWithAuth(`/api/products/${product.id}`);
+            // Use slug for better reliability if ID fails or is inconsistent
+            const res = await fetchWithAuth(`/api/products/${encodeURIComponent(slug)}`);
             
             if (res.ok) {
                 const productData = await res.json();
@@ -491,6 +520,15 @@ export default function ProductDetailPage() {
     setSelectedMediaIndex((prev) => (prev === product.media.length - 1 ? 0 : prev + 1));
   };
 
+  const handleChatOpen = () => {
+    console.log("handleChatOpen called. Token exists:", !!token);
+    if (!token) {
+        setIsLoginModalOpen(true);
+        return;
+    }
+    setIsChatOpen(true);
+  };
+
   const handleRatingClick = () => {
     if (!user) {
       setIsLoginModalOpen(true);
@@ -685,7 +723,10 @@ export default function ProductDetailPage() {
 
                 {/* Actions */}
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                  <button className="flex-1 bg-primary text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                  <button 
+                    onClick={handleChatOpen}
+                    className="flex-1 bg-primary text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
                     <MessageCircle size={24} />
                     Chat con Proveedor
                   </button>
@@ -843,7 +884,47 @@ export default function ProductDetailPage() {
              )}
           </div>
         </div>
+        {similarProducts.length > 0 && (
+          <section className="mt-16 border-t pt-10">
+             <h2 className="text-2xl font-bold mb-6 text-gray-800">Productos Similares</h2>
+             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+               {similarProducts.map((p) => (
+                 <ProductCard 
+                    key={p.id}
+                    id={String(p.id)}
+                    title={p.title}
+                    price={p.price}
+                    image={p.thumbnail_url || ""}
+                    minOrder="1 pieza"
+                    slug={p.slug}
+                    rating={Number(p.average_rating || 0)}
+                 />
+               ))}
+             </div>
+          </section>
+        )}
       </main>
+
+      {product && (
+        <ChatWindow
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          productId={product.id}
+          supplierId={product.supplier_id}
+          supplierName={product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : undefined}
+          isOwner={user && (
+            String(user.id) === String(product.supplier_id) || 
+            user.role === 'admin' || 
+            (user as any).supplier_id === product.supplier_id
+          )}
+          productData={{
+            title: product.title,
+            price: product.price,
+            image: product.image || product.thumbnail_url || "",
+            minOrder: 1 // Default or fetch if available
+          }}
+        />
+      )}
 
       {/* Login Modal */}
       <LoginModal 

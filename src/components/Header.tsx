@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter, useSearchParams } from "next/navigation";
+import { registerInteraction } from "@/lib/interactions";
 
 function SearchBar() {
   const router = useRouter();
@@ -20,6 +21,10 @@ function SearchBar() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
+      registerInteraction({
+        search_term: query,
+        interaction_type: 'search'
+      });
       router.push(`/?q=${encodeURIComponent(query)}`);
     } else {
       router.push("/");

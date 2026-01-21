@@ -13,6 +13,7 @@ interface ProductCardProps {
   slug: string;
   rating?: number;
   supplier?: Supplier;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
 export function ProductCard({
@@ -24,6 +25,7 @@ export function ProductCard({
   slug,
   rating = 0,
   supplier,
+  onClick,
 }: ProductCardProps) {
   const supplierSlug =
     supplier &&
@@ -33,9 +35,20 @@ export function ProductCard({
 
   const supplierHref = supplierSlug ? `/empresas/${supplierSlug}` : null;
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (onClick) {
+      e.preventDefault();
+      onClick(e);
+    }
+  };
+
   return (
     <div className="group block bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full">
-      <Link href={`/product/${slug}`} className="block relative aspect-square overflow-hidden bg-secondary">
+      <Link 
+        href={`/product/${slug}`} 
+        className="block relative aspect-square overflow-hidden bg-secondary"
+        onClick={handleCardClick}
+      >
         {image ? (
           <img 
             src={image} 
@@ -50,7 +63,7 @@ export function ProductCard({
         )}
       </Link>
       <div className="p-4 flex flex-col flex-grow">
-        <Link href={`/product/${slug}`}>
+        <Link href={`/product/${slug}`} onClick={handleCardClick}>
           <h3 className="text-sm font-medium text-gray-800 line-clamp-2 group-hover:text-primary transition-colors mb-2 h-10">
             {title}
           </h3>

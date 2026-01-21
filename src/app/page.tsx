@@ -1,6 +1,7 @@
 import { CategorySidebar } from "@/components/CategorySidebar";
 import { ProductCard } from "@/components/ProductCard";
 import { WelcomeSection } from "@/components/WelcomeSection";
+import RecommendedProducts from "@/components/RecommendedProducts";
 import { getProducts } from "@/lib/products";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -19,7 +20,8 @@ export default async function Home({
   const subcategorySlug = typeof resolvedSearchParams.subcategory === "string" ? resolvedSearchParams.subcategory : undefined;
   const limit = 20;
 
-  const products = await getProducts(page, limit, query, categorySlug, subcategorySlug);
+  const hasFilters = query || categorySlug || subcategorySlug;
+  const products = hasFilters ? await getProducts(page, limit, query, categorySlug, subcategorySlug) : [];
 
   const getPageUrl = (newPage: number) => {
     const params = new URLSearchParams();
@@ -50,81 +52,87 @@ export default async function Home({
                   : "Recomendado para ti"}
             </h2>
             {!query && !categorySlug && !subcategorySlug && (
-              <button className="text-primary text-sm font-medium hover:underline">
+              <Link href="/" className="text-primary text-sm font-medium hover:underline">
                 Ver todo
-              </button>
+              </Link>
             )}
           </div>
 
-          {products.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  id={String(product.id)}
-                  title={product.title}
-                  price={product.price}
-                  image={product.thumbnail_url || ""}
-                  minOrder="1 pieza"
-                  slug={product.slug}
-                  rating={Number(product.average_rating || 0)}
-                  supplier={product.supplier}
-                />
-              ))}
-            </div>
+          {hasFilters ? (
+            products.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {products.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    id={String(product.id)}
+                    title={product.title}
+                    price={product.price}
+                    image={product.thumbnail_url || ""}
+                    minOrder="1 pieza"
+                    slug={product.slug}
+                    rating={Number(product.average_rating || 0)}
+                    supplier={product.supplier}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-gray-50 rounded-xl">
+                <p className="text-gray-500">No se encontraron productos.</p>
+                {(query || categorySlug || subcategorySlug) && (
+                  <Link href="/" className="text-primary hover:underline mt-2 inline-block">
+                    Ver todos los productos
+                  </Link>
+                )}
+              </div>
+            )
           ) : (
-            <div className="text-center py-12 bg-gray-50 rounded-xl">
-              <p className="text-gray-500">No se encontraron productos.</p>
-              {(query || categorySlug || subcategorySlug) && (
-                <Link href="/" className="text-primary hover:underline mt-2 inline-block">
-                  Ver todos los productos
+            <RecommendedProducts />
+          )}
+
+          {/* Pagination - Only show if we have filters (standard list) */}
+          {hasFilters && products.length > 0 && (
+            <div className="flex justify-center items-center gap-4 mt-8">
+              {page > 1 ? (
+                <Link
+                  href={getPageUrl(page - 1)}
+                  className="flex items-center gap-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                >
+                  <ChevronLeft size={16} />
+                  Anterior
                 </Link>
+              ) : (
+                <button
+                  disabled
+                  className="flex items-center gap-1 px-4 py-2 border rounded-lg text-gray-300 cursor-not-allowed text-sm font-medium"
+                >
+                  <ChevronLeft size={16} />
+                  Anterior
+                </button>
+              )}
+              
+              <span className="text-sm text-gray-600">
+                Página {page}
+              </span>
+
+              {products.length === limit ? (
+                <Link
+                  href={getPageUrl(page + 1)}
+                  className="flex items-center gap-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                >
+                  Siguiente
+                  <ChevronRight size={16} />
+                </Link>
+              ) : (
+                <button
+                  disabled
+                  className="flex items-center gap-1 px-4 py-2 border rounded-lg text-gray-300 cursor-not-allowed text-sm font-medium"
+                >
+                  Siguiente
+                  <ChevronRight size={16} />
+                </button>
               )}
             </div>
           )}
-
-          {/* Pagination */}
-          <div className="flex justify-center items-center gap-4 mt-8">
-            {page > 1 ? (
-              <Link
-                href={getPageUrl(page - 1)}
-                className="flex items-center gap-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-              >
-                <ChevronLeft size={16} />
-                Anterior
-              </Link>
-            ) : (
-              <button
-                disabled
-                className="flex items-center gap-1 px-4 py-2 border rounded-lg text-gray-300 cursor-not-allowed text-sm font-medium"
-              >
-                <ChevronLeft size={16} />
-                Anterior
-              </button>
-            )}
-
-            <span className="text-sm text-gray-600 font-medium">
-              Página {page}
-            </span>
-
-            {products.length === limit ? (
-              <Link
-                href={getPageUrl(page + 1)}
-                className="flex items-center gap-1 px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-              >
-                Siguiente
-                <ChevronRight size={16} />
-              </Link>
-            ) : (
-              <button
-                disabled
-                className="flex items-center gap-1 px-4 py-2 border rounded-lg text-gray-300 cursor-not-allowed text-sm font-medium"
-              >
-                Siguiente
-                <ChevronRight size={16} />
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </div>

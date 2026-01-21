@@ -40,6 +40,10 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
   // Append query string (search params)
   // targetUrlObj.toString() might already include params if relativePath had them? No, relativePath is path.
   // We use request.nextUrl.search which includes '?'
+  
+  // Special case: If this is a chat conversation request, we might need to adjust parameters
+  // But generally, forwarding query params is correct.
+  
   targetUrl += request.nextUrl.search;
 
   console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
@@ -47,18 +51,35 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
   console.log(`[Generic Proxy] Auth Header Present: ${!!authHeader} (Length: ${authHeader.length})`);
 
   try {
-    // Use blob to handle body safely for both text and binary (multipart)
-    const body = ['GET', 'HEAD'].includes(request.method) ? undefined : await request.blob();
+    // Use text for JSON to ensure correct formatting and debugging
+    let body: any = undefined;
+    const contentType = request.headers.get('Content-Type');
+    
+    if (!['GET', 'HEAD'].includes(request.method)) {
+        if (contentType?.includes('application/json')) {
+            const text = await request.text();
+            console.log(`[Generic Proxy] Request Body (JSON): ${text}`);
+            body = text;
+        } else {
+            body = await request.blob();
+        }
+    }
     
     // Explicitly construct headers to ensure nothing is lost
     const forwardHeaders = new Headers();
-    if (request.headers.get('Content-Type')) {
-        forwardHeaders.set('Content-Type', request.headers.get('Content-Type')!);
+    
+    // Forward all headers except those that are automatically handled or problematic
+    request.headers.forEach((value, key) => {
+        const lowerKey = key.toLowerCase();
+        if (!['host', 'content-length', 'connection', 'transfer-encoding'].includes(lowerKey)) {
+            forwardHeaders.set(key, value);
+        }
+    });
+
+    // Ensure accept is set if not present
+    if (!forwardHeaders.has('accept')) {
+        forwardHeaders.set('accept', 'application/json');
     }
-    if (request.headers.get('Authorization')) {
-        forwardHeaders.set('Authorization', request.headers.get('Authorization')!);
-    }
-    forwardHeaders.set('accept', 'application/json');
 
     const fetchOptions: RequestInit = {
       method: request.method,
