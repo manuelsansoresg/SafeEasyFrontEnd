@@ -12,7 +12,6 @@ export interface Conversation {
   id: string | number;
   user_id: number;
   buyer_id?: number; // Backend field
-  other_party_name?: string; // Backend field for display name
   supplier_id: number;
   product_id?: string | number | null;
   created_at: string;
