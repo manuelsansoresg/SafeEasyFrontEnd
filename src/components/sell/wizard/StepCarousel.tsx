@@ -145,7 +145,34 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
         let errorMessage = `Error al ${editingId ? 'actualizar' : 'crear'} elemento`;
         try {
           const errorData = await res.json();
-          if (errorData.detail) {
+          console.log("Error response data:", errorData); // Debug log
+
+          // Check for proxy debug info first
+          if (errorData.backend_response) {
+            try {
+                // backend_response might be a JSON string or object
+                const backendError = typeof errorData.backend_response === 'string' 
+                    ? JSON.parse(errorData.backend_response) 
+                    : errorData.backend_response;
+                
+                if (backendError.detail) {
+                     errorMessage = typeof backendError.detail === 'string' 
+                        ? backendError.detail 
+                        : JSON.stringify(backendError.detail);
+                } else if (backendError.message) {
+                    errorMessage = backendError.message;
+                } else {
+                    errorMessage = typeof errorData.backend_response === 'string' 
+                        ? errorData.backend_response 
+                        : JSON.stringify(errorData.backend_response);
+                }
+            } catch (e) {
+                // If parsing backend_response fails, just use it as string
+                errorMessage = String(errorData.backend_response);
+            }
+          } 
+          // Fallback to standard error fields
+          else if (errorData.detail) {
             errorMessage = typeof errorData.detail === 'string' ? errorData.detail : JSON.stringify(errorData.detail);
           } else if (errorData.message) {
             errorMessage = errorData.message;
@@ -305,10 +332,10 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                 </div>
                 
                 <div className="p-5 flex-grow">
-                  {item.title && item.title !== 'string' && (
+                  {item.title && item.title.trim() !== '' && item.title.trim().toLowerCase() !== 'string' && (
                     <h4 className="font-bold text-gray-800 text-lg mb-1">{item.title}</h4>
                   )}
-                  {item.description && item.description !== 'string' && (
+                  {item.description && item.description.trim() !== '' && item.description.trim().toLowerCase() !== 'string' && (
                     <p className="text-sm text-gray-600 line-clamp-2">{item.description}</p>
                   )}
                 </div>
