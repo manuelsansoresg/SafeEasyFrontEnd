@@ -38,11 +38,20 @@ export interface Supplier {
   user_id: number;
   logo: string | null;
   about_image: string | null;
-  carousel_images: string[];
+  carousel_images: CarouselImage[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   certificates: any[];
   average_rating?: number;
   rating_count?: number;
+}
+
+export interface CarouselImage {
+  id: number;
+  title: string;
+  description: string;
+  image: string;
+  thumbnail: string;
+  supplier_id: number;
 }
 
 export async function getProducts(

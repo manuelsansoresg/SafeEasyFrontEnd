@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Supplier } from "@/lib/products";
+import { Supplier, CarouselImage } from "@/lib/products";
 import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
@@ -813,7 +813,7 @@ export default function SupplierPage() {
   );
 }
 
-function Carousel({ images }: { images: string[] }) {
+function Carousel({ images }: { images: CarouselImage[] }) {
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
@@ -826,20 +826,47 @@ function Carousel({ images }: { images: string[] }) {
 
   if (images.length === 0) return null;
 
+  const getImageUrl = (path: string | null) => {
+    if (!path) return '/placeholder.png';
+    if (path.startsWith('http') || path.startsWith('data:')) return path;
+    
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
+    let cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    
+    if (!cleanPath.startsWith('static/') && !cleanPath.startsWith('http')) {
+        cleanPath = `static/${cleanPath}`;
+    }
+    
+    return `${baseUrl}/${cleanPath}`;
+  };
+
   const nextSlide = () => setCurrent((c) => (c + 1) % images.length);
   const prevSlide = () => setCurrent((c) => (c - 1 + images.length) % images.length);
 
   return (
     <div className="relative w-full h-full">
-      {images.map((src, idx) => (
+      {images.map((item, idx) => (
         <div
           key={idx}
           className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
             idx === current ? "opacity-100 z-10" : "opacity-0 z-0"
           }`}
         >
-          <img src={src} alt={`Slide ${idx}`} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+          <img 
+            src={getImageUrl(item.image || item.thumbnail)} 
+            alt={item.title || `Slide ${idx}`} 
+            className="w-full h-full object-cover" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+          
+          <div className="absolute bottom-8 left-8 right-8 text-white z-20">
+             {item.title && item.title.trim() !== '' && item.title.trim().toLowerCase() !== 'string' && (
+                <h3 className="text-2xl font-bold mb-2 drop-shadow-md">{item.title}</h3>
+             )}
+             {item.description && item.description.trim() !== '' && item.description.trim().toLowerCase() !== 'string' && (
+                <p className="text-white/90 line-clamp-2 drop-shadow-md max-w-3xl">{item.description}</p>
+             )}
+          </div>
         </div>
       ))}
 
