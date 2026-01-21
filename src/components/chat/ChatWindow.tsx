@@ -359,8 +359,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
             let finalConversations = productConversations;
             if (productConversations.length === 0) {
                  const broader = allConversations.filter(c => 
-                    c.my_role === 'supplier' || String(c.supplier_id) === String(user.id) || 
-                    (String(user.id) === String(supplierId) && !c.product_id)
+                    c.my_role === 'supplier' || (user?.id && String(c.supplier_id) === String(user.id)) || 
+                    (user?.id && String(user.id) === String(supplierId) && !c.product_id)
                  );
                  
                  if (productData?.title) {
