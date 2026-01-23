@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Supplier, CarouselImage } from "@/lib/products";
-import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle } from "lucide-react";
+import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
 
@@ -66,6 +66,21 @@ interface SupplierRatingsResponse {
   ratings: SupplierRating[];
 }
 
+interface Certificate {
+  id: number;
+  name?: string;
+  description: string;
+  place: string;
+  link?: string;
+  image_url?: string;
+  url?: string;
+  path?: string;
+  image?: string;
+  thumbnail?: string;
+  certificate_date?: string;
+  expiration_date?: string;
+}
+
 export default function SupplierPage() {
   const { slug } = useParams();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
@@ -87,6 +102,7 @@ export default function SupplierPage() {
   const [ratingsLoadingMore, setRatingsLoadingMore] = useState(false);
   const [ratingsError, setRatingsError] = useState<string | null>(null);
   const [ratingsHasMore, setRatingsHasMore] = useState(false);
+  const [selectedCertificate, setSelectedCertificate] = useState<Certificate | null>(null);
 
   useEffect(() => {
     if (slug) {
@@ -277,6 +293,15 @@ export default function SupplierPage() {
     return "Malo";
   };
 
+  const getImageUrl = (path: string | null) => {
+    if (!path) return "/placeholder.png";
+    if (path.startsWith('http')) return path;
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
+    // Ensure we don't double slash if path starts with /
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${baseUrl}${cleanPath}`;
+  };
+
   const filteredProducts = products.filter((product) => {
     const matchesCategory = selectedCategorySlug ? product.category?.slug === selectedCategorySlug : true;
     const matchesSubcategory = selectedSubcategorySlug ? product.subcategory?.slug === selectedSubcategorySlug : true;
@@ -367,6 +392,7 @@ export default function SupplierPage() {
               {[
                 { id: "inicio", label: "Inicio" },
                 { id: "productos", label: "Productos" },
+                { id: "certificados", label: "Certificados" },
                 { id: "calificaciones", label: "Calificaciones" },
                 { id: "nosotros", label: "Nosotros" },
                 { id: "contacto", label: "Contacto" },
@@ -570,6 +596,69 @@ export default function SupplierPage() {
           </div>
         </section>
 
+        <section id="certificados" className="scroll-mt-32">
+          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Certificados</h2>
+                <p className="text-gray-500 text-sm md:text-base">
+                  Documentación y certificaciones de {supplier.name}.
+                </p>
+              </div>
+            </div>
+
+            {supplier.certificates && supplier.certificates.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {supplier.certificates.map((cert: Certificate) => {
+                  const isPdf = (cert.image || cert.path || cert.url || "").toLowerCase().endsWith('.pdf');
+                  return (
+                    <div 
+                      key={cert.id} 
+                      className="group cursor-pointer"
+                      onClick={() => setSelectedCertificate(cert)}
+                    >
+                      <div className="aspect-[3/4] rounded-xl overflow-hidden border border-gray-200 bg-gray-50 relative mb-3 transition-all group-hover:shadow-md group-hover:border-primary/30">
+                        {isPdf ? (
+                           <div className="w-full h-full flex flex-col items-center justify-center p-4">
+                             <FileText className="w-12 h-12 text-red-500 mb-2" />
+                             <span className="text-xs text-center font-medium text-gray-500">Documento PDF</span>
+                           </div>
+                        ) : (
+                          <img 
+                            src={getImageUrl(cert.thumbnail || cert.image || cert.path || cert.url || "")} 
+                            alt={cert.name || cert.description}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                          />
+                        )}
+                        
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-sm">
+                             <ExternalLink size={20} className="text-primary" />
+                          </div>
+                        </div>
+                      </div>
+                      <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 group-hover:text-primary transition-colors">
+                        {cert.name || cert.description}
+                      </h3>
+                      {cert.certificate_date && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(cert.certificate_date).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-900 font-medium">No hay certificados disponibles.</p>
+                <p className="text-sm text-gray-500">Este proveedor aún no ha subido certificaciones.</p>
+              </div>
+            )}
+          </div>
+        </section>
+
         <section id="calificaciones" className="scroll-mt-32">
           <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
@@ -729,16 +818,7 @@ export default function SupplierPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
-              <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                <h3 className="font-semibold text-gray-900 mb-1">Año de Registro</h3>
-                <p className="text-gray-600">2023</p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                <h3 className="font-semibold text-gray-900 mb-1">Tipo de Negocio</h3>
-                <p className="text-gray-600">Fabricante / Distribuidor</p>
-              </div>
-            </div>
+            
           </div>
         </section>
 
@@ -809,6 +889,111 @@ export default function SupplierPage() {
           </div>
         </section>
       </div>
+
+      {selectedCertificate && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedCertificate(null)}>
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b flex items-center justify-between bg-gray-50">
+              <h3 className="font-bold text-lg text-gray-900">
+                {selectedCertificate.name || "Detalle del Certificado"}
+              </h3>
+              <button 
+                onClick={() => setSelectedCertificate(null)}
+                className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="bg-gray-100 rounded-xl overflow-hidden border border-gray-200 flex items-center justify-center min-h-[300px]">
+                   {(selectedCertificate.image || selectedCertificate.path || selectedCertificate.url || "").toLowerCase().endsWith('.pdf') ? (
+                      <div className="text-center p-8">
+                         <FileText className="w-24 h-24 text-red-500 mx-auto mb-4" />
+                         <p className="text-gray-900 font-medium mb-4">Este certificado es un documento PDF</p>
+                         <a 
+                           href={getImageUrl(selectedCertificate.image || selectedCertificate.path || selectedCertificate.url || "")}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="inline-flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors"
+                         >
+                           <ExternalLink size={18} />
+                           Abrir Documento
+                         </a>
+                      </div>
+                   ) : (
+                     <img 
+                       src={getImageUrl(selectedCertificate.image || selectedCertificate.path || selectedCertificate.url || "")} 
+                       alt={selectedCertificate.name || selectedCertificate.description}
+                       className="w-full h-full object-contain"
+                     />
+                   )}
+                </div>
+                
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Descripción</h4>
+                    <p className="text-gray-700 leading-relaxed">
+                      {selectedCertificate.description}
+                    </p>
+                  </div>
+                  
+                  {selectedCertificate.place && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Lugar de Expedición</h4>
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <MapPin size={18} className="text-gray-400" />
+                        <span>{selectedCertificate.place}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedCertificate.certificate_date && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Fecha de Emisión</h4>
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Calendar size={18} className="text-gray-400" />
+                          <span>{new Date(selectedCertificate.certificate_date).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {selectedCertificate.expiration_date && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Fecha de Vencimiento</h4>
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Calendar size={18} className="text-gray-400" />
+                          <span>{new Date(selectedCertificate.expiration_date).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {selectedCertificate.link && (
+                    <div>
+                       <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Enlace de Verificación</h4>
+                       <a 
+                         href={selectedCertificate.link} 
+                         target="_blank" 
+                         rel="noopener noreferrer"
+                         className="text-primary hover:underline break-all flex items-start gap-2"
+                       >
+                         <ExternalLink size={16} className="mt-1 shrink-0" />
+                         {selectedCertificate.link}
+                       </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
