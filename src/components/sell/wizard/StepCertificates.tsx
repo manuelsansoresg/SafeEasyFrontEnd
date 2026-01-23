@@ -1,17 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trash2, Edit2, X, Award, Calendar, Link as LinkIcon, MapPin } from 'lucide-react';
+import { Trash2, Edit2, X, Award, Calendar, Link as LinkIcon, MapPin, FileText } from 'lucide-react';
 import FileUpload from '@/components/ui/FileUpload';
 
 interface StepCertificatesProps {
   supplierId: number;
+  slug?: string;
   token: string;
   onNext: () => void;
 }
 
 interface CertificateItem {
   id: number;
+  name?: string;
   description: string;
   place: string;
   link?: string;
@@ -19,11 +21,12 @@ interface CertificateItem {
   url?: string;
   path?: string;
   image?: string;
+  thumbnail?: string;
   certificate_date?: string;
   expiration_date?: string;
 }
 
-export default function StepCertificates({ supplierId, token, onNext }: StepCertificatesProps) {
+export default function StepCertificates({ supplierId, slug, token, onNext }: StepCertificatesProps) {
   const [items, setItems] = useState<CertificateItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -40,17 +43,39 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
 
   const fetchItems = async () => {
+    // If we don't have a slug, we can't reliably fetch details since ID fetch is broken on backend
+    if (!slug) {
+        console.warn("StepCertificates: No slug provided, cannot fetch certificates yet.");
+        return;
+    }
+
     setFetching(true);
     try {
-      // Changed to fetch supplier details directly as per instruction
-      const res = await fetch(`/api/suppliers/${supplierId}`, {
+      // Always use the slug endpoint as it is the only one confirmed to work for reading details
+      const url = `/api/suppliers/${slug}`;
+      console.log(`StepCertificates: Fetching from ${url}`);
+      
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store'
       });
+      
       if (res.ok) {
         const data = await res.json();
         console.log("Certificate Items Response:", data);
-        // The user specified that the array is in 'certificates'
-        setItems(Array.isArray(data.certificates) ? data.certificates : []);
+        
+        let certs: CertificateItem[] = [];
+        // The response is the supplier object, so we look for certificates array
+        if (data.certificates && Array.isArray(data.certificates)) {
+            certs = data.certificates;
+        } else if (Array.isArray(data)) {
+            // Fallback just in case
+            certs = data;
+        }
+        
+        setItems(certs);
+      } else {
+        console.error("StepCertificates: Failed to fetch supplier details", res.status);
       }
     } catch (e) {
       console.error("Error fetching certificates", e);
@@ -60,32 +85,23 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
   };
 
   useEffect(() => {
-    if (supplierId) {
-      fetchItems();
-    }
-  }, [supplierId]);
+    fetchItems();
+  }, [slug, token]);
 
   const getImageUrl = (path: string | null) => {
-    if (!path) return null;
-    if (path.startsWith('http') || path.startsWith('data:')) return path;
-    
-    // Use the env var or fallback
+    if (!path) return "/placeholder.png";
+    if (path.startsWith('http')) return path;
+    // Remove leading slash if present to avoid double slashes issues if needed, 
+    // but usually backend URL doesn't have trailing slash.
+    // However, if path starts with /, we can just append it to base.
     const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
-    
-    // Remove leading slash for consistency
-    let cleanPath = path.startsWith('/') ? path.substring(1) : path;
-    
-    // If path doesn't start with static, assume it needs it
-    if (!cleanPath.startsWith('static/')) {
-        cleanPath = `static/${cleanPath}`;
-    }
-    
-    return `${baseUrl}/${cleanPath}`;
+    // If path starts with /static, we assume it's relative to backend root
+    return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
   };
 
   const handleEdit = (item: CertificateItem) => {
     setEditingId(item.id);
-    setDescription(item.description || '');
+    setDescription(item.name || item.description || '');
     setPlace(item.place || '');
     setLink(item.link || '');
     setCertificateDate(item.certificate_date ? item.certificate_date.split('T')[0] : '');
@@ -118,6 +134,7 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
 
     try {
       const formData = new FormData();
+      formData.append('name', description);
       formData.append('description', description);
       formData.append('place', place);
       if (link) formData.append('link', link);
@@ -306,14 +323,28 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
               >
                 <div className="flex items-start gap-4">
                     <div className="w-16 h-16 bg-primary/5 rounded-lg flex-shrink-0 flex items-center justify-center text-primary">
-                        {(item.image_url || item.url || item.path || item.image) ? (
-                            <img src={getImageUrl(item.image_url || item.url || item.path || item.image || null)!} alt="" className="w-full h-full object-cover rounded-lg" />
-                        ) : (
-                            <Award size={32} />
-                        )}
+                        {(() => {
+                            const imgUrl = getImageUrl(item.image_url || item.url || item.path || item.image || null);
+                            if (imgUrl) {
+                                if (imgUrl.toLowerCase().endsWith('.pdf')) {
+                                    return <FileText size={32} />;
+                                }
+                                return (
+                                    <img 
+                                        src={imgUrl} 
+                                        alt={item.name || item.description || ""} 
+                                        className="w-full h-full object-cover rounded-lg"
+                                        onError={(e) => {
+                                            e.currentTarget.src = "/placeholder.png";
+                                        }}
+                                    />
+                                );
+                            }
+                            return <Award size={32} />;
+                        })()}
                     </div>
                     <div className="flex-grow">
-                        <h4 className="font-bold text-gray-800 line-clamp-2">{item.description}</h4>
+                        <h4 className="font-bold text-gray-800 line-clamp-2">{item.name || item.description}</h4>
                         <div className="flex items-center text-sm text-gray-500 mt-1">
                             <MapPin size={14} className="mr-1" />
                             {item.place}
@@ -334,8 +365,9 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
                     </div>
                 </div>
 
-                <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-3 right-3 flex gap-2 opacity-100 transition-opacity">
                    <button 
+                    type="button"
                     onClick={() => handleEdit(item)}
                     className="p-2 bg-white text-blue-600 rounded-full shadow-sm hover:bg-blue-50 transition-colors border border-gray-100"
                     title="Editar"
@@ -343,6 +375,7 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
                     <Edit2 size={16} />
                   </button>
                   <button 
+                    type="button"
                     onClick={() => handleDelete(item.id)}
                     className="p-2 bg-white text-red-600 rounded-full shadow-sm hover:bg-red-50 transition-colors border border-gray-100"
                     title="Eliminar"

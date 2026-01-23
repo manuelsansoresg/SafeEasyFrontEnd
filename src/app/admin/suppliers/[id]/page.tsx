@@ -14,6 +14,7 @@ interface Supplier {
   id: number;
   name: string;
   short_name?: string;
+  slug?: string;
   rfc?: string;
   phone?: string;
   email?: string;
@@ -161,7 +162,12 @@ export default function EditSupplierPage() {
         )}
 
         {activeTab === "certificates" && (
-          <StepCertificates supplierId={supplier.id} token={token} onNext={() => {}} />
+          <StepCertificates 
+            supplierId={supplier.id} 
+            slug={supplier.slug || supplier.short_name || undefined}
+            token={token} 
+            onNext={() => {}} 
+          />
         )}
       </div>
     </div>

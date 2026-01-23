@@ -124,7 +124,12 @@ function MyCompanyContent() {
         )}
 
         {activeTab === 'certificates' && token && (
-          <StepCertificates supplierId={supplier.id} token={token} onNext={() => {}} />
+          <StepCertificates 
+            supplierId={supplier.id} 
+            slug={supplier.slug || supplier.short_name || undefined}
+            token={token} 
+            onNext={() => {}} 
+          />
         )}
       </div>
     </div>

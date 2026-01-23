@@ -116,15 +116,24 @@ export default function FileUpload({
 
         {displayImage ? (
           <div className="relative w-full h-full flex items-center justify-center">
-            <div className="relative group/image">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img 
-                    src={displayImage} 
-                    alt="Preview" 
-                    className="max-h-48 rounded-lg shadow-sm object-contain" 
-                />
+            <div className="relative group/image flex flex-col items-center">
+                {/* Check if it's a PDF */}
+                {(displayImage.toLowerCase().endsWith('.pdf') || (value && value.type === 'application/pdf')) ? (
+                    <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <FileText size={48} className="text-red-500 mb-2" />
+                        <span className="text-sm font-medium text-gray-600">Documento PDF</span>
+                    </div>
+                ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img 
+                        src={displayImage} 
+                        alt="Preview" 
+                        className="max-h-48 rounded-lg shadow-sm object-contain" 
+                    />
+                )}
+                
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                    <p className="text-white text-sm font-medium">Cambiar imagen</p>
+                    <p className="text-white text-sm font-medium">Cambiar archivo</p>
                 </div>
             </div>
             
