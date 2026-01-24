@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Supplier, CarouselImage } from "@/lib/products";
@@ -103,6 +103,29 @@ export default function SupplierPage() {
   const [ratingsError, setRatingsError] = useState<string | null>(null);
   const [ratingsHasMore, setRatingsHasMore] = useState(false);
   const [selectedCertificate, setSelectedCertificate] = useState<Certificate | null>(null);
+  
+  const observerTarget = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !productsLoading) {
+          setPage((prev) => prev + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [hasMore, productsLoading]);
 
   useEffect(() => {
     if (slug) {
@@ -110,7 +133,7 @@ export default function SupplierPage() {
       setPage(1);
       setSelectedCategorySlug(null);
       setSelectedSubcategorySlug(null);
-      fetchProducts(slug as string, 1);
+      fetchProducts(slug as string, 1, false);
       fetchRatings(slug as string, 0, false);
     }
   }, [slug]);
@@ -131,9 +154,11 @@ export default function SupplierPage() {
     }
   };
 
-  const fetchProducts = async (supplierSlug: string, currentPage: number) => {
+  const fetchProducts = async (supplierSlug: string, currentPage: number, append: boolean = false) => {
     try {
-      setProductsLoading(true);
+      if (!append) {
+         setProductsLoading(true);
+      }
       setProductsError(null);
 
       const skip = (currentPage - 1) * limit;
@@ -147,7 +172,7 @@ export default function SupplierPage() {
 
       if (!res.ok) {
         console.error("Error fetching supplier products", res.status, res.statusText);
-        setProducts([]);
+        if (!append) setProducts([]);
         setHasMore(false);
         setProductsError("No fue posible cargar los productos.");
         return;
@@ -155,13 +180,14 @@ export default function SupplierPage() {
 
       const data = await res.json();
       const items = Array.isArray(data) ? data : (data.items || data.results || []);
+      const newProducts = items as SupplierProduct[];
 
-      setProducts(items as SupplierProduct[]);
+      setProducts(prev => append ? [...prev, ...newProducts] : newProducts);
       setHasMore(Array.isArray(items) && items.length === limit);
     } catch (error) {
       console.error("Error fetching supplier products", error);
       setProductsError("Ocurrió un error al cargar los productos.");
-      setProducts([]);
+      if (!append) setProducts([]);
       setHasMore(false);
     } finally {
       setProductsLoading(false);
@@ -232,7 +258,7 @@ export default function SupplierPage() {
   useEffect(() => {
     if (!slug) return;
     if (page === 1) return;
-    fetchProducts(slug as string, page);
+    fetchProducts(slug as string, page, true);
   }, [page, slug]);
 
   const handleScroll = (sectionId: string) => {
@@ -525,7 +551,7 @@ export default function SupplierPage() {
               )}
             </div>
 
-            {productsLoading ? (
+            {productsLoading && page === 1 ? (
               <div className="flex justify-center py-10">
                 <div className="flex items-center gap-3 text-gray-500">
                   <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -558,39 +584,16 @@ export default function SupplierPage() {
                   ))}
                 </div>
 
-                <div className="flex justify-center items-center gap-4 mt-8">
-                  <button
-                    type="button"
-                    disabled={page === 1 || productsLoading}
-                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                    className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                      page === 1 || productsLoading
-                        ? "text-gray-300 border-gray-200 cursor-not-allowed"
-                        : "text-gray-700 border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <ChevronLeft size={16} />
-                    Anterior
-                  </button>
-
-                  <span className="text-sm text-gray-600 font-medium">
-                    Página {page}
-                  </span>
-
-                  <button
-                    type="button"
-                    disabled={!hasMore || productsLoading}
-                    onClick={() => setPage((prev) => prev + 1)}
-                    className={`flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                      !hasMore || productsLoading
-                        ? "text-gray-300 border-gray-200 cursor-not-allowed"
-                        : "text-gray-700 border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    Siguiente
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
+                {hasMore && (
+                  <div ref={observerTarget} className="flex justify-center py-8">
+                    {productsLoading && (
+                      <div className="flex items-center gap-3 text-gray-500">
+                        <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <span className="text-sm">Cargando más productos...</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>

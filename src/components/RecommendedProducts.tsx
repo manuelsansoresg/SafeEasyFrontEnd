@@ -14,7 +14,7 @@ export default function RecommendedProducts() {
   useEffect(() => {
     const fetchRecommendations = async () => {
       try {
-        let data = await getRecommendations(20);
+        let data = await getRecommendations(500);
         
         // Fallback to standard products if recommendations are empty or failed
         if (!data || data.length === 0) {
