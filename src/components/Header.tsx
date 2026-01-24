@@ -6,7 +6,7 @@ import { Search, User, ChevronDown, ShoppingBag, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { registerInteraction } from "@/lib/interactions";
 
 function SearchBar() {
@@ -86,6 +86,22 @@ export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { isAuthenticated, user, logout } = useAuthStore();
+  const pathname = usePathname();
+  const isSupplierPage = pathname?.startsWith('/empresas/');
+
+  const handleSupplierScroll = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      const headerOffset = 80;
+      const elementPosition = element.getBoundingClientRect().top + window.scrollY;
+      const offsetPosition = elementPosition - headerOffset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth",
+      });
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -111,28 +127,55 @@ export function Header() {
         </Link>
 
         {/* Search Bar - Hidden on very small screens if needed, or adapted */}
-        <div className="flex-1 max-w-2xl mx-4 hidden md:flex relative group">
-          <Suspense fallback={<div className="w-full h-10 bg-gray-100 rounded-full" />}>
-            <SearchBar />
-          </Suspense>
-        </div>
+        {!isSupplierPage ? (
+          <div className="flex-1 max-w-2xl mx-4 hidden md:flex relative group">
+            <Suspense fallback={<div className="w-full h-10 bg-gray-100 rounded-full" />}>
+              <SearchBar />
+            </Suspense>
+          </div>
+        ) : (
+          <nav className="hidden md:flex flex-1 items-center justify-center mx-6">
+            <div className="flex items-center gap-1 bg-gray-100/80 p-1.5 rounded-full border border-gray-200/60 shadow-sm backdrop-blur-sm">
+              {[
+                { id: "inicio", label: "Inicio" },
+                { id: "productos", label: "Productos" },
+                { id: "certificados", label: "Certificados" },
+                { id: "calificaciones", label: "Calificaciones" },
+                { id: "nosotros", label: "Nosotros" },
+                { id: "contacto", label: "Contacto" },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleSupplierScroll(item.id)}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 rounded-full hover:bg-white hover:text-primary hover:shadow-sm transition-all duration-200 whitespace-nowrap"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </nav>
+        )}
 
         {/* Mobile Search - Simplified */}
-        <div className="flex-1 md:hidden mx-2">
-           <Suspense fallback={<div className="w-full h-9 bg-gray-100 rounded-full" />}>
-             <MobileSearchBar />
-           </Suspense>
-        </div>
+        {!isSupplierPage && (
+          <div className="flex-1 md:hidden mx-2">
+             <Suspense fallback={<div className="w-full h-9 bg-gray-100 rounded-full" />}>
+               <MobileSearchBar />
+             </Suspense>
+          </div>
+        )}
 
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-6">
-          <Link
-            href="/sell"
-            className="flex items-center gap-2 text-sm font-bold text-white bg-primary hover:bg-primary/90 py-2 px-4 rounded-full transition-all shadow-md hover:shadow-lg transform hover:scale-105"
-          >
-            <ShoppingBag size={18} />
-            <span>Vende en SafeEasy</span>
-          </Link>
+          {!isSupplierPage && (
+            <Link
+              href="/sell"
+              className="flex items-center gap-2 text-sm font-bold text-white bg-primary hover:bg-primary/90 py-2 px-4 rounded-full transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+            >
+              <ShoppingBag size={18} />
+              <span>Vende en SafeEasy</span>
+            </Link>
+          )}
 
           {/* User Menu */}
           <div

@@ -261,21 +261,6 @@ export default function SupplierPage() {
     fetchProducts(slug as string, page, true);
   }, [page, slug]);
 
-  const handleScroll = (sectionId: string) => {
-    setActiveTab(sectionId);
-    const element = document.getElementById(sectionId);
-    if (!element) return;
-
-    const headerOffset = 140;
-    const elementPosition = element.getBoundingClientRect().top + window.scrollY;
-    const offsetPosition = elementPosition - headerOffset;
-
-    window.scrollTo({
-      top: offsetPosition,
-      behavior: "smooth",
-    });
-  };
-
   const sanitizeHtml = (html: string) => {
     if (!html) return "";
     return html
@@ -353,37 +338,37 @@ export default function SupplierPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm border-b md:sticky md:top-0 md:z-50">
-        <div className="container mx-auto px-4 py-4 md:py-6 flex flex-col md:flex-row items-center gap-4 md:gap-6">
-          <div className="w-24 h-24 md:w-32 md:h-32 relative shrink-0 bg-white border rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-white shadow-sm border-b md:sticky md:top-16 md:z-40 transition-all duration-300">
+        <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row items-center gap-4 md:gap-6">
+          <div className="w-20 h-20 md:w-24 md:h-24 relative shrink-0 bg-white border rounded-xl overflow-hidden shadow-sm">
             {supplier.logo ? (
               <img src={supplier.logo} alt={supplier.name} className="w-full h-full object-contain p-2" />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                <Store size={40} />
+                <Store size={32} />
               </div>
             )}
           </div>
 
-          <div className="flex-1 text-center md:text-left space-y-2">
+          <div className="flex-1 text-center md:text-left space-y-1">
             <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-4">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center justify-center md:justify-start gap-3 flex-wrap">
+                <h1 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center justify-center md:justify-start gap-2 flex-wrap">
                   {supplier.name}
                   {supplier.certificates && supplier.certificates.length > 0 && (
-                    <div className="flex items-center gap-1 bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-medium border border-blue-100">
-                      <CheckCircle size={14} />
+                    <div className="flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-medium border border-blue-100 uppercase tracking-wide">
+                      <CheckCircle size={12} />
                       <span>Certificado</span>
                     </div>
                   )}
                 </h1>
-                <p className="text-gray-600 text-base md:text-lg max-w-2xl mt-1">
+                <p className="text-gray-500 text-sm md:text-base max-w-2xl line-clamp-1">
                   {supplier.short_description || "Empresa destacada en SafeEasy"}
                 </p>
                 
                 {supplier.city && supplier.country && (
-                  <div className="flex items-center justify-center md:justify-start gap-2 text-gray-500 text-sm mt-2">
-                    <MapPin size={16} />
+                  <div className="flex items-center justify-center md:justify-start gap-1.5 text-gray-400 text-xs mt-1">
+                    <MapPin size={14} />
                     <span>
                       {supplier.city}, {supplier.state}, {supplier.country}
                     </span>
@@ -391,51 +376,21 @@ export default function SupplierPage() {
                 )}
               </div>
 
-              <div className="flex flex-col items-center md:items-end bg-gray-50 p-3 rounded-lg border border-gray-100 min-w-[160px]">
+              <div className="hidden md:flex flex-col items-end bg-gray-50/50 p-2 rounded-lg border border-gray-100 min-w-[140px]">
                 <div className="flex items-center gap-2">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-gray-900">
+                    <span className="text-2xl font-bold text-gray-900">
                       {supplier.average_rating ? supplier.average_rating.toFixed(1) : "0.0"}
                     </span>
-                    <span className="text-gray-400 text-sm font-medium">/5</span>
+                    <span className="text-gray-400 text-xs font-medium">/5</span>
                   </div>
-                  <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                 </div>
-                <div className="font-semibold text-gray-900 text-sm">
+                <div className="font-medium text-gray-700 text-xs">
                   {supplier.average_rating ? getRatingLabel(supplier.average_rating) : "Sin calificaciones"}
-                </div>
-                <div className="text-primary text-xs hover:underline cursor-pointer mt-0.5">
-                  {supplier.rating_count || 0} calificaciones
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="hidden md:block border-t bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 backdrop-blur-sm">
-          <div className="container mx-auto px-4">
-            <nav className="flex justify-start overflow-x-auto gap-2 md:gap-3 py-2 md:py-3">
-              {[
-                { id: "inicio", label: "Inicio" },
-                { id: "productos", label: "Productos" },
-                { id: "certificados", label: "Certificados" },
-                { id: "calificaciones", label: "Calificaciones" },
-                { id: "nosotros", label: "Nosotros" },
-                { id: "contacto", label: "Contacto" },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleScroll(item.id)}
-                  className={`px-6 py-2 text-sm font-semibold rounded-full transition-all whitespace-nowrap ${
-                    activeTab === item.id
-                      ? "bg-primary text-white shadow-md transform scale-105"
-                      : "bg-white/60 text-primary hover:bg-white hover:shadow-sm"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
           </div>
         </div>
       </div>
