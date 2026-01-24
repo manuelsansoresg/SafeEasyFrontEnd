@@ -508,16 +508,39 @@ export default function ProductDetailPage() {
     return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
   };
 
+  const getMediaList = () => {
+    if (!product) return [];
+    if (product.media && product.media.length > 0) return product.media;
+    
+    // Fallback if media is empty but image/thumbnail exists
+    if (product.image || product.thumbnail_url) {
+       return [{
+         id: 0,
+         product_id: product.id,
+         type: 'image' as const,
+         filename: 'main-image',
+         path: product.image || product.thumbnail_url || '',
+         url: product.image || product.thumbnail_url || '',
+         thumbnail_url: product.thumbnail_url,
+         is_primary: true,
+         position: 0
+       }] as ProductMedia[];
+    }
+    return [];
+  };
+
   const handlePrevMedia = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!product || !product.media) return;
-    setSelectedMediaIndex((prev) => (prev === 0 ? product.media.length - 1 : prev - 1));
+    const mediaList = getMediaList();
+    if (mediaList.length === 0) return;
+    setSelectedMediaIndex((prev) => (prev === 0 ? mediaList.length - 1 : prev - 1));
   };
 
   const handleNextMedia = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!product || !product.media) return;
-    setSelectedMediaIndex((prev) => (prev === product.media.length - 1 ? 0 : prev + 1));
+    const mediaList = getMediaList();
+    if (mediaList.length === 0) return;
+    setSelectedMediaIndex((prev) => (prev === mediaList.length - 1 ? 0 : prev + 1));
   };
 
   const handleChatOpen = () => {
@@ -569,8 +592,9 @@ export default function ProductDetailPage() {
     );
   }
 
-  const currentMedia = product.media && product.media.length > 0 
-    ? product.media[selectedMediaIndex] 
+  const mediaList = getMediaList();
+  const currentMedia = mediaList.length > 0 
+    ? mediaList[selectedMediaIndex] 
     : null;
 
   return (
@@ -632,9 +656,9 @@ export default function ProductDetailPage() {
               </div>
 
               {/* Thumbnails */}
-              {product.media && product.media.length > 1 && (
+              {mediaList.length > 1 && (
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                  {product.media.map((media, index) => (
+                  {mediaList.map((media, index) => (
                     <button
                       key={media.id}
                       onClick={() => setSelectedMediaIndex(index)}
@@ -980,7 +1004,7 @@ export default function ProductDetailPage() {
           </div>
           
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto max-w-[90vw] p-2">
-             {product.media && product.media.map((media, index) => (
+             {mediaList.map((media, index) => (
                <button
                  key={media.id}
                  onClick={(e) => { e.stopPropagation(); setSelectedMediaIndex(index); }}
