@@ -85,6 +85,9 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             </div>
             <h2 className="text-2xl font-bold text-gray-900">Inicia Sesión</h2>
             <p className="text-gray-500 mt-2">Para calificar este producto necesitas estar autenticado.</p>
+            <p className="text-sm text-gray-500 mt-1">
+              ¿No tienes cuenta? <a href="/register" className="text-primary font-medium hover:underline">Regístrate gratis</a>
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

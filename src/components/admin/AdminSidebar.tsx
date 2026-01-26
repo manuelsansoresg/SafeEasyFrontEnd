@@ -7,6 +7,7 @@ import {
   User, 
   Users,
   Users2,
+  MessageSquare,
   Grid, 
   Layers, 
   Package, 
@@ -77,6 +78,12 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       title: "Mis Productos", 
       path: "/admin/products", 
       icon: Package,
+      roles: ['admin', 'superuser', 'supplier']
+    },
+    { 
+      title: "Mensajes", 
+      path: "/admin/messages", 
+      icon: MessageSquare,
       roles: ['admin', 'superuser', 'supplier']
     }
   ];

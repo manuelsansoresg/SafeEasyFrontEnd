@@ -20,7 +20,8 @@ import {
   ChevronRight,
   Loader2,
   Package,
-  CreditCard
+  CreditCard,
+  Store
 } from "lucide-react";
 import Link from "next/link";
 
@@ -70,6 +71,8 @@ interface ProductDetail {
     last_name: string;
     name?: string;
     email?: string;
+    slug?: string;
+    logo?: string | null;
   };
   category_id: number;
   subcategory_id: number;
@@ -744,6 +747,32 @@ export default function ProductDetailPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Supplier Info Link */}
+                {product.supplier && product.supplier.slug && (
+                  <div className="mb-6 bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <Link href={`/empresas/${product.supplier.slug}`} className="flex items-center gap-4 group">
+                      <div className="w-12 h-12 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+                        {product.supplier.logo ? (
+                          <img 
+                            src={product.supplier.logo} 
+                            alt={product.supplier.name || 'Proveedor'} 
+                            className="w-full h-full object-contain" 
+                          />
+                        ) : (
+                          <Store className="text-gray-400" size={24} />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500 mb-0.5">Vendido por</p>
+                        <h3 className="font-bold text-gray-900 group-hover:text-primary transition-colors truncate pr-2 flex items-center gap-1">
+                          {product.supplier.name || "Proveedor Verificado"}
+                          <ChevronRight size={14} className="opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all text-primary" />
+                        </h3>
+                      </div>
+                    </Link>
+                  </div>
+                )}
 
                 {/* Actions */}
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">

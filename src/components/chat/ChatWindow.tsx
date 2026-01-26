@@ -771,7 +771,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
 
                 {/* Input Area */}
                 <div className="bg-white p-4 border-t shrink-0">
-                    <div className="flex items-end gap-2 bg-gray-50 p-2 rounded-xl border focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10 transition-all">
+                    <div className="flex items-end gap-2 bg-gray-50 p-2 rounded-xl border focus-within:border-primary focus-within:bg-white transition-all shadow-sm">
                     <button className="p-2 text-gray-400 hover:text-primary transition-colors">
                         <Paperclip size={20} />
                     </button>
@@ -781,7 +781,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                         onKeyDown={handleKeyPress}
                         disabled={!activeConversation}
                         placeholder={!activeConversation ? "Selecciona una conversación..." : "Escribe tu mensaje..."}
-                        className="flex-1 bg-transparent border-none focus:ring-0 resize-none max-h-32 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 bg-transparent border-none focus:ring-0 outline-none resize-none max-h-32 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         rows={1}
                     />
                     <button 
