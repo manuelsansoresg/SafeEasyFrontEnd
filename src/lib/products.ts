@@ -43,6 +43,10 @@ export interface Supplier {
   certificates: any[];
   average_rating?: number;
   rating_count?: number;
+  transfer_accepted?: boolean;
+  transfer_clabe?: string;
+  transfer_bank?: string;
+  transfer_name?: string;
 }
 
 export interface CarouselImage {

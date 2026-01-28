@@ -25,28 +25,53 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     setError(null);
 
     try {
-      // Use the API to login
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8080'}/api/auth/login`, {
+      // Use internal API route to avoid Mixed Content (HTTPS -> HTTP) issues
+      // The proxy at /api/login/access-token will handle the communication with the insecure backend
+      const formData = new URLSearchParams();
+      formData.append('grant_type', 'password');
+      formData.append('username', email);
+      formData.append('password', password);
+      // Adding required fields for OAuth2 password flow
+      formData.append('scope', '');
+      formData.append('client_id', 'string');
+      formData.append('client_secret', 'string');
+
+      const response = await fetch('/api/login/access-token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
+          'accept': 'application/json',
         },
-        body: new URLSearchParams({
-          username: email,
-          password: password,
-        }),
+        body: formData,
       });
 
       if (!response.ok) {
-        throw new Error("Credenciales inválidas");
+        // Try to parse error message from backend
+        let errorMsg = "Credenciales inválidas";
+        try {
+            const errorData = await response.json();
+            const detail = errorData.detail || errorData.message;
+            if (detail) {
+                errorMsg = typeof detail === 'string' ? detail : JSON.stringify(detail);
+                if (errorMsg === "Incorrect email or password") {
+                    errorMsg = "Correo o contraseña incorrectos";
+                }
+            }
+        } catch (e) {
+            // If response is not JSON, use text or default message
+            const text = await response.text().catch(() => null);
+            if (text) errorMsg = text;
+        }
+        throw new Error(errorMsg);
       }
 
       const data = await response.json();
       
-      // Fetch user details
-      const userResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8080'}/api/users/me`, {
+      // Fetch user details using the proxy route
+      const userResponse = await fetch('/api/users/me', {
         headers: {
-          'Authorization': `Bearer ${data.access_token}`
+          'Authorization': `Bearer ${data.access_token}`,
+          'accept': 'application/json'
         }
       });
 

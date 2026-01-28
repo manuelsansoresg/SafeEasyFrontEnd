@@ -73,6 +73,10 @@ interface ProductDetail {
     email?: string;
     slug?: string;
     logo?: string | null;
+    transfer_clabe?: string | null;
+    transfer_bank?: string | null;
+    transfer_name?: string | null;
+    transfer_accepted?: boolean;
   };
   category_id: number;
   subcategory_id: number;
@@ -975,6 +979,12 @@ export default function ProductDetailPage() {
             price: product.price,
             image: product.image || product.thumbnail_url || "",
             minOrder: 1 // Default or fetch if available
+          }}
+          supplierTransferData={{
+            transfer_clabe: product.supplier?.transfer_clabe,
+            transfer_bank: product.supplier?.transfer_bank,
+            transfer_name: product.supplier?.transfer_name,
+            transfer_accepted: product.supplier?.transfer_accepted,
           }}
         />
       )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import FileUpload from '@/components/ui/FileUpload';
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
@@ -26,6 +27,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     city: '',
     state: '',
     country: 'Mexico',
+    is_active: true,
     short_description: '',
     description: '',
     address: '',
@@ -33,6 +35,10 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     interior_number: '',
     neighborhood: '',
     about: '',
+    transfer_accepted: false,
+    transfer_clabe: '',
+    transfer_bank: '',
+    transfer_name: '',
   });
 
   const [logo, setLogo] = useState<File | null>(null);
@@ -65,7 +71,10 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
   }, [userId, token, onSuccess]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const target = e.target;
+    const value = target.type === 'checkbox' ? (target as HTMLInputElement).checked : target.value;
+    
+    setFormData({ ...formData, [target.name]: value });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (f: File | null) => void) => {
@@ -127,7 +136,33 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
       
       // Add user_id
       data.append('user_id', userId.toString());
-      data.append('is_active', 'true');
+      data.append('is_active', String(formData.is_active));
+
+      // Transfer data
+      if (formData.transfer_accepted) {
+          if (!formData.transfer_clabe || !/^\d{18}$/.test(formData.transfer_clabe)) {
+              setError("La CLABE debe tener 18 dígitos numéricos.");
+              setLoading(false);
+              return;
+          }
+          if (!formData.transfer_bank) {
+              setError("El nombre del banco es obligatorio si acepta transferencias.");
+              setLoading(false);
+              return;
+          }
+          if (!formData.transfer_name) {
+              setError("El nombre del beneficiario es obligatorio si acepta transferencias.");
+              setLoading(false);
+              return;
+          }
+
+          data.append('transfer_accepted', 'true');
+          data.append('transfer_clabe', formData.transfer_clabe);
+          data.append('transfer_bank', formData.transfer_bank);
+          data.append('transfer_name', formData.transfer_name);
+      } else {
+          data.append('transfer_accepted', 'false');
+      }
 
       // Add files
       if (logo) data.append('logo', logo);
@@ -179,156 +214,316 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold text-center mb-6">Información de la Empresa</h2>
-      
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-5xl mx-auto">
       {error && (
-        <div className="bg-red-50 text-red-500 p-4 rounded-lg mb-6 text-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Basic Info */}
-        <div className="space-y-4">
-          <h3 className="font-semibold text-lg text-gray-900">Datos Generales</h3>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Nombre de la Empresa</label>
-            <input type="text" name="name" required value={formData.name} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Nombre Corto (Slug)</label>
-            <input type="text" name="short_name" required value={formData.short_name} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">RFC / Tax ID</label>
-            <input type="text" name="rfc" required value={formData.rfc} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Teléfono</label>
-            <input type="text" name="phone" required value={formData.phone} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Email de Contacto</label>
-            <input type="email" name="email" required value={formData.email} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-          </div>
-        </div>
-
-        {/* Address */}
-        <div className="space-y-4">
-          <h3 className="font-semibold text-lg text-gray-900">Dirección</h3>
-
-          <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Left Column: Basic Info */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Datos Generales</h3>
+            
             <div>
-              <label className="block text-sm font-medium text-gray-700">País</label>
-              <input type="text" name="country" required value={formData.country} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Empresa</label>
+              <input 
+                type="text" 
+                name="name" 
+                required 
+                value={formData.name} 
+                onChange={handleChange} 
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+              />
             </div>
+
             <div>
-               <label className="block text-sm font-medium text-gray-700">Estado/Provincia</label>
-               <input type="text" name="state" required value={formData.state} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Corto (Slug)</label>
+              <input 
+                type="text" 
+                name="short_name" 
+                value={formData.short_name} 
+                onChange={handleChange} 
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">RFC</label>
+                <input 
+                  type="text" 
+                  name="rfc" 
+                  value={formData.rfc} 
+                  onChange={handleChange} 
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                <input 
+                  type="text" 
+                  name="phone" 
+                  value={formData.phone} 
+                  onChange={handleChange} 
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email Público</label>
+              <input 
+                type="email" 
+                name="email" 
+                value={formData.email} 
+                onChange={handleChange} 
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+              />
+            </div>
+
+            <div>
+              <label className="flex items-center space-x-2 cursor-pointer mt-4">
+                <input
+                  type="checkbox"
+                  name="is_active"
+                  checked={formData.is_active}
+                  onChange={handleChange}
+                  className="rounded text-primary focus:ring-primary"
+                />
+                <span className="text-sm font-medium text-gray-700">Cuenta Activa</span>
+              </label>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Ciudad</label>
-              <input type="text" name="city" required value={formData.city} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
+          {/* Right Column: Address */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Ubicación</h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">País</label>
+                <input 
+                  type="text" 
+                  name="country" 
+                  value={formData.country} 
+                  onChange={handleChange} 
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                />
+              </div>
+              <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                 <input 
+                   type="text" 
+                   name="state" 
+                   value={formData.state} 
+                   onChange={handleChange} 
+                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                 />
+              </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
+                <input 
+                  type="text" 
+                  name="city" 
+                  value={formData.city} 
+                  onChange={handleChange} 
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                />
+              </div>
+               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Colonia</label>
+                <input 
+                  type="text" 
+                  name="neighborhood" 
+                  value={formData.neighborhood} 
+                  onChange={handleChange} 
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Calle</label>
+              <input 
+                type="text" 
+                name="address" 
+                value={formData.address} 
+                onChange={handleChange} 
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">No. Exterior</label>
+                <input 
+                  type="text" 
+                  name="exterior_number" 
+                  value={formData.exterior_number} 
+                  onChange={handleChange} 
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">No. Interior</label>
+                <input 
+                  type="text" 
+                  name="interior_number" 
+                  value={formData.interior_number} 
+                  onChange={handleChange} 
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Full Width: Description, Files & Transfer Data */}
+          <div className="md:col-span-2 space-y-4 pt-4">
+             <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Perfil Detallado</h3>
+             
              <div>
-              <label className="block text-sm font-medium text-gray-700">Colonia/Barrio</label>
-              <input type="text" name="neighborhood" required value={formData.neighborhood} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
+               <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Corta (SEO)</label>
+               <input 
+                 type="text" 
+                 name="short_description" 
+                 value={formData.short_description} 
+                 onChange={handleChange} 
+                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                 maxLength={160} 
+               />
+             </div>
+  
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Completa (HTML)</label>
+              <div className="border border-gray-300 rounded-md overflow-hidden bg-white">
+                <ReactQuill
+                  theme="snow"
+                  value={formData.description}
+                  onChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      description: value,
+                    }))
+                  }
+                />
+              </div>
             </div>
-          </div>
+  
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sobre Nosotros (Historia, HTML)</label>
+              <div className="border border-gray-300 rounded-md overflow-hidden bg-white">
+                <ReactQuill
+                  theme="snow"
+                  value={formData.about}
+                  onChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      about: value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+  
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+               <FileUpload
+                   label="Logo de la Empresa"
+                   value={logo}
+                   onChange={setLogo}
+                   helperText="Recomendado: Formato cuadrado, mín. 400x400px"
+               />
+               <FileUpload
+                   label="Imagen 'Sobre Nosotros'"
+                   value={aboutImage}
+                   onChange={setAboutImage}
+                   helperText="Imagen representativa para su perfil"
+               />
+             </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Calle</label>
-            <input type="text" name="address" required value={formData.address} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Num. Exterior</label>
-              <input type="text" name="exterior_number" required value={formData.exterior_number} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Num. Interior</label>
-              <input type="text" name="interior_number" value={formData.interior_number} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" />
-            </div>
+             <div className="pt-6 border-t border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Datos Bancarios para Transferencias</h3>
+                
+                <div className="flex items-center gap-2 mb-4">
+                    <input 
+                        type="checkbox" 
+                        id="transfer_accepted"
+                        name="transfer_accepted" 
+                        checked={formData.transfer_accepted} 
+                        onChange={handleChange}
+                        className="h-5 w-5 text-primary border-gray-300 rounded focus:ring-primary"
+                    />
+                    <label htmlFor="transfer_accepted" className="text-gray-700 font-medium select-none cursor-pointer">
+                        Acepto recibir pagos por transferencia bancaria
+                    </label>
+                </div>
+    
+                {formData.transfer_accepted && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg">
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Beneficiario</label>
+                            <input 
+                                type="text" 
+                                name="transfer_name" 
+                                value={formData.transfer_name} 
+                                onChange={handleChange} 
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                placeholder="Nombre completo del titular de la cuenta"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
+                            <input 
+                                type="text" 
+                                name="transfer_bank" 
+                                value={formData.transfer_bank} 
+                                onChange={handleChange} 
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                placeholder="Ej. BBVA, Santander"
+                            />
+                        </div>
+    
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">CLABE Interbancaria</label>
+                            <input 
+                                type="text" 
+                                name="transfer_clabe" 
+                                value={formData.transfer_clabe} 
+                                onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '').slice(0, 18);
+                                    setFormData({ ...formData, transfer_clabe: val });
+                                }} 
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
+                                placeholder="18 dígitos"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Debe contener exactamente 18 dígitos.</p>
+                        </div>
+                    </div>
+                )}
+              </div>
           </div>
         </div>
-
-        {/* Description & Files */}
-        <div className="md:col-span-2 space-y-4">
-           <h3 className="font-semibold text-lg text-gray-900">Perfil y Multimedia</h3>
-           
-           <div>
-             <label className="block text-sm font-medium text-gray-700">Descripción Corta</label>
-             <input type="text" name="short_description" required value={formData.short_description} onChange={handleChange} className="w-full px-3 py-2 border rounded-md" maxLength={150} />
-           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Detallada (HTML)</label>
-            <div className="border border-gray-300 rounded-md overflow-hidden bg-white">
-              <ReactQuill
-                theme="snow"
-                value={formData.description}
-                onChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    description: value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sobre Nosotros (Historia, HTML)</label>
-            <div className="border border-gray-300 rounded-md overflow-hidden bg-white">
-              <ReactQuill
-                theme="snow"
-                value={formData.about}
-                onChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    about: value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <FileUpload
-                 label="Logo de la Empresa"
-                 value={logo}
-                 onChange={setLogo}
-                 helperText="Recomendado: 400x400px"
-             />
-             <FileUpload
-                 label="Imagen 'Sobre Nosotros'"
-                 value={aboutImage}
-                 onChange={setAboutImage}
-                 helperText="Imagen representativa para su perfil"
-             />
-           </div>
-        </div>
-
-        <div className="md:col-span-2">
-           <button
-             type="submit"
-             disabled={loading}
-             className="w-full bg-primary text-white font-bold py-4 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
-           >
-             {loading ? 'Guardando...' : 'Guardar y Continuar'}
-           </button>
-        </div>
-      </form>
-    </div>
+        <div className="flex justify-end pt-6">
+         <button
+           type="submit"
+           disabled={loading}
+           className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+         >
+           {loading ? (
+            <>
+              <Loader2 className="animate-spin" size={20} />
+              Guardando...
+            </>
+           ) : (
+             'Guardar y Continuar'
+           )}
+         </button>
+      </div>
+    </form>
   );
 }

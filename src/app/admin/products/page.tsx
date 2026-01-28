@@ -8,7 +8,8 @@ import {
   Edit2, 
   Trash2, 
   Loader2,
-  Package
+  Package,
+  Search
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -35,6 +36,9 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Search
+  const [search, setSearch] = useState("");
+
   // Pagination
   const [skip, setSkip] = useState(0);
   const [limit] = useState(50);
@@ -43,7 +47,25 @@ export default function AdminProductsPage() {
 
   useEffect(() => {
     fetchProducts();
-  }, [skip, limit, token]);
+  }, [skip, limit, token]); // Removed search from dependency array to avoid auto-fetch on every keystroke if we want manual or debounced. 
+  // However, for simplicity and UX, often debounce is better. 
+  // Let's stick to manual search or debounced. 
+  // User didn't specify, but I'll add a search handler or just put it in the dependency if I use a debounce.
+  // For now, I'll add a separate useEffect for search with a timeout or just update the fetch function.
+  
+  // Actually, let's keep it simple: Fetch when search changes? 
+  // Or maybe add a "Search" button or just 'Enter' key?
+  // I will add 'search' to the fetchProducts call and maybe trigger it on enter or blur.
+  // But wait, if I change 'search' state, I want to re-fetch.
+  // Let's use a debounced effect for search.
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        setSkip(0); // Reset pagination on search
+        fetchProducts();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]); // Trigger on search change
 
   // -- API Calls --
 
@@ -51,7 +73,15 @@ export default function AdminProductsPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/products/?skip=${skip}&limit=${limit}`);
+      const queryParams = new URLSearchParams({
+        skip: skip.toString(),
+        limit: limit.toString(),
+      });
+      if (search) {
+        queryParams.append('search', search);
+      }
+      
+      const response = await fetchWithAuth(`/api/products/?${queryParams.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setProducts(Array.isArray(data) ? data : []);
@@ -89,13 +119,27 @@ export default function AdminProductsPage() {
           <h1 className="text-2xl font-bold text-gray-800">Productos</h1>
           <p className="text-gray-500 mt-1">Gestión del catálogo de productos</p>
         </div>
-        <Link 
-          href="/admin/products/create"
-          className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
-        >
-          <Plus size={20} />
-          <span>Nuevo Producto</span>
-        </Link>
+        
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input 
+                    type="text"
+                    placeholder="Buscar producto..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                />
+            </div>
+            
+            <Link 
+              href="/admin/products/create"
+              className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 shrink-0"
+            >
+              <Plus size={20} />
+              <span className="hidden sm:inline">Nuevo Producto</span>
+            </Link>
+        </div>
       </div>
 
       {/* List */}
@@ -109,7 +153,8 @@ export default function AdminProductsPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="p-4 font-semibold text-gray-600 text-sm">Producto</th>
+                  <th className="p-4 font-semibold text-gray-600 text-sm w-[80px]">Imagen</th>
+                  <th className="p-4 font-semibold text-gray-600 text-sm min-w-[200px]">Nombre</th>
                   <th className="p-4 font-semibold text-gray-600 text-sm">SKU</th>
                   <th className="p-4 font-semibold text-gray-600 text-sm">Precio</th>
                   <th className="p-4 font-semibold text-gray-600 text-sm">Stock</th>
@@ -120,7 +165,7 @@ export default function AdminProductsPage() {
               <tbody className="divide-y divide-gray-100">
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-gray-500">
+                    <td colSpan={7} className="p-8 text-center text-gray-500">
                       No hay productos registrados.
                     </td>
                   </tr>

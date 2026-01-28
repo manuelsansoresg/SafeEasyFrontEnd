@@ -91,12 +91,9 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
   const getImageUrl = (path: string | null) => {
     if (!path) return "/placeholder.png";
     if (path.startsWith('http')) return path;
-    // Remove leading slash if present to avoid double slashes issues if needed, 
-    // but usually backend URL doesn't have trailing slash.
-    // However, if path starts with /, we can just append it to base.
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
-    // If path starts with /static, we assume it's relative to backend root
-    return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+    // Use relative path to leverage Next.js proxy and avoid Mixed Content (HTTPS -> HTTP)
+    // The /static route is proxied to the backend
+    return `${path.startsWith('/') ? '' : '/'}${path}`;
   };
 
   const handleEdit = (item: CertificateItem) => {

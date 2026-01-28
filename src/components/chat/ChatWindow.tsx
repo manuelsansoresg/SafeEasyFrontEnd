@@ -5,8 +5,10 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { chatService } from "@/services/chatService";
 import { useChatWebSocket } from "@/hooks/useChatWebSocket";
 import { Conversation, Message } from "@/types/chat";
-import { Send, Image as ImageIcon, X, MoreVertical, Phone, Paperclip } from "lucide-react";
+import { Send, Image as ImageIcon, X, MoreVertical, Phone, Paperclip, Loader2, CreditCard } from "lucide-react";
 import Image from "next/image";
+
+import { fetchWithAuth } from "@/lib/api";
 
 interface ChatWindowProps {
   productId: string | number;
@@ -19,11 +21,17 @@ interface ChatWindowProps {
     image: string;
     minOrder?: number;
   };
+  supplierTransferData?: {
+    transfer_clabe?: string | null;
+    transfer_bank?: string | null;
+    transfer_name?: string | null;
+    transfer_accepted?: boolean;
+  };
   onClose: () => void;
   isOpen: boolean;
 }
 
-export default function ChatWindow({ productId, supplierId, supplierName, isOwner, productData, onClose, isOpen }: ChatWindowProps) {
+export default function ChatWindow({ productId, supplierId, supplierName, isOwner, productData, supplierTransferData, onClose, isOpen }: ChatWindowProps) {
   const { user } = useAuthStore();
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -32,6 +40,41 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showProductCard, setShowProductCard] = useState(true);
+  
+  // Payment Modal State
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+
+  const handlePaymentClick = async () => {
+    if (!activeConversation) return;
+    
+    setIsCreatingOrder(true);
+    try {
+        const payload = {
+            supplier_id: supplierId,
+            product_id: productId,
+            conversation_id: activeConversation.id,
+            status: "pending"
+        };
+        
+        const res = await fetchWithAuth('/api/orders/', {
+             method: 'POST',
+             body: JSON.stringify(payload)
+        });
+        
+        if (res.ok) {
+            setIsPaymentModalOpen(true);
+        } else {
+            console.error("Failed to create order");
+            setError("No se pudo iniciar el proceso de pago. Intenta de nuevo.");
+        }
+    } catch (error) {
+        console.error("Error creating order", error);
+        setError("Error al procesar la solicitud de pago.");
+    } finally {
+        setIsCreatingOrder(false);
+    }
+  };
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -772,6 +815,18 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                 {/* Input Area */}
                 <div className="bg-white p-4 border-t shrink-0">
                     <div className="flex items-end gap-2 bg-gray-50 p-2 rounded-xl border focus-within:border-primary focus-within:bg-white transition-all shadow-sm">
+                    {/* Pay Button - Buyer Mode Only */}
+                    {!isVendorMode && supplierTransferData?.transfer_accepted && (
+                        <button 
+                            onClick={handlePaymentClick}
+                            disabled={isCreatingOrder || !activeConversation}
+                            className="p-2 mr-1 bg-green-600 text-white rounded-lg shadow-sm hover:bg-green-700 transition-colors flex items-center gap-1 font-medium text-xs disabled:opacity-50"
+                            title="Realizar Pago"
+                        >
+                             {isCreatingOrder ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+                             <span className="hidden sm:inline">Pago</span>
+                        </button>
+                    )}
                     <button className="p-2 text-gray-400 hover:text-primary transition-colors">
                         <Paperclip size={20} />
                     </button>
@@ -798,6 +853,70 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
         </div>
 
       </div>
+      
+      {/* Payment Modal */}
+      {isPaymentModalOpen && supplierTransferData && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="bg-gray-50 p-4 border-b flex items-center justify-between">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        <CreditCard className="text-green-600" size={20} />
+                        Datos de Transferencia
+                    </h3>
+                    <button onClick={() => setIsPaymentModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                        <X size={20} />
+                    </button>
+                </div>
+                
+                <div className="p-6 space-y-6">
+                    {/* Amount */}
+                    <div className="text-center">
+                        <p className="text-sm text-gray-500 mb-1">Monto Total a Pagar</p>
+                        <p className="text-3xl font-bold text-gray-900">${productData.price.toLocaleString()}</p>
+                    </div>
+                    
+                    {/* Bank Details */}
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
+                        <div>
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Banco</p>
+                            <p className="font-medium text-gray-800">{supplierTransferData.transfer_bank || 'No especificado'}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Beneficiario</p>
+                            <p className="font-medium text-gray-800">{supplierTransferData.transfer_name || 'No especificado'}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">CLABE Interbancaria</p>
+                            <div className="flex items-center gap-2">
+                                <p className="font-mono font-medium text-gray-800 text-lg tracking-wide select-all">
+                                    {supplierTransferData.transfer_clabe || 'No especificado'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Instructions */}
+                    <div className="text-xs text-gray-500 bg-blue-50 text-blue-700 p-3 rounded-lg">
+                        <p className="font-bold mb-1">Instrucciones:</p>
+                        <ul className="list-disc pl-4 space-y-1">
+                            <li>Realiza la transferencia por el monto exacto.</li>
+                            <li>Usa el ID de Orden como concepto de pago (opcional).</li>
+                            <li>Envía el comprobante en este chat para confirmar.</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div className="p-4 border-t bg-gray-50 flex justify-end">
+                    <button 
+                        onClick={() => setIsPaymentModalOpen(false)}
+                        className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium text-sm"
+                    >
+                        Entendido
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 }

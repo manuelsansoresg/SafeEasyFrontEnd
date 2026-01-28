@@ -34,6 +34,10 @@ interface Supplier {
   about?: string;
   about_image?: string;
   about_image_url?: string;
+  transfer_accepted?: boolean;
+  transfer_clabe?: string;
+  transfer_bank?: string;
+  transfer_name?: string;
 }
 
 interface SupplierFormProps {
@@ -63,6 +67,10 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     interior_number: initialData?.interior_number || "",
     neighborhood: initialData?.neighborhood || "",
     about: initialData?.about || "",
+    transfer_accepted: initialData?.transfer_accepted || false,
+    transfer_clabe: initialData?.transfer_clabe || "",
+    transfer_bank: initialData?.transfer_bank || "",
+    transfer_name: initialData?.transfer_name || "",
   });
 
   const [logo, setLogo] = useState<File | null>(null);
@@ -113,6 +121,33 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
             data.append(key, String(value).trim());
           }
         };
+
+        // Transfer Data Validation
+        if (formData.transfer_accepted) {
+             if (!formData.transfer_clabe || !/^\d{18}$/.test(formData.transfer_clabe)) {
+                 setError("La CLABE debe tener 18 dígitos numéricos.");
+                 setIsSubmitting(false);
+                 throw new Error("Validación fallida"); 
+             }
+             if (!formData.transfer_bank) {
+                 setError("El nombre del banco es obligatorio.");
+                 setIsSubmitting(false);
+                 throw new Error("Validación fallida");
+             }
+             if (!formData.transfer_name) {
+                 setError("El nombre del beneficiario es obligatorio.");
+                 setIsSubmitting(false);
+                 throw new Error("Validación fallida");
+             }
+             
+             data.append('transfer_accepted', 'true');
+             data.append('transfer_clabe', formData.transfer_clabe);
+             data.append('transfer_bank', formData.transfer_bank);
+             data.append('transfer_name', formData.transfer_name);
+        } else {
+            data.append('transfer_accepted', 'false');
+            // Optional: clear other fields if not accepted, depends on backend
+        }
 
         appendIfPresent("name", formData.name);
         data.append("short_name", slug);
@@ -453,6 +488,68 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
               currentImageUrl={initialData?.about_image || initialData?.about_image_url || undefined}
               helperText="Imagen representativa para su perfil"
             />
+          </div>
+
+          <div className="pt-6 border-t border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Datos Bancarios para Transferencias</h3>
+            
+            <div className="flex items-center gap-2 mb-4">
+                <input 
+                    type="checkbox" 
+                    id="transfer_accepted_admin"
+                    name="transfer_accepted" 
+                    checked={formData.transfer_accepted} 
+                    onChange={handleInputChange}
+                    className="h-5 w-5 text-primary border-gray-300 rounded focus:ring-primary"
+                />
+                <label htmlFor="transfer_accepted_admin" className="text-gray-700 font-medium select-none cursor-pointer">
+                    Acepto recibir pagos por transferencia bancaria
+                </label>
+            </div>
+
+            {formData.transfer_accepted && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg">
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Beneficiario</label>
+                        <input 
+                            type="text" 
+                            name="transfer_name" 
+                            value={formData.transfer_name} 
+                            onChange={handleInputChange} 
+                            className="w-full px-3 py-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            placeholder="Nombre completo del titular de la cuenta"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
+                        <input 
+                            type="text" 
+                            name="transfer_bank" 
+                            value={formData.transfer_bank} 
+                            onChange={handleInputChange} 
+                            className="w-full px-3 py-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            placeholder="Ej. BBVA, Santander"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">CLABE Interbancaria</label>
+                        <input 
+                            type="text" 
+                            name="transfer_clabe" 
+                            value={formData.transfer_clabe} 
+                            onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '').slice(0, 18);
+                                setFormData(prev => ({ ...prev, transfer_clabe: val }));
+                            }} 
+                            className="w-full px-3 py-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
+                            placeholder="18 dígitos"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Debe contener exactamente 18 dígitos.</p>
+                    </div>
+                </div>
+            )}
           </div>
         </div>
       </div>
