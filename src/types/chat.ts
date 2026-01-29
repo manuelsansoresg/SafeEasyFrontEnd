@@ -5,7 +5,8 @@ export interface Message {
   content: string;
   created_at: string;
   is_read: boolean;
-  message_type?: 'text' | 'image' | 'system';
+  message_type?: 'text' | 'image' | 'system' | 'file';
+  attachment_url?: string;
 }
 
 export interface Conversation {
@@ -47,5 +48,5 @@ export interface CreateConversationParams {
 export interface SendMessageParams {
   conversation_id: number;
   content: string;
-  message_type?: 'text' | 'image';
+  message_type?: 'text' | 'image' | 'file';
 }

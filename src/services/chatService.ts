@@ -33,11 +33,22 @@ export const chatService = {
     if (!res.ok) throw new Error('Failed to fetch messages');
     const data = await res.json();
     // Map backend fields (handle 'message' vs 'content', 'timestamp' vs 'created_at')
-    return Array.isArray(data) ? data.map((msg: any) => ({
-        ...msg,
-        content: msg.message || msg.content || '',
-        created_at: msg.timestamp || msg.created_at || new Date().toISOString()
-    })) : [];
+    return Array.isArray(data) ? data.map((msg: any) => {
+        // Infer message_type if missing but attachment_url is present
+        let type = msg.message_type;
+        if (!type && msg.attachment_url) {
+            const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(msg.attachment_url);
+            type = isImage ? 'image' : 'file';
+        }
+
+        return {
+            ...msg,
+            content: msg.message || msg.content || '',
+            created_at: msg.timestamp || msg.created_at || new Date().toISOString(),
+            attachment_url: msg.attachment_url,
+            message_type: type || 'text'
+        };
+    }) : [];
   },
 
   createConversation: async (params: CreateConversationParams): Promise<Conversation> => {
@@ -88,16 +99,32 @@ export const chatService = {
   // NOTE: The provided documentation (chat.md) ONLY lists WebSocket for sending messages.
   // There is NO documented REST endpoint for sending messages.
   // We will keep this method but it might fail if the backend strictly follows chat.md.
-  sendMessage: async (conversationId: number | string, content: string, message_type: 'text' | 'image' = 'text'): Promise<Message> => {
-     console.warn("[ChatService] Warning: Sending message via REST is not documented in chat.md. Using WebSocket is recommended.");
+  sendMessage: async (conversationId: number | string, content: string, message_type: 'text' | 'image' | 'file' = 'text', file?: File): Promise<Message> => {
+     // console.warn("[ChatService] Warning: Sending message via REST is not documented in chat.md. Using WebSocket is recommended.");
      
      // We'll try the flat endpoint as a best guess, but expect it might not exist.
      try {
-         const payload = { content, message: content, message_type };
+         let body;
+
+         if (file) {
+             const formData = new FormData();
+             // Backend requires 'message' field. Using a space fallback if empty to avoid "Field required" validation error.
+             const msgContent = content && content.trim() !== '' ? content : ' ';
+             formData.append('message', msgContent);
+             // Some backends might look for 'content' as well
+             formData.append('content', msgContent);
+             formData.append('message_type', message_type);
+             formData.append('file', file);
+             body = formData;
+         } else {
+             const payload = { content, message: content, message_type };
+             body = JSON.stringify(payload);
+         }
+
          // Try /chat/conversations/{id}/messages
          const res = await fetchWithAuth(`/api/chat/conversations/${conversationId}/messages`, {
            method: 'POST',
-           body: JSON.stringify(payload)
+           body: body
          });
          
          if (res.ok) {
@@ -105,10 +132,14 @@ export const chatService = {
              return {
                  ...data,
                  content: data.message || data.content || content,
-                 created_at: data.timestamp || data.created_at || new Date().toISOString()
+                 created_at: data.timestamp || data.created_at || new Date().toISOString(),
+                 attachment_url: data.attachment_url
              };
+         } else {
+             const errText = await res.text();
+             console.error(`[ChatService] REST sendMessage failed: ${res.status} ${res.statusText}`, errText);
          }
-     } catch (e) { console.warn(e); }
+     } catch (e) { console.error("[ChatService] Exception in sendMessage:", e); }
 
      throw new Error('REST sendMessage not supported or failed. Please use WebSocket.');
   }

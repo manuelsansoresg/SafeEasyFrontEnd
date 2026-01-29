@@ -37,6 +37,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showProductCard, setShowProductCard] = useState(true);
@@ -44,6 +46,15 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
   // Payment Modal State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [createdOrderId, setCreatedOrderId] = useState<string | number | null>(null);
+
+  // Helper to get absolute URL
+  const getAbsoluteUrl = (url?: string) => {
+      if (!url) return '';
+      if (url.startsWith('http') || url.startsWith('blob:')) return url;
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
+      return `${apiBase.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
 
   const handlePaymentClick = async () => {
     if (!activeConversation) return;
@@ -63,6 +74,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
         });
         
         if (res.ok) {
+            const data = await res.json();
+            setCreatedOrderId(data.id || data.order_id || null); // Try common ID fields
             setIsPaymentModalOpen(true);
         } else {
             console.error("Failed to create order");
@@ -450,29 +463,53 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
   }, [messages]);
 
   const handleSend = async () => {
-    if (!inputValue.trim() || !activeConversation || !user) return;
+    if ((!inputValue.trim() && !selectedFile) || !activeConversation || !user) return;
 
     const messageContent = inputValue;
     const tempId = Date.now(); // Temporary ID for optimistic update
+    const currentFile = selectedFile; // Capture current file
     
     // Create optimistic message
-    const optimisticMessage: Message = {
+    const optimisticMessage: Message & { file?: File } = {
         id: tempId,
         conversation_id: activeConversation.id,
         sender_id: Number(user.id),
-        content: messageContent,
+        content: currentFile ? URL.createObjectURL(currentFile) : messageContent,
         created_at: new Date().toISOString(),
         is_read: false,
-        message_type: 'text'
+        message_type: currentFile && currentFile.type.startsWith('image/') ? 'image' : (currentFile ? 'file' : 'text'),
+        file: currentFile || undefined
     };
 
     setInputValue(""); // Clear input immediately
+    setSelectedFile(null); // Clear file selection
     
     // Add optimistic message to UI
     setMessages(prev => [...prev, optimisticMessage]);
     setTimeout(scrollToBottom, 50);
 
-    // Attempt 1: WebSocket (Preferred and ONLY supported method as per chat.md)
+    // Case 1: File Upload (Must use REST)
+    if (currentFile) {
+         try {
+             // Determine type
+             const type = currentFile.type.startsWith('image/') ? 'image' : 'file';
+             
+             const sentMessage = await chatService.sendMessage(activeConversation.id, messageContent, type as any, currentFile);
+             
+             // Replace optimistic message with real message
+             setMessages(prev => prev.map(m => m.id === tempId ? sentMessage : m));
+             return;
+         } catch (err) {
+             console.error("File upload failed", err);
+             setError("Error al enviar archivo.");
+             setMessages(prev => prev.filter(m => m.id !== tempId));
+             setInputValue(messageContent);
+             setSelectedFile(currentFile);
+             return;
+         }
+    }
+
+    // Attempt 2: WebSocket (Preferred and ONLY supported method as per chat.md)
     if (status === 'connected') {
         try {
             wsSendMessage(messageContent, activeConversation.id);
@@ -751,14 +788,36 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                                 : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
                             }`}>
                             {msg.message_type === 'image' ? (
-                                <div className="relative w-full h-48 mb-2 rounded-lg overflow-hidden">
+                                <a 
+                                    href={getAbsoluteUrl(msg.attachment_url || msg.content)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block relative w-full h-48 mb-2 rounded-lg overflow-hidden cursor-pointer hover:opacity-95 transition-opacity"
+                                >
                                     <Image 
-                                        src={msg.content} 
+                                        src={getAbsoluteUrl(msg.attachment_url || msg.content)} 
                                         alt="Shared image" 
                                         fill 
                                         className="object-cover"
                                     />
-                                </div>
+                                </a>
+                            ) : msg.message_type === 'file' ? (
+                                <a 
+                                    href={getAbsoluteUrl(msg.attachment_url || msg.content)} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className={`flex items-center gap-3 p-3 rounded-lg border transition-colors group ${isMe ? 'bg-primary-700/20 border-primary-500/30' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}
+                                >
+                                    <div className={`p-2 rounded shadow-sm group-hover:scale-110 transition-transform ${isMe ? 'bg-primary text-white' : 'bg-white text-primary'}`}>
+                                        <Paperclip size={20} />
+                                    </div>
+                                    <div className="flex flex-col overflow-hidden">
+                                        <span className={`text-sm font-medium truncate underline decoration-dotted ${isMe ? 'text-white' : 'text-gray-700'}`}>
+                                            {(msg as any).file?.name || (msg.attachment_url ? msg.attachment_url.split('/').pop()?.split('?')[0] : msg.content.split('/').pop()?.split('?')[0]) || 'Ver Archivo'}
+                                        </span>
+                                        <span className={`text-[10px] ${isMe ? 'text-primary-100' : 'text-gray-400'}`}>Clic para descargar</span>
+                                    </div>
+                                </a>
                             ) : (
                                 <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</p>
                             )}
@@ -813,8 +872,42 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                 )}
 
                 {/* Input Area */}
-                <div className="bg-white p-4 border-t shrink-0">
+                <div className="bg-white border-t shrink-0 flex flex-col">
+                    {/* File Preview */}
+                    {selectedFile && (
+                        <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between animate-in slide-in-from-bottom-2">
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                                {selectedFile.type.startsWith('image/') ? (
+                                    <ImageIcon size={16} className="text-primary" />
+                                ) : (
+                                    <Paperclip size={16} className="text-gray-400" />
+                                )}
+                                <span className="font-medium">Adjunto:</span>
+                                <span className="truncate max-w-[200px]">{selectedFile.name}</span>
+                                <span className="text-xs text-gray-400">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                            </div>
+                            <button onClick={() => setSelectedFile(null)} className="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-gray-200">
+                                <X size={16} />
+                            </button>
+                        </div>
+                    )}
+                    
+                    <div className="p-4">
                     <div className="flex items-end gap-2 bg-gray-50 p-2 rounded-xl border focus-within:border-primary focus-within:bg-white transition-all shadow-sm">
+                    {/* Hidden Input */}
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                                setSelectedFile(e.target.files[0]);
+                            }
+                            // Reset value to allow selecting same file again
+                            e.target.value = '';
+                        }}
+                    />
+
                     {/* Pay Button - Buyer Mode Only */}
                     {!isVendorMode && supplierTransferData?.transfer_accepted && (
                         <button 
@@ -827,7 +920,11 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                              <span className="hidden sm:inline">Pago</span>
                         </button>
                     )}
-                    <button className="p-2 text-gray-400 hover:text-primary transition-colors">
+                    <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-2 text-gray-400 hover:text-primary transition-colors"
+                        title="Adjuntar archivo"
+                    >
                         <Paperclip size={20} />
                     </button>
                     <textarea
@@ -841,11 +938,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                     />
                     <button 
                         onClick={handleSend}
-                        disabled={!inputValue.trim() || !activeConversation}
+                        disabled={(!inputValue.trim() && !selectedFile) || !activeConversation}
                         className="p-2 bg-primary text-white rounded-lg shadow-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                         <Send size={18} />
                     </button>
+                    </div>
                     </div>
                 </div>
              </>
@@ -900,7 +998,14 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                         <p className="font-bold mb-1">Instrucciones:</p>
                         <ul className="list-disc pl-4 space-y-1">
                             <li>Realiza la transferencia por el monto exacto.</li>
-                            <li>Usa el ID de Orden como concepto de pago (opcional).</li>
+                            <li>
+                                Usa el siguiente ID como concepto de pago:
+                                {createdOrderId && (
+                                    <span className="block mt-1 font-mono font-bold text-lg bg-blue-100 px-2 py-1 rounded w-fit select-all text-blue-900">
+                                        {createdOrderId}
+                                    </span>
+                                )}
+                            </li>
                             <li>Envía el comprobante en este chat para confirmar.</li>
                         </ul>
                     </div>

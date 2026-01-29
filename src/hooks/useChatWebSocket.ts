@@ -64,6 +64,13 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
             
             // Map backend fields to frontend Message interface
             // Backend sends: { id, sender_id, message, conversation_id, timestamp }
+            // Infer message_type if missing but attachment_url is present
+            let type = data.message_type;
+            if (!type && data.attachment_url) {
+                const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(data.attachment_url);
+                type = isImage ? 'image' : 'file';
+            }
+
             // Frontend expects: { id, sender_id, content, conversation_id, created_at, ... }
             const message: Message = {
                 id: data.id,
@@ -72,7 +79,8 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
                 content: data.message || data.content || '', // Handle 'message' field from backend
                 created_at: data.timestamp || data.created_at || new Date().toISOString(), // Handle 'timestamp' field
                 is_read: data.is_read || false,
-                message_type: data.message_type || 'text'
+                message_type: type || 'text',
+                attachment_url: data.attachment_url
             };
             
             console.log('[WebSocket] Parsed message:', message);
