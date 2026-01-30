@@ -1,14 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { chatService } from "@/services/chatService";
 import { Conversation, Message } from "@/types/chat";
 import { useChatWebSocket } from "@/hooks/useChatWebSocket";
-import { Send, Search, MessageSquare, Info, Package, Check, CheckCheck } from "lucide-react";
+import { Send, Search, MessageSquare, Info, Package, Check, CheckCheck, FileText, Download, Image as ImageIcon } from "lucide-react";
 
 export default function AdminMessagesPage() {
   const { user } = useAuthStore();
+  const searchParams = useSearchParams();
+  const initialConversationId = searchParams.get('conversation_id');
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -16,6 +20,7 @@ export default function AdminMessagesPage() {
   const [sending, setSending] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // WebSocket hook
   const { lastMessage, sendMessage: wsSendMessage } = useChatWebSocket(activeConversation?.id, !!activeConversation);
@@ -32,6 +37,14 @@ export default function AdminMessagesPage() {
             return dateB - dateA;
         });
         setConversations(data);
+        
+        // Select conversation from URL if present
+        if (initialConversationId) {
+          const found = data.find(c => String(c.id) === String(initialConversationId));
+          if (found) {
+            setActiveConversation(found);
+          }
+        }
       } catch (error) {
         console.error("Error fetching conversations:", error);
       } finally {
@@ -75,9 +88,14 @@ export default function AdminMessagesPage() {
   }, [lastMessage, activeConversation]);
 
   const scrollToBottom = () => {
-    setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
+    if (messagesContainerRef.current) {
+        setTimeout(() => {
+            const container = messagesContainerRef.current;
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }, 100);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -284,7 +302,10 @@ export default function AdminMessagesPage() {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#F8F9FA] scroll-smooth">
+            <div 
+                ref={messagesContainerRef}
+                className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#F8F9FA] scroll-smooth"
+            >
                {messages.length === 0 && (
                    <div className="flex flex-col items-center justify-center py-10 text-gray-400">
                        <span className="text-sm bg-gray-100 px-4 py-1 rounded-full">Inicio de la conversación</span>
@@ -304,7 +325,42 @@ export default function AdminMessagesPage() {
                             ? 'bg-primary text-white rounded-2xl rounded-tr-sm' 
                             : 'bg-white text-gray-800 rounded-2xl rounded-tl-sm border border-gray-100'
                         } ${isSequence ? (isMe ? 'mt-1' : 'mt-1') : 'mt-0'}`}>
-                          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                          {/* Attachments */}
+                          {msg.attachment_url && (
+                            <div className="mb-2">
+                                {msg.message_type === 'image' || (msg.attachment_url.match(/\.(jpeg|jpg|gif|png|webp)$/i)) ? (
+                                    <div className="relative rounded-lg overflow-hidden mb-1 border border-black/10">
+                                        <img 
+                                            src={msg.attachment_url} 
+                                            alt="Adjunto" 
+                                            className="max-w-full h-auto max-h-60 object-cover cursor-pointer"
+                                            onClick={() => window.open(msg.attachment_url, '_blank')}
+                                        />
+                                    </div>
+                                ) : (
+                                    <a 
+                                        href={msg.attachment_url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className={`flex items-center gap-3 p-3 rounded-lg border ${
+                                            isMe ? 'bg-white/10 border-white/20 hover:bg-white/20' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                        } transition-colors`}
+                                    >
+                                        <div className={`p-2 rounded-full ${isMe ? 'bg-white/20' : 'bg-gray-200'}`}>
+                                            <FileText size={20} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium truncate opacity-90">Archivo adjunto</p>
+                                            <p className="text-xs opacity-70">Clic para descargar</p>
+                                        </div>
+                                        <Download size={16} className="opacity-70" />
+                                    </a>
+                                )}
+                            </div>
+                          )}
+                          
+                          {/* Text Content */}
+                          {msg.content && <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
                         </div>
                         <div className={`flex items-center gap-1 mt-1 text-[10px] ${isMe ? 'text-gray-400 mr-1' : 'text-gray-400 ml-1'}`}>
                              <span>{formatTime(msg.created_at)}</span>

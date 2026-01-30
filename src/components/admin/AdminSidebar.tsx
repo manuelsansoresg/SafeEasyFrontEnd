@@ -14,7 +14,9 @@ import {
   ChevronLeft, 
   ChevronRight,
   LogOut,
-  LayoutDashboard
+  LayoutDashboard,
+  ShoppingCart,
+  BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -81,7 +83,19 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       roles: ['admin', 'superuser', 'supplier']
     },
     { 
-      title: "Mensajes", 
+      title: "Órdenes", 
+      path: "/admin/orders", 
+      icon: ShoppingCart,
+      roles: ['supplier']
+    },
+    { 
+      title: "Estadísticas", 
+      path: "/admin/stats", 
+      icon: BarChart3,
+      roles: ['supplier']
+    },
+    { 
+      title: "Mensajes",  
       path: "/admin/messages", 
       icon: MessageSquare,
       roles: ['admin', 'superuser', 'supplier']
