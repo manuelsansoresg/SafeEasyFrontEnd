@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { chatService } from "@/services/chatService";
@@ -8,7 +8,7 @@ import { Conversation, Message } from "@/types/chat";
 import { useChatWebSocket } from "@/hooks/useChatWebSocket";
 import { Send, Search, MessageSquare, Info, Package, Check, CheckCheck, FileText, Download, Image as ImageIcon } from "lucide-react";
 
-export default function AdminMessagesPage() {
+function MessagesContent() {
   const { user } = useAuthStore();
   const searchParams = useSearchParams();
   const initialConversationId = searchParams.get('conversation_id');
@@ -415,5 +415,13 @@ export default function AdminMessagesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AdminMessagesPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen">Cargando mensajes...</div>}>
+      <MessagesContent />
+    </Suspense>
   );
 }
