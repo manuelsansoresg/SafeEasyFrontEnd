@@ -1,11 +1,11 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { fetchWithAuth } from "@/lib/api";
 import { Loader2, CreditCard, Copy, AlertCircle } from "lucide-react";
 
-export default function PaymentInfoPage() {
+function PaymentInfoContent() {
   const searchParams = useSearchParams();
   const slug = searchParams.get("slug");
   const amount = searchParams.get("amount");
@@ -124,5 +124,18 @@ export default function PaymentInfoPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PaymentInfoPage() {
+  return (
+    <Suspense fallback={
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+            <Loader2 className="animate-spin text-blue-600 mb-2" size={32} />
+            <p className="text-gray-500">Cargando...</p>
+        </div>
+    }>
+        <PaymentInfoContent />
+    </Suspense>
   );
 }
