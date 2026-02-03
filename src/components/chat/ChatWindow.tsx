@@ -1,19 +1,22 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { chatService } from "@/services/chatService";
 import { useChatWebSocket } from "@/hooks/useChatWebSocket";
 import { Conversation, Message } from "@/types/chat";
-import { Send, Image as ImageIcon, X, MoreVertical, Phone, Paperclip, Loader2, CreditCard } from "lucide-react";
+import { Send, Image as ImageIcon, X, MoreVertical, Phone, Paperclip, Loader2, CreditCard, Smile, PlusCircle, Star } from "lucide-react";
 import Image from "next/image";
+import StarRating from "../StarRating";
 
 import { fetchWithAuth } from "@/lib/api";
 
 interface ChatWindowProps {
-  productId: string | number;
+  productId: string | number | null;
   supplierId: number;
   supplierName?: string;
+  supplierSlug?: string;
   isOwner?: boolean;
   productData: {
     title: string;
@@ -28,10 +31,13 @@ interface ChatWindowProps {
     transfer_accepted?: boolean;
   };
   onClose: () => void;
+  onMinimize?: () => void;
   isOpen: boolean;
+  mode?: 'modal' | 'docked';
 }
 
-export default function ChatWindow({ productId, supplierId, supplierName, isOwner, productData, supplierTransferData, onClose, isOpen }: ChatWindowProps) {
+export default function ChatWindow({ productId, supplierId, supplierName, supplierSlug, isOwner, productData, supplierTransferData, onClose, onMinimize, isOpen, mode = 'modal' }: ChatWindowProps) {
+  const router = useRouter();
   const { user } = useAuthStore();
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -48,6 +54,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<string | number | null>(null);
 
+  // Rating State
+  const [isRatingOpen, setIsRatingOpen] = useState(false);
+  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+
   // Helper to get absolute URL
   const getAbsoluteUrl = (url?: string) => {
       if (!url) return '';
@@ -56,39 +68,6 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
       return `${apiBase.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
   };
 
-  const handlePaymentClick = async () => {
-    if (!activeConversation) return;
-    
-    setIsCreatingOrder(true);
-    try {
-        const payload = {
-            supplier_id: supplierId,
-            product_id: productId,
-            conversation_id: activeConversation.id,
-            status: "pending"
-        };
-        
-        const res = await fetchWithAuth('/api/orders/', {
-             method: 'POST',
-             body: JSON.stringify(payload)
-        });
-        
-        if (res.ok) {
-            const data = await res.json();
-            setCreatedOrderId(data.id || data.order_id || null); // Try common ID fields
-            setIsPaymentModalOpen(true);
-        } else {
-            console.error("Failed to create order");
-            setError("No se pudo iniciar el proceso de pago. Intenta de nuevo.");
-        }
-    } catch (error) {
-        console.error("Error creating order", error);
-        setError("Error al procesar la solicitud de pago.");
-    } finally {
-        setIsCreatingOrder(false);
-    }
-  };
-  
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Determine if current user is the supplier (Vendor Mode)
@@ -123,9 +102,241 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
   // Initialize WebSocket with active conversation
   const { status, messages: wsMessages, sendMessage: wsSendMessage, lastMessage } = useChatWebSocket(activeConversation?.id, isOpen);
 
+  const [localTransferData, setLocalTransferData] = useState(supplierTransferData);
+
+  useEffect(() => {
+    setLocalTransferData(supplierTransferData);
+  }, [supplierTransferData]);
+
+  const [canPay, setCanPay] = useState(!!supplierTransferData?.transfer_accepted);
+  const [productPrice, setProductPrice] = useState(productData.price);
+
+  useEffect(() => {
+    setProductPrice(productData.price);
+  }, [productData.price]);
+
+  // Fetch product details if price is 0
+  useEffect(() => {
+    const fetchProductPrice = async () => {
+        if ((!productPrice || productPrice === 0) && productId) {
+             try {
+                 console.log(`[ChatWindow] Fetching product details for ID: ${productId}`);
+                 const res = await fetchWithAuth(`/api/products/${productId}`);
+                 if (res.ok) {
+                     const data = await res.json();
+                     if (data.price) {
+                         console.log(`[ChatWindow] Updated product price: ${data.price}`);
+                         setProductPrice(data.price);
+                     }
+                 }
+             } catch (e) {
+                 console.error("[ChatWindow] Failed to fetch product details", e);
+             }
+        }
+    };
+    
+    fetchProductPrice();
+  }, [productId, productPrice]);
+
+  // Fetch extra supplier details if needed (for payment button)
+  const fetchSupplierDetails = async () => {
+    // Only fetch if we are missing key transfer details
+    const hasDetails = localTransferData?.transfer_clabe || localTransferData?.transfer_bank;
+    if (localTransferData?.transfer_accepted && hasDetails) return;
+    
+    // 1. Try fetching by SLUG first if available (Most reliable for transfer data)
+    if (supplierSlug) {
+        try {
+            console.log(`[ChatWindow] Fetching supplier details using slug: ${supplierSlug}`);
+            // Ensure trailing slash for backend compatibility
+            const slugRes = await fetchWithAuth(`/api/suppliers/${supplierSlug}/`);
+            if (slugRes.ok) {
+                const slugData = await slugRes.json();
+                console.log("[ChatWindow] Resolved supplier from slug:", slugData);
+                
+                if (slugData.transfer_accepted) {
+                    setLocalTransferData({
+                        transfer_accepted: true,
+                        transfer_bank: slugData.transfer_bank,
+                        transfer_clabe: slugData.transfer_clabe,
+                        transfer_name: slugData.transfer_name
+                    });
+                    setCanPay(true);
+                    return; 
+                }
+            } else {
+                 console.warn(`[ChatWindow] Failed to fetch supplier by slug (${slugRes.status}). trying without slash...`);
+                 // Retry without slash just in case
+                 const retryRes = await fetchWithAuth(`/api/suppliers/${supplierSlug}`);
+                 if (retryRes.ok) {
+                    const slugData = await retryRes.json();
+                    if (slugData.transfer_accepted) {
+                        setLocalTransferData({
+                            transfer_accepted: true,
+                            transfer_bank: slugData.transfer_bank,
+                            transfer_clabe: slugData.transfer_clabe,
+                            transfer_name: slugData.transfer_name
+                        });
+                        setCanPay(true);
+                        return;
+                    }
+                 }
+            }
+        } catch (slugErr) {
+             console.error("[ChatWindow] Error fetching supplier by slug:", slugErr);
+        }
+    }
+
+    // 2. Fallback: Fetch by User ID if slug failed or wasn't provided
+    if (!supplierId) return;
+    
+    try {
+        console.log("[ChatWindow] Fetching extra supplier details by User ID:", supplierId);
+        const suppRes = await fetchWithAuth(`/api/users/${supplierId}`);
+        if (suppRes.ok) {
+            const suppData = await suppRes.json();
+            
+            let transferData = {
+                transfer_accepted: suppData.transfer_accepted,
+                transfer_bank: suppData.transfer_bank,
+                transfer_clabe: suppData.transfer_clabe,
+                transfer_name: suppData.transfer_name
+            };
+
+            // If we have a slug but missing transfer details, try fetching the specific supplier endpoint
+            // This matches the user's suggestion to use /suppliers/{slug}
+            if (suppData.slug && (!transferData.transfer_bank || !transferData.transfer_clabe)) {
+                console.log(`[ChatWindow] Fetching detailed supplier info from /api/suppliers/${suppData.slug}`);
+                try {
+                    const slugRes = await fetchWithAuth(`/api/suppliers/${suppData.slug}`);
+                    if (slugRes.ok) {
+                        const slugData = await slugRes.json();
+                        // Merge transfer details
+                        transferData = {
+                            ...transferData,
+                            transfer_accepted: slugData.transfer_accepted ?? transferData.transfer_accepted,
+                            transfer_bank: slugData.transfer_bank ?? transferData.transfer_bank,
+                            transfer_clabe: slugData.transfer_clabe ?? transferData.transfer_clabe,
+                            transfer_name: slugData.transfer_name ?? transferData.transfer_name
+                        };
+                        console.log("[ChatWindow] Updated transfer data from slug endpoint:", transferData);
+                    }
+                } catch (err) {
+                    console.warn("Failed to fetch from supplier slug endpoint", err);
+                }
+            }
+            
+            if (transferData.transfer_accepted) {
+                setCanPay(true);
+                // Update local transfer data with fetched details
+                setLocalTransferData(transferData);
+            }
+        }
+    } catch (e) {
+        console.warn("Could not fetch extra supplier details", e);
+    }
+  };
+
+  useEffect(() => {
+    // Check if we need to fetch details: if we are client, and (canPay is false OR missing details)
+    const hasDetails = localTransferData?.transfer_clabe || localTransferData?.transfer_bank;
+    if (user?.role === 'client' && (!canPay || !hasDetails)) {
+        fetchSupplierDetails();
+    }
+  }, [supplierId, user, canPay, localTransferData]);
+
+
+  const handlePaymentClick = async () => {
+    // 1. Validate dependencies
+    if (!user?.role) {
+       console.error("User role not found");
+       return;
+    }
+    
+    // Check for supplier slug
+    let targetSlug = supplierSlug;
+
+    if (!targetSlug) {
+        if (supplierId) {
+             try {
+                const suppRes = await fetchWithAuth(`/api/users/${supplierId}`);
+                if (suppRes.ok) {
+                    const suppData = await suppRes.json();
+                    targetSlug = suppData.slug;
+                }
+             } catch (e) {
+                 console.error("Failed to fetch supplier slug", e);
+             }
+        }
+    }
+
+    if (!targetSlug) {
+        setError("No se pudo identificar al proveedor para el pago.");
+        return;
+    }
+
+    setIsCreatingOrder(true);
+    setError(null);
+
+    try {
+        // Execute endpoint as requested
+        const res = await fetchWithAuth(`/api/suppliers/${targetSlug}`);
+        if (res.ok) {
+            // Redirect to payment info page
+            const amount = productPrice || 0;
+            router.push(`/payment-info?slug=${targetSlug}&amount=${amount}`);
+        } else {
+            setError("No se pudieron obtener los datos de pago del proveedor.");
+        }
+    } catch (err) {
+        console.error("Error fetching supplier details", err);
+        setError("Error al procesar la solicitud de pago.");
+    } finally {
+        setIsCreatingOrder(false);
+    }
+  };
+
+  // Logic moved to top
+
+  const handleRatingSubmit = async () => {
+    if (ratingValue === 0) {
+        setError("Por favor selecciona una calificación.");
+        return;
+    }
+    
+    setIsSubmittingRating(true);
+    try {
+        const res = await fetchWithAuth(`/api/products/${productId}/ratings`, {
+            method: 'POST',
+            body: JSON.stringify({
+                rating: ratingValue,
+                comment: ratingComment,
+                product_id: productId
+            })
+        });
+        
+        if (res.ok) {
+            setIsRatingOpen(false);
+            setRatingValue(0);
+            setRatingComment("");
+            // Optional: Show success message or notification
+        } else {
+            const data = await res.json();
+            setError(data.message || "Error al enviar calificación.");
+        }
+    } catch (err) {
+        console.error("Error submitting rating", err);
+        setError("Error de conexión al calificar.");
+    } finally {
+        setIsSubmittingRating(false);
+    }
+  };
+
   // Scroll to bottom helper
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   // Helper to load messages
@@ -302,7 +513,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
             } else {
                 const conversation = await chatService.createConversation({
                   supplier_id: supplierId,
-                  product_id: productId
+                  product_id: productId || undefined
                 });
                 setActiveConversation(conversation);
                 await loadMessages(conversation.id);
@@ -548,14 +759,17 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
     }
   };
 
-  if (!isOpen) return null;
+  // Payment Button Logic
+  // Show button if user is client. 
+  // Disable if supplier doesn't accept transfers or if we are creating order.
+  const isModal = mode === 'modal';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white w-full max-w-5xl h-[80vh] rounded-2xl shadow-2xl flex overflow-hidden border border-gray-100">
+    <div className={isModal ? "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" : "h-full w-full"}>
+      <div className={isModal ? "bg-white w-full max-w-5xl h-[80vh] rounded-2xl shadow-2xl flex overflow-hidden border border-gray-100" : "flex h-full flex-col bg-white"}>
         
         {/* Left: Conversations List (Visible for Vendor or if multiple chats exist) */}
-        {(isVendorMode || conversations.length > 0) && (
+        {isModal && (isVendorMode || conversations.length > 0) && (
           <div className="w-72 border-r bg-white flex flex-col shrink-0 h-full overflow-hidden">
               <div className="p-4 border-b bg-gray-50 shrink-0 flex items-center justify-between">
                   <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">
@@ -640,89 +854,94 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
           </div>
         )}
 
-        {/* Center: Chat Area */}
-        <div className="flex-1 flex flex-col bg-gray-50 min-w-0 h-full overflow-hidden">
+        {/* Center: Chat Area (Facebook Style) */}
+        <div className="flex-1 flex flex-col bg-white min-w-0 h-full overflow-hidden relative">
           {/* Header */}
-          <div className="bg-white p-4 border-b flex items-center justify-between shadow-sm z-10 shrink-0 h-16 box-border">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
-                {productData.title.charAt(0)}
+          <div 
+            className={`bg-white px-4 py-3 border-b border-gray-200 shadow-sm z-10 flex items-center justify-between h-[68px] shrink-0 ${mode === 'docked' ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+            onClick={(e) => {
+                if (mode === 'docked' && onMinimize) {
+                    if (!(e.target as HTMLElement).closest('button')) {
+                        onMinimize();
+                    }
+                }
+            }}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold shrink-0 text-lg overflow-hidden">
+                    {/* Avatar Logic */}
+                    {(activeConversation?.user_image || activeConversation?.supplier_image) ? (
+                        <img src={activeConversation.user_image || activeConversation.supplier_image} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                        <span className="text-gray-500 font-bold text-lg">
+                            {(activeConversation 
+                                ? (activeConversation.other_party_name || 
+                                   (isVendorMode 
+                                        ? (activeConversation.user_name || activeConversation.buyer_name || 'C') 
+                                        : (activeConversation.supplier_name || supplierName || 'P')))
+                                : (productData.title || 'P')).charAt(0).toUpperCase()}
+                        </span>
+                    )}
+                  </div>
+                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></div>
               </div>
-              <div className="min-w-0">
-                <h3 className="font-bold text-gray-800 truncate flex flex-col">
-                    <span>
+              
+              <div className="flex flex-col justify-center min-w-0">
+                <h3 className="font-semibold text-[17px] text-gray-900 leading-tight truncate">
                     {activeConversation 
                         ? (activeConversation.other_party_name || 
                            (isVendorMode 
                                 ? (activeConversation.user_name || activeConversation.buyer_name || (activeConversation.user ? `${activeConversation.user.first_name || ''} ${activeConversation.user.last_name || ''}`.trim() : `Cliente #${activeConversation.user_id}`)) 
                                 : (activeConversation.supplier_name || supplierName || 'Proveedor')))
                         : 'Chat del Producto'}
-                    </span>
-                    {/* Debug Info Overlay - REMOVE IN PRODUCTION */}
-                    {process.env.NODE_ENV === 'development' && (
-        <div className="absolute top-0 left-0 right-0 bg-black/80 text-white text-[10px] p-1 z-50 flex justify-between px-2">
-            <span>
-                    Mode: <span className={isVendorMode ? "text-green-400 font-bold" : "text-blue-400 font-bold"}>
-                        {isVendorMode ? "VENDOR" : "CLIENT"}
-                    </span>
-                    {" | "}
-                    Me: {user?.id} ({user?.role}) | Supp: {supplierId} | Owner: {isOwner ? "Yes" : "No"}
-                </span>
-                <span>
-                    ConvID: <span className="text-yellow-400 font-mono">{activeConversation ? activeConversation.id : 'None'}</span>
-                    {" | "}
-                    Status: <span className={status === 'connected' ? "text-green-400" : "text-red-400"}>{status}</span>
-                    <button 
-                        onClick={() => {
-                            setIsVendorMode(!isVendorMode);
-                            // Refresh logic if needed
-                        }}
-                        className="ml-2 bg-gray-700 hover:bg-gray-600 text-white px-1 rounded cursor-pointer"
-                    >
-                        Switch Mode
-                    </button>
-                    <button
-                        onClick={() => {
-                            chatService.getConversations().then(res => {
-                                console.log("[DEBUG] All Conversations from Backend:", res);
-                                alert(`Fetched ${res.length} conversations. Check Console for details.`);
-                            });
-                        }}
-                        className="ml-2 bg-blue-700 hover:bg-blue-600 text-white px-1 rounded cursor-pointer"
-                    >
-                        Log All
-                    </button>
-                </span>
-        </div>
-      )}
                 </h3>
-                {activeConversation && (
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span className={`w-2 h-2 rounded-full ${status === 'connected' ? 'bg-green-500' : 'bg-gray-300'}`}></span>
-                    {status === 'connected' ? 'En línea' : 'Desconectado'}
-                    </div>
-                )}
+                <p className="text-[12px] text-gray-500 leading-none mt-0.5">Activo ahora</p>
               </div>
             </div>
+
             <div className="flex items-center gap-2 shrink-0">
                <button 
-                  onClick={() => {
-                      if (activeConversation) {
-                          loadMessages(activeConversation.id);
-                      }
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-primary"
-                  title="Actualizar mensajes"
+                  onClick={(e) => { e.stopPropagation(); onClose(); }} 
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500" 
+                  title="Cerrar"
                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
-                  </svg>
-               </button>
-               <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                  <X size={20} className="text-gray-500" />
+                  <X size={24} />
                </button>
             </div>
           </div>
+          
+          {/* Error Banner */}
+          {error && (
+              <div className="bg-red-50 text-red-600 px-4 py-2 text-sm flex items-center justify-between shrink-0 border-b border-red-100 animate-in slide-in-from-top-2 z-10">
+                  <span className="flex items-center gap-2">
+                      <X size={14} className="text-red-500" />
+                      {error}
+                  </span>
+                  <button onClick={() => setError(null)} className="text-red-400 hover:text-red-700 p-1"><X size={14} /></button>
+              </div>
+          )}
+
+          {/* Product Context Bar (Sub-header) */}
+          <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0">
+                <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 shrink-0 overflow-hidden flex items-center justify-center">
+                        {productData?.image ? (
+                            <img src={getAbsoluteUrl(productData.image)} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                            <span className="text-xs text-gray-400">IMG</span>
+                        )}
+                </div>
+                <div className="flex flex-col min-w-0">
+                    <span className="text-xs text-gray-500">Producto de interés:</span>
+                    <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={productData?.title}>
+                        {productData?.title}
+                    </span>
+                </div>
+                <div className="ml-auto text-sm font-bold text-primary">
+                    ${Number(productData.price).toLocaleString()}
+                </div>
+          </div>
+
 
           {/* Content Area (Messages or Empty State) */}
           {!activeConversation && conversations.length > 0 ? (
@@ -737,10 +956,6 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                     {loading ? (
                     <div className="flex items-center justify-center h-full text-gray-400">
                         Cargando historial...
-                    </div>
-                    ) : error ? (
-                    <div className="flex flex-col items-center justify-center h-full text-red-500 gap-2">
-                        <p>{error}</p>
                     </div>
                     ) : messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2">
@@ -782,10 +997,10 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                                 </span>
                             )}
                             
-                            <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl p-3 px-4 shadow-sm ${
-                            isMe 
-                                ? 'bg-primary text-white rounded-tr-none shadow-primary/20' 
-                                : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
+                            <div className={`px-4 py-2 text-[15px] leading-relaxed shadow-sm break-words
+                            ${isMe 
+                                ? 'bg-[#0084FF] text-white rounded-2xl rounded-tr-md' 
+                                : 'bg-[#E4E6EB] text-black rounded-2xl rounded-tl-md'
                             }`}>
                             {msg.message_type === 'image' ? (
                                 <a 
@@ -832,50 +1047,45 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* Product Info Mini Card (Visible above input) */}
-                {showProductCard && (
-                    <div className="bg-white px-4 py-3 border-t flex items-center gap-3 shrink-0 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
-                        <div className="w-12 h-12 relative rounded-md overflow-hidden border bg-gray-100 shrink-0">
-                            {productData.image ? (
-                                <Image 
-                                    src={productData.image} 
-                                    alt={productData.title}
-                                    fill
-                                    className="object-cover"
-                                />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-300">
-                                    <ImageIcon size={20} />
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex-1 min-w-0 flex flex-col justify-center">
-                            <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-gray-100 px-1.5 py-0.5 rounded">Product</span>
-                                <h4 className="font-medium text-gray-800 text-sm truncate max-w-[300px]" title={productData.title}>
-                                    {productData.title}
-                                </h4>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-gray-600">
-                                <span className="font-bold text-gray-900 text-sm">${productData.price.toLocaleString()}</span>
-                                <span className="text-gray-300">|</span>
-                                <span>Min. Order: {productData.minOrder || 1} Pieces</span>
-                            </div>
-                        </div>
-                        <button 
-                            onClick={() => setShowProductCard(false)} 
-                            className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-full transition-colors absolute top-2 right-2"
-                        >
-                            <X size={16} />
-                        </button>
-                    </div>
-                )}
-
                 {/* Input Area */}
-                <div className="bg-white border-t shrink-0 flex flex-col">
+                <div className="bg-white border-t shrink-0 flex flex-col p-3 gap-2">
+                    {/* Rating Form Overlay/Inline */}
+                    {isRatingOpen && (
+                        <div className="bg-white absolute bottom-0 left-0 right-0 p-4 border-t shadow-[0_-4px_12px_rgba(0,0,0,0.1)] z-20 animate-in slide-in-from-bottom-5">
+                            <div className="flex justify-between items-center mb-2">
+                                <h4 className="font-bold text-gray-800">Calificar Producto</h4>
+                                <button onClick={() => setIsRatingOpen(false)} className="p-1 hover:bg-gray-100 rounded-full">
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            <div className="flex justify-center mb-3">
+                                <StarRating 
+                                    rating={ratingValue} 
+                                    interactive={true} 
+                                    size={32}
+                                    onRatingChange={setRatingValue} 
+                                />
+                            </div>
+                            <textarea
+                                value={ratingComment}
+                                onChange={(e) => setRatingComment(e.target.value)}
+                                placeholder="Escribe tu opinión..."
+                                className="w-full border rounded-lg p-2 text-sm mb-3 focus:ring-1 focus:ring-primary outline-none"
+                                rows={2}
+                            />
+                            <button 
+                                onClick={handleRatingSubmit}
+                                disabled={isSubmittingRating || ratingValue === 0}
+                                className="w-full bg-primary text-white py-2 rounded-lg font-bold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                            >
+                                {isSubmittingRating ? <Loader2 className="animate-spin" size={16} /> : "Enviar Calificación"}
+                            </button>
+                        </div>
+                    )}
+
                     {/* File Preview */}
                     {selectedFile && (
-                        <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between animate-in slide-in-from-bottom-2">
+                        <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between animate-in slide-in-from-bottom-2 mb-2 rounded-lg">
                             <div className="flex items-center gap-2 text-sm text-gray-600">
                                 {selectedFile.type.startsWith('image/') ? (
                                     <ImageIcon size={16} className="text-primary" />
@@ -892,58 +1102,76 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                         </div>
                     )}
                     
-                    <div className="p-4">
-                    <div className="flex items-end gap-2 bg-gray-50 p-2 rounded-xl border focus-within:border-primary focus-within:bg-white transition-all shadow-sm">
-                    {/* Hidden Input */}
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                                setSelectedFile(e.target.files[0]);
-                            }
-                            // Reset value to allow selecting same file again
-                            e.target.value = '';
-                        }}
-                    />
-
-                    {/* Pay Button - Buyer Mode Only */}
-                    {!isVendorMode && supplierTransferData?.transfer_accepted && (
-                        <button 
-                            onClick={handlePaymentClick}
-                            disabled={isCreatingOrder || !activeConversation}
-                            className="p-2 mr-1 bg-green-600 text-white rounded-lg shadow-sm hover:bg-green-700 transition-colors flex items-center gap-1 font-medium text-xs disabled:opacity-50"
-                            title="Realizar Pago"
-                        >
-                             {isCreatingOrder ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
-                             <span className="hidden sm:inline">Pago</span>
-                        </button>
-                    )}
-                    <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="p-2 text-gray-400 hover:text-primary transition-colors"
-                        title="Adjuntar archivo"
-                    >
-                        <Paperclip size={20} />
-                    </button>
-                    <textarea
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyDown={handleKeyPress}
-                        disabled={!activeConversation}
-                        placeholder={!activeConversation ? "Selecciona una conversación..." : "Escribe tu mensaje..."}
-                        className="flex-1 bg-transparent border-none focus:ring-0 outline-none resize-none max-h-32 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        rows={1}
-                    />
-                    <button 
-                        onClick={handleSend}
-                        disabled={(!inputValue.trim() && !selectedFile) || !activeConversation}
-                        className="p-2 bg-primary text-white rounded-lg shadow-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
-                        <Send size={18} />
-                    </button>
+                    {/* Text Input - Taller */}
+                    <div className="flex-1 bg-[#F0F2F5] rounded-xl px-4 py-2 focus-within:ring-1 focus-within:ring-gray-300 transition-all flex items-start">
+                            <textarea
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                onKeyDown={handleKeyPress}
+                                disabled={!activeConversation}
+                                placeholder={!activeConversation ? "Selecciona una conversación..." : "Escribe un mensaje..."}
+                                className="w-full bg-transparent border-none focus:ring-0 outline-none resize-none min-h-[60px] max-h-40 text-gray-900 placeholder-gray-500 leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed py-1"
+                                rows={3}
+                            />
                     </div>
+
+                    {/* Toolbar Row */}
+                    <div className="flex items-center justify-between mt-1">
+                         {/* Left: Icons */}
+                         <div className="flex items-center gap-1">
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="p-2 text-gray-500 hover:bg-gray-100 hover:text-primary rounded-full transition-colors"
+                                title="Adjuntar imagen"
+                            >
+                                <ImageIcon size={20} />
+                            </button>
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                onChange={(e) => {
+                                    if (e.target.files && e.target.files[0]) {
+                                        setSelectedFile(e.target.files[0]);
+                                    }
+                                    e.target.value = '';
+                                }}
+                            />
+                        </div>
+
+                        {/* Right: Actions */}
+                        <div className="flex items-center gap-2">
+
+                             {/* Payment Button (Moved from Header) */}
+                             {user?.role === 'client' && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handlePaymentClick(); }}
+                                    className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
+                                        isCreatingOrder 
+                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                                            : 'bg-[#0084FF] hover:bg-[#0078E7] text-white'
+                                    }`}
+                                >
+                                    {isCreatingOrder ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
+                                    <span>Pagar</span>
+                                </button>
+                             )}
+
+                            {/* Send Button */}
+                            {inputValue.trim() || selectedFile ? (
+                                <button 
+                                    onClick={handleSend}
+                                    disabled={(!inputValue.trim() && !selectedFile) || !activeConversation}
+                                    className="p-2 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors shadow-sm"
+                                >
+                                    <Send size={18} />
+                                </button>
+                            ) : (
+                                <button className="p-2 text-gray-300 rounded-full transition-colors cursor-default">
+                                    <Send size={18} />
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
              </>
@@ -953,7 +1181,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
       </div>
       
       {/* Payment Modal */}
-      {isPaymentModalOpen && supplierTransferData && (
+      {isPaymentModalOpen && localTransferData && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="bg-gray-50 p-4 border-b flex items-center justify-between">
@@ -977,17 +1205,17 @@ export default function ChatWindow({ productId, supplierId, supplierName, isOwne
                     <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
                         <div>
                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Banco</p>
-                            <p className="font-medium text-gray-800">{supplierTransferData.transfer_bank || 'No especificado'}</p>
+                            <p className="font-medium text-gray-800">{localTransferData.transfer_bank || 'No especificado'}</p>
                         </div>
                         <div>
                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Beneficiario</p>
-                            <p className="font-medium text-gray-800">{supplierTransferData.transfer_name || 'No especificado'}</p>
+                            <p className="font-medium text-gray-800">{localTransferData.transfer_name || 'No especificado'}</p>
                         </div>
                         <div>
                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">CLABE Interbancaria</p>
                             <div className="flex items-center gap-2">
                                 <p className="font-mono font-medium text-gray-800 text-lg tracking-wide select-all">
-                                    {supplierTransferData.transfer_clabe || 'No especificado'}
+                                    {localTransferData.transfer_clabe || 'No especificado'}
                                 </p>
                             </div>
                         </div>

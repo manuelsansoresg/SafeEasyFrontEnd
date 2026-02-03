@@ -4,6 +4,8 @@ import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MobileNav } from "@/components/MobileNav";
+import { ChatProvider } from "@/context/ChatContext";
+import { ChatOverlay } from "@/components/chat/ChatOverlay";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,12 +33,15 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <Header />
-        <main className="pt-16 pb-16 md:pb-0 min-h-screen">
-          {children}
-        </main>
-        <Footer />
-        <MobileNav />
+        <ChatProvider>
+          <Header />
+          <main className="pt-16 pb-16 md:pb-0 min-h-screen">
+            {children}
+          </main>
+          <Footer />
+          <MobileNav />
+          <ChatOverlay />
+        </ChatProvider>
       </body>
     </html>
   );

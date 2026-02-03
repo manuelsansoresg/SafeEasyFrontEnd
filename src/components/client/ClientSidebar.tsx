@@ -5,106 +5,36 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   User, 
-  Users,
-  Users2,
   MessageSquare,
-  Grid, 
-  Layers, 
-  Package, 
-  ChevronLeft, 
-  ChevronRight,
   LogOut,
-  LayoutDashboard,
-  ShoppingCart,
-  BarChart3
+  LayoutDashboard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/useAuthStore";
 
-interface AdminSidebarProps {
+interface ClientSidebarProps {
   isCollapsed: boolean;
   toggleSidebar: () => void;
 }
 
-export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) {
+export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
-  const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
   
   // Menu items configuration
   const menuItems = [
-    {
-      title: "Dashboard",
-      path: "/admin/dashboard",
-      icon: LayoutDashboard,
-      roles: ['admin', 'superuser', 'supplier']
-    },
     { 
-      title: "Mi Empresa", 
-      path: "/admin/my-company", 
-      icon: Grid,
-      roles: ['supplier']
-    },
-    { 
-      title: "Perfil", 
-      path: "/admin/profile", 
+      title: "Mi Perfil", 
+      path: "/client/profile", 
       icon: User,
-      roles: ['admin', 'superuser', 'supplier', 'client']
     },
     { 
-      title: "Categorías", 
-      path: "/admin/categories", 
-      icon: Grid,
-      roles: ['admin', 'superuser']
-    },
-    { 
-      title: "Subcategorias", 
-      path: "/admin/subcategories", 
-      icon: Layers,
-      roles: ['admin', 'superuser']
-    },
-    { 
-      title: "Usuarios", 
-      path: "/admin/users", 
-      icon: Users2,
-      roles: ['admin', 'superuser']
-    },
-    { 
-      title: "Proveedores", 
-      path: "/admin/suppliers", 
-      icon: Users,
-      roles: ['admin', 'superuser']
-    },
-    { 
-      title: "Mis Productos", 
-      path: "/admin/products", 
-      icon: Package,
-      roles: ['admin', 'superuser', 'supplier']
-    },
-    { 
-      title: "Órdenes", 
-      path: "/admin/orders", 
-      icon: ShoppingCart,
-      roles: ['supplier']
-    },
-    { 
-      title: "Estadísticas", 
-      path: "/admin/stats", 
-      icon: BarChart3,
-      roles: ['supplier']
-    },
-    { 
-      title: "Mensajes",  
-      path: "/admin/messages", 
+      title: "Mis Mensajes",  
+      path: "/client/messages", 
       icon: MessageSquare,
-      roles: ['admin', 'superuser', 'supplier', 'client']
     }
   ];
-
-  const filteredMenuItems = menuItems.filter(item => 
-    !item.roles || (user?.role && item.roles.includes(user.role)) || (isAdmin && item.roles?.includes('admin'))
-  );
 
   return (
     <motion.aside
@@ -114,15 +44,11 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       }}
       className={cn(
         "relative flex flex-col h-screen bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-40 sticky top-0",
-        // Mobile behavior can be handled via parent or media queries, 
-        // but typically sidebar is fixed or overlay on mobile.
-        // For this requirement: "version movil que se vean por default solo iconos"
-        // We will rely on the `isCollapsed` state passed from layout which should be true by default on mobile.
       )}
     >
       {/* Header / Logo */}
       <div className="h-16 flex items-center justify-center border-b border-gray-100">
-        <Link href="/admin/dashboard" className="flex items-center gap-2 overflow-hidden px-4 w-full">
+        <Link href="/" className="flex items-center gap-2 overflow-hidden px-4 w-full">
           <div className="min-w-[32px] h-8 flex items-center justify-center text-primary">
             {/* Simple Logo Icon */}
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -136,7 +62,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
             className="whitespace-nowrap overflow-hidden"
           >
             <span className="text-lg font-bold text-gray-800">SafeEasy</span>
-            <span className="text-xs text-gray-500 block">Admin Panel</span>
+            <span className="text-xs text-gray-500 block">Panel Cliente</span>
           </motion.div>
         </Link>
       </div>
@@ -144,7 +70,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       {/* Navigation Items */}
       <div className="flex-1 py-6 overflow-y-auto overflow-x-hidden scrollbar-thin">
         <nav className="space-y-2 px-3">
-          {filteredMenuItems.map((item) => {
+          {menuItems.map((item) => {
             const isActive = pathname === item.path || pathname.startsWith(item.path);
             
             return (
@@ -201,18 +127,10 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
                 animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : "auto" }}
                 className="font-medium whitespace-nowrap overflow-hidden"
              >
-                Cerrar Sesión
+               Cerrar Sesión
              </motion.span>
          </button>
       </div>
-
-      {/* Toggle Button */}
-      <button
-        onClick={toggleSidebar}
-        className="absolute -right-3 top-20 bg-white border border-gray-200 text-gray-500 hover:text-primary p-1 rounded-full shadow-md z-50 hidden md:flex"
-      >
-        {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-      </button>
     </motion.aside>
   );
 }

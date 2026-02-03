@@ -10,8 +10,15 @@ export function MobileNav() {
   const pathname = usePathname();
   const { user } = useAuthStore();
   const hasPanelAccess = user?.role === "admin" || user?.role === "supplier";
+  
+  let accountHref = "/login";
+  if (hasPanelAccess) {
+    accountHref = "/admin/dashboard";
+  } else if (user?.role === "client") {
+    accountHref = "/admin/profile";
+  }
 
-  const accountHref = hasPanelAccess ? "/admin/dashboard" : "/account";
+  const messagesHref = user ? "/admin/messages" : "/login";
 
   const navItems =
     pathname.startsWith("/empresas/") ?
@@ -25,7 +32,7 @@ export function MobileNav() {
       [
         { href: "/", label: "Inicio", icon: Home },
         { href: "/categories", label: "Categorías", icon: Grid },
-        { href: "/messages", label: "Mensajes", icon: MessageSquare },
+        { href: messagesHref, label: "Mensajes", icon: MessageSquare },
         { href: accountHref, label: "Mi Cuenta", icon: User },
       ];
 
@@ -37,7 +44,7 @@ export function MobileNav() {
           const isActive = pathname === item.href;
           return (
             <Link
-              key={item.href}
+              key={`${item.href}-${item.label}`}
               href={item.href}
               className={cn(
                 "flex flex-col items-center justify-center w-full h-full gap-1 transition-colors",

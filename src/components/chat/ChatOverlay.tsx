@@ -1,0 +1,69 @@
+"use client";
+
+import { useChat } from "@/context/ChatContext";
+import ChatWindow from "./ChatWindow";
+import { useAuthStore } from "@/store/useAuthStore";
+import { X } from "lucide-react";
+
+export function ChatOverlay() {
+  const { openChats, closeChat, toggleChat } = useChat();
+  const { user } = useAuthStore();
+
+  if (openChats.length === 0) return null;
+
+  return (
+    <div className="fixed bottom-0 right-0 md:right-4 left-0 md:left-auto flex flex-col md:flex-row items-end gap-2 md:gap-4 z-[9999] pointer-events-none p-2 md:p-0">
+      {openChats.map((chat, index) => (
+        <div 
+            key={chat.id} 
+            className={`pointer-events-auto bg-white border border-gray-200 rounded-t-xl shadow-2xl overflow-hidden transition-all duration-300 ease-in-out flex flex-col
+                ${chat.isMinimized ? 'w-full md:w-[200px] h-[48px]' : 'w-full md:w-[340px] h-[500px] md:h-[480px] max-h-[80vh]'}
+                ${index === openChats.length - 1 ? 'flex' : 'hidden md:flex'}
+            `}
+        >
+             {chat.isMinimized ? (
+                 <div 
+                    className="flex items-center justify-between p-3 bg-white hover:bg-gray-50 cursor-pointer h-full border-t-4 border-t-primary"
+                    onClick={() => toggleChat(chat.id)}
+                 >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                        <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold shrink-0">
+                            {(chat.other_party_name || chat.supplier_name || 'U').charAt(0)}
+                        </div>
+                        <span className="font-semibold text-sm truncate">
+                            {chat.other_party_name || chat.supplier_name || 'Chat'}
+                        </span>
+                    </div>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); closeChat(chat.id); }}
+                        className="p-1 hover:bg-gray-200 rounded-full text-gray-500"
+                    >
+                        <X size={14} />
+                    </button>
+                 </div>
+             ) : (
+                 <ChatWindow 
+                    productId={chat.product_id || null}
+                    supplierId={chat.supplier_id}
+                    supplierName={chat.supplier_name || chat.other_party_name}
+                    supplierSlug={chat.supplier_slug}
+                    isOwner={String(user?.id) === String(chat.supplier_id)}
+                    productData={{
+                        title: chat.product_title || "Producto",
+                        price: chat.product_price || 0,
+                        image: chat.product_image || ""
+                    }}
+                    supplierTransferData={chat.supplier_transfer_data || {
+                        transfer_accepted: true 
+                    }}
+                    isOpen={true} 
+                    onClose={() => closeChat(chat.id)}
+                    onMinimize={() => toggleChat(chat.id)}
+                    mode="docked"
+                 />
+             )}
+        </div>
+      ))}
+    </div>
+  );
+}

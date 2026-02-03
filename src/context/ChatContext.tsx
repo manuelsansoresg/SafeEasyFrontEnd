@@ -1,0 +1,64 @@
+"use client";
+
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { Conversation } from '@/types/chat';
+
+export interface OpenChat extends Conversation {
+  isMinimized?: boolean;
+}
+
+interface ChatContextType {
+  openChats: OpenChat[];
+  openChat: (conversation: Conversation) => void;
+  closeChat: (conversationId: string | number) => void;
+  minimizeChat: (conversationId: string | number) => void;
+  toggleChat: (conversationId: string | number) => void;
+}
+
+const ChatContext = createContext<ChatContextType | undefined>(undefined);
+
+export function ChatProvider({ children }: { children: ReactNode }) {
+  const [openChats, setOpenChats] = useState<OpenChat[]>([]);
+
+  const openChat = (conversation: Conversation) => {
+    setOpenChats(prev => {
+      // Check if already open
+      if (prev.find(c => c.id === conversation.id)) {
+        // If minimized, maximize it
+        return prev.map(c => c.id === conversation.id ? { ...c, isMinimized: false } : c);
+      }
+      // Limit to say 3 chats to avoid clutter
+      const newChats = [...prev, { ...conversation, isMinimized: false }];
+      if (newChats.length > 3) {
+        return newChats.slice(newChats.length - 3);
+      }
+      return newChats;
+    });
+  };
+
+  const closeChat = (conversationId: string | number) => {
+    setOpenChats(prev => prev.filter(c => String(c.id) !== String(conversationId)));
+  };
+
+  const minimizeChat = (conversationId: string | number) => {
+     setOpenChats(prev => prev.map(c => String(c.id) === String(conversationId) ? { ...c, isMinimized: true } : c));
+  };
+  
+  const toggleChat = (conversationId: string | number) => {
+     setOpenChats(prev => prev.map(c => String(c.id) === String(conversationId) ? { ...c, isMinimized: !c.isMinimized } : c));
+  };
+
+  return (
+    <ChatContext.Provider value={{ openChats, openChat, closeChat, minimizeChat, toggleChat }}>
+      {children}
+    </ChatContext.Provider>
+  );
+}
+
+export function useChat() {
+  const context = useContext(ChatContext);
+  if (context === undefined) {
+    throw new Error('useChat must be used within a ChatProvider');
+  }
+  return context;
+}

@@ -119,18 +119,19 @@ const sanitizeHtml = (html: string) => {
     .replace(/\sstyle='[^']*'/gim, "");
 };
 
-import ChatWindow from "@/components/chat/ChatWindow";
+import { useChat } from "@/context/ChatContext";
+import { Conversation } from "@/types/chat";
 
 export default function ProductDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
+  const { openChat } = useChat();
   
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);
 
   useEffect(() => {
@@ -556,7 +557,33 @@ export default function ProductDetailPage() {
         setIsLoginModalOpen(true);
         return;
     }
-    setIsChatOpen(true);
+
+    if (!product || !user) return;
+
+    // Construct a temporary conversation object to initialize the docked chat
+    const tempConv: Conversation = {
+       id: `temp-${product.id}-${product.supplier_id}`,
+       user_id: Number(user.id),
+       supplier_id: product.supplier_id,
+       product_id: product.id,
+       product_title: product.title,
+       product_price: product.price,
+       product_image: product.image || product.thumbnail_url || "",
+       supplier_name: product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : 'Proveedor',
+       supplier_slug: product.supplier?.slug,
+       supplier_transfer_data: product.supplier ? {
+           transfer_accepted: product.supplier.transfer_accepted,
+           transfer_bank: product.supplier.transfer_bank,
+           transfer_clabe: product.supplier.transfer_clabe,
+           transfer_name: product.supplier.transfer_name
+       } : undefined,
+       created_at: new Date().toISOString(),
+       updated_at: new Date().toISOString(),
+       my_role: user.role === 'client' ? 'client' : 'supplier',
+       other_party_name: product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : 'Proveedor'
+    };
+
+    openChat(tempConv);
   };
 
   const handleRatingClick = () => {
@@ -961,33 +988,6 @@ export default function ProductDetailPage() {
           </section>
         )}
       </main>
-
-      {product && (
-        <ChatWindow
-          isOpen={isChatOpen}
-          onClose={() => setIsChatOpen(false)}
-          productId={product.id}
-          supplierId={product.supplier_id}
-          supplierName={product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : undefined}
-          isOwner={user ? (
-            String(user.id) === String(product.supplier_id) || 
-            user.role === 'admin' || 
-            (user as any).supplier_id === product.supplier_id
-          ) : false}
-          productData={{
-            title: product.title,
-            price: product.price,
-            image: product.image || product.thumbnail_url || "",
-            minOrder: 1 // Default or fetch if available
-          }}
-          supplierTransferData={{
-            transfer_clabe: product.supplier?.transfer_clabe,
-            transfer_bank: product.supplier?.transfer_bank,
-            transfer_name: product.supplier?.transfer_name,
-            transfer_accepted: product.supplier?.transfer_accepted,
-          }}
-        />
-      )}
 
       {/* Login Modal */}
       <LoginModal 

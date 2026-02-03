@@ -28,8 +28,16 @@ export interface Conversation {
   user_image?: string;
   supplier_name?: string; // Backend field from new chat.md
   supplier_image?: string;
+  supplier_slug?: string;
+  supplier_transfer_data?: {
+      transfer_clabe?: string | null;
+      transfer_bank?: string | null;
+      transfer_name?: string | null;
+      transfer_accepted?: boolean;
+  };
   product_title?: string;
   product_image?: string;
+  product_price?: number;
   user?: {
     id: number;
     first_name?: string;

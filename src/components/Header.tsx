@@ -82,6 +82,8 @@ function MobileSearchBar() {
   );
 }
 
+import { MessagesDropdown } from "@/components/chat/MessagesDropdown";
+
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -177,6 +179,9 @@ export function Header() {
             </Link>
           )}
 
+          {/* Messages Dropdown */}
+          {isAuthenticated && <MessagesDropdown />}
+
           {/* User Menu */}
           <div
             className="relative"
@@ -229,7 +234,12 @@ export function Header() {
                         <span>🛡️</span> {user.role === 'admin' ? 'Panel Admin' : 'Mi Empresa'}
                       </Link>
                     )}
-                    <Link href="/messages" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
+                    {user?.role === 'client' && (
+                      <Link href="/client/profile" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3 font-medium text-primary">
+                        <span>👤</span> Mi Perfil
+                      </Link>
+                    )}
+                    <Link href={user?.role === 'client' ? "/client/messages" : user?.role === 'supplier' ? "/supplier/messages" : "/admin/messages"} className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
                       <span>💬</span> Mensajes
                     </Link>
                     <Link href="/favorites" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
