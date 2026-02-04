@@ -29,11 +29,7 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
       path: "/client/profile", 
       icon: User,
     },
-    { 
-      title: "Mis Mensajes",  
-      path: "/client/messages", 
-      icon: MessageSquare,
-    }
+    // Mis Mensajes item removed
   ];
 
   return (

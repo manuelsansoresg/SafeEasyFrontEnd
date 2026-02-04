@@ -93,12 +93,6 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       path: "/admin/stats", 
       icon: BarChart3,
       roles: ['supplier']
-    },
-    { 
-      title: "Mensajes",  
-      path: "/admin/messages", 
-      icon: MessageSquare,
-      roles: ['admin', 'superuser', 'supplier', 'client']
     }
   ];
 

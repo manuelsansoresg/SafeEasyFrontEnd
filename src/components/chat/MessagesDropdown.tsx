@@ -15,6 +15,7 @@ export function MessagesDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close when clicking outside
@@ -28,24 +29,49 @@ export function MessagesDropdown() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const fetchConversations = async (showLoading = false) => {
+    if (!user) return;
+    if (showLoading) setLoading(true);
+    try {
+      const data = await chatService.getConversations();
+      // Sort by recent
+      data.sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
+        const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
+        return dateB - dateA;
+      });
+      setConversations(data.slice(0, 5)); // Take top 5
+      
+      // Calculate total unread count
+      const count = data.reduce((acc, curr) => acc + (curr.unread_count || 0), 0);
+      setUnreadCount(count);
+    } catch (err) {
+      console.error("Failed to load dropdown chats", err);
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  };
+
   // Fetch conversations when opened
   useEffect(() => {
-    if (isOpen && user) {
-      setLoading(true);
-      chatService.getConversations()
-        .then(data => {
-            // Sort by recent
-            data.sort((a, b) => {
-                const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
-                const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
-                return dateB - dateA;
-            });
-            setConversations(data.slice(0, 5)); // Take top 5
-        })
-        .catch(err => console.error("Failed to load dropdown chats", err))
-        .finally(() => setLoading(false));
+    if (isOpen) {
+      fetchConversations(true);
     }
   }, [isOpen, user]);
+
+  // Poll for unread messages every 15 seconds
+  useEffect(() => {
+    if (!user) return;
+    
+    // Initial fetch for badge
+    fetchConversations(false);
+    
+    const interval = setInterval(() => {
+        fetchConversations(false);
+    }, 15000);
+    
+    return () => clearInterval(interval);
+  }, [user]);
 
   const toggleOpen = () => setIsOpen(!isOpen);
 
@@ -91,7 +117,11 @@ export function MessagesDropdown() {
       >
         <div className="relative">
             <MessageSquare size={22} className={isOpen ? "fill-current" : ""} />
-            {/* Optional: Add badge if unread count > 0 */}
+            {unreadCount > 0 && (
+                <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                </div>
+            )}
         </div>
       </button>
 
@@ -171,16 +201,7 @@ export function MessagesDropdown() {
                 ))
              )}
           </div>
-
-          <div className="p-2 border-t border-gray-50 text-center">
-            <Link 
-                href={`/${user?.role === 'client' ? 'client' : user?.role === 'supplier' ? 'supplier' : 'admin'}/messages`}
-                onClick={() => setIsOpen(false)}
-                className="block w-full py-2.5 text-primary font-semibold hover:bg-gray-50 rounded-lg transition-colors text-sm"
-            >
-                Ver todo en Messenger
-            </Link>
-          </div>
+          {/* Bottom link removed as requested */}
         </div>
       )}
     </div>

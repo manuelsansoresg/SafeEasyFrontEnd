@@ -239,9 +239,7 @@ export function Header() {
                         <span>👤</span> Mi Perfil
                       </Link>
                     )}
-                    <Link href={user?.role === 'client' ? "/client/messages" : user?.role === 'supplier' ? "/supplier/messages" : "/admin/messages"} className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
-                      <span>💬</span> Mensajes
-                    </Link>
+                    {/* Mensajes link removed */}
                     <Link href="/favorites" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
                       <span>❤️</span> Favoritos
                     </Link>
