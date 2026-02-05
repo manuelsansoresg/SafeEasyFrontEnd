@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
-import { Loader2, CheckCircle } from "lucide-react";
+import { Loader2, CheckCircle, UserPlus, Users, Search } from "lucide-react";
+import { fetchWithAuth } from "@/lib/api";
 import FileUpload from "@/components/ui/FileUpload";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
@@ -49,6 +50,93 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
   const { token, user } = useAuthStore();
   const router = useRouter();
   
+  // User Management for Admin
+  const [users, setUsers] = useState<{id: number, email: string, full_name?: string, name?: string}[]>([]);
+  const [userMode, setUserMode] = useState<'existing' | 'new' | 'current'>('current');
+  const [selectedUserId, setSelectedUserId] = useState<number | string>("");
+  const [userSearchTerm, setUserSearchTerm] = useState("");
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [newUser, setNewUser] = useState({
+    name: "",
+    email: "",
+    password: ""
+  });
+
+  // Load initial user if exists
+  useEffect(() => {
+    if (initialData?.user_id) {
+        // We need to fetch the specific user to show it in the select even if not in search results
+        const fetchInitialUser = async () => {
+            try {
+                // Try to get specific user. Note: standard endpoint might be /api/users/{id}
+                const response = await fetchWithAuth(`/api/users/${initialData.user_id}`);
+                if (response.ok) {
+                    const user = await response.json();
+                    setUsers(prev => {
+                        if (prev.find(u => u.id === user.id)) return prev;
+                        return [user, ...prev];
+                    });
+                    setSelectedUserId(user.id);
+                }
+            } catch (e) {
+                console.error("Error loading initial user", e);
+            }
+        };
+        fetchInitialUser();
+    }
+  }, [initialData]);
+
+  // Debounced Search
+  useEffect(() => {
+    if (userMode !== 'existing') return;
+
+    const delayDebounceFn = setTimeout(() => {
+      fetchUsers(userSearchTerm);
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [userSearchTerm, userMode]);
+
+  const fetchUsers = async (term: string = "") => {
+      setIsSearchingUsers(true);
+      try {
+          // Construct query params
+          const params = new URLSearchParams();
+          params.append('limit', '20'); // Limit results to prevent saturation
+          if (term) {
+              params.append('search', term); // Assuming backend supports 'search'
+              // Also sending email just in case backend filters by email specifically
+              if (term.includes('@')) {
+                  params.append('email', term);
+              }
+          }
+
+          const response = await fetchWithAuth(`/api/users/?${params.toString()}`);
+          if (response.ok) {
+              const data = await response.json();
+              let newUsers: any[] = [];
+              if (Array.isArray(data)) {
+                  newUsers = data;
+              } else if (data && Array.isArray(data.items)) {
+                  newUsers = data.items;
+              }
+              
+              setUsers(prev => {
+                  // Keep the selected user in the list if it exists
+                  const selected = prev.find(u => u.id === Number(selectedUserId));
+                  if (selected && !newUsers.find(u => u.id === selected.id)) {
+                      return [selected, ...newUsers];
+                  }
+                  return newUsers;
+              });
+          }
+      } catch (e) {
+          console.error("Error loading users", e);
+      } finally {
+          setIsSearchingUsers(false);
+      }
+  };
+
   const [formData, setFormData] = useState({
     name: initialData?.name || "",
     short_name: initialData?.short_name || "",
@@ -105,6 +193,61 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     setSuccess(false);
 
     try {
+      // Default: The current session user (for new creations by regular users)
+      let finalUserId = user.id; 
+      
+      // If we are editing, default to the EXISTING owner of the record
+      if (isEditMode && initialData?.user_id) {
+          finalUserId = initialData.user_id;
+      }
+
+      if (user.role === 'admin') {
+          if (userMode === 'existing') {
+              if (!selectedUserId) {
+                  setError("Debes seleccionar un usuario para asignar al proveedor");
+                  setIsSubmitting(false);
+                  return;
+              }
+              finalUserId = Number(selectedUserId);
+          } else if (userMode === 'new') {
+              if (!newUser.email || !newUser.password || !newUser.name) {
+                  setError("Todos los campos del nuevo usuario son obligatorios");
+                  setIsSubmitting(false);
+                  return;
+              }
+              // Create user first
+              try {
+                  const userResponse = await fetchWithAuth('/api/users', {
+                      method: 'POST',
+                      body: JSON.stringify({
+                          ...newUser,
+                          role: 'supplier',
+                          is_active: true
+                      })
+                  });
+                  
+                  if (!userResponse.ok) {
+                      const errText = await userResponse.text();
+                      let errMsg = errText;
+                      try {
+                          const json = JSON.parse(errText);
+                          errMsg = json.detail || JSON.stringify(json);
+                      } catch {}
+                      throw new Error("Error al crear el usuario: " + errMsg);
+                  }
+                  
+                  const createdUser = await userResponse.json();
+                  finalUserId = createdUser.id;
+              } catch (e: any) {
+                  setError(e.message);
+                  setIsSubmitting(false);
+                  return;
+              }
+          }
+          // If userMode is 'current', we keep the finalUserId set at the beginning 
+          // (either initialData.user_id if editing, or user.id if creating)
+      }
+
       const slug = formData.short_name 
         ? formData.short_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
         : formData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -166,7 +309,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         appendIfPresent("interior_number", formData.interior_number);
         appendIfPresent("neighborhood", formData.neighborhood);
         appendIfPresent("about", formData.about);
-        data.append("user_id", String(user.id));
+        data.append("user_id", String(finalUserId));
 
         if (logo) data.append("logo", logo);
         if (aboutImage) data.append("about_image", aboutImage);
@@ -178,21 +321,15 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         const url = `/api/suppliers/${initialData.id}/`;
         const data = buildFormData();
 
-        response = await fetch(url, {
+        response = await fetchWithAuth(url, {
           method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
           body: data,
         });
       } else {
         const data = buildFormData();
 
-        response = await fetch("/api/suppliers", {
+        response = await fetchWithAuth("/api/suppliers", {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
           body: data,
         });
       }
@@ -260,6 +397,148 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded relative flex items-center gap-2">
           <CheckCircle size={20} />
           <span>Información guardada correctamente</span>
+        </div>
+      )}
+
+      {/* User Selection Section (Admin Only) */}
+      {user?.role === 'admin' && (
+        <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl mb-6">
+          <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
+            <Users size={20} />
+            Asignación de Usuario
+          </h3>
+          
+          <div className="flex flex-wrap gap-4 mb-4">
+             <button
+                type="button"
+                onClick={() => setUserMode('existing')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    userMode === 'existing' 
+                        ? 'bg-blue-600 text-white shadow-sm' 
+                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                }`}
+             >
+                Usuario Existente
+             </button>
+             <button
+                type="button"
+                onClick={() => setUserMode('new')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                    userMode === 'new' 
+                        ? 'bg-blue-600 text-white shadow-sm' 
+                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                }`}
+             >
+                <UserPlus size={16} />
+                Crear Nuevo Usuario
+             </button>
+             {isEditMode && (
+                 <button
+                    type="button"
+                    onClick={() => setUserMode('current')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        userMode === 'current' 
+                            ? 'bg-blue-600 text-white shadow-sm' 
+                            : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                    }`}
+                 >
+                    Mantener Actual
+                 </button>
+             )}
+          </div>
+
+          {userMode === 'existing' && (
+              <div className="max-w-md">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Buscar Usuario</label>
+                  <div className="mb-2 relative">
+                      <input
+                          type="text"
+                          value={userSearchTerm}
+                          onChange={(e) => setUserSearchTerm(e.target.value)}
+                          placeholder="Buscar por nombre o email..."
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 pl-9 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                      {isSearchingUsers ? (
+                        <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500 animate-spin" size={16} />
+                      ) : (
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                      )}
+                  </div>
+                  
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Seleccionar Usuario</label>
+                  <select
+                      value={selectedUserId}
+                      onChange={(e) => setSelectedUserId(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      size={5} // Show multiple items
+                  >
+                      {/* If nothing selected, show placeholder option */}
+                      {!selectedUserId && <option value="">-- Seleccionar Usuario --</option>}
+                      
+                      {users.map(u => (
+                          <option key={u.id} value={u.id}>
+                              {u.full_name || u.name || u.email} ({u.email})
+                          </option>
+                      ))}
+                      
+                      {/* Message if no results */}
+                      {!isSearchingUsers && users.length === 0 && (
+                          <option disabled>No se encontraron usuarios</option>
+                      )}
+                  </select>
+                  <p className="text-xs text-blue-600 mt-2">
+                      {selectedUserId 
+                        ? `Usuario seleccionado ID: ${selectedUserId}`
+                        : "Usa el buscador para filtrar la lista y selecciona un usuario."}
+                  </p>
+              </div>
+          )}
+
+          {userMode === 'new' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
+                      <input
+                          type="text"
+                          value={newUser.name}
+                          onChange={e => setNewUser({...newUser, name: e.target.value})}
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Nombre del usuario"
+                      />
+                  </div>
+                  <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <input
+                          type="email"
+                          value={newUser.email}
+                          onChange={e => setNewUser({...newUser, email: e.target.value})}
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="usuario@ejemplo.com"
+                      />
+                  </div>
+                  <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                      <input
+                          type="password"
+                          value={newUser.password}
+                          onChange={e => setNewUser({...newUser, password: e.target.value})}
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Contraseña segura"
+                      />
+                  </div>
+                  <div className="md:col-span-2">
+                       <p className="text-xs text-blue-600">
+                           Se creará un usuario con rol <strong>Supplier</strong> y se le asignará este proveedor automáticamente.
+                       </p>
+                  </div>
+              </div>
+          )}
+          
+          {userMode === 'current' && isEditMode && (
+              <div className="text-sm text-gray-600">
+                  El proveedor se mantendrá asignado al usuario actual (ID: {initialData?.user_id}).
+              </div>
+          )}
         </div>
       )}
 

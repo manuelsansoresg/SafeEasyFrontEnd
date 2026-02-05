@@ -54,18 +54,20 @@ export default function AdminSuppliersPage() {
     setLoading(true);
     try {
       // Add trailing slash to avoid 307 redirects from backend
-      const response = await fetch(`/api/suppliers/?skip=${skip}&limit=${limit}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await fetchWithAuth(`/api/suppliers/?skip=${skip}&limit=${limit}`);
       
       if (response.ok) {
         const data = await response.json();
         // Ensure data is an array
         setSuppliers(Array.isArray(data) ? data : []);
       } else {
-        console.error("Failed to fetch suppliers");
+        console.error("Failed to fetch suppliers:", response.status, response.statusText);
+        try {
+            const errorText = await response.text();
+            console.error("Error response:", errorText);
+        } catch (e) {
+            // Ignore parsing error
+        }
       }
     } catch (error) {
       console.error("Error fetching suppliers:", error);
