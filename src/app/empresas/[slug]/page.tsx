@@ -835,9 +835,20 @@ export default function SupplierPage() {
                     Contáctanos directamente para obtener más información sobre nuestros productos y servicios.
                   </p>
 
-                  <button className="w-full py-3 bg-white text-primary font-bold rounded-xl hover:bg-gray-100 transition-colors shadow-sm">
-                    Enviar Mensaje
-                  </button>
+                  {supplier.phone ? (
+                    <a 
+                      href={`https://wa.me/${supplier.phone.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block w-full text-center py-3 bg-white text-primary font-bold rounded-xl hover:bg-gray-100 transition-colors shadow-sm"
+                    >
+                      Enviar Mensaje
+                    </a>
+                  ) : (
+                    <button disabled className="w-full py-3 bg-white/70 text-primary/50 font-bold rounded-xl cursor-not-allowed shadow-sm">
+                      Enviar Mensaje
+                    </button>
+                  )}
                 </div>
 
                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>

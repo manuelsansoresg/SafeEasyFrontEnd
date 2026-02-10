@@ -105,9 +105,9 @@ export async function getProducts(
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error("Error fetching products:", error);
+    console.warn("Warning: Error fetching products (returning empty list):", error);
     if (error instanceof Error && 'cause' in error) {
-       console.error("Cause:", (error as any).cause);
+       console.warn("Cause:", (error as any).cause);
     }
     return [];
   }

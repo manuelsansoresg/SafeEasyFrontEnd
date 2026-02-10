@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { Heart, BadgeCheck } from "lucide-react";
 import slugify from "slugify";
@@ -31,7 +33,7 @@ export function ProductCard({
     supplier &&
     (supplier.slug && supplier.slug.trim() !== ""
       ? supplier.slug
-      : slugify(supplier.name, { lower: true, strict: true }));
+      : (supplier.name ? slugify(supplier.name, { lower: true, strict: true }) : ""));
 
   const supplierHref = supplierSlug ? `/empresas/${supplierSlug}` : null;
 
@@ -69,32 +71,11 @@ export function ProductCard({
           </h3>
         </Link>
         
-        {supplier && (
-          <div className="mb-2 flex items-center gap-1 text-xs">
-            <span className="text-gray-500">Por:</span>
-            {supplierHref ? (
-              <Link
-                href={supplierHref}
-                className="font-medium text-primary hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                {supplier.name}
-              </Link>
-            ) : (
-              <span className="font-medium text-gray-700">{supplier.name}</span>
-            )}
-            {supplier.certificates && supplier.certificates.length > 0 && (
-              <span className="inline-flex items-center" aria-label="Empresa certificada">
-                <BadgeCheck className="w-4 h-4 text-blue-500" />
-              </span>
-            )}
-          </div>
-        )}
-
         <div className="mb-2">
             <StarRating rating={rating} size={14} showCount={true} />
         </div>
         <div className="flex items-baseline gap-1 mt-auto">
-          <span className="text-lg font-bold text-gray-900">${price.toFixed(2)}</span>
+          <span className="text-lg font-bold text-gray-900">${(typeof price === 'number' ? price : 0).toFixed(2)}</span>
           <span className="text-xs text-muted-foreground">/ pieza</span>
         </div>
 

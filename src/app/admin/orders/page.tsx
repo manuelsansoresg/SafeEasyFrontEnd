@@ -84,11 +84,9 @@ export default function AdminOrdersPage() {
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Producto</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Proveedor</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Comprador ID</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
@@ -96,7 +94,7 @@ export default function AdminOrdersPage() {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center">
+                  <td colSpan={5} className="px-6 py-8 text-center">
                     <div className="flex justify-center items-center">
                       <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
                     </div>
@@ -104,14 +102,13 @@ export default function AdminOrdersPage() {
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     No hay órdenes encontradas.
                   </td>
                 </tr>
               ) : (
                 orders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">#{order.id}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {order.product?.title || "Producto desconocido"}
                     </td>
@@ -120,9 +117,6 @@ export default function AdminOrdersPage() {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {order.supplier?.name || "Proveedor desconocido"}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {order.buyer_id}
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <select
