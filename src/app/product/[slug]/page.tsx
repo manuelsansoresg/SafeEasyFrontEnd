@@ -21,9 +21,12 @@ import {
   Loader2,
   Package,
   CreditCard,
-  Store
+  Store,
+  Heart
 } from "lucide-react";
 import Link from "next/link";
+import { useFavoritesStore } from "@/store/useFavoritesStore";
+import { cn } from "@/lib/utils";
 
 // Interfaces
 interface ProductMedia {
@@ -126,6 +129,7 @@ export default function ProductDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
   const { openChat } = useChat();
+  const { toggleFavorite, isFavorite, syncFavorites } = useFavoritesStore();
   
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -145,9 +149,14 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     if (slug) {
-        getSimilarProducts(slug).then(setSimilarProducts);
+        getSimilarProducts(slug).then((data) => {
+          if (data && data.length > 0) {
+            syncFavorites(data);
+            setSimilarProducts(data);
+          }
+        });
     }
-  }, [slug]);
+  }, [slug, syncFavorites]);
 
   // Rating State
   const { user, token } = useAuthStore();
@@ -497,6 +506,7 @@ export default function ProductDetailPage() {
       }
 
       const data = await res.json();
+      syncFavorites([data]);
       setProduct(data);
     } catch (err) {
       console.error("[ProductDetail] Error:", err);
@@ -549,6 +559,21 @@ export default function ProductDetailPage() {
     const mediaList = getMediaList();
     if (mediaList.length === 0) return;
     setSelectedMediaIndex((prev) => (prev === mediaList.length - 1 ? 0 : prev + 1));
+  };
+
+  const handleFavoriteClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!user) {
+        setIsLoginModalOpen(true);
+        return;
+    }
+    if (!product) return;
+    
+    try {
+        await toggleFavorite(product.id);
+    } catch (error) {
+        console.error("Error toggling favorite", error);
+    }
   };
 
   const handleChatOpen = () => {
@@ -813,6 +838,20 @@ export default function ProductDetailPage() {
                   >
                     <MessageCircle size={24} />
                     Chat con Proveedor
+                  </button>
+
+                  <button 
+                    onClick={handleFavoriteClick}
+                    className="px-6 py-4 rounded-xl border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
+                    title={product && isFavorite(product.id) ? "Quitar de favoritos" : "Agregar a favoritos"}
+                  >
+                    <Heart 
+                        size={24} 
+                        className={cn(
+                            "transition-colors",
+                            product && isFavorite(product.id) ? "fill-primary text-primary" : "text-gray-400 group-hover:text-primary"
+                        )} 
+                    />
                   </button>
                 </div>
 

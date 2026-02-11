@@ -5,11 +5,15 @@ import { useRouter } from 'next/navigation';
 import { getRecommendations, getFallbackProducts, registerInteraction } from '@/lib/interactions';
 import { ProductCard } from '@/components/ProductCard';
 import { Product } from '@/lib/products';
+import { useFavoritesStore } from '@/store/useFavoritesStore';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export default function RecommendedProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { syncFavorites } = useFavoritesStore();
+  const { token } = useAuthStore();
 
   useEffect(() => {
     const fetchRecommendations = async () => {
@@ -21,7 +25,10 @@ export default function RecommendedProducts() {
             data = await getFallbackProducts(20);
         }
         
-        setProducts(data);
+        if (data) {
+          syncFavorites(data);
+          setProducts(data);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -30,7 +37,7 @@ export default function RecommendedProducts() {
     };
 
     fetchRecommendations();
-  }, []);
+  }, [syncFavorites, token]);
 
   const handleProductClick = async (e: React.MouseEvent, product: Product) => {
     e.preventDefault(); // Prevent default Link navigation

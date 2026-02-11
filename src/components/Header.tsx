@@ -6,6 +6,7 @@ import { Search, User, ChevronDown, ShoppingBag, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { registerInteraction } from "@/lib/interactions";
 
@@ -88,8 +89,15 @@ export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { isAuthenticated, user, logout } = useAuthStore();
+  const { fetchFavorites } = useFavoritesStore();
   const pathname = usePathname();
   const isSupplierPage = pathname?.startsWith('/empresas/');
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchFavorites();
+    }
+  }, [isAuthenticated]);
 
   const handleSupplierScroll = (id: string) => {
     const element = document.getElementById(id);
@@ -240,7 +248,7 @@ export function Header() {
                       </Link>
                     )}
                     {/* Mensajes link removed */}
-                    <Link href="/favorites" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
+                    <Link href="/client/favorites" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
                       <span>❤️</span> Favoritos
                     </Link>
                     <Link href="/coupons" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">

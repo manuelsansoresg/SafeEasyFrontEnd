@@ -7,6 +7,9 @@ import { Supplier, CarouselImage } from "@/lib/products";
 import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
+import { useFavoritesStore } from "@/store/useFavoritesStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { fetchWithAuth } from "@/lib/api";
 
 interface SupplierProductCategory {
   id: number;
@@ -103,6 +106,8 @@ export default function SupplierPage() {
   const [ratingsError, setRatingsError] = useState<string | null>(null);
   const [ratingsHasMore, setRatingsHasMore] = useState(false);
   const [selectedCertificate, setSelectedCertificate] = useState<Certificate | null>(null);
+  const { syncFavorites } = useFavoritesStore();
+  const { token } = useAuthStore();
   
   const observerTarget = useRef(null);
 
@@ -133,10 +138,15 @@ export default function SupplierPage() {
       setPage(1);
       setSelectedCategorySlug(null);
       setSelectedSubcategorySlug(null);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    if (slug) {
       fetchProducts(slug as string, 1, false);
       fetchRatings(slug as string, 0, false);
     }
-  }, [slug]);
+  }, [slug, token]);
 
   const fetchSupplier = async (slug: string) => {
     try {
@@ -166,7 +176,7 @@ export default function SupplierPage() {
       params.set("skip", String(skip));
       params.set("limit", String(limit));
 
-      const res = await fetch(`/api/products/by-supplier/${supplierSlug}?${params.toString()}`, {
+      const res = await fetchWithAuth(`/api/products/by-supplier/${supplierSlug}?${params.toString()}`, {
         cache: "no-store",
       });
 
@@ -181,6 +191,8 @@ export default function SupplierPage() {
       const data = await res.json();
       const items = Array.isArray(data) ? data : (data.items || data.results || []);
       const newProducts = items as SupplierProduct[];
+      
+      syncFavorites(newProducts);
 
       setProducts(prev => append ? [...prev, ...newProducts] : newProducts);
       setHasMore(Array.isArray(items) && items.length === limit);

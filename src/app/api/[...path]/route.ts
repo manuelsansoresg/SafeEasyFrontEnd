@@ -33,7 +33,7 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
   // Backend requires trailing slash for some endpoints (FastAPI default behavior sometimes)
   // If the original request didn't have a slash, but it's a known collection, force it.
   const pathString = path.join('/');
-  if ((pathString.endsWith('users') || pathString.endsWith('products') || pathString.endsWith('suppliers')) && !targetUrl.endsWith('/')) {
+  if ((pathString.endsWith('users') || pathString.endsWith('products') || pathString.endsWith('suppliers') || pathString.includes('favorites')) && !targetUrl.endsWith('/')) {
       targetUrl += '/';
   }
   

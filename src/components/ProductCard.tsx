@@ -5,6 +5,9 @@ import { Heart, BadgeCheck } from "lucide-react";
 import slugify from "slugify";
 import StarRating from "./StarRating";
 import { Supplier } from "@/lib/products";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useFavoritesStore } from "@/store/useFavoritesStore";
+import { cn } from "@/lib/utils";
 
 interface ProductCardProps {
   id: string;
@@ -29,6 +32,10 @@ export function ProductCard({
   supplier,
   onClick,
 }: ProductCardProps) {
+  const { isAuthenticated } = useAuthStore();
+  const { isFavorite, toggleFavorite } = useFavoritesStore();
+  const isFav = isFavorite(id);
+
   const supplierSlug =
     supplier &&
     (supplier.slug && supplier.slug.trim() !== ""
@@ -44,13 +51,42 @@ export function ProductCard({
     }
   };
 
+  const handleFavoriteClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!isAuthenticated) {
+      alert("Debes iniciar sesión para agregar a favoritos");
+      return;
+    }
+
+    try {
+      await toggleFavorite(id);
+    } catch (error) {
+      console.error("Error toggling favorite", error);
+    }
+  };
+
   return (
-    <div className="group block bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full">
+    <div className="group block bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full relative">
       <Link 
         href={`/product/${slug}`} 
         className="block relative aspect-square overflow-hidden bg-secondary"
         onClick={handleCardClick}
       >
+        <button
+          onClick={handleFavoriteClick}
+          className="absolute top-2 right-2 p-2 bg-white/90 rounded-full hover:bg-white transition-all z-10 shadow-sm hover:scale-110"
+          title={isFav ? "Quitar de favoritos" : "Agregar a favoritos"}
+        >
+          <Heart
+            size={18}
+            className={cn(
+              "transition-colors",
+              isFav ? "fill-primary text-primary" : "text-gray-400 hover:text-primary"
+            )}
+          />
+        </button>
         {image ? (
           <img 
             src={image} 

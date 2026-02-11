@@ -63,7 +63,8 @@ export async function getProducts(
   limit: number = 20, 
   query: string = "",
   categorySlug?: string,
-  subcategorySlug?: string
+  subcategorySlug?: string,
+  token?: string
 ): Promise<Product[]> {
   const skip = (page - 1) * limit;
   // Use the internal API URL or fallback
@@ -87,14 +88,20 @@ export async function getProducts(
   
   console.log("Fetching products from:", url);
 
+  const headers: HeadersInit = {
+    'Accept': 'application/json',
+    'User-Agent': 'SafeEasyFrontEnd/1.0'
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   try {
     const res = await fetch(url, { 
       // cache: 'no-store', // Deprecated in favor of next: { revalidate: 0 } or similar in some contexts, but valid in 14/15/16
       next: { revalidate: 0 },
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'SafeEasyFrontEnd/1.0'
-      }
+      headers
     });
     
     if (!res.ok) {

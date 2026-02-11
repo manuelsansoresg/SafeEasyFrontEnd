@@ -7,7 +7,8 @@ import {
   User, 
   MessageSquare,
   LogOut,
-  LayoutDashboard
+  LayoutDashboard,
+  Heart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -28,6 +29,11 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
       title: "Mi Perfil", 
       path: "/client/profile", 
       icon: User,
+    },
+    {
+      title: "Favoritos",
+      path: "/client/favorites",
+      icon: Heart,
     },
     // Mis Mensajes item removed
   ];

@@ -1,5 +1,6 @@
 import { Product } from './products';
 import { getDeviceId } from '@/utils/device';
+import { fetchWithAuth } from '@/lib/api';
 
 // Use local proxy for client-side requests to avoid CORS
 // The proxy at /api/ strips the first '/api' segment.
@@ -16,7 +17,7 @@ export const registerInteraction = async (data: InteractionData) => {
   const deviceId = getDeviceId();
   const url = `${BASE_URL}/interactions/`;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithAuth(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -38,7 +39,7 @@ export const getRecommendations = async (limit: number = 20, skip: number = 0): 
   // Ensure no double slash issues, though fetch usually handles it.
   const url = `${BASE_URL}/interactions/recommendations?limit=${limit}&skip=${skip}`;
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithAuth(url, {
       headers: {
         'X-Device-ID': deviceId || '',
       }
@@ -59,7 +60,7 @@ export const getFallbackProducts = async (limit: number = 20, skip: number = 0):
     // If the backend has products at /products/, we should use /api/products/ via proxy.
     const url = `${BASE_URL}/products/?limit=${limit}&skip=${skip}`;
     try {
-        const res = await fetch(url);
+        const res = await fetchWithAuth(url);
         if (res.ok) {
             return await res.json();
         }
@@ -74,7 +75,7 @@ export const getFallbackProducts = async (limit: number = 20, skip: number = 0):
 export const getSimilarProducts = async (slug: string, limit: number = 10, skip: number = 0): Promise<Product[]> => {
     const url = `${BASE_URL}/products/${slug}/similar?limit=${limit}&skip=${skip}`;
     try {
-        const res = await fetch(url);
+        const res = await fetchWithAuth(url);
         if (res.ok) {
             return await res.json();
         }

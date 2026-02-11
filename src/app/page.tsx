@@ -5,6 +5,8 @@ import RecommendedProducts from "@/components/RecommendedProducts";
 import { getProducts } from "@/lib/products";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { cookies } from "next/headers";
+import { FavoritesSync } from "@/components/FavoritesSync";
 
 type SearchParams = { [key: string]: string | string[] | undefined };
 
@@ -20,8 +22,11 @@ export default async function Home({
   const subcategorySlug = typeof resolvedSearchParams.subcategory === "string" ? resolvedSearchParams.subcategory : undefined;
   const limit = 20;
 
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
+
   const hasFilters = query || categorySlug || subcategorySlug;
-  const products = hasFilters ? await getProducts(page, limit, query, categorySlug, subcategorySlug) : [];
+  const products = hasFilters ? await getProducts(page, limit, query, categorySlug, subcategorySlug, token) : [];
 
   const getPageUrl = (newPage: number) => {
     const params = new URLSearchParams();
@@ -34,6 +39,7 @@ export default async function Home({
 
   return (
     <div className="container mx-auto px-4 py-6">
+      <FavoritesSync products={products} />
       {/* Welcome Section */}
       <WelcomeSection />
 

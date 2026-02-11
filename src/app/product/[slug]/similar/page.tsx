@@ -8,12 +8,16 @@ import { Product } from '@/lib/products';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { useFavoritesStore } from '@/store/useFavoritesStore';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export default function SimilarProductsPage() {
   const params = useParams();
   const router = useRouter();
   const slug = params?.slug as string;
 
+  const { syncFavorites } = useFavoritesStore();
+  const { token } = useAuthStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
@@ -28,6 +32,8 @@ export default function SimilarProductsPage() {
       const skip = (currentPage - 1) * limit;
       const data = await getSimilarProducts(slug, limit, skip);
       
+      syncFavorites(data);
+
       if (append) {
         setProducts(prev => [...prev, ...data]);
       } else {
@@ -44,7 +50,7 @@ export default function SimilarProductsPage() {
   useEffect(() => {
     if (!slug) return;
     fetchSimilar(1, false);
-  }, [slug]);
+  }, [slug, token]);
 
   useEffect(() => {
     if (!slug) return;
