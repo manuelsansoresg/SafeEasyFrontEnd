@@ -506,16 +506,7 @@ function SearchControl({ onSelect, addressContext }: { onSelect: (lat: number, l
          }
       }
 
-      // Patch results to show correct CP if we forced a match
-      if (data.length > 0) {
-          // Determine target CP from query or context
-          const targetCP = queryPostalCode || addressContext?.postalCode;
-          const targetExt = addressContext?.exteriorNumber;
-          const targetNb = addressContext?.neighborhood;
-          if (targetCP || targetExt || targetNb) {
-              data = patchDisplayNames(data, targetCP, targetExt, targetNb);
-          }
-      }
+      // Manual search: no patching with form context here; show raw results
 
       if (rid !== requestIdRef.current || isSelectingRef.current) return;
       setResults(data);
