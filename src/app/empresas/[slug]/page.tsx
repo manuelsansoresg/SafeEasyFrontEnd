@@ -10,6 +10,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
+import MapPicker from "@/components/ui/MapPicker";
 
 interface SupplierProductCategory {
   id: number;
@@ -98,6 +99,16 @@ export default function SupplierPage() {
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [selectedSubcategorySlug, setSelectedSubcategorySlug] = useState<string | null>(null);
   const [ratings, setRatings] = useState<SupplierRating[]>([]);
+
+  const mapLocation = supplier?.map_location ? (() => {
+    try {
+      return typeof supplier.map_location === 'string' 
+        ? JSON.parse(supplier.map_location) 
+        : supplier.map_location;
+    } catch {
+      return null;
+    }
+  })() : null;
   const [ratingsTotal, setRatingsTotal] = useState(0);
   const [ratingsSkip, setRatingsSkip] = useState(0);
   const ratingsLimit = 50;
@@ -628,6 +639,30 @@ export default function SupplierPage() {
             )}
           </div>
         </section>
+
+        {mapLocation && (
+          <section id="ubicacion" className="scroll-mt-32">
+            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Ubicación</h2>
+                  <p className="text-gray-500 text-sm md:text-base">
+                    Localización de {supplier.name}.
+                  </p>
+                </div>
+              </div>
+              <MapPicker location={mapLocation} readOnly height="400px" />
+              <div className="mt-4 text-sm text-gray-500 flex items-center gap-2">
+                <MapPin size={16} />
+                <span>
+                  {[supplier.address, supplier.exterior_number, supplier.interior_number, supplier.neighborhood, supplier.city, supplier.state, supplier.country]
+                    .filter(Boolean)
+                    .join(", ")}
+                </span>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section id="calificaciones" className="scroll-mt-32">
           <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">

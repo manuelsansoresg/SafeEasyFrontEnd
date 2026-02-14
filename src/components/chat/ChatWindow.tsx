@@ -59,6 +59,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   const [ratingValue, setRatingValue] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+  const [pendingMessages, setPendingMessages] = useState<string[]>([]);
 
   // Helper to get absolute URL
   const getAbsoluteUrl = (url?: string) => {
@@ -100,7 +101,37 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   }, [isOpen, user, supplierId, isVendorMode, productId, activeConversation]);
 
   // Initialize WebSocket with active conversation
-  const { status, messages: wsMessages, sendMessage: wsSendMessage, lastMessage } = useChatWebSocket(activeConversation?.id, isOpen);
+  const { status, messages: wsMessages, sendMessage: wsSendMessage, lastMessage, error: wsError } = useChatWebSocket(activeConversation?.id, isOpen);
+
+  // Sync WebSocket error to local error state
+  useEffect(() => {
+    if (wsError) {
+        setError(wsError);
+    }
+  }, [wsError]);
+
+  // Send pending messages when WebSocket connects
+  useEffect(() => {
+    if (status === 'connected' && pendingMessages.length > 0 && activeConversation && !String(activeConversation.id).startsWith('temp-')) {
+        console.log("[ChatWindow] Sending pending messages via WebSocket", pendingMessages);
+        
+        // Send all pending messages
+        pendingMessages.forEach(msg => {
+            wsSendMessage(msg, activeConversation.id);
+        });
+        
+        setPendingMessages([]);
+        // Clear any previous connection error
+        setError(null);
+    }
+  }, [status, pendingMessages, activeConversation, wsSendMessage]);
+
+  // Clear error when status becomes connected
+  useEffect(() => {
+    if (status === 'connected') {
+        setError(null);
+    }
+  }, [status]);
 
   const [localTransferData, setLocalTransferData] = useState(supplierTransferData);
 
@@ -728,11 +759,15 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
             return;
         } catch (wsErr) {
             console.error("WebSocket send failed", wsErr);
-            setError("Error de conexión. Intenta recargar la página.");
+            // Queue the message if immediate send fails
+            setPendingMessages(prev => [...prev, messageContent]);
+            return;
         }
     } else {
         console.warn("WebSocket is not connected. Status:", status);
-        setError("Chat desconectado. Espera un momento o recarga.");
+        // Queue the message to be sent when connected
+        setPendingMessages(prev => [...prev, messageContent]);
+        return;
     }
 
     // Restore input and remove optimistic message on failure
@@ -884,7 +919,10 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                         </span>
                     )}
                   </div>
-                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></div>
+                  <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-white rounded-full ${
+                      status === 'connected' ? 'bg-green-500' : 
+                      status === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}></div>
               </div>
               
               <div className="flex flex-col justify-center min-w-0">
@@ -896,7 +934,13 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                 : (activeConversation.supplier_name || supplierName || 'Proveedor')))
                         : 'Chat del Producto'}
                 </h3>
-                <p className="text-[12px] text-gray-500 leading-none mt-0.5">Activo ahora</p>
+                <p className={`text-[12px] leading-none mt-0.5 ${
+                    status === 'connected' ? 'text-gray-500' : 
+                    status === 'connecting' ? 'text-yellow-600' : 'text-red-500'
+                }`}>
+                    {status === 'connected' ? 'Activo ahora' : 
+                     status === 'connecting' ? 'Conectando...' : 'Desconectado'}
+                </p>
               </div>
             </div>
 

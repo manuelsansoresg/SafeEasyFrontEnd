@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import FileUpload from '@/components/ui/FileUpload';
+import MapPicker from '@/components/ui/MapPicker';
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
 
@@ -34,12 +35,17 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     exterior_number: '',
     interior_number: '',
     neighborhood: '',
+    zip_code: '',
+    cross_street_1: '',
+    cross_street_2: '',
     about: '',
     transfer_accepted: false,
     transfer_clabe: '',
     transfer_bank: '',
     transfer_name: '',
   });
+
+  const [mapLocation, setMapLocation] = useState<{lat: number, lng: number} | null>(null);
 
   const [logo, setLogo] = useState<File | null>(null);
   const [aboutImage, setAboutImage] = useState<File | null>(null);
@@ -132,7 +138,14 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
       append('exterior_number', formData.exterior_number);
       append('interior_number', formData.interior_number);
       append('neighborhood', formData.neighborhood);
+      append('zip_code', formData.zip_code);
+      append('cross_street_1', formData.cross_street_1);
+      append('cross_street_2', formData.cross_street_2);
       append('about', formData.about);
+
+      if (mapLocation) {
+        data.append('map_location', JSON.stringify(mapLocation));
+      }
       
       // Add user_id
       data.append('user_id', userId.toString());
@@ -358,8 +371,8 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">No. Exterior</label>
                 <input 
                   type="text" 
@@ -369,7 +382,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
                 />
               </div>
-              <div>
+              <div className="col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">No. Interior</label>
                 <input 
                   type="text" 
@@ -379,6 +392,60 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
                 />
               </div>
+              <div className="col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">C.P.</label>
+                <input 
+                  type="text" 
+                  name="zip_code" 
+                  value={formData.zip_code} 
+                  onChange={handleChange} 
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Entre calle 1</label>
+                <input 
+                  type="text" 
+                  name="cross_street_1" 
+                  value={formData.cross_street_1} 
+                  onChange={handleChange} 
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                  placeholder="Ej. Calle 35"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Entre calle 2</label>
+                <input 
+                  type="text" 
+                  name="cross_street_2" 
+                  value={formData.cross_street_2} 
+                  onChange={handleChange} 
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                  placeholder="Ej. Calle 37"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación en Mapa</label>
+              <MapPicker 
+                location={mapLocation} 
+                onChange={setMapLocation}
+                height="300px"
+                addressContext={{
+                  street: formData.address,
+                  exteriorNumber: formData.exterior_number,
+                  neighborhood: formData.neighborhood,
+                  postalCode: formData.zip_code,
+                  city: formData.city,
+                  state: formData.state,
+                  country: formData.country
+                }}
+              />
+              <p className="text-xs text-gray-500 mt-1">Busca una dirección o haz clic en el mapa para establecer la ubicación.</p>
             </div>
           </div>
 

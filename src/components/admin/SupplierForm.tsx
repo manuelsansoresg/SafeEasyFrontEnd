@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle, UserPlus, Users, Search } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import FileUpload from "@/components/ui/FileUpload";
+import MapPicker from "@/components/ui/MapPicker";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
 
@@ -30,6 +31,9 @@ interface Supplier {
   exterior_number?: string;
   interior_number?: string;
   neighborhood?: string;
+  zip_code?: string;
+  cross_street_1?: string;
+  cross_street_2?: string;
   logo?: string;
   logo_url?: string;
   about?: string;
@@ -39,6 +43,7 @@ interface Supplier {
   transfer_clabe?: string;
   transfer_bank?: string;
   transfer_name?: string;
+  map_location?: string;
 }
 
 interface SupplierFormProps {
@@ -154,11 +159,29 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     exterior_number: initialData?.exterior_number || "",
     interior_number: initialData?.interior_number || "",
     neighborhood: initialData?.neighborhood || "",
+    zip_code: initialData?.zip_code || "",
+    cross_street_1: initialData?.cross_street_1 || "",
+    cross_street_2: initialData?.cross_street_2 || "",
     about: initialData?.about || "",
     transfer_accepted: initialData?.transfer_accepted || false,
     transfer_clabe: initialData?.transfer_clabe || "",
     transfer_bank: initialData?.transfer_bank || "",
     transfer_name: initialData?.transfer_name || "",
+  });
+
+  const [mapLocation, setMapLocation] = useState<{lat: number, lng: number} | null>(() => {
+    if (initialData?.map_location) {
+      try {
+        // Handle if it's already an object or a string
+        return typeof initialData.map_location === 'string' 
+          ? JSON.parse(initialData.map_location) 
+          : initialData.map_location;
+      } catch (e) {
+        console.error("Error parsing map_location", e);
+        return null;
+      }
+    }
+    return null;
   });
 
   const [logo, setLogo] = useState<File | null>(null);
@@ -308,7 +331,15 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         appendIfPresent("exterior_number", formData.exterior_number);
         appendIfPresent("interior_number", formData.interior_number);
         appendIfPresent("neighborhood", formData.neighborhood);
+        appendIfPresent("zip_code", formData.zip_code);
+        appendIfPresent("cross_street_1", formData.cross_street_1);
+        appendIfPresent("cross_street_2", formData.cross_street_2);
         appendIfPresent("about", formData.about);
+        
+        if (mapLocation) {
+          data.append("map_location", JSON.stringify(mapLocation));
+        }
+
         data.append("user_id", String(finalUserId));
 
         if (logo) data.append("logo", logo);
@@ -679,8 +710,8 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">No. Exterior</label>
               <input
                 type="text"
@@ -690,7 +721,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
-            <div>
+            <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">No. Interior</label>
               <input
                 type="text"
@@ -700,6 +731,60 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
+            <div className="col-span-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">C.P.</label>
+              <input
+                type="text"
+                name="zip_code"
+                value={formData.zip_code}
+                onChange={handleInputChange}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Entre calle 1</label>
+              <input
+                type="text"
+                name="cross_street_1"
+                value={formData.cross_street_1}
+                onChange={handleInputChange}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder="Ej. Calle 35"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Entre calle 2</label>
+              <input
+                type="text"
+                name="cross_street_2"
+                value={formData.cross_street_2}
+                onChange={handleInputChange}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                placeholder="Ej. Calle 37"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación en Mapa</label>
+            <MapPicker 
+              location={mapLocation} 
+              onChange={setMapLocation}
+              height="300px"
+              addressContext={{
+                street: formData.address,
+                exteriorNumber: formData.exterior_number,
+                neighborhood: formData.neighborhood,
+                postalCode: formData.zip_code,
+                city: formData.city,
+                state: formData.state,
+                country: formData.country
+              }}
+            />
+            <p className="text-xs text-gray-500 mt-1">Busca una dirección o haz clic en el mapa para establecer la ubicación.</p>
           </div>
         </div>
 

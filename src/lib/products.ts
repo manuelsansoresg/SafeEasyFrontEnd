@@ -47,6 +47,7 @@ export interface Supplier {
   transfer_clabe?: string;
   transfer_bank?: string;
   transfer_name?: string;
+  map_location?: string;
 }
 
 export interface CarouselImage {
