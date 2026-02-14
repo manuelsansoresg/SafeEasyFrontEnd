@@ -36,6 +36,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     interior_number: '',
     neighborhood: '',
     zip_code: '',
+    cp: '',
     cross_street_1: '',
     cross_street_2: '',
     about: '',
@@ -79,7 +80,14 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const target = e.target;
     const value = target.type === 'checkbox' ? (target as HTMLInputElement).checked : target.value;
-    
+    if (target.name === 'cp') {
+      setFormData({ ...formData, cp: String(value), zip_code: String(value) });
+      return;
+    }
+    if (target.name === 'zip_code') {
+      setFormData({ ...formData, zip_code: String(value), cp: String(value) });
+      return;
+    }
     setFormData({ ...formData, [target.name]: value });
   };
 
@@ -139,6 +147,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
       append('interior_number', formData.interior_number);
       append('neighborhood', formData.neighborhood);
       append('zip_code', formData.zip_code);
+      append('cp', formData.cp);
       append('cross_street_1', formData.cross_street_1);
       append('cross_street_2', formData.cross_street_2);
       append('about', formData.about);
@@ -396,8 +405,8 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                 <label className="block text-sm font-medium text-gray-700 mb-1">C.P.</label>
                 <input 
                   type="text" 
-                  name="zip_code" 
-                  value={formData.zip_code} 
+                  name="cp" 
+                  value={formData.cp} 
                   onChange={handleChange} 
                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
                 />
@@ -439,7 +448,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                   street: formData.address,
                   exteriorNumber: formData.exterior_number,
                   neighborhood: formData.neighborhood,
-                  postalCode: formData.zip_code,
+                  postalCode: formData.cp || formData.zip_code,
                   city: formData.city,
                   state: formData.state,
                   country: formData.country

@@ -32,6 +32,7 @@ interface Supplier {
   interior_number?: string;
   neighborhood?: string;
   zip_code?: string;
+  cp?: string;
   cross_street_1?: string;
   cross_street_2?: string;
   logo?: string;
@@ -160,6 +161,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     interior_number: initialData?.interior_number || "",
     neighborhood: initialData?.neighborhood || "",
     zip_code: initialData?.zip_code || "",
+    cp: (initialData as any)?.cp || initialData?.zip_code || "",
     cross_street_1: initialData?.cross_street_1 || "",
     cross_street_2: initialData?.cross_street_2 || "",
     about: initialData?.about || "",
@@ -192,10 +194,17 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-    }));
+    const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    setFormData(prev => {
+      // Sincronizar cp <-> zip_code
+      if (name === 'cp') {
+        return { ...prev, cp: String(val), zip_code: String(val) };
+      }
+      if (name === 'zip_code') {
+        return { ...prev, zip_code: String(val), cp: String(val) };
+      }
+      return { ...prev, [name]: val };
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (f: File | null) => void) => {
@@ -332,6 +341,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         appendIfPresent("interior_number", formData.interior_number);
         appendIfPresent("neighborhood", formData.neighborhood);
         appendIfPresent("zip_code", formData.zip_code);
+        appendIfPresent("cp", formData.cp);
         appendIfPresent("cross_street_1", formData.cross_street_1);
         appendIfPresent("cross_street_2", formData.cross_street_2);
         appendIfPresent("about", formData.about);
@@ -735,8 +745,8 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
               <label className="block text-sm font-medium text-gray-700 mb-1">C.P.</label>
               <input
                 type="text"
-                name="zip_code"
-                value={formData.zip_code}
+                name="cp"
+                value={formData.cp}
                 onChange={handleInputChange}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
@@ -778,7 +788,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
                 street: formData.address,
                 exteriorNumber: formData.exterior_number,
                 neighborhood: formData.neighborhood,
-                postalCode: formData.zip_code,
+                postalCode: formData.cp || formData.zip_code,
                 city: formData.city,
                 state: formData.state,
                 country: formData.country
