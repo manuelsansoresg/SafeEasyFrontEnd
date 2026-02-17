@@ -103,12 +103,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   // Initialize WebSocket with active conversation
   const { status, messages: wsMessages, sendMessage: wsSendMessage, lastMessage, error: wsError } = useChatWebSocket(activeConversation?.id, isOpen);
 
-  // Sync WebSocket error to local error state
+  // Sync WebSocket error to local error state (solo errores reales, no desconexiones normales)
   useEffect(() => {
-    if (wsError) {
+    if (wsError && status === 'error') {
         setError(wsError);
     }
-  }, [wsError]);
+  }, [wsError, status]);
 
   // Send pending messages when WebSocket connects
   useEffect(() => {
@@ -920,8 +920,13 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                     )}
                   </div>
                   <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-white rounded-full ${
-                      status === 'connected' ? 'bg-green-500' : 
-                      status === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'
+                    activeConversation
+                      ? (status === 'connected'
+                          ? 'bg-green-500'
+                          : status === 'connecting'
+                            ? 'bg-yellow-500'
+                            : 'bg-red-500')
+                      : 'bg-gray-300'
                   }`}></div>
               </div>
               
@@ -935,11 +940,23 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                         : 'Chat del Producto'}
                 </h3>
                 <p className={`text-[12px] leading-none mt-0.5 ${
-                    status === 'connected' ? 'text-gray-500' : 
-                    status === 'connecting' ? 'text-yellow-600' : 'text-red-500'
+                    !activeConversation
+                      ? 'text-gray-400'
+                      : status === 'connected'
+                        ? 'text-gray-500'
+                        : status === 'connecting'
+                          ? 'text-yellow-600'
+                          : 'text-red-500'
                 }`}>
-                    {status === 'connected' ? 'Activo ahora' : 
-                     status === 'connecting' ? 'Conectando...' : 'Desconectado'}
+                    {!activeConversation
+                      ? 'Preparando chat...'
+                      : status === 'connected'
+                        ? 'Activo ahora'
+                        : status === 'connecting'
+                          ? 'Conectando...'
+                          : status === 'error'
+                            ? 'Chat no disponible'
+                            : 'Sin conexión, reintentando...'}
                 </p>
               </div>
             </div>
@@ -955,14 +972,13 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
             </div>
           </div>
           
-          {/* Error Banner */}
+          {/* Error Banner (solo mensajes importantes, sin icono duplicado) */}
           {error && (
               <div className="bg-red-50 text-red-600 px-4 py-2 text-sm flex items-center justify-between shrink-0 border-b border-red-100 animate-in slide-in-from-top-2 z-10">
                   <span className="flex items-center gap-2">
-                      <X size={14} className="text-red-500" />
                       {error}
                   </span>
-                  <button onClick={() => setError(null)} className="text-red-400 hover:text-red-700 p-1"><X size={14} /></button>
+                  <button onClick={() => setError(null)} className="text-red-400 hover:text-red-700 p-1" aria-label="Cerrar aviso"><X size={14} /></button>
               </div>
           )}
 

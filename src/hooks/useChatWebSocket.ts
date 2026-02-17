@@ -131,8 +131,27 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
 
         ws.onclose = (event) => {
           console.log(`WebSocket disconnected. Code: ${event.code}, Reason: ${event.reason}, WasClean: ${event.wasClean}`);
+          
+          if (event.code === 4003) {
+            setStatus('error');
+            setWsError('No tienes permiso para ver este chat.');
+            return;
+          }
+
+          if (event.code === 4000) {
+            setStatus('error');
+            setWsError('Esta sala de chat no es válida.');
+            return;
+          }
+
+          if (event.code === 4004) {
+            setStatus('error');
+            setWsError('La conversación de chat ya no existe.');
+            return;
+          }
+
           setStatus('disconnected');
-          setWsError(`Desconectado (Código: ${event.code})`);
+          setWsError('Se perdió la conexión con el chat. Intentando reconectar...');
           
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
@@ -142,7 +161,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
         ws.onerror = (error) => {
           console.warn('WebSocket connection issue:', error); 
           setStatus('error');
-          setWsError('Error de conexión');
+          setWsError('No se pudo conectar al chat. Verifica tu conexión a internet.');
           try {
             ws.close();
           } catch (e) {
