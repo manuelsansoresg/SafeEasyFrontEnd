@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { MessageSquare, MoreHorizontal, Edit, Search } from "lucide-react";
+import { MessageSquare, Search } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { chatService } from "@/services/chatService";
 import { useChat } from "@/context/ChatContext";
@@ -16,6 +16,7 @@ export function MessagesDropdown() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [hasNew, setHasNew] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close when clicking outside
@@ -40,11 +41,32 @@ export function MessagesDropdown() {
         const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
         return dateB - dateA;
       });
-      setConversations(data.slice(0, 5)); // Take top 5
-      
-      // Calculate total unread count
+      setConversations(data.slice(0, 5));
+
       const count = data.reduce((acc, curr) => acc + (curr.unread_count || 0), 0);
       setUnreadCount(count);
+
+      const latestTs = data.reduce((max, curr) => {
+        const t = new Date(
+          curr.updated_at || curr.last_message_at || curr.created_at || 0
+        ).getTime();
+        return t > max ? t : max;
+      }, 0);
+
+      if (typeof window !== "undefined" && user) {
+        const key = `safeeasy:last_seen_chat_${user.id}`;
+        const stored = window.localStorage.getItem(key);
+        const lastSeen = stored ? Number(stored) : 0;
+
+        if (!lastSeen && latestTs > 0) {
+          window.localStorage.setItem(key, String(latestTs));
+          setHasNew(false);
+        } else if (latestTs > lastSeen && latestTs > 0) {
+          setHasNew(true);
+        } else {
+          setHasNew(false);
+        }
+      }
     } catch (err) {
       console.error("Failed to load dropdown chats", err);
     } finally {
@@ -83,7 +105,25 @@ export function MessagesDropdown() {
     return () => window.removeEventListener("focus", handleFocus);
   }, [user]);
 
-  const toggleOpen = () => setIsOpen(!isOpen);
+  const toggleOpen = () => {
+    const next = !isOpen;
+    setIsOpen(next);
+
+    if (next && typeof window !== "undefined" && user) {
+      const latestTs = conversations.reduce((max, curr) => {
+        const t = new Date(
+          curr.updated_at || curr.last_message_at || curr.created_at || 0
+        ).getTime();
+        return t > max ? t : max;
+      }, 0);
+      const key = `safeeasy:last_seen_chat_${user.id}`;
+      window.localStorage.setItem(
+        key,
+        String(latestTs > 0 ? latestTs : Date.now())
+      );
+      setHasNew(false);
+    }
+  };
 
   // Helper to get name
   const getOtherPartyName = (conv: Conversation) => {
@@ -131,6 +171,9 @@ export function MessagesDropdown() {
                 <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white">
                     {unreadCount > 9 ? '9+' : unreadCount}
                 </div>
+            )}
+            {unreadCount === 0 && hasNew && (
+                <div className="absolute -top-1.5 -right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
             )}
         </div>
       </button>
