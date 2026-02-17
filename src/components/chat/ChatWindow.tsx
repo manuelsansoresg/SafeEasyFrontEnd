@@ -800,12 +800,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   const isModal = mode === 'modal';
 
   return (
-    <div className={isModal ? "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" : "h-full w-full"}>
-      <div className={isModal ? "bg-white w-full max-w-5xl h-[80vh] rounded-2xl shadow-2xl flex overflow-hidden border border-gray-100" : "flex h-full flex-col bg-white"}>
+    <div className={isModal ? "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" : "h-full w-full"}>
+      <div className={isModal ? "bg-white w-full h-full sm:max-w-5xl sm:h-[80vh] sm:rounded-2xl shadow-2xl flex overflow-hidden border border-gray-100" : "flex h-full flex-col bg-white"}>
         
         {/* Left: Conversations List (Visible for Vendor or if multiple chats exist) */}
         {isModal && (isVendorMode || conversations.length > 0) && (
-          <div className="w-72 border-r bg-white flex flex-col shrink-0 h-full overflow-hidden">
+          <div className="hidden md:flex w-72 border-r bg-white flex-col shrink-0 h-full overflow-hidden">
               <div className="p-4 border-b bg-gray-50 shrink-0 flex items-center justify-between">
                   <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">
                       {isVendorMode ? 'Clientes' : 'Proveedores'}
@@ -1297,4 +1297,3 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     </div>
   );
 }
-

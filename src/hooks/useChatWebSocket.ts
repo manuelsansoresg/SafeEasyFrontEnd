@@ -134,7 +134,6 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
           setStatus('disconnected');
           setWsError(`Desconectado (Código: ${event.code})`);
           
-          // Attempt reconnect after 1.5 seconds
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, 1500);
@@ -144,6 +143,11 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
           console.warn('WebSocket connection issue:', error); 
           setStatus('error');
           setWsError('Error de conexión');
+          try {
+            ws.close();
+          } catch (e) {
+            console.warn('Error closing WebSocket after onerror', e);
+          }
         };
   } catch (e) {
       console.warn("Failed to create WebSocket connection", e);
