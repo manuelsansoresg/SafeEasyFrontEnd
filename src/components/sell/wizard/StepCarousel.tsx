@@ -38,16 +38,12 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
   const fetchItems = async () => {
     setFetching(true);
     try {
-      // Changed to fetch supplier details directly as per instruction
-      // Prefer slug if available as user indicated it's the correct way to retrieve
       const identifier = slug || supplierId;
       const res = await fetch(`/api/suppliers/${identifier}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        console.log("Carousel Items Response:", data);
-        // The user specified that the array is in 'carousel_images'
         setItems(Array.isArray(data.carousel_images) ? data.carousel_images : []);
       }
     } catch (e) {
@@ -58,10 +54,10 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
   };
 
   useEffect(() => {
-    if (supplierId) {
+    if (slug || supplierId) {
       fetchItems();
     }
-  }, [supplierId]);
+  }, [slug, supplierId]);
 
   const getImageUrl = (path: string | null) => {
     if (!path) return '/placeholder.png';
@@ -185,10 +181,10 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
         throw new Error(errorMessage);
       }
 
-      // Refresh list
+      // Siempre refrescamos desde el backend para tener lo mismo que /suppliers/{slug}
       await fetchItems();
       
-      // Reset form
+      // Reset formulario y salir de edición para permitir seguir editando otros
       handleCancelEdit();
       
     } catch (err: any) {

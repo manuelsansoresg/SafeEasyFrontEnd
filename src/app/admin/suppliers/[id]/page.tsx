@@ -155,7 +155,7 @@ export default function EditSupplierPage() {
         {activeTab === "carousel" && (
           <StepCarousel
             supplierId={supplier.id}
-            slug={supplier.short_name || undefined}
+            slug={supplier.slug || supplier.short_name || undefined}
             token={token}
             onNext={() => setActiveTab("certificates")}
           />

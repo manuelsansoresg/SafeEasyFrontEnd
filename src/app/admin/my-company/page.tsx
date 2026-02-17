@@ -117,7 +117,7 @@ function MyCompanyContent() {
         {activeTab === 'carousel' && token && (
           <StepCarousel 
             supplierId={supplier.id} 
-            slug={supplier.short_name || undefined}
+            slug={supplier.slug || supplier.short_name || undefined}
             token={token} 
             onNext={() => setActiveTab('certificates')} 
           />

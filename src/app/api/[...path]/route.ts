@@ -80,6 +80,11 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
     if (!forwardHeaders.has('accept')) {
         forwardHeaders.set('accept', 'application/json');
     }
+    // Hint backend that original request is secure behind proxy (fixes 'solicitó el recurso de forma no segura')
+    forwardHeaders.set('X-Forwarded-Proto', 'https');
+    if (!forwardHeaders.has('X-Requested-With')) {
+        forwardHeaders.set('X-Requested-With', 'XMLHttpRequest');
+    }
 
     const fetchOptions: RequestInit = {
       method: request.method,

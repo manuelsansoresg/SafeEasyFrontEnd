@@ -22,6 +22,7 @@ interface Supplier {
   id: number;
   name: string;
   short_name?: string;
+  slug?: string;
   rfc?: string;
   phone?: string;
   email?: string;
@@ -37,6 +38,7 @@ export default function AdminSuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   
   // Pagination
   const [skip, setSkip] = useState(0);
@@ -86,23 +88,162 @@ export default function AdminSuppliersPage() {
     setExpandedRows(newExpanded);
   };
 
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const allSelected = suppliers.length > 0 && selectedIds.length === suppliers.length;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(suppliers.map((s) => s.id));
+    }
+  };
+
+  const deleteSupplierInternal = async (
+    id: number
+  ): Promise<{ success: boolean; message?: string }> => {
+    try {
+      let numericId = Number(id);
+      let targetSlug: string | undefined = undefined;
+
+      if (!Number.isFinite(numericId)) {
+        const s =
+          suppliers.find((x) => String(x.id) === String(id)) ||
+          suppliers.find((x: any) => x.slug && String(x.slug) === String(id));
+        targetSlug = (s as any)?.slug;
+
+        if (targetSlug) {
+          const resolve = await fetchWithAuth(`/api/suppliers/${encodeURIComponent(targetSlug)}`);
+          if (resolve.ok) {
+            const data = await resolve.json();
+            if (data?.id && Number.isFinite(Number(data.id))) {
+              numericId = Number(data.id);
+            }
+          }
+        }
+      }
+
+      const response = await fetchWithAuth(`/api/suppliers/${numericId}`, {
+        method: "DELETE",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+
+      if (response.ok || response.status === 404) {
+        return { success: true };
+      }
+
+      let message = `Error al eliminar (${response.status})`;
+      try {
+        const data = await response.json();
+        if (data?.error_source === "proxy_debug") {
+          const backendResp =
+            typeof data.backend_response === "string"
+              ? data.backend_response
+              : JSON.stringify(data.backend_response);
+          message = `URL: ${data.debug_target_url}\nStatus: ${data.status}\nBackend: ${backendResp}`;
+        } else if (typeof data?.backend_response === "string") {
+          message = data.backend_response;
+        } else if (data?.detail) {
+          message =
+            typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+        } else if (data?.message) {
+          message = data.message;
+        }
+      } catch {
+        try {
+          const text = await response.text();
+          if (text) message = text;
+        } catch {}
+      }
+
+      return { success: false, message };
+    } catch (error) {
+      console.error("Error deleting supplier:", error);
+      return { success: false, message: "Error de red al eliminar proveedor" };
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este proveedor?")) return;
     
     if (!token) return;
 
+    const result = await deleteSupplierInternal(id);
+    if (result.success) {
+      fetchSuppliers();
+    } else if (result.message) {
+      alert(result.message);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!token) return;
+
+    if (
+      !confirm(
+        `¿Estás seguro de eliminar ${selectedIds.length} proveedor(es) seleccionados?`
+      )
+    )
+      return;
+
+    const numericIds = selectedIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id));
+
+    if (numericIds.length === 0) {
+      alert("No hay IDs válidos para borrar.");
+      return;
+    }
+
     try {
-      const response = await fetchWithAuth(`/api/suppliers/${id}`, {
-        method: 'DELETE'
+      const response = await fetchWithAuth(`/api/suppliers/bulk-delete`, {
+        method: "POST",
+        body: JSON.stringify({ ids: numericIds }),
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (response.ok) {
+        setSelectedIds([]);
         fetchSuppliers();
       } else {
-        alert("Error al eliminar");
+        let message = `Error al eliminar (${response.status})`;
+        try {
+          const data = await response.json();
+          if (data?.error_source === "proxy_debug") {
+            const backendResp =
+              typeof data.backend_response === "string"
+                ? data.backend_response
+                : JSON.stringify(data.backend_response);
+            message = `URL: ${data.debug_target_url}\nStatus: ${data.status}\nBackend: ${backendResp}`;
+          } else if (typeof data?.backend_response === "string") {
+            message = data.backend_response;
+          } else if (data?.detail) {
+            message =
+              typeof data.detail === "string"
+                ? data.detail
+                : JSON.stringify(data.detail);
+          } else if (data?.message) {
+            message = data.message;
+          }
+        } catch {
+          try {
+            const text = await response.text();
+            if (text) message = text;
+          } catch {}
+        }
+        alert(message);
       }
-    } catch (error) {
-      console.error("Error deleting supplier:", error);
+    } catch (e) {
+      console.error("Error en borrado masivo:", e);
+      alert("Error de red al intentar borrar proveedores.");
     }
   };
 
@@ -113,13 +254,23 @@ export default function AdminSuppliersPage() {
           <h1 className="text-2xl font-bold text-gray-800">Gestión de Proveedores</h1>
           <p className="text-gray-500 mt-1">Administra la lista de proveedores del sistema.</p>
         </div>
-        <Link 
-          href="/admin/suppliers/create"
-          className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
-        >
-          <Plus size={20} />
-          <span>Nuevo Proveedor</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleBulkDelete}
+            disabled={selectedIds.length === 0}
+            className="cursor-pointer px-4 py-2 rounded-xl border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-40 disabled:cursor-default transition-colors"
+          >
+            Eliminar seleccionados {selectedIds.length > 0 ? `(${selectedIds.length})` : ""}
+          </button>
+          <Link 
+            href="/admin/suppliers/create"
+            className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
+          >
+            <Plus size={20} />
+            <span>Nuevo Proveedor</span>
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -132,6 +283,14 @@ export default function AdminSuppliersPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="p-4 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 text-primary border-gray-300 rounded"
+                    />
+                  </th>
                   <th className="p-4 font-semibold text-gray-600 text-sm">Nombre</th>
                   <th className="p-4 font-semibold text-gray-600 text-sm">RFC</th>
                   <th className="p-4 font-semibold text-gray-600 text-sm hidden md:table-cell">Teléfono</th>
@@ -151,6 +310,14 @@ export default function AdminSuppliersPage() {
                   suppliers.map((supplier) => (
                     <Fragment key={supplier.id}>
                       <tr className="hover:bg-gray-50/50 transition-colors">
+                        <td className="p-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(supplier.id)}
+                            onChange={() => toggleSelect(supplier.id)}
+                            className="h-4 w-4 text-primary border-gray-300 rounded"
+                          />
+                        </td>
                         <td className="p-4">
                           <div className="font-medium text-gray-800">{supplier.name}</div>
                           {supplier.short_name && (
