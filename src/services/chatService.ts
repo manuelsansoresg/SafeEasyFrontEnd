@@ -7,24 +7,42 @@ export const chatService = {
     const res = await fetchWithAuth('/api/chat/conversations');
     if (!res.ok) throw new Error('Failed to fetch conversations');
     const data = await res.json();
-    return Array.isArray(data) ? data.map((c: any) => ({
-        ...c,
-        // Standardize fields based on chat.md and legacy support
-        my_role: c.my_role,
-        other_party_name: c.other_party_name,
-        buyer_name: c.buyer_name,
-        supplier_name: c.supplier_name,
-        
-        user_id: c.buyer_id || c.user_id, // Map buyer_id to user_id for compatibility
-        buyer_id: c.buyer_id,
-        
-        // Fallbacks for names if not provided directly
-        user_name: c.buyer_name || c.user_name || (c.user ? (c.user.name || `${c.user.first_name || ''} ${c.user.last_name || ''}`.trim()) : undefined),
-        
-        // Ensure images are populated
-        user_image: c.user_image || c.user?.image || c.user?.avatar,
-        supplier_image: c.supplier_image || c.supplier?.image || c.supplier?.logo
-    })) : [];
+    return Array.isArray(data) ? data.map((c: any) => {
+        const unread =
+          c.unread_count ??
+          c.unread_messages ??
+          c.unread_messages_count ??
+          c.unread ??
+          0;
+
+        return {
+          ...c,
+          // Normalizar campos según chat.md y compatibilidad previa
+          my_role: c.my_role,
+          other_party_name: c.other_party_name,
+          buyer_name: c.buyer_name,
+          supplier_name: c.supplier_name,
+
+          user_id: c.buyer_id || c.user_id,
+          buyer_id: c.buyer_id,
+
+          // Fallbacks de nombre
+          user_name:
+            c.buyer_name ||
+            c.user_name ||
+            (c.user
+              ? c.user.name ||
+                `${c.user.first_name || ""} ${c.user.last_name || ""}`.trim()
+              : undefined),
+
+          // Imágenes
+          user_image: c.user_image || c.user?.image || c.user?.avatar,
+          supplier_image: c.supplier_image || c.supplier?.image || c.supplier?.logo,
+
+          // Asegurar unread_count siempre presente
+          unread_count: unread,
+        } as Conversation;
+    }) : [];
   },
 
   // Get messages for a specific conversation
