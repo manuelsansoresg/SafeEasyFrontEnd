@@ -59,7 +59,7 @@ export function MessagesDropdown() {
     }
   }, [isOpen, user]);
 
-  // Poll for unread messages every 15 seconds
+  // Poll for unread messages en segundo plano
   useEffect(() => {
     if (!user) return;
     
@@ -68,9 +68,19 @@ export function MessagesDropdown() {
     
     const interval = setInterval(() => {
         fetchConversations(false);
-    }, 15000);
+    }, 7000);
     
     return () => clearInterval(interval);
+  }, [user]);
+
+  // Refrescar cuando la ventana recupera el foco (por ejemplo al volver a la pestaña)
+  useEffect(() => {
+    if (!user) return;
+    const handleFocus = () => {
+      fetchConversations(false);
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
   }, [user]);
 
   const toggleOpen = () => setIsOpen(!isOpen);
