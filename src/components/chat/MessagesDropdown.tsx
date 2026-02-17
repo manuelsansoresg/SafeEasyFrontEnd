@@ -139,14 +139,6 @@ export function MessagesDropdown() {
         <div className="absolute right-0 mt-2 w-[360px] bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
           <div className="p-4 flex items-center justify-between border-b border-gray-50">
             <h3 className="font-bold text-xl text-gray-900">Chats</h3>
-            <div className="flex gap-2">
-                <button className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500">
-                    <MoreHorizontal size={20} />
-                </button>
-                <button className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500">
-                    <Edit size={20} />
-                </button>
-            </div>
           </div>
           
           <div className="px-4 py-2">

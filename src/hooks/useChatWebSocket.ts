@@ -20,6 +20,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
   const [wsError, setWsError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef<number>(0);
 
   const connect = useCallback(() => {
     if (!token || !shouldConnect || !activeConversationId) return;
@@ -63,20 +64,11 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
-        // Safety timeout: If connection hangs in 'connecting' for 5s, close and let retry logic handle it
-        const connectionTimeout = setTimeout(() => {
-            if (ws.readyState === WebSocket.CONNECTING) {
-                console.warn('[WebSocket] Connection timed out after 5s. Closing to trigger retry.');
-                ws.close(); 
-                setWsError('Tiempo de espera agotado al conectar');
-            }
-        }, 5000);
-
         ws.onopen = () => {
-          clearTimeout(connectionTimeout);
           console.log('WebSocket connected');
           setStatus('connected');
           setWsError(null);
+          reconnectAttemptsRef.current = 0;
         };
         
         ws.onmessage = (event) => {
@@ -147,6 +139,14 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
           if (event.code === 4004) {
             setStatus('error');
             setWsError('La conversación de chat ya no existe.');
+            return;
+          }
+
+          // Limitar reintentos para evitar ciclos infinitos si el servidor está caído
+          reconnectAttemptsRef.current += 1;
+          if (reconnectAttemptsRef.current > 5) {
+            setStatus('error');
+            setWsError('No se pudo conectar al chat. Intenta recargar la página.');
             return;
           }
 
