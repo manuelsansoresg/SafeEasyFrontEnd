@@ -505,16 +505,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
 
                 setConversations(finalConversations);
 
-                // If we have conversations but none active, or if we want to ensure we see new ones
-                // For Vendor, we usually show list if multiple.
+                // Auto-seleccionar la conversación más reciente si no hay una activa
                 if (finalConversations.length === 0) {
-                     setActiveConversation(null);
-                } else if (finalConversations.length === 1) {
-                     // Only auto-select if we don't have one active or if it's the only one
-                     if (!activeConversation) {
-                        setActiveConversation(finalConversations[0]);
-                        await loadMessages(finalConversations[0].id);
-                     }
+                    setActiveConversation(null);
+                } else if (!activeConversation || !finalConversations.find(c => String(c.id) === String(activeConversation.id))) {
+                    setActiveConversation(finalConversations[0]);
+                    await loadMessages(finalConversations[0].id);
                 }
             }
           } else {
@@ -690,6 +686,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                 console.log("[ChatWindow] Updating vendor conversation list from poll");
                 return finalConversations;
             });
+            
+            // Si no hay conversación activa y ahora existen, auto-seleccionar la más reciente
+            if (!activeConversation && finalConversations.length > 0) {
+                setActiveConversation(finalConversations[0]);
+                try { await loadMessages(finalConversations[0].id); } catch {}
+            }
             
         } catch (err) {
             console.warn("[ChatWindow] Failed to poll conversations:", err);
