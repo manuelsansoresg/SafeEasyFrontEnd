@@ -101,7 +101,16 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   }, [isOpen, user, supplierId, isVendorMode, productId, activeConversation]);
 
   // Initialize WebSocket with active conversation
-  const { status, messages: wsMessages, sendMessage: wsSendMessage, lastMessage, error: wsError } = useChatWebSocket(activeConversation?.id, isOpen);
+  const [chatEnabled, setChatEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const stored = window.localStorage.getItem("safeeasy:chat_enabled");
+    return stored === "0" ? false : true;
+  });
+
+  const { status, messages: wsMessages, sendMessage: wsSendMessage, lastMessage, error: wsError } = useChatWebSocket(
+    activeConversation?.id,
+    isOpen && chatEnabled
+  );
 
   // Sync WebSocket error to local error state (solo errores reales, no desconexiones normales)
   useEffect(() => {

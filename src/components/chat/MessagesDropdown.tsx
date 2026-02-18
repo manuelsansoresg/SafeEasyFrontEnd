@@ -15,6 +15,7 @@ export function MessagesDropdown() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [chatEnabled, setChatEnabled] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close when clicking outside
@@ -30,6 +31,11 @@ export function MessagesDropdown() {
 
   const fetchConversations = async (showLoading = false) => {
     if (!user) return;
+    if (!chatEnabled) {
+      setConversations([]);
+      setUnreadCount(0);
+      return;
+    }
     if (showLoading) setLoading(true);
     try {
       const data = await chatService.getConversations();
@@ -59,13 +65,19 @@ export function MessagesDropdown() {
     if (isOpen) {
       fetchConversations(true);
     }
-  }, [isOpen, user]);
+  }, [isOpen, user, chatEnabled]);
 
   // Poll for unread messages en segundo plano
   useEffect(() => {
     if (!user) return;
     
-    // Initial fetch for badge
+    const stored = typeof window !== "undefined" ? window.localStorage.getItem("safeeasy:chat_enabled") : null;
+    if (stored === "0") {
+      setChatEnabled(false);
+    } else {
+      setChatEnabled(true);
+    }
+
     fetchConversations(false);
     
     const interval = setInterval(() => {
@@ -129,10 +141,13 @@ export function MessagesDropdown() {
       >
         <div className="relative">
             <MessageSquare size={22} className={isOpen ? "fill-current" : ""} />
-            {unreadCount > 0 && (
+            {chatEnabled && unreadCount > 0 && (
                 <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white">
                     {unreadCount > 9 ? '9+' : unreadCount}
                 </div>
+            )}
+            {!chatEnabled && (
+                <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-gray-400 rounded-full border-2 border-white" />
             )}
         </div>
       </button>
@@ -140,7 +155,29 @@ export function MessagesDropdown() {
       {isOpen && (
         <div className="absolute right-0 mt-2 w-[360px] bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
           <div className="p-4 flex items-center justify-between border-b border-gray-50">
-            <h3 className="font-bold text-xl text-gray-900">Chats</h3>
+            <div>
+              <h3 className="font-bold text-xl text-gray-900">Chats</h3>
+              <p className="text-xs text-gray-500">
+                Estado: {chatEnabled ? "Activo" : "Pausado"}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setChatEnabled((prev) => {
+                  const next = !prev;
+                  if (typeof window !== "undefined") {
+                    window.localStorage.setItem(
+                      "safeeasy:chat_enabled",
+                      next ? "1" : "0"
+                    );
+                  }
+                  return next;
+                });
+              }}
+              className="inline-flex items-center px-3 py-1 text-xs rounded-full border border-gray-200 hover:bg-gray-100"
+            >
+              {chatEnabled ? "Pausar chat" : "Activar chat"}
+            </button>
           </div>
           
           <div className="px-4 py-2">

@@ -72,27 +72,29 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
         };
         
         ws.onmessage = (event) => {
-          // ... (existing logic) ...
           try {
             console.log('[WebSocket] Raw message received:', event.data);
             const data = JSON.parse(event.data);
+
+            // Si el backend envía eventos de otro tipo (por ejemplo conversation_updated),
+            // no los tratamos como mensajes de chat aquí para evitar errores.
+            if (data.type && data.type !== 'message') {
+              console.log('[WebSocket] Non-message event received:', data.type);
+              return;
+            }
             
-            // Map backend fields to frontend Message interface
-            // Backend sends: { id, sender_id, message, conversation_id, timestamp }
-            // Infer message_type if missing but attachment_url is present
             let type = data.message_type;
             if (!type && data.attachment_url) {
                 const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(data.attachment_url);
                 type = isImage ? 'image' : 'file';
             }
 
-            // Frontend expects: { id, sender_id, content, conversation_id, created_at, ... }
             const message: Message = {
                 id: data.id,
                 sender_id: data.sender_id || data.senderId,
                 conversation_id: data.conversation_id || data.conversationId,
-                content: data.message || data.content || '', // Handle 'message' field from backend
-                created_at: data.timestamp || data.created_at || new Date().toISOString(), // Handle 'timestamp' field
+                content: data.message || data.content || '',
+                created_at: data.timestamp || data.created_at || new Date().toISOString(),
                 is_read: data.is_read || false,
                 message_type: type || 'text',
                 attachment_url: data.attachment_url
@@ -102,10 +104,8 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
 
             setLastMessage(message);
             
-            // If the message belongs to the current active conversation, add it to the list
             if (activeConversationId && String(message.conversation_id) === String(activeConversationId)) {
                 setMessages((prev) => {
-                    // Check for duplicates
                     if (prev.some(m => m.id === message.id)) return prev;
                     console.log('[WebSocket] Adding message to state:', message);
                     return [...prev, message];
@@ -139,6 +139,24 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
           if (event.code === 4004) {
             setStatus('error');
             setWsError('La conversación de chat ya no existe.');
+            return;
+          }
+
+          if (event.code === 1008) {
+            setStatus('error');
+            setWsError(
+              event.reason ||
+                'Tu sesión no tiene permisos para usar este chat. Inicia sesión de nuevo.'
+            );
+            return;
+          }
+
+          if (event.code === 1011) {
+            setStatus('error');
+            setWsError(
+              event.reason ||
+                'Hubo un problema en el servidor de chat. Intenta de nuevo más tarde.'
+            );
             return;
           }
 
