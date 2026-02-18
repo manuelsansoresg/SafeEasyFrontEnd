@@ -376,6 +376,11 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
       const history = await chatService.getMessages(conversationId);
       setMessages(history);
       setTimeout(scrollToBottom, 100);
+      try {
+        await chatService.markAsRead(conversationId);
+      } catch (err) {
+        console.error("Failed to mark conversation as read", err);
+      }
     } catch (err) {
       console.error("Failed to load messages:", err);
     }

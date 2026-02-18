@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
 import { MessageSquare, Search } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { chatService } from "@/services/chatService";
@@ -16,7 +15,6 @@ export function MessagesDropdown() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [hasNew, setHasNew] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close when clicking outside
@@ -41,32 +39,14 @@ export function MessagesDropdown() {
         const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
         return dateB - dateA;
       });
-      setConversations(data.slice(0, 5));
+      const limited = data.slice(0, 5);
+      setConversations(limited);
 
-      const count = data.reduce((acc, curr) => acc + (curr.unread_count || 0), 0);
+      const count = limited.reduce(
+        (acc, curr) => acc + (curr.unread_count || 0),
+        0
+      );
       setUnreadCount(count);
-
-      const latestTs = data.reduce((max, curr) => {
-        const t = new Date(
-          curr.updated_at || curr.last_message_at || curr.created_at || 0
-        ).getTime();
-        return t > max ? t : max;
-      }, 0);
-
-      if (typeof window !== "undefined" && user) {
-        const key = `safeeasy:last_seen_chat_${user.id}`;
-        const stored = window.localStorage.getItem(key);
-        const lastSeen = stored ? Number(stored) : 0;
-
-        if (!lastSeen && latestTs > 0) {
-          window.localStorage.setItem(key, String(latestTs));
-          setHasNew(false);
-        } else if (latestTs > lastSeen && latestTs > 0) {
-          setHasNew(true);
-        } else {
-          setHasNew(false);
-        }
-      }
     } catch (err) {
       console.error("Failed to load dropdown chats", err);
     } finally {
@@ -105,25 +85,7 @@ export function MessagesDropdown() {
     return () => window.removeEventListener("focus", handleFocus);
   }, [user]);
 
-  const toggleOpen = () => {
-    const next = !isOpen;
-    setIsOpen(next);
-
-    if (next && typeof window !== "undefined" && user) {
-      const latestTs = conversations.reduce((max, curr) => {
-        const t = new Date(
-          curr.updated_at || curr.last_message_at || curr.created_at || 0
-        ).getTime();
-        return t > max ? t : max;
-      }, 0);
-      const key = `safeeasy:last_seen_chat_${user.id}`;
-      window.localStorage.setItem(
-        key,
-        String(latestTs > 0 ? latestTs : Date.now())
-      );
-      setHasNew(false);
-    }
-  };
+  const toggleOpen = () => setIsOpen(!isOpen);
 
   // Helper to get name
   const getOtherPartyName = (conv: Conversation) => {
@@ -172,9 +134,6 @@ export function MessagesDropdown() {
                     {unreadCount > 9 ? '9+' : unreadCount}
                 </div>
             )}
-            {unreadCount === 0 && hasNew && (
-                <div className="absolute -top-1.5 -right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
-            )}
         </div>
       </button>
 
@@ -206,12 +165,31 @@ export function MessagesDropdown() {
                     <p>No tienes mensajes recientes.</p>
                 </div>
              ) : (
-                conversations.map(conv => (
+                conversations.map(conv => {
+                    const unread = conv.unread_count || 0;
+                    const isNew = unread > 0;
+
+                    return (
                     <div 
-                        key={conv.id} 
+                        key={conv.id}
                         onClick={() => {
                             openChat(conv);
                             setIsOpen(false);
+                            setConversations(prev =>
+                              prev.map(c =>
+                                String(c.id) === String(conv.id)
+                                  ? { ...c, unread_count: 0 }
+                                  : c
+                              )
+                            );
+                            setUnreadCount(prev =>
+                              prev - unread > 0 ? prev - unread : 0
+                            );
+                            chatService
+                              .markAsRead(conv.id)
+                              .catch(err =>
+                                console.error("Failed to mark as read", err)
+                              );
                         }}
                         className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors mx-2 rounded-lg group cursor-pointer"
                     >
@@ -232,18 +210,21 @@ export function MessagesDropdown() {
                                 {getOtherPartyName(conv)}
                             </h4>
                             <div className="flex items-center gap-1 text-[13px] text-gray-500">
-                                <p className={cn("truncate max-w-[160px]", (conv.unread_count || 0) > 0 && "font-semibold text-gray-900")}>
+                                <p className={cn(
+                                    "truncate max-w-[160px]",
+                                    isNew && "font-semibold text-gray-900"
+                                )}>
                                     {conv.last_message || "Envió un archivo adjunto."}
                                 </p>
                                 <span>·</span>
                                 <span className="shrink-0">{formatTime(conv.updated_at)}</span>
                             </div>
                         </div>
-                        {(conv.unread_count || 0) > 0 && (
+                        {isNew && (
                             <div className="w-3 h-3 bg-blue-600 rounded-full shrink-0"></div>
                         )}
                     </div>
-                ))
+                )})
              )}
           </div>
           {/* Bottom link removed as requested */}
