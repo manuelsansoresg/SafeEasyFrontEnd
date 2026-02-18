@@ -4,10 +4,17 @@ import { Conversation, Message, CreateConversationParams } from "@/types/chat";
 export const chatService = {
   // Get all conversations for the current user
   getConversations: async (): Promise<Conversation[]> => {
-    const res = await fetchWithAuth('/api/chat/conversations');
-    if (!res.ok) throw new Error('Failed to fetch conversations');
-    const data = await res.json();
-    return Array.isArray(data) ? data.map((c: any) => {
+    try {
+      const res = await fetchWithAuth('/api/chat/conversations');
+      if (!res.ok) {
+        console.warn(
+          "[chatService] getConversations failed with status",
+          res.status
+        );
+        return [];
+      }
+      const data = await res.json();
+      return Array.isArray(data) ? data.map((c: any) => {
         const unread =
           c.unread_count ??
           c.unread_messages ??
@@ -42,7 +49,11 @@ export const chatService = {
           // Asegurar unread_count siempre presente
           unread_count: unread,
         } as Conversation;
-    }) : [];
+      }) : [];
+    } catch (err) {
+      console.error("[chatService] getConversations error", err);
+      return [];
+    }
   },
 
   // Get messages for a specific conversation
