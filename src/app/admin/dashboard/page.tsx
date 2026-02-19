@@ -76,7 +76,10 @@ export default function AdminDashboardPage() {
       const response = await fetchWithAuth(`/api/admin/dashboard${query}`);
       
       if (!response.ok) {
-        throw new Error('Error al cargar estadísticas');
+        console.warn("Error al cargar estadísticas", response.status);
+        setStats(null);
+        setError("No se pudieron cargar las estadísticas del panel.");
+        return;
       }
       
       const data = await response.json();

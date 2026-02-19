@@ -38,6 +38,8 @@ interface Supplier {
   logo?: string;
   logo_url?: string;
   about?: string;
+  about_media?: string;
+  about_media_url?: string;
   about_image?: string;
   about_image_url?: string;
   transfer_accepted?: boolean;
@@ -188,6 +190,8 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
 
   const [logo, setLogo] = useState<File | null>(null);
   const [aboutImage, setAboutImage] = useState<File | null>(null);
+  const [clearLogo, setClearLogo] = useState(false);
+  const [clearAboutMedia, setClearAboutMedia] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -207,9 +211,29 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (f: File | null) => void) => {
-    if (e.target.files && e.target.files[0]) {
-      setter(e.target.files[0]);
+  const handleLogoChange = (file: File | null) => {
+    setLogo(file);
+    if (!isEditMode) return;
+    if (initialData?.logo || initialData?.logo_url) {
+      setClearLogo(file === null || file instanceof File);
+    } else {
+      setClearLogo(false);
+    }
+  };
+
+  const handleAboutImageChange = (file: File | null) => {
+    setAboutImage(file);
+    if (!isEditMode) return;
+    const hadInitial =
+      initialData?.about_media ||
+      initialData?.about_media_url ||
+      (initialData as any)?.about_image ||
+      (initialData as any)?.about_image_url;
+
+    if (hadInitial) {
+      setClearAboutMedia(file === null || file instanceof File);
+    } else {
+      setClearAboutMedia(false);
     }
   };
 
@@ -353,7 +377,33 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         data.append("user_id", String(finalUserId));
 
         if (logo) data.append("logo", logo);
-        if (aboutImage) data.append("about_image", aboutImage);
+        if (aboutImage) {
+          data.append("about_media", aboutImage);
+          data.append("about_image", aboutImage);
+        }
+        if (isEdit && clearLogo) {
+          data.append("clear_logo", "true");
+        }
+        if (isEdit && clearAboutMedia) {
+          data.append("clear_about_media", "true");
+        }
+
+        const debugEntries: Array<{ key: string; value: unknown }> = [];
+        data.forEach((v, k) => {
+          if (v instanceof File) {
+            debugEntries.push({
+              key: k,
+              value: {
+                name: v.name,
+                type: v.type,
+                size: v.size,
+              },
+            });
+          } else {
+            debugEntries.push({ key: k, value: v });
+          }
+        });
+        console.log("[SupplierForm] FormData debug", debugEntries);
 
         return data;
       };
@@ -412,6 +462,11 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         setIsSubmitting(false);
         return;
       }
+
+      setLogo(null);
+      setAboutImage(null);
+      setClearLogo(false);
+      setClearAboutMedia(false);
 
       setSuccess(true);
       if (!isEditMode) {
@@ -850,17 +905,24 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
             <FileUpload
               label="Logo de la Empresa"
               value={logo}
-              onChange={setLogo}
+            onChange={handleLogoChange}
               currentImageUrl={initialData?.logo || initialData?.logo_url || undefined}
               helperText="Recomendado: Formato cuadrado, mín. 400x400px"
             />
 
             <FileUpload
-              label="Imagen 'Sobre Nosotros'"
+              label="Imagen o video 'Sobre Nosotros'"
               value={aboutImage}
-              onChange={setAboutImage}
-              currentImageUrl={initialData?.about_image || initialData?.about_image_url || undefined}
-              helperText="Imagen representativa para su perfil"
+            onChange={handleAboutImageChange}
+            accept="image/*,video/*"
+            currentImageUrl={
+              initialData?.about_media ||
+              initialData?.about_media_url ||
+              (initialData as any)?.about_image ||
+              (initialData as any)?.about_image_url ||
+              undefined
+            }
+            helperText="Formatos recomendados: JPG/PNG o MP4/WEBM/MOV"
             />
           </div>
 

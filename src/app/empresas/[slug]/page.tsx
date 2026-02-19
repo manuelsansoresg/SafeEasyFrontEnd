@@ -797,9 +797,19 @@ export default function SupplierPage() {
           <div className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100">
             <h2 className="text-2xl font-bold mb-6 text-gray-900">Sobre Nosotros</h2>
 
-            {supplier.about_image && (
+            {(
+              (supplier as any).about_media ||
+              (supplier as any).about_image
+            ) && (
               <div className="w-full mb-6 rounded-xl overflow-hidden shadow-md">
-                <img src={supplier.about_image} alt="Acerca de nosotros" className="w-full h-full object-cover" />
+                <img
+                  src={
+                    (supplier as any).about_media ||
+                    (supplier as any).about_image
+                  }
+                  alt="Acerca de nosotros"
+                  className="w-full h-full object-cover"
+                />
               </div>
             )}
 

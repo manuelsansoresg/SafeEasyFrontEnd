@@ -37,7 +37,7 @@ export interface Supplier {
   neighborhood: string | null;
   user_id: number;
   logo: string | null;
-  about_image: string | null;
+  about_media: string | null;
   carousel_images: CarouselImage[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   certificates: any[];

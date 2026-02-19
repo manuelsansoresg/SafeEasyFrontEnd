@@ -149,16 +149,25 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
 
   } catch (error: any) {
     console.error(`[Generic Proxy] Error forwarding request to ${targetUrl}:`, error);
-    
-    // Return a structured error response that the frontend can parse
-    return NextResponse.json(
-      { 
-        error: 'Proxy Error', 
-        message: error.message || 'Unknown proxy error',
-        cause: error.cause ? String(error.cause) : undefined
-      },
-      { status: 502 } // 502 Bad Gateway is appropriate for proxy errors
-    );
+
+    const errorPayload: Record<string, unknown> = {
+      error: 'Proxy Error',
+      message: error?.message || 'Unknown proxy error',
+    };
+
+    if (error?.name) {
+      errorPayload.name = error.name;
+    }
+
+    if (typeof error?.code !== 'undefined') {
+      errorPayload.code = String(error.code);
+    }
+
+    if (error?.cause) {
+      errorPayload.cause = String(error.cause);
+    }
+
+    return NextResponse.json(errorPayload, { status: 502 });
   }
 }
 

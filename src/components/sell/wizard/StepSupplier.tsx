@@ -186,9 +186,28 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
           data.append('transfer_accepted', 'false');
       }
 
-      // Add files
       if (logo) data.append('logo', logo);
-      if (aboutImage) data.append('about_image', aboutImage);
+      if (aboutImage) {
+        data.append('about_media', aboutImage);
+        data.append('about_image', aboutImage);
+      }
+
+      const debugEntries: Array<{ key: string; value: unknown }> = [];
+      data.forEach((v, k) => {
+        if (v instanceof File) {
+          debugEntries.push({
+            key: k,
+            value: {
+              name: v.name,
+              type: v.type,
+              size: v.size,
+            },
+          });
+        } else {
+          debugEntries.push({ key: k, value: v });
+        }
+      });
+      console.log("[StepSupplier] FormData debug", debugEntries);
 
       const response = await fetch('/api/suppliers', {
         method: 'POST',
@@ -514,10 +533,11 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                    helperText="Recomendado: Formato cuadrado, mín. 400x400px"
                />
                <FileUpload
-                   label="Imagen 'Sobre Nosotros'"
+                   label="Imagen o video 'Sobre Nosotros'"
                    value={aboutImage}
                    onChange={setAboutImage}
-                   helperText="Imagen representativa para su perfil"
+                   accept="image/*,video/*"
+                   helperText="Formatos recomendados: JPG/PNG o MP4/WEBM/MOV"
                />
              </div>
 
