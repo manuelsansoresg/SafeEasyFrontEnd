@@ -418,14 +418,20 @@ export default function SupplierPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-10 space-y-16 overflow-x-hidden">
-        <section id="inicio" className="space-y-8 scroll-mt-32">
-          {supplier.carousel_images && supplier.carousel_images.length > 0 && (
-            <div className="aspect-[21/9] w-full rounded-2xl overflow-hidden relative shadow-md bg-gray-900 group">
-              <Carousel images={supplier.carousel_images} />
+      {supplier.carousel_images && supplier.carousel_images.length > 0 && (
+        <section id="inicio" className="scroll-mt-32">
+          <div className="relative w-full bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950">
+            <div className="w-full mx-auto px-0 sm:px-4 lg:px-8 py-6 md:py-10">
+              <div className="aspect-[21/9] w-full rounded-none sm:rounded-2xl md:rounded-3xl overflow-hidden relative shadow-2xl shadow-black/40 bg-gray-900 group">
+                <Carousel images={supplier.carousel_images} />
+              </div>
             </div>
-          )}
+          </div>
+        </section>
+      )}
 
+      <div className="container mx-auto px-4 py-10 space-y-16 overflow-x-hidden">
+        <section className="space-y-8">
           {supplier.description && (
             <div className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100">
               <h2 className="text-xl font-bold mb-6 text-gray-900 border-b pb-4">Descripción de la Empresa</h2>
