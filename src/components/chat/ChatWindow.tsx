@@ -581,20 +581,38 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
        if (String(lastMessage.conversation_id) === String(activeConversation.id)) {
            // Check if message is already in list to avoid duplicates (common in optimistic UI + WS echo)
            setMessages(prev => {
-              // If we have an optimistic message (large numeric ID usually, or just check content/time match)
-              // Ideally, backend returns a temporary ID we sent, but here we just check if we have a duplicate by real ID.
-              // Or if we want to replace the optimistic one.
-              
+              // 1) Si ya existe un mensaje con el mismo ID, lo ignoramos
               if (prev.some(m => m.id === lastMessage.id)) {
-                  console.log("[ChatWindow] Duplicate message ignored:", lastMessage.id);
+                  console.log("[ChatWindow] Duplicate message ignored by ID:", lastMessage.id);
                   return prev;
               }
-              
-              // Simple dedupe strategy: If we have a message with same content sent recently (last 2 seconds) by me, 
-              // and it has a temp ID (e.g. timestamp > 1000000000000 and different from real ID format if any), replace it?
-              // For now, just append. If user sees duplicate, we can refine.
-              // Actually, let's filter out optimistic messages that match the content/sender if we get a real one.
-              
+
+              // 2) Intentar REEMPLAZAR un mensaje optimista (mismo remitente + contenido similar en ventana corta)
+              let replaced = false;
+              const realTime = new Date(lastMessage.created_at || "").getTime();
+
+              const updated = prev.map(m => {
+                  if (
+                      m.sender_id === lastMessage.sender_id &&
+                      typeof m.content === "string" &&
+                      typeof lastMessage.content === "string" &&
+                      m.content.trim() === lastMessage.content.trim()
+                  ) {
+                      const mTime = new Date(m.created_at || "").getTime();
+                      if (!isNaN(realTime) && !isNaN(mTime) && Math.abs(realTime - mTime) < 5000) {
+                          replaced = true;
+                          return { ...m, ...lastMessage };
+                      }
+                  }
+                  return m;
+              });
+
+              if (replaced) {
+                  console.log("[ChatWindow] Replaced optimistic message with real one");
+                  return updated;
+              }
+
+              // 3) Si no se reemplazó nada, añadimos el nuevo mensaje al final
               console.log("[ChatWindow] Appending new message:", lastMessage);
               return [...prev, lastMessage];
            });
@@ -726,6 +744,14 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     const messageContent = inputValue;
     const tempId = Date.now(); // Temporary ID for optimistic update
     const currentFile = selectedFile; // Capture current file
+
+    // Si el WebSocket aún no está conectado y no es un archivo, evitamos enviar
+    // para no perder mensajes ni generar duplicados.
+    if (!currentFile && status !== 'connected') {
+        console.warn("Attempted to send while WebSocket not connected. Status:", status);
+        setError("El chat todavía se está conectando. Espera unos segundos antes de enviar tu mensaje.");
+        return;
+    }
     
     // Create optimistic message
     const optimisticMessage: Message & { file?: File } = {
@@ -1237,8 +1263,9 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                             {inputValue.trim() || selectedFile ? (
                                 <button 
                                     onClick={handleSend}
-                                    disabled={(!inputValue.trim() && !selectedFile) || !activeConversation}
-                                    className="p-2 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors shadow-sm"
+                                    disabled={(!inputValue.trim() && !selectedFile) || !activeConversation || status !== 'connected'}
+                                    title={status !== 'connected' ? "Esperando conexión con el chat..." : undefined}
+                                    className="p-2 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors shadow-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
                                 >
                                     <Send size={18} />
                                 </button>
