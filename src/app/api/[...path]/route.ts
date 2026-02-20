@@ -38,12 +38,6 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
   }
   
   // Append query string (search params)
-  // targetUrlObj.toString() might already include params if relativePath had them? No, relativePath is path.
-  // We use request.nextUrl.search which includes '?'
-  
-  // Special case: If this is a chat conversation request, we might need to adjust parameters
-  // But generally, forwarding query params is correct.
-  
   targetUrl += request.nextUrl.search;
 
   console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
@@ -76,10 +70,6 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
         }
     });
 
-    // Ensure accept is set if not present
-    if (!forwardHeaders.has('accept')) {
-        forwardHeaders.set('accept', 'application/json');
-    }
     // Hint backend that original request is secure behind proxy (fixes 'solicitó el recurso de forma no segura')
     forwardHeaders.set('X-Forwarded-Proto', 'https');
     if (!forwardHeaders.has('X-Requested-With')) {
@@ -119,32 +109,52 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
         }
     }
 
-    const data = await response.text();
-    
-    if (!response.ok) {
-        console.error(`[Generic Proxy] Backend error ${response.status} for ${targetUrl}:`, data);
-        
-        // Return debug info to frontend for ANY error
-        // We wrap the backend error in our own JSON if it's not a successful response
-        return new NextResponse(JSON.stringify({
-             error_source: "proxy_debug",
-             status: response.status,
-             detail: "Backend returned error",
-             backend_response: data, // Include the raw backend response
-             debug_target_url: targetUrl,
-             debug_auth_header_sent: !!forwardHeaders.get('Authorization'),
-             debug_auth_header_len: (forwardHeaders.get('Authorization') || '').length
-        }), { 
-            status: response.status, 
-            headers: { 'Content-Type': 'application/json' } 
-        });
+    const respContentType = response.headers.get('Content-Type') || '';
+    const isBinaryGet =
+      request.method === 'GET' &&
+      !respContentType.includes('application/json') &&
+      (respContentType.startsWith('video/') ||
+       respContentType.startsWith('image/') ||
+       respContentType === 'application/octet-stream' ||
+       respContentType.startsWith('application/zip') ||
+       respContentType.startsWith('audio/'));
+
+    // For binary GETs (videos, images, etc.), stream the body and preserve headers (Range support)
+    if (isBinaryGet) {
+      const headers = new Headers();
+      response.headers.forEach((v, k) => headers.set(k, v));
+      return new NextResponse(response.body, {
+        status: response.status,
+        headers
+      });
     }
-    
+
+    // For non-binary or non-GET, read as text to maintain existing debug behavior
+    const data = await response.text();
+    if (!response.ok) {
+      console.error(`[Generic Proxy] Backend error ${response.status} for ${targetUrl}:`, data);
+      return new NextResponse(JSON.stringify({
+        error_source: "proxy_debug",
+        status: response.status,
+        detail: "Backend returned error",
+        backend_response: data,
+        debug_target_url: targetUrl,
+        debug_auth_header_sent: !!forwardHeaders.get('Authorization'),
+        debug_auth_header_len: (forwardHeaders.get('Authorization') || '').length
+      }), {
+        status: response.status,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    const headers = new Headers();
+    response.headers.forEach((v, k) => headers.set(k, v));
+    if (!headers.get('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
     return new NextResponse(data, {
       status: response.status,
-      headers: {
-        'Content-Type': response.headers.get('Content-Type') || 'application/json',
-      },
+      headers
     });
 
   } catch (error: any) {

@@ -27,6 +27,22 @@ export default function FileUpload({
   const [inlineError, setInlineError] = useState(false);
   const [hasClearedExisting, setHasClearedExisting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  const buildMediaUrl = (url: string | null | undefined) => {
+    if (!url) return null;
+    // Si ya es absoluta (http/https), la usamos tal cual
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    // Si es ruta relativa tipo /static/..., la pegamos a la base del backend
+    if (apiBase && url.startsWith('/')) {
+      const base = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
+      return `${base}${url}`;
+    }
+    // Cualquier otro caso lo devolvemos tal cual
+    return url;
+  };
 
   const isAllowedFile = (file: File) => {
     if (!accept) return true;
@@ -131,7 +147,8 @@ export default function FileUpload({
     }
   };
   
-  const effectiveCurrentUrl = hasClearedExisting ? null : currentImageUrl || null;
+  const effectiveCurrentUrlRaw = hasClearedExisting ? null : currentImageUrl || null;
+  const effectiveCurrentUrl = buildMediaUrl(effectiveCurrentUrlRaw);
   const displayImage = preview || effectiveCurrentUrl || null;
 
   const lowerDisplay = preview ? preview.toLowerCase() : (effectiveCurrentUrl ? effectiveCurrentUrl.toLowerCase() : '');
@@ -140,7 +157,7 @@ export default function FileUpload({
     (value && value.type === 'application/pdf');
   const isVideo =
     (value && value.type.startsWith('video/')) ||
-    /\.(mp4|webm|ogg)$/i.test(lowerDisplay);
+    /\.(mp4|webm|ogg|mov)$/i.test(lowerDisplay);
   const acceptsVideo = !!accept && accept.includes('video');
 
   const getFileNameFromUrl = (url: string) => {
