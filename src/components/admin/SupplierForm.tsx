@@ -190,11 +190,32 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
 
   const [logo, setLogo] = useState<File | null>(null);
   const [aboutImage, setAboutImage] = useState<File | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(
+    initialData?.logo || initialData?.logo_url || null
+  );
+  const [aboutMediaPreviewUrl, setAboutMediaPreviewUrl] = useState<string | null>(
+    initialData?.about_media ||
+      initialData?.about_media_url ||
+      (initialData as any)?.about_image ||
+      (initialData as any)?.about_image_url ||
+      null
+  );
   const [clearLogo, setClearLogo] = useState(false);
   const [clearAboutMedia, setClearAboutMedia] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    setLogoPreviewUrl(initialData?.logo || initialData?.logo_url || null);
+    setAboutMediaPreviewUrl(
+      initialData?.about_media ||
+        initialData?.about_media_url ||
+        (initialData as any)?.about_image ||
+        (initialData as any)?.about_image_url ||
+        null
+    );
+  }, [initialData]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -213,6 +234,9 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
 
   const handleLogoChange = (file: File | null) => {
     setLogo(file);
+    if (!file && !isEditMode) {
+      setLogoPreviewUrl(null);
+    }
     if (!isEditMode) return;
     if (initialData?.logo || initialData?.logo_url) {
       setClearLogo(file === null || file instanceof File);
@@ -223,6 +247,9 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
 
   const handleAboutImageChange = (file: File | null) => {
     setAboutImage(file);
+    if (!file && !isEditMode) {
+      setAboutMediaPreviewUrl(null);
+    }
     if (!isEditMode) return;
     const hadInitial =
       initialData?.about_media ||
@@ -461,6 +488,30 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         setError(errorMessage);
         setIsSubmitting(false);
         return;
+      }
+
+      let updatedSupplier: any = null;
+      try {
+        updatedSupplier = await response.json();
+      } catch {
+        updatedSupplier = null;
+      }
+
+      if (updatedSupplier) {
+        const newLogoUrl = updatedSupplier.logo || updatedSupplier.logo_url || null;
+        const newAboutMediaUrl =
+          updatedSupplier.about_media ||
+          updatedSupplier.about_media_url ||
+          (updatedSupplier as any).about_image ||
+          (updatedSupplier as any).about_image_url ||
+          null;
+
+        if (typeof newLogoUrl !== 'undefined') {
+          setLogoPreviewUrl(newLogoUrl);
+        }
+        if (typeof newAboutMediaUrl !== 'undefined') {
+          setAboutMediaPreviewUrl(newAboutMediaUrl);
+        }
       }
 
       setLogo(null);
@@ -906,7 +957,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
               label="Logo de la Empresa"
               value={logo}
             onChange={handleLogoChange}
-              currentImageUrl={initialData?.logo || initialData?.logo_url || undefined}
+            currentImageUrl={logoPreviewUrl || undefined}
               helperText="Recomendado: Formato cuadrado, mín. 400x400px"
             />
 
@@ -915,13 +966,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
               value={aboutImage}
             onChange={handleAboutImageChange}
             accept="image/*,video/*"
-            currentImageUrl={
-              initialData?.about_media ||
-              initialData?.about_media_url ||
-              (initialData as any)?.about_image ||
-              (initialData as any)?.about_image_url ||
-              undefined
-            }
+            currentImageUrl={aboutMediaPreviewUrl || undefined}
             helperText="Formatos recomendados: JPG/PNG o MP4/WEBM/MOV"
             />
           </div>

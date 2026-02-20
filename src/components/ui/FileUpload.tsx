@@ -228,7 +228,7 @@ export default function FileUpload({
               </div>
             ) : effectiveCurrentUrl ? (
               <>
-                {!inlineError && acceptsVideo ? (
+                {!inlineError && isVideo ? (
                   <div className="relative w-full flex items-center justify-center">
                     {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                     <video
@@ -241,7 +241,7 @@ export default function FileUpload({
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center text-center gap-2">
-                    {acceptsVideo ? (
+                    {isVideo ? (
                       <Video size={40} className="text-primary" />
                     ) : (
                       <ImageIcon size={40} className="text-primary" />
@@ -253,7 +253,7 @@ export default function FileUpload({
                           {effectiveFileName}
                         </div>
                       )}
-                      {acceptsVideo && inlineError && (
+                      {isVideo && inlineError && (
                         <div className="text-[11px] text-gray-400 mt-1">
                           No se pudo reproducir aquí. Usa “Ver archivo”.
                         </div>
@@ -301,7 +301,7 @@ export default function FileUpload({
       
       {(value || effectiveCurrentUrl) && effectiveFileName && (
         <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-md border border-gray-100">
-          {isVideo || (!value && acceptsVideo) ? (
+          {isVideo ? (
             <Video size={14} className="text-primary" />
           ) : isPdf ? (
             <FileText size={14} className="text-primary" />
