@@ -21,6 +21,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef<number>(0);
+  const connectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const connect = useCallback(() => {
     if (!token || !shouldConnect || !activeConversationId) return;
@@ -64,11 +65,31 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
+        // Timeout de conexión: si después de X segundos no se abrió la conexión
+        // ni se cerró, asumimos que hay problema en el backend y marcamos error.
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+        }
+        connectTimeoutRef.current = setTimeout(() => {
+          if (wsRef.current && wsRef.current.readyState !== WebSocket.OPEN) {
+            console.warn('[WebSocket] Connection timeout reached, closing socket');
+            try {
+              wsRef.current.close();
+            } catch {}
+            setStatus('error');
+            setWsError('El chat tardó demasiado en conectar. Intenta de nuevo más tarde.');
+          }
+        }, 10000);
+
         ws.onopen = () => {
           console.log('WebSocket connected');
           setStatus('connected');
           setWsError(null);
           reconnectAttemptsRef.current = 0;
+          if (connectTimeoutRef.current) {
+            clearTimeout(connectTimeoutRef.current);
+            connectTimeoutRef.current = null;
+          }
         };
         
         ws.onmessage = (event) => {
@@ -123,6 +144,11 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
 
         ws.onclose = (event) => {
           console.log(`WebSocket disconnected. Code: ${event.code}, Reason: ${event.reason}, WasClean: ${event.wasClean}`);
+          
+          if (connectTimeoutRef.current) {
+            clearTimeout(connectTimeoutRef.current);
+            connectTimeoutRef.current = null;
+          }
           
           if (event.code === 4003) {
             setStatus('error');
@@ -204,6 +230,9 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
       }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (connectTimeoutRef.current) {
+        clearTimeout(connectTimeoutRef.current);
       }
     };
   }, [connect, shouldConnect]);
