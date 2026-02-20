@@ -50,8 +50,12 @@ export function ChatOverlay() {
                     isOwner={String(user?.id) === String(chat.supplier_id)}
                     productData={{
                         title: chat.product_title || "Producto",
-                        price: chat.product_price || 0,
-                        image: chat.product_image || ""
+                        // Backend contract: conversation.product_price ya viene calculado
+                        price: typeof chat.product_price === "number" 
+                          ? chat.product_price 
+                          : Number(chat.product_price) || 0,
+                        image: chat.product_image || "",
+                        slug: chat.product_slug
                     }}
                     supplierTransferData={chat.supplier_transfer_data || {
                         transfer_accepted: true 

@@ -594,6 +594,7 @@ export default function ProductDetailPage() {
        product_title: product.title,
        product_price: product.price,
        product_image: product.image || product.thumbnail_url || "",
+       product_slug: product.slug,
        supplier_name: product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : 'Proveedor',
        supplier_slug: product.supplier?.slug,
        supplier_transfer_data: product.supplier ? {

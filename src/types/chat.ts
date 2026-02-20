@@ -38,6 +38,7 @@ export interface Conversation {
   product_title?: string;
   product_image?: string;
   product_price?: number;
+  product_slug?: string;
   user?: {
     id: number;
     first_name?: string;

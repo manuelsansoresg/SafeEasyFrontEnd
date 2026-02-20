@@ -23,6 +23,7 @@ interface ChatWindowProps {
     price: number;
     image: string;
     minOrder?: number;
+    slug?: string;
   };
   supplierTransferData?: {
     transfer_clabe?: string | null;
@@ -150,33 +151,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
 
   const [canPay, setCanPay] = useState(!!supplierTransferData?.transfer_accepted);
   const [productPrice, setProductPrice] = useState(productData.price);
+  const [productSlug, setProductSlug] = useState<string | undefined>(productData.slug);
 
   useEffect(() => {
     setProductPrice(productData.price);
-  }, [productData.price]);
-
-  // Fetch product details if price is 0
-  useEffect(() => {
-    const fetchProductPrice = async () => {
-        if ((!productPrice || productPrice === 0) && productId) {
-             try {
-                 console.log(`[ChatWindow] Fetching product details for ID: ${productId}`);
-                 const res = await fetchWithAuth(`/api/products/${productId}`);
-                 if (res.ok) {
-                     const data = await res.json();
-                     if (data.price) {
-                         console.log(`[ChatWindow] Updated product price: ${data.price}`);
-                         setProductPrice(data.price);
-                     }
-                 }
-             } catch (e) {
-                 console.error("[ChatWindow] Failed to fetch product details", e);
-             }
-        }
-    };
-    
-    fetchProductPrice();
-  }, [productId, productPrice]);
+    setProductSlug(productData.slug);
+  }, [productData.price, productData.slug]);
 
   // Fetch extra supplier details if needed (for payment button)
   const fetchSupplierDetails = async () => {
@@ -1025,7 +1005,17 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
           )}
 
           {/* Product Context Bar (Sub-header) */}
-          <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0">
+          <div
+            className={productSlug ? "px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0 cursor-pointer hover:bg-gray-50" : "px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0"}
+            onClick={() => {
+              const slug = productSlug || productData.slug;
+              if (!slug) {
+                console.warn("[ChatWindow] Product slug not available, skipping navigation");
+                return;
+              }
+              router.push(`/product/${slug}`);
+            }}
+          >
                 <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 shrink-0 overflow-hidden flex items-center justify-center">
                         {productData?.image ? (
                             <img src={getAbsoluteUrl(productData.image)} alt="" className="w-full h-full object-cover" />
@@ -1040,7 +1030,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                     </span>
                 </div>
                 <div className="ml-auto text-sm font-bold text-primary">
-                    ${Number(productData.price).toLocaleString()}
+                    ${Number(productPrice || 0).toLocaleString()}
                 </div>
           </div>
 
@@ -1250,8 +1240,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                         {/* Right: Actions */}
                         <div className="flex items-center gap-2">
 
-                             {/* Payment Button (Moved from Header) */}
-                             {user?.role === 'client' && (
+                             {/* Payment Button (Cliente con datos de transferencia completos) */}
+                             {user?.role === 'client' && canPay && localTransferData?.transfer_accepted && (localTransferData.transfer_clabe || localTransferData.transfer_bank) && (
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); handlePaymentClick(); }}
                                     className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
