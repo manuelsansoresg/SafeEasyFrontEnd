@@ -1210,8 +1210,14 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 onKeyDown={handleKeyPress}
-                                disabled={!activeConversation}
-                                placeholder={!activeConversation ? "Selecciona una conversación..." : "Escribe un mensaje..."}
+                                disabled={!activeConversation || status !== 'connected'}
+                                placeholder={
+                                  !activeConversation
+                                    ? "Selecciona una conversación..."
+                                    : status !== 'connected'
+                                      ? "Conectando… espera para enviar"
+                                      : "Escribe un mensaje..."
+                                }
                                 className="w-full bg-transparent border-none focus:ring-0 outline-none resize-none min-h-[60px] max-h-40 text-gray-900 placeholder-gray-500 leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed py-1"
                                 rows={3}
                             />

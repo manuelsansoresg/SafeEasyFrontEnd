@@ -97,6 +97,21 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
             console.log('[WebSocket] Raw message received:', event.data);
             const data = JSON.parse(event.data);
 
+            // Manejo explícito de cierre lógico enviado como mensaje
+            if (data.type === 'close_reason') {
+              const code = Number(data.code);
+              let msg = data.reason || 'Chat no disponible.';
+              if (code === 4000) msg = 'Esta sala de chat no es válida.';
+              else if (code === 4003) msg = 'No tienes permiso para ver este chat.';
+              else if (code === 4004) msg = 'La conversación de chat ya no existe.';
+              else if (code === 1011) msg = 'Hubo un problema en el servidor de chat. Intenta de nuevo más tarde.';
+
+              setStatus('error');
+              setWsError(msg);
+              try { ws.close(); } catch {}
+              return;
+            }
+
             // Si el backend envía eventos de otro tipo (por ejemplo conversation_updated),
             // no los tratamos como mensajes de chat aquí para evitar errores.
             if (data.type && data.type !== 'message') {
