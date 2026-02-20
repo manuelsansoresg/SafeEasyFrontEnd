@@ -932,12 +932,12 @@ export default function MapPickerClient({
   const center = location || { lat: 19.4326, lng: -99.1332 };
 
   return (
-    <div className="relative w-full rounded-lg overflow-hidden border border-gray-300" style={{ height }}>
+    <div className="relative w-full md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto rounded-lg overflow-hidden border border-gray-300 z-0" style={{ height }}>
       <MapContainer
         center={center}
         zoom={zoom}
         scrollWheelZoom={!readOnly}
-        style={{ height: "100%", width: "100%" }}
+        style={{ height: "100%", width: "100%", zIndex: 0 }}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

@@ -514,9 +514,13 @@ export default function SupplierPage() {
       {supplier.carousel_images && supplier.carousel_images.length > 0 && (
         <section id="inicio" className="scroll-mt-32">
           <div className="relative w-full bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950">
-            <div className="w-full mx-auto px-0 sm:px-4 lg:px-8 py-6 md:py-10">
-              <div className="aspect-[21/9] w-full rounded-none sm:rounded-2xl md:rounded-3xl overflow-hidden relative shadow-2xl shadow-black/40 bg-gray-900 group">
-                <Carousel images={supplier.carousel_images} />
+            <div className="w-full max-w-none lg:max-w-7xl xl:max-w-[1400px] mx-auto px-0 sm:px-4 lg:px-8 py-6 md:py-10">
+              <div className="w-full rounded-none sm:rounded-2xl md:rounded-3xl overflow-hidden relative shadow-2xl shadow-black/40 bg-gray-900 group">
+                <div className="relative w-full pb-[56.25%] md:pb-[50%] lg:pb-[45%] xl:pb-[40%]">
+                  <div className="absolute inset-0">
+                    <Carousel images={supplier.carousel_images} />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -740,7 +744,7 @@ export default function SupplierPage() {
         </section>
 
         {mapLocation && (
-          <section id="ubicacion" className="scroll-mt-32">
+          <section id="ubicacion" className="scroll-mt-32 relative z-10">
             <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                 <div>
@@ -892,7 +896,7 @@ export default function SupplierPage() {
           </div>
         </section>
 
-        <section id="nosotros" className="scroll-mt-32">
+        <section id="nosotros" className="scroll-mt-32 relative z-[1]">
           <div className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100">
             <h2 className="text-2xl font-bold mb-6 text-gray-900">Sobre Nosotros</h2>
 
@@ -922,7 +926,13 @@ export default function SupplierPage() {
               return (
                 <div className="w-full mb-6 rounded-xl overflow-hidden shadow-md">
                   {isVideo ? (
-                    <InlineVideo src={mediaSrc} poster={posterSrc || undefined} />
+                    <div className="relative w-full md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto">
+                      <div className="relative w-full pb-[56.25%]">
+                        <div className="absolute inset-0">
+                          <InlineVideo src={mediaSrc} poster={posterSrc || undefined} />
+                        </div>
+                      </div>
+                    </div>
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
