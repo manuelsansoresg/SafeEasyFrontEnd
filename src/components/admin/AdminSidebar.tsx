@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { 
   User, 
   Users,
@@ -29,6 +29,7 @@ interface AdminSidebarProps {
 
 export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = useAuthStore();
   const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
   
@@ -182,7 +183,10 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       {/* Footer / User Info */}
       <div className="p-3 border-t border-gray-100">
          <button
-            onClick={() => logout()}
+            onClick={() => {
+              logout();
+              router.push("/login");
+            }}
             className={cn(
               "w-full flex items-center gap-3 px-3 py-3 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-500 transition-colors group"
             )}

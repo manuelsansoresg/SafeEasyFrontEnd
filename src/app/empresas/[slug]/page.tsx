@@ -4,13 +4,106 @@ import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Supplier, CarouselImage } from "@/lib/products";
-import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink } from "lucide-react";
+import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import MapPicker from "@/components/ui/MapPicker";
+
+function InlineVideo({ src, poster }: { src: string; poster?: string }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [showPlayer, setShowPlayer] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [error, setError] = useState(false);
+
+  const getMime = () => {
+    const lower = src.toLowerCase();
+    if (lower.endsWith(".mp4")) return "video/mp4";
+    if (lower.endsWith(".webm")) return "video/webm";
+    if (lower.endsWith(".ogg")) return "video/ogg";
+    if (lower.endsWith(".mov")) return "video/quicktime";
+    return undefined;
+  };
+  const altMp4 = src.toLowerCase().endsWith(".mov")
+    ? src.slice(0, -4) + ".mp4"
+    : null;
+
+  const startPlayback = () => {
+    setShowPlayer(true);
+    // Attempt playback on next tick once the video is mounted
+    setTimeout(async () => {
+      if (!videoRef.current) return;
+      try {
+        videoRef.current.muted = true;
+        videoRef.current.load();
+        const p = videoRef.current.play();
+        if (p && typeof p.then === "function") {
+          await p;
+          setPlaying(true);
+        }
+      } catch {
+        // Keep player visible with controls so user can try manual play.
+        setPlaying(false);
+      }
+    }, 0);
+  };
+
+  return (
+    <div className="relative w-full">
+      {showPlayer && !error && (
+        <video
+          ref={videoRef}
+          className="w-full h-full object-cover block"
+          preload="metadata"
+          playsInline
+          controls
+          onError={() => setError(true)}
+          poster={poster}
+        >
+          <source src={src} type={getMime()} />
+          {altMp4 ? <source src={altMp4} type="video/mp4" /> : null}
+        </video>
+      )}
+
+      {!showPlayer && !error && (
+        <button
+          type="button"
+          onClick={startPlayback}
+          className="relative w-full aspect-video overflow-hidden"
+          aria-label="Reproducir video"
+        >
+          {poster ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={poster} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gray-900" />
+          )}
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+            <span className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/90 text-gray-900 shadow-lg">
+              <Play size={28} />
+            </span>
+          </div>
+        </button>
+      )}
+
+      {error && (
+        <div className="w-full h-64 md:h-80 bg-gray-900 text-white flex flex-col items-center justify-center gap-2">
+          <div className="text-sm opacity-80">No se pudo reproducir el video aquí.</div>
+          <a
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-white text-gray-900 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors"
+          >
+            Ver archivo
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface SupplierProductCategory {
   id: number;
@@ -657,7 +750,7 @@ export default function SupplierPage() {
                   </p>
                 </div>
               </div>
-              <MapPicker location={mapLocation} readOnly height="400px" />
+              <MapPicker location={mapLocation} readOnly height="400px" zoom={17} />
               <div className="mt-4 text-sm text-gray-500 flex items-center gap-2">
                 <MapPin size={16} />
                 <span>
@@ -803,21 +896,44 @@ export default function SupplierPage() {
           <div className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100">
             <h2 className="text-2xl font-bold mb-6 text-gray-900">Sobre Nosotros</h2>
 
-            {(
-              (supplier as any).about_media ||
-              (supplier as any).about_image
-            ) && (
-              <div className="w-full mb-6 rounded-xl overflow-hidden shadow-md">
-                <img
-                  src={
-                    (supplier as any).about_media ||
-                    (supplier as any).about_image
-                  }
-                  alt="Acerca de nosotros"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
+            {(() => {
+              const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+              const buildUrl = (url: string | null | undefined) => {
+                if (!url) return null;
+                if (url.startsWith("http://") || url.startsWith("https://")) return url;
+                if (apiBase && url.startsWith("/")) {
+                  const base = apiBase.endsWith("/") ? apiBase.slice(0, -1) : apiBase;
+                  return `${base}${url}`;
+                }
+                return url;
+              };
+              const raw =
+                (supplier as any).about_media_url ||
+                (supplier as any).about_media ||
+                (supplier as any).about_image_url ||
+                (supplier as any).about_image;
+              const thumbRaw =
+                (supplier as any).about_media_thumbnail || null;
+              const mediaSrc = buildUrl(raw);
+              const posterSrc = buildUrl(thumbRaw);
+              if (!mediaSrc) return null;
+              const lower = mediaSrc.toLowerCase();
+              const isVideo = /\.(mp4|webm|ogg|mov)(\?|#|$)/.test(lower);
+              return (
+                <div className="w-full mb-6 rounded-xl overflow-hidden shadow-md">
+                  {isVideo ? (
+                    <InlineVideo src={mediaSrc} poster={posterSrc || undefined} />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={mediaSrc}
+                      alt="Acerca de nosotros"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="prose prose-lg max-w-none w-full text-gray-600">
               {supplier.about ? (

@@ -91,6 +91,7 @@ export function Header() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const { fetchFavorites } = useFavoritesStore();
   const pathname = usePathname();
+  const router = useRouter();
   const isSupplierPage = pathname?.startsWith('/empresas/');
 
   useEffect(() => {
@@ -256,7 +257,10 @@ export function Header() {
                     </Link>
                     <div className="h-px bg-border my-1" />
                     <button
-                      onClick={() => logout()}
+                      onClick={() => {
+                        logout();
+                        router.push("/login");
+                      }}
                       className="w-full text-left px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3 text-red-500"
                     >
                       <LogOut size={16} /> Cerrar Sesión
