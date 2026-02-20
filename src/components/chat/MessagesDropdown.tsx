@@ -39,13 +39,31 @@ export function MessagesDropdown() {
     if (showLoading) setLoading(true);
     try {
       const data = await chatService.getConversations();
-      // Sort by recent
+      // Sort by reciente
       data.sort((a, b) => {
         const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
         const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
         return dateB - dateA;
       });
-      const limited = data.slice(0, 5);
+      
+      // Evitar duplicados del mismo cliente/proveedor en el dropdown
+      const seenKeys = new Set<string>();
+      const deduped: Conversation[] = [];
+      for (const conv of data) {
+        let key: string | null = null;
+        if (user?.role === "supplier") {
+          const buyerId = conv.user_id || (conv as any).buyer_id;
+          if (buyerId) key = `buyer-${buyerId}`;
+        } else if (user?.role === "client") {
+          if (conv.supplier_id) key = `supplier-${conv.supplier_id}`;
+        }
+        if (!key) key = `conv-${conv.id}`;
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        deduped.push(conv);
+      }
+
+      const limited = deduped.slice(0, 5);
       setConversations(limited);
 
       const count = limited.reduce(
