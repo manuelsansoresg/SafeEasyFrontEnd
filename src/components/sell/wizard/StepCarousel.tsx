@@ -219,7 +219,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
     <div className="max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold text-center mb-6">Imágenes del Carrusel</h2>
       <p className="text-gray-600 text-center mb-8">
-        Sube hasta 5 imágenes para destacar tu empresa. (Mínimo 1 recomendada)
+        Sube hasta 3 imágenes para destacar tu empresa. (Mínimo 1 recomendada)
       </p>
 
       {/* Upload Form */}
@@ -283,16 +283,16 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
             )}
             <button 
               type="submit" 
-              disabled={loading || (!editingId && items.length >= 5)}
+              disabled={loading || (!editingId && items.length >= 3)}
               className="bg-primary text-white font-bold py-2 px-6 rounded-xl hover:bg-primary/90 disabled:opacity-50 shadow-lg shadow-primary/20 transition-all"
             >
               {loading ? 'Guardando...' : (editingId ? 'Actualizar Imagen' : 'Agregar Imagen')}
             </button>
           </div>
-          {!editingId && items.length >= 5 && (
+          {!editingId && items.length >= 3 && (
             <div className="md:col-span-2 text-center mt-2">
               <span className="text-sm text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
-                Máximo 5 imágenes alcanzado.
+                Máximo 3 imágenes alcanzado.
               </span>
             </div>
           )}

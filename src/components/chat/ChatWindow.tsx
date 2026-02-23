@@ -267,26 +267,22 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
 
 
   const handlePaymentClick = async () => {
-    // 1. Validate dependencies
     if (!user?.role) {
        console.error("User role not found");
        return;
     }
-    
-    // Check for supplier slug
+
     let targetSlug = supplierSlug;
 
-    if (!targetSlug) {
-        if (supplierId) {
-             try {
-                const suppRes = await fetchWithAuth(`/api/users/${supplierId}`);
-                if (suppRes.ok) {
-                    const suppData = await suppRes.json();
-                    targetSlug = suppData.slug;
-                }
-             } catch (e) {
-                 console.error("Failed to fetch supplier slug", e);
-             }
+    if (!targetSlug && supplierId) {
+        try {
+            const suppRes = await fetchWithAuth(`/api/users/${supplierId}`);
+            if (suppRes.ok) {
+                const suppData = await suppRes.json();
+                targetSlug = suppData.slug;
+            }
+        } catch (e) {
+            console.error("Failed to fetch supplier slug", e);
         }
     }
 
@@ -295,22 +291,68 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         return;
     }
 
+    const targetSupplierId = supplierId;
+    const targetProductId = productId;
+
+    if (!targetSupplierId || !targetProductId) {
+        console.error("Missing supplier or product info for order creation");
+        setError("Error: Información del proveedor o producto incompleta.");
+        return;
+    }
+
     setIsCreatingOrder(true);
     setError(null);
 
     try {
-        // Execute endpoint as requested
-        const res = await fetchWithAuth(`/api/suppliers/${targetSlug}`);
-        if (res.ok) {
-            // Redirect to payment info page
-            const amount = productPrice || 0;
-            router.push(`/payment-info?slug=${targetSlug}&amount=${amount}`);
-        } else {
-            setError("No se pudieron obtener los datos de pago del proveedor.");
+        let targetConversationId = activeConversation?.id;
+
+        if (!targetConversationId) {
+            try {
+                const newConv = await chatService.createConversation({
+                    supplier_id: Number(targetSupplierId),
+                    product_id: String(targetProductId)
+                });
+                targetConversationId = newConv.id;
+                setActiveConversation(newConv);
+            } catch (err) {
+                console.error("Failed to create conversation for order:", err);
+                setError("Error: No se pudo iniciar la conversación para el pedido.");
+                setIsCreatingOrder(false);
+                return;
+            }
         }
-    } catch (err) {
-        console.error("Error fetching supplier details", err);
-        setError("Error al procesar la solicitud de pago.");
+
+        const payload = {
+            supplier_id: targetSupplierId,
+            product_id: targetProductId,
+            conversation_id: targetConversationId,
+            status: "pending"
+        };
+
+        console.log("Creating order from ChatWindow with payload:", payload);
+
+        const res = await fetchWithAuth('/api/orders/', {
+             method: 'POST',
+             body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        console.log("Order creation response (ChatWindow):", data);
+
+        if (!res.ok) {
+            console.error("Failed to create order from ChatWindow:", data);
+            setError(data.message || data.error || "No se pudo iniciar el proceso de pago. Intenta de nuevo.");
+            setIsCreatingOrder(false);
+            return;
+        }
+
+        setCreatedOrderId(data.id || data.order_id || null);
+
+        const amount = productPrice || 0;
+        router.push(`/payment-info?slug=${targetSlug}&amount=${amount}&order_id=${data.id || data.order_id || ''}`);
+    } catch (error) {
+        console.error("Error creating order from ChatWindow", error);
+        setError("Error al procesar la solicitud de pago. Verifica tu conexión.");
     } finally {
         setIsCreatingOrder(false);
     }
