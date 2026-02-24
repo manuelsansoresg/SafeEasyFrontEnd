@@ -52,20 +52,24 @@ export function HomeRecommendedRow({
         </Link>
       </div>
 
-      <div className="grid grid-cols-4 lg:grid-cols-5 gap-4">
-        {products.map((product) => (
-          <ProductCard
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {products.slice(0, 5).map((product, index) => (
+          <div
             key={product.id}
-            id={String(product.id)}
-            title={product.title}
-            price={product.price}
-            image={product.thumbnail_url || ""}
-            minOrder="1 pieza"
-            slug={product.slug}
-            rating={Number(product.average_rating || 0)}
-            supplier={product.supplier}
-            onClick={handleCardClick}
-          />
+            className={index >= 4 ? "hidden lg:block" : ""}
+          >
+            <ProductCard
+              id={String(product.id)}
+              title={product.title}
+              price={product.price}
+              image={product.thumbnail_url || ""}
+              minOrder="1 pieza"
+              slug={product.slug}
+              rating={Number(product.average_rating || 0)}
+              supplier={product.supplier}
+              onClick={handleCardClick}
+            />
+          </div>
         ))}
       </div>
     </section>
