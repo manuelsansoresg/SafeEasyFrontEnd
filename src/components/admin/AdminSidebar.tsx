@@ -18,6 +18,7 @@ import {
   ShoppingCart,
   BarChart3
 } from "lucide-react";
+import { Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -82,6 +83,12 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       path: "/admin/products", 
       icon: Package,
       roles: ['admin', 'superuser', 'supplier']
+    },
+    { 
+      title: "Anuncios", 
+      path: "/admin/ads", 
+      icon: ImageIcon,
+      roles: ['admin', 'superuser']
     },
     { 
       title: "Órdenes", 

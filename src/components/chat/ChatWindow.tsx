@@ -323,9 +323,9 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         }
 
         const payload = {
-            supplier_id: targetSupplierId,
-            product_id: targetProductId,
-            conversation_id: targetConversationId,
+            supplier_id: Number(targetSupplierId),
+            product_id: String(targetProductId),
+            conversation_id: String(targetConversationId),
             status: "pending"
         };
 

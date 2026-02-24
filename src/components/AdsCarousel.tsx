@@ -1,0 +1,153 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+interface PublicAd {
+  id: number;
+  link_url?: string | null;
+  city?: string | null;
+  state?: string | null;
+  is_active?: boolean;
+  image_desktop?: string | null;
+  image_mobile?: string | null;
+}
+
+interface AdsCarouselProps {
+  enableNavigation?: boolean;
+}
+
+const ROTATE_INTERVAL = 6000;
+
+export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
+  const [ads, setAds] = useState<PublicAd[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    const fetchAds = async () => {
+      try {
+        const res = await fetch("/api/ads/public", { cache: "no-store" });
+        if (!res.ok) {
+          setAds([]);
+          return;
+        }
+        const data = await res.json();
+        const activeAds = Array.isArray(data)
+          ? data.filter((a: PublicAd) => a.is_active !== false)
+          : [];
+        setAds(activeAds);
+      } catch (e) {
+        setAds([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAds();
+  }, []);
+
+  useEffect(() => {
+    if (!ads.length) return;
+    const id = window.setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % ads.length);
+    }, ROTATE_INTERVAL);
+    return () => window.clearInterval(id);
+  }, [ads]);
+
+  const computeImageUrl = (path?: string | null) => {
+    if (!path) return null;
+    if (path.startsWith("http://") || path.startsWith("https://")) return path;
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://3.15.176.110:8080";
+    return `${base.replace(/\/$/, "")}${path.startsWith("/") ? "" : "/"}${path}`;
+  };
+
+  const currentAd = ads[currentIndex];
+
+  const handleClick = () => {
+    if (!enableNavigation) return;
+    router.push("/recomendados?kind=most_searched");
+  };
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!ads.length) return;
+    setCurrentIndex((prev) => (prev - 1 + ads.length) % ads.length);
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!ads.length) return;
+    setCurrentIndex((prev) => (prev + 1) % ads.length);
+  };
+
+  if (loading && !ads.length) {
+    return (
+      <div className="w-full rounded-2xl bg-gray-100 animate-pulse mb-6 aspect-[16/7] md:aspect-[16/6]" />
+    );
+  }
+
+  if (!currentAd) {
+    return (
+      <div className="w-full rounded-2xl bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 mb-6 aspect-[16/7] md:aspect-[16/6]" />
+    );
+  }
+
+  const desktopSrc = computeImageUrl(currentAd.image_desktop || currentAd.image_mobile);
+  const mobileSrc = computeImageUrl(currentAd.image_mobile || currentAd.image_desktop);
+  const fallbackSrc = mobileSrc || desktopSrc;
+
+  return (
+    <div
+      className="relative w-full mb-6 rounded-2xl overflow-hidden bg-gray-100 cursor-pointer aspect-[16/7] md:aspect-[16/6]"
+      onClick={handleClick}
+    >
+      <picture>
+        {desktopSrc && (
+          <source
+            media="(min-width: 768px)"
+            srcSet={desktopSrc}
+          />
+        )}
+        {fallbackSrc && (
+          <img
+            src={fallbackSrc}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+        )}
+      </picture>
+
+      {ads.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={handlePrev}
+            className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-1.5 shadow-md"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-700" />
+          </button>
+          <button
+            type="button"
+            onClick={handleNext}
+            className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-1.5 shadow-md"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-700" />
+          </button>
+
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {ads.map((ad, idx) => (
+              <span
+                key={ad.id}
+                className={`w-2 h-2 rounded-full ${
+                  idx === currentIndex ? "bg-white" : "bg-white/40"
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

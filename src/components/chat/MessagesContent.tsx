@@ -292,9 +292,9 @@ export function MessagesContent() {
     setError(null);
     try {
         const payload = {
-            supplier_id: targetSupplierId,
-            product_id: targetProductId, 
-            conversation_id: targetConversationId,
+            supplier_id: Number(targetSupplierId),
+            product_id: targetProductId ? String(targetProductId) : undefined, 
+            conversation_id: String(targetConversationId),
             status: "pending"
         };
         
