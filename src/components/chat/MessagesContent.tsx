@@ -415,8 +415,13 @@ export function MessagesContent() {
                 </div>
                 
                 <div className="flex-1 min-w-0 text-left">
-                  <h3 className={`font-medium text-[15px] truncate mb-0.5 ${activeConversation?.id === conv.id ? 'text-gray-900' : 'text-gray-900'}`}>
-                      {getOtherPartyName(conv)}
+                  <h3 className={`font-medium text-[15px] truncate mb-0.5 flex flex-col ${activeConversation?.id === conv.id ? 'text-gray-900' : 'text-gray-900'}`}>
+                      <span>{getOtherPartyName(conv)}</span>
+                      {conv.product_title && (
+                          <span className="text-[11px] text-gray-500 font-normal truncate">
+                              {conv.product_title}
+                          </span>
+                      )}
                   </h3>
                   <div className="flex items-center gap-1 text-[13px] text-gray-500 truncate">
                      <span className={`truncate ${!(conv as any).is_read ? 'font-semibold text-gray-900' : ''}`}>

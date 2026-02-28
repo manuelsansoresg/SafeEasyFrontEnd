@@ -46,24 +46,7 @@ export function MessagesDropdown() {
         return dateB - dateA;
       });
       
-      // Evitar duplicados del mismo cliente/proveedor en el dropdown
-      const seenKeys = new Set<string>();
-      const deduped: Conversation[] = [];
-      for (const conv of data) {
-        let key: string | null = null;
-        if (user?.role === "supplier") {
-          const buyerId = conv.user_id || (conv as any).buyer_id;
-          if (buyerId) key = `buyer-${buyerId}`;
-        } else if (user?.role === "client") {
-          if (conv.supplier_id) key = `supplier-${conv.supplier_id}`;
-        }
-        if (!key) key = `conv-${conv.id}`;
-        if (seenKeys.has(key)) continue;
-        seenKeys.add(key);
-        deduped.push(conv);
-      }
-
-      const limited = deduped.slice(0, 5);
+      const limited = data.slice(0, 5);
       setConversations(limited);
 
       const count = limited.reduce(
@@ -261,8 +244,13 @@ export function MessagesDropdown() {
                             <div className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></div>
                         </div>
                         <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-gray-900 text-[15px] truncate">
-                                {getOtherPartyName(conv)}
+                            <h4 className="font-semibold text-gray-900 text-[15px] truncate flex items-center gap-1">
+                                <span className="truncate">{getOtherPartyName(conv)}</span>
+                                {conv.product_title && (
+                                    <span className="text-[11px] font-normal text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full truncate max-w-[120px]">
+                                        {conv.product_title}
+                                    </span>
+                                )}
                             </h4>
                             <div className="flex items-center gap-1 text-[13px] text-gray-500">
                                 <p className={cn(
