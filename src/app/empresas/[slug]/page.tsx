@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Supplier, CarouselImage } from "@/lib/products";
+import { Supplier, CarouselImage, Certificate } from "@/lib/products";
 import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
@@ -163,20 +163,7 @@ interface SupplierRatingsResponse {
   ratings: SupplierRating[];
 }
 
-interface Certificate {
-  id: number;
-  name?: string;
-  description: string;
-  place: string;
-  link?: string;
-  image_url?: string;
-  url?: string;
-  path?: string;
-  image?: string;
-  thumbnail?: string;
-  certificate_date?: string;
-  expiration_date?: string;
-}
+
 
 export default function SupplierPage() {
   const { slug } = useParams();

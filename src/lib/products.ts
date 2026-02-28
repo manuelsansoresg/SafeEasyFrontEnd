@@ -11,7 +11,7 @@ export interface Product {
   category_id: number;
   subcategory_id: number;
   slug: string;
-  thumbnail_url?: string;
+  thumbnail_url?: string | null;
   average_rating?: number;
   supplier?: Supplier;
 }
@@ -59,6 +59,18 @@ export interface CarouselImage {
 }
 
 export interface Certificate {
+  id: number;
+  name?: string;
+  description: string;
+  place: string;
+  link?: string;
+  image_url?: string;
+  url?: string;
+  path?: string;
+  image?: string;
+  thumbnail?: string;
+  certificate_date?: string;
+  expiration_date?: string;
   [key: string]: unknown;
 }
 
