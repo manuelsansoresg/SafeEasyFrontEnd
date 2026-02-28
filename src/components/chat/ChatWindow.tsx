@@ -108,7 +108,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     return stored === "0" ? false : true;
   });
 
-  const { status, messages: wsMessages, sendMessage: wsSendMessage, lastMessage, error: wsError } = useChatWebSocket(
+  const { status, messages: wsMessages, sendMessage: wsSendMessage, lastMessage, error: wsError, url: wsUrl } = useChatWebSocket(
     activeConversation?.id,
     isOpen && chatEnabled
   );
@@ -966,6 +966,19 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                 }
             }}
           >
+            {/* DEBUG PANEL */}
+            <div className="text-[10px] bg-black/80 text-white p-2 rounded mb-1 max-w-[300px] overflow-auto max-h-[200px] absolute top-full left-0 mt-1 z-50 pointer-events-auto cursor-default" onClick={e => e.stopPropagation()}>
+                <div className="font-bold mb-1">DEBUG INFO</div>
+                <div>Status: {status}</div>
+                <div className="break-all">URL: {wsUrl}</div>
+                <div>ID: {activeConversation?.id} ({typeof activeConversation?.id})</div>
+                <div className="text-red-300">{wsError}</div>
+                <details>
+                    <summary>Full Object</summary>
+                    <pre>{JSON.stringify(activeConversation, null, 2)}</pre>
+                </details>
+            </div>
+
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative shrink-0">
                   <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold shrink-0 text-lg overflow-hidden">

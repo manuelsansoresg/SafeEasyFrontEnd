@@ -10,6 +10,7 @@ interface UseChatWebSocketReturn {
     sendMessage: (content: string, conversationId: number | string) => void;
     lastMessage: Message | null;
     error: string | null;
+    url: string | null;
   }
 
 export const useChatWebSocket = (activeConversationId?: string | number, shouldConnect: boolean = true): UseChatWebSocketReturn => {
@@ -18,6 +19,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
   const [messages, setMessages] = useState<Message[]>([]);
   const [lastMessage, setLastMessage] = useState<Message | null>(null);
   const [wsError, setWsError] = useState<string | null>(null);
+  const [url, setUrl] = useState<string | null>(null);
   const [retryTrigger, setRetryTrigger] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -71,6 +73,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
     // Encode token just in case
     const encodedToken = encodeURIComponent(token || '');
     wsUrl = `${baseWithWs}/chat/${activeConversationId}?token=${encodedToken}`;
+    setUrl(wsUrl.replace(/token=([^&]+)/, 'token=***'));
 
     console.log('Connecting to WebSocket:', wsUrl.replace(/token=([^&]+)/, 'token=***'));
     
@@ -254,17 +257,12 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
     }
     return () => {
       if (wsRef.current) {
-        wsRef.current.onclose = null;
         wsRef.current.close();
       }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (connectTimeoutRef.current) {
-        clearTimeout(connectTimeoutRef.current);
-      }
+      if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     };
-  }, [connect, shouldConnect, retryTrigger]);
+  }, [token, shouldConnect, activeConversationId, retryTrigger]);
 
   const sendMessage = useCallback((content: string, conversationId: number | string) => {
      // ... (existing sendMessage) ...
@@ -291,5 +289,5 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
     }
   }, [user?.id]);
 
-  return { status, messages, sendMessage, lastMessage, error: wsError };
+  return { status, messages, sendMessage, lastMessage, error: wsError, url };
 };
