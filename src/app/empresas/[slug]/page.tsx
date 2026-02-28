@@ -410,10 +410,9 @@ export default function SupplierPage() {
   const getImageUrl = (path: string | null) => {
     if (!path) return "/placeholder.png";
     if (path.startsWith('http')) return path;
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
-    // Ensure we don't double slash if path starts with /
+    const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api').replace(/\/+$/, '');
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
-    return `${baseUrl}${cleanPath}`;
+    return `${baseUrl}${cleanPath}`.replace(/([^:])\/{2,}/g, '$1/');
   };
 
   const filteredProducts = products.filter((product) => {
@@ -893,8 +892,8 @@ export default function SupplierPage() {
                 if (!url) return null;
                 if (url.startsWith("http://") || url.startsWith("https://")) return url;
                 if (apiBase && url.startsWith("/")) {
-                  const base = apiBase.endsWith("/") ? apiBase.slice(0, -1) : apiBase;
-                  return `${base}${url}`;
+                  const base = apiBase.replace(/\/+$/, '');
+                  return `${base}${url}`.replace(/([^:])\/{2,}/g, '$1/');
                 }
                 return url;
               };
@@ -1160,14 +1159,20 @@ function Carousel({ images }: { images: CarouselImage[] }) {
     if (!path) return '/placeholder.png';
     if (path.startsWith('http') || path.startsWith('data:')) return path;
     
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
-    let cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api').replace(/\/+$/, '');
+    let cleanPath = path.startsWith('/') ? path : `/${path}`;
     
-    if (!cleanPath.startsWith('static/') && !cleanPath.startsWith('http')) {
-        cleanPath = `static/${cleanPath}`;
+    // Ensure path doesn't start with /static/ if we're adding it manually, 
+    // or if the logic implies it needs to be there. 
+    // The original logic removed leading slash and added static/ if missing.
+    // Let's preserve that intent but cleaner.
+    
+    let pathSegment = path.startsWith('/') ? path.substring(1) : path;
+    if (!pathSegment.startsWith('static/') && !pathSegment.startsWith('http')) {
+        pathSegment = `static/${pathSegment}`;
     }
     
-    return `${baseUrl}/${cleanPath}`;
+    return `${baseUrl}/${pathSegment}`.replace(/([^:])\/{2,}/g, '$1/');
   };
 
   const nextSlide = () => setCurrent((c) => (c + 1) % images.length);

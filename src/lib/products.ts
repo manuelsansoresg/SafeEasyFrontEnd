@@ -84,7 +84,13 @@ export async function getProducts(
 ): Promise<Product[]> {
   const skip = (page - 1) * limit;
   // Use the internal API URL or fallback
-  const envBase = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api').trim();
+  let envBase = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api').trim();
+  
+  // Ensure absolute URL on server side
+  if (typeof window === 'undefined' && envBase.startsWith('/')) {
+      envBase = process.env.API_INTERNAL_URL || 'https://drooopy.com/api';
+  }
+  
   const baseUrl = envBase.replace(/\/$/, '');
   
   let url = `${baseUrl}/products/?skip=${skip}&limit=${limit}`;

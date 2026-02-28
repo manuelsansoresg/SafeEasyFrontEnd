@@ -1,39 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BASE_URL = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api/';
+const getBaseUrl = () => {
+  const internal = process.env.API_INTERNAL_URL;
+  if (internal) return internal;
+  
+  const publicUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  // Prevent loop if public URL points to localhost/proxy
+  if (publicUrl && !publicUrl.includes('localhost') && !publicUrl.startsWith('/')) {
+      return publicUrl;
+  }
+  
+  return 'https://drooopy.com/api/';
+};
 
-async function handler(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
-  // Await the params object
-  const { path } = await params;
+const BASE_URL = getBaseUrl();
+
+async function handler(request: NextRequest) {
+  // Use pathname directly to avoid params ambiguity
+  const pathname = request.nextUrl.pathname;
+  
+  // Remove /api prefix
+  let relativePath = pathname.replace(/^\/api/, '');
+  
+  // Remove /backend prefix if present (common misconfiguration or legacy rewrite artifact)
+  if (relativePath.startsWith('/backend')) {
+      relativePath = relativePath.replace(/^\/backend/, '');
+  }
+  
+  // Ensure relativePath starts with / if it's not empty
+  if (relativePath && !relativePath.startsWith('/')) {
+      relativePath = '/' + relativePath;
+  }
+  
+  // Normalize base URL to remove trailing slashes
+  const baseUrl = BASE_URL.replace(/\/+$/, '');
   
   // Construct target URL
-  // We prefer using the incoming pathname to preserve trailing slashes that Next.js params might strip
-  const pathname = request.nextUrl.pathname;
-  // pathname starts with /api/... 
-  // We want to append everything after /api/ to BASE_URL
-  
-  let relativePath = pathname.replace(/^\/api\//, '');
-  // If the replace didn't work (e.g. path is just /api), fall back to params
-  if (relativePath === pathname) {
-      relativePath = path.join('/');
-  }
+  let targetUrl = `${baseUrl}${relativePath}`;
 
-  // Use URL object to ensure proper encoding of path segments (e.g. spaces)
-  let targetUrlObj: URL;
-  try {
-     targetUrlObj = new URL(relativePath, BASE_URL);
-  } catch (e) {
-     // Fallback if BASE_URL + relativePath is somehow invalid or relativePath is absolute
-     targetUrlObj = new URL(relativePath, 'http://placeholder'); // Should not happen if logic is correct
-     console.error("[Generic Proxy] Error constructing URL object:", e);
-  }
-  
-  let targetUrl = targetUrlObj.toString();
+  // Fix double slashes in path (but keep protocol slashes)
+  // This handles cases where relativePath might start with multiple slashes
+  targetUrl = targetUrl.replace(/([^:])\/{2,}/g, '$1/');
   
   // Backend requires trailing slash for some endpoints (FastAPI default behavior sometimes)
   // If the original request didn't have a slash, but it's a known collection, force it.
-  const pathString = path.join('/');
-  if ((pathString.endsWith('users') || pathString.endsWith('products') || pathString.endsWith('suppliers')) && !targetUrl.endsWith('/')) {
+  if ((targetUrl.endsWith('users') || targetUrl.endsWith('products') || targetUrl.endsWith('suppliers')) && !targetUrl.endsWith('/')) {
       targetUrl += '/';
   }
   
@@ -41,8 +52,6 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
   targetUrl += request.nextUrl.search;
 
   console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
-  const authHeader = request.headers.get('Authorization') || '';
-  console.log(`[Generic Proxy] Auth Header Present: ${!!authHeader} (Length: ${authHeader.length})`);
 
   try {
     // Use text for JSON to ensure correct formatting and debugging
@@ -70,7 +79,7 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
         }
     });
 
-    // Hint backend that original request is secure behind proxy (fixes 'solicitó el recurso de forma no segura')
+    // Hint backend that original request is secure behind proxy
     forwardHeaders.set('X-Forwarded-Proto', 'https');
     if (!forwardHeaders.has('X-Requested-With')) {
         forwardHeaders.set('X-Requested-With', 'XMLHttpRequest');
@@ -83,8 +92,6 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
       redirect: 'manual', // Do not follow redirects automatically
       cache: 'no-store',
     };
-
-    console.log(`[Generic Proxy] Fetching ${targetUrl} with Auth: ${!!forwardHeaders.get('Authorization')}`);
 
     let response = await fetch(targetUrl, fetchOptions);
 
@@ -100,6 +107,12 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
              if (!location.startsWith('http')) {
                  const baseUrlObj = new URL(targetUrl);
                  newUrlString = new URL(location, baseUrlObj).toString();
+             }
+
+             // Force HTTPS for redirects to avoid downgrade loops (Cloudflare/Backend misconfig)
+             if (newUrlString.startsWith('http:')) {
+                 console.log(`[Generic Proxy] Upgrading redirect to HTTPS: ${newUrlString}`);
+                 newUrlString = newUrlString.replace('http:', 'https:');
              }
              
              console.log(`[Generic Proxy] Following redirect manually to: ${newUrlString}`);
@@ -119,10 +132,15 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
        respContentType.startsWith('application/zip') ||
        respContentType.startsWith('audio/'));
 
-    // For binary GETs (videos, images, etc.), stream the body and preserve headers (Range support)
+    // For binary GETs (videos, images, etc.), stream the body and preserve headers
     if (isBinaryGet) {
       const headers = new Headers();
-      response.headers.forEach((v, k) => headers.set(k, v));
+      response.headers.forEach((v, k) => {
+        const lowerKey = k.toLowerCase();
+        if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(lowerKey)) {
+            headers.set(k, v);
+        }
+      });
       return new NextResponse(response.body, {
         status: response.status,
         headers
@@ -131,27 +149,32 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
 
     // For non-binary or non-GET, read as text to maintain existing debug behavior
     const data = await response.text();
+    
+    // Only return error JSON if status is truly an error and not just 404/401 that client handles
+    // Actually, client expects standard HTTP responses. 
+    // If we wrap 404 in a JSON structure that client doesn't expect, it might break.
+    // Let's return the body as is, but log it.
+    
     if (!response.ok) {
-      console.error(`[Generic Proxy] Backend error ${response.status} for ${targetUrl}:`, data);
-      return new NextResponse(JSON.stringify({
-        error_source: "proxy_debug",
-        status: response.status,
-        detail: "Backend returned error",
-        backend_response: data,
-        debug_target_url: targetUrl,
-        debug_auth_header_sent: !!forwardHeaders.get('Authorization'),
-        debug_auth_header_len: (forwardHeaders.get('Authorization') || '').length
-      }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      console.error(`[Generic Proxy] Backend error ${response.status} for ${targetUrl}`);
+      // Don't modify body for 404/401 etc as client might parse it
     }
 
     const headers = new Headers();
-    response.headers.forEach((v, k) => headers.set(k, v));
-    if (!headers.get('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
+    response.headers.forEach((v, k) => {
+        const lowerKey = k.toLowerCase();
+        // Remove compression headers since we've already decompressed the body (via .text())
+        if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(lowerKey)) {
+            headers.set(k, v);
+        }
+    });
+    
+    // Ensure Content-Type is set if missing (e.g. for empty 204)
+    // But if it's JSON, ensure it says so.
+    if (!headers.get('Content-Type') && data && (data.startsWith('{') || data.startsWith('['))) {
+       headers.set('Content-Type', 'application/json');
     }
+
     return new NextResponse(data, {
       status: response.status,
       headers
@@ -159,25 +182,10 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
 
   } catch (error: any) {
     console.error(`[Generic Proxy] Error forwarding request to ${targetUrl}:`, error);
-
-    const errorPayload: Record<string, unknown> = {
+    return NextResponse.json({
       error: 'Proxy Error',
       message: error?.message || 'Unknown proxy error',
-    };
-
-    if (error?.name) {
-      errorPayload.name = error.name;
-    }
-
-    if (typeof error?.code !== 'undefined') {
-      errorPayload.code = String(error.code);
-    }
-
-    if (error?.cause) {
-      errorPayload.cause = String(error.cause);
-    }
-
-    return NextResponse.json(errorPayload, { status: 502 });
+    }, { status: 502 });
   }
 }
 

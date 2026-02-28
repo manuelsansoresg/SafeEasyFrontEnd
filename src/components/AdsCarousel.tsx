@@ -92,7 +92,12 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
     if (!path) return null;
     if (path.startsWith("http://") || path.startsWith("https://")) return path;
     const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-    return `${base.replace(/\/$/, "")}${path.startsWith("/") ? "" : "/"}${path}`;
+    // Normalize base URL to remove trailing slashes
+    const baseUrl = base.replace(/\/+$/, "");
+    // Ensure path starts with slash
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    // Construct and fix double slashes
+    return `${baseUrl}${cleanPath}`.replace(/([^:])\/{2,}/g, '$1/');
   };
 
   const currentAd = ads[currentIndex];

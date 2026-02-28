@@ -44,6 +44,14 @@ export function ProductCard({
 
   const supplierHref = supplierSlug ? `/empresas/${supplierSlug}` : null;
 
+  const getImageUrl = (path: string) => {
+    if (!path) return "";
+    if (path.startsWith("http") || path.startsWith("https")) return path;
+    const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api').replace(/\/+$/, '');
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${baseUrl}${cleanPath}`.replace(/([^:])\/{2,}/g, '$1/');
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     if (onClick) {
       e.preventDefault();
@@ -89,7 +97,7 @@ export function ProductCard({
         </button>
         {image ? (
           <img 
-            src={image} 
+            src={getImageUrl(image)} 
             alt={title} 
             className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500" 
           />
