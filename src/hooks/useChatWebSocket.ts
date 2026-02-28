@@ -50,13 +50,21 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
 
     // Build URL: WS_BASE/ws/chat/{conversationId}?token=...
     // as per chat.md documentation: ws://<HOST>:<PORT>/ws -> /ws/chat/{id}
-    const baseUrl = (wsUrlEnv || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api')
-        .replace(/^http/, 'ws')
-        .replace(/\/$/, '');
+    const envBase = wsUrlEnv || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
+    
+    // Normalize base URL:
+    // 1. Remove trailing slash
+    // 2. Replace http with ws
+    const baseUrl = envBase
+        .replace(/\/+$/, '')
+        .replace(/^http/, 'ws');
     
     // Ensure we point to /ws/chat endpoint
     // If baseUrl ends with /ws, we append /chat/{id}
     // If not, we append /ws/chat/{id}
+    
+    // NOTE: If the backend is mounted at /api, we usually need to keep /api in the path
+    // e.g. https://drooopy.com/api -> wss://drooopy.com/api/ws/chat/...
     
     const baseWithWs = baseUrl.endsWith('/ws') ? baseUrl : `${baseUrl}/ws`;
     
