@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
+    const envBase = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
+    const baseUrl = envBase.replace(/\/$/, '');
     // Remove trailing slash to avoid 307 redirect
     const targetUrl = `${baseUrl}/login/refresh-token`;
 

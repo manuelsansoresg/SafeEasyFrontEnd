@@ -66,7 +66,7 @@ export function MessagesContent() {
   const getAbsoluteUrl = (url?: string) => {
       if (!url) return '';
       if (url.startsWith('http') || url.startsWith('blob:')) return url;
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
       return `${apiBase.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
   };
 

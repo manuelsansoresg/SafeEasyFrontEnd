@@ -64,7 +64,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
     if (path.startsWith('http') || path.startsWith('data:')) return path;
     
     // Use the env var or fallback
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
+    const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api').replace(/\/$/, '');
     
     // Remove leading slash for consistency
     let cleanPath = path.startsWith('/') ? path.substring(1) : path;

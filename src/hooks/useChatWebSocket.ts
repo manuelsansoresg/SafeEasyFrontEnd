@@ -18,6 +18,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
   const [messages, setMessages] = useState<Message[]>([]);
   const [lastMessage, setLastMessage] = useState<Message | null>(null);
   const [wsError, setWsError] = useState<string | null>(null);
+  const [retryTrigger, setRetryTrigger] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef<number>(0);
@@ -34,18 +35,22 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
 
     // Close existing connection if any
     if (wsRef.current) {
+      // Prevent reconnect attempts from old connection
+      wsRef.current.onclose = null;
       wsRef.current.close();
     }
 
     setStatus('connecting');
     setWsError(null);
+    // Clear messages when starting a new connection to avoid mixing conversations
+    setMessages([]);
 
     const wsUrlEnv = process.env.NEXT_PUBLIC_WS_URL;
     let wsUrl: string;
 
     // Build URL: WS_BASE/ws/chat/{conversationId}?token=...
     // as per chat.md documentation: ws://<HOST>:<PORT>/ws -> /ws/chat/{id}
-    const baseUrl = (wsUrlEnv || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080')
+    const baseUrl = (wsUrlEnv || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api')
         .replace(/^http/, 'ws')
         .replace(/\/$/, '');
     
@@ -213,7 +218,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
           setWsError('Se perdió la conexión con el chat. Intentando reconectar...');
           
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
+            setRetryTrigger(t => t + 1);
           }, 1500);
         };
 
@@ -241,6 +246,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
     }
     return () => {
       if (wsRef.current) {
+        wsRef.current.onclose = null;
         wsRef.current.close();
       }
       if (reconnectTimeoutRef.current) {
@@ -250,7 +256,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
         clearTimeout(connectTimeoutRef.current);
       }
     };
-  }, [connect, shouldConnect]);
+  }, [connect, shouldConnect, retryTrigger]);
 
   const sendMessage = useCallback((content: string, conversationId: number | string) => {
      // ... (existing sendMessage) ...
@@ -275,7 +281,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
       console.warn('WebSocket is not connected');
       throw new Error('WebSocket is not connected');
     }
-  }, []);
+  }, [user?.id]);
 
   return { status, messages, sendMessage, lastMessage, error: wsError };
 };

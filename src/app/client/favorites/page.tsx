@@ -23,8 +23,15 @@ export default function FavoritesPage() {
       const response = await fetchWithAuth('/api/favorites/?limit=100');
       
       if (response.ok) {
-        const data = await response.json();
-        let productsArray: any[] = [];
+        let text = '';
+        try {
+            text = await response.text();
+            if (!text) {
+                setProducts([]);
+                return;
+            }
+            const data = JSON.parse(text);
+            let productsArray: any[] = [];
 
         if (Array.isArray(data)) {
             productsArray = data;
@@ -38,11 +45,17 @@ export default function FavoritesPage() {
 
         if (productsArray.length > 0 || Array.isArray(productsArray)) {
             // Ensure all items have is_favorite: true since they came from favorites endpoint
-            const favoritesData = productsArray.map((item: any) => ({ ...item, is_favorite: true }));
+            const favoritesData = productsArray
+                .filter((item: any) => item && typeof item === 'object')
+                .map((item: any) => ({ ...item, is_favorite: true }));
             setProducts(favoritesData);
             syncFavorites(favoritesData);
         } else {
             console.error("Favorites response format not recognized or empty:", data);
+            setProducts([]);
+        }
+        } catch (e) {
+            console.error("Failed to parse favorites response:", e, text);
             setProducts([]);
         }
       } else {

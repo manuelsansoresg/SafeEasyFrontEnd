@@ -47,20 +47,48 @@ export function CategorySidebar() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Parallel fetch
-        const [catRes, subRes] = await Promise.all([
-            fetchWithAuth('/api/categories/?skip=0&limit=100'),
-            fetchWithAuth('/api/subcategories/?skip=0&limit=1000')
-        ]);
-
-        if (catRes.ok && subRes.ok) {
-            const catData = await catRes.json();
-            const subData = await subRes.json();
-            
-            // Ensure data is array (handle potential empty or error responses)
-            setCategories(Array.isArray(catData) ? catData : []);
-            setSubcategories(Array.isArray(subData) ? subData : []);
+        // Fetch categories
+        let catData: Category[] = [];
+        try {
+            const catRes = await fetchWithAuth('/api/categories/?skip=0&limit=100');
+            if (catRes.ok) {
+                const text = await catRes.text();
+                if (text) {
+                    const parsed = JSON.parse(text);
+                    if (Array.isArray(parsed)) catData = parsed;
+                    else if (parsed && typeof parsed === 'object') {
+                        if (Array.isArray((parsed as any).items)) catData = (parsed as any).items;
+                        else if (Array.isArray((parsed as any).results)) catData = (parsed as any).results;
+                        else if (Array.isArray((parsed as any).data)) catData = (parsed as any).data;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Error fetching categories:", e);
         }
+
+        // Fetch subcategories
+        let subData: Subcategory[] = [];
+        try {
+            const subRes = await fetchWithAuth('/api/subcategories/?skip=0&limit=1000');
+            if (subRes.ok) {
+                const text = await subRes.text();
+                if (text) {
+                    const parsed = JSON.parse(text);
+                    if (Array.isArray(parsed)) subData = parsed;
+                    else if (parsed && typeof parsed === 'object') {
+                        if (Array.isArray((parsed as any).items)) subData = (parsed as any).items;
+                        else if (Array.isArray((parsed as any).results)) subData = (parsed as any).results;
+                        else if (Array.isArray((parsed as any).data)) subData = (parsed as any).data;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Error fetching subcategories:", e);
+        }
+            
+        setCategories(catData);
+        setSubcategories(subData);
       } catch (error) {
         console.error("Failed to fetch sidebar data", error);
       } finally {

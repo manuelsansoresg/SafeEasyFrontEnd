@@ -39,8 +39,7 @@ export interface Supplier {
   logo: string | null;
   about_media: string | null;
   carousel_images: CarouselImage[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  certificates: any[];
+  certificates: Certificate[];
   average_rating?: number;
   rating_count?: number;
   transfer_accepted?: boolean;
@@ -59,6 +58,10 @@ export interface CarouselImage {
   supplier_id: number;
 }
 
+export interface Certificate {
+  [key: string]: unknown;
+}
+
 export async function getProducts(
   page: number = 1, 
   limit: number = 20, 
@@ -69,7 +72,8 @@ export async function getProducts(
 ): Promise<Product[]> {
   const skip = (page - 1) * limit;
   // Use the internal API URL or fallback
-  const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080').trim();
+  const envBase = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api').trim();
+  const baseUrl = envBase.replace(/\/$/, '');
   
   let url = `${baseUrl}/products/?skip=${skip}&limit=${limit}`;
   
@@ -89,7 +93,7 @@ export async function getProducts(
   
   console.log("Fetching products from:", url);
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Accept': 'application/json',
     'User-Agent': 'SafeEasyFrontEnd/1.0'
   };
@@ -115,7 +119,7 @@ export async function getProducts(
   } catch (error) {
     console.warn("Warning: Error fetching products (returning empty list):", error);
     if (error instanceof Error && 'cause' in error) {
-       console.warn("Cause:", (error as any).cause);
+       console.warn("Cause:", (error as { cause?: unknown }).cause);
     }
     return [];
   }

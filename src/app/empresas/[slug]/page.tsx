@@ -423,7 +423,7 @@ export default function SupplierPage() {
   const getImageUrl = (path: string | null) => {
     if (!path) return "/placeholder.png";
     if (path.startsWith('http')) return path;
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
     // Ensure we don't double slash if path starts with /
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
     return `${baseUrl}${cleanPath}`;
@@ -1173,7 +1173,7 @@ function Carousel({ images }: { images: CarouselImage[] }) {
     if (!path) return '/placeholder.png';
     if (path.startsWith('http') || path.startsWith('data:')) return path;
     
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
     let cleanPath = path.startsWith('/') ? path.substring(1) : path;
     
     if (!cleanPath.startsWith('static/') && !cleanPath.startsWith('http')) {

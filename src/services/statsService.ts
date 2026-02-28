@@ -1,5 +1,6 @@
 import { fetchWithAuth } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
+import { Supplier } from "@/lib/products";
 
 export interface StatsSummary {
   total_revenue: number;
@@ -71,7 +72,7 @@ export const statsService = {
   },
 
   // Helper to get current supplier ID
-  getCurrentSupplier: async (): Promise<any> => {
+  getCurrentSupplier: async (): Promise<Supplier | null> => {
     const user = useAuthStore.getState().user;
     if (!user) return null;
 
@@ -79,8 +80,8 @@ export const statsService = {
       const response = await fetchWithAuth('/api/suppliers');
       if (response.ok) {
         const data = await response.json();
-        const items = Array.isArray(data) ? data : data.items || [];
-        return items.find((s: any) => s.user_id === user.id);
+        const items: Supplier[] = Array.isArray(data) ? data : data.items || [];
+        return items.find((s: Supplier) => s.user_id === user.id) || null;
       }
     } catch (error) {
       console.error("Error fetching current supplier:", error);

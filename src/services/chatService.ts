@@ -1,6 +1,46 @@
 import { fetchWithAuth } from "@/lib/api";
 import { Conversation, Message, CreateConversationParams } from "@/types/chat";
 
+interface ApiConversation {
+  id: number;
+  unread_count?: number;
+  unread_messages?: number;
+  unread_messages_count?: number;
+  unread?: number;
+  my_role?: string;
+  other_party_name?: string;
+  buyer_name?: string;
+  supplier_name?: string;
+  buyer_id?: number;
+  user_id?: number;
+  user_name?: string;
+  user?: {
+    name?: string;
+    first_name?: string;
+    last_name?: string;
+    image?: string;
+    avatar?: string;
+  };
+  user_image?: string;
+  supplier_image?: string;
+  supplier?: {
+    image?: string;
+    logo?: string;
+  };
+  [key: string]: unknown;
+}
+
+interface ApiMessage {
+    id: number;
+    message_type?: string;
+    attachment_url?: string;
+    message?: string;
+    content?: string;
+    timestamp?: string;
+    created_at?: string;
+    [key: string]: unknown;
+}
+
 export const chatService = {
   // Get all conversations for the current user
   getConversations: async (): Promise<Conversation[]> => {
@@ -14,7 +54,7 @@ export const chatService = {
         return [];
       }
       const data = await res.json();
-      return Array.isArray(data) ? data.map((c: any) => {
+      return Array.isArray(data) ? data.map((c: ApiConversation) => {
         const unread =
           c.unread_count ??
           c.unread_messages ??
@@ -62,7 +102,7 @@ export const chatService = {
     if (!res.ok) throw new Error('Failed to fetch messages');
     const data = await res.json();
     // Map backend fields (handle 'message' vs 'content', 'timestamp' vs 'created_at')
-    return Array.isArray(data) ? data.map((msg: any) => {
+    return Array.isArray(data) ? data.map((msg: ApiMessage) => {
         // Infer message_type if missing but attachment_url is present
         let type = msg.message_type;
         if (!type && msg.attachment_url) {
@@ -75,15 +115,15 @@ export const chatService = {
             content: msg.message || msg.content || '',
             created_at: msg.timestamp || msg.created_at || new Date().toISOString(),
             attachment_url: msg.attachment_url,
-            message_type: type || 'text'
-        };
+            message_type: (type || 'text') as 'text' | 'image' | 'file'
+        } as Message;
     }) : [];
   },
 
   createConversation: async (params: CreateConversationParams): Promise<Conversation> => {
     // According to chat.md, we should send product_id in the body.
     // Body: { "product_id": "UUID" }
-    const body: any = {};
+    const body: Record<string, unknown> = {};
     if (params.product_id) {
         body.product_id = params.product_id;
     } else {
@@ -104,7 +144,7 @@ export const chatService = {
       body: JSON.stringify(body)
     });
     if (!res.ok) throw new Error('Failed to create conversation');
-    const data = await res.json();
+    const data: ApiConversation = await res.json();
     return {
         ...data,
         my_role: data.my_role,
@@ -114,7 +154,7 @@ export const chatService = {
         
         user_id: data.buyer_id || data.user_id,
         buyer_id: data.buyer_id
-    };
+    } as Conversation;
   },
   
   // Mark messages as read
@@ -133,7 +173,7 @@ export const chatService = {
      
      // We'll try the flat endpoint as a best guess, but expect it might not exist.
      try {
-         let body;
+         let body: FormData | string;
 
          if (file) {
              const formData = new FormData();
@@ -157,13 +197,14 @@ export const chatService = {
          });
          
          if (res.ok) {
-             const data = await res.json();
+             const data: ApiMessage = await res.json();
              return {
                  ...data,
                  content: data.message || data.content || content,
                  created_at: data.timestamp || data.created_at || new Date().toISOString(),
-                 attachment_url: data.attachment_url
-             };
+                 attachment_url: data.attachment_url,
+                 message_type: (data.message_type || 'text') as 'text' | 'image' | 'file'
+             } as Message;
          } else {
              const errText = await res.text();
              console.error(`[ChatService] REST sendMessage failed: ${res.status} ${res.statusText}`, errText);

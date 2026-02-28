@@ -41,7 +41,7 @@ export function RecommendedExplorer({ initialKind }: RecommendedExplorerProps) {
         skip: String(skipValue),
       });
 
-      const base = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://3.15.176.110:8080").replace(/\/$/, "");
+      const base = (process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api").replace(/\/$/, "");
       const urls = [
         // Preferir rewrite directo al backend
         `/api/backend/products/recommended?${params.toString()}`,

@@ -142,7 +142,7 @@ export default function AdminAdsPage() {
   const computeImageUrl = (ad: AdItem) => {
     const src = ad.image_desktop || ad.image_mobile;
     if (!src) return null;
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://3.15.176.110:8080";
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
     return src.startsWith("http") ? src : `${base.replace(/\/$/, "")}${src.startsWith("/") ? "" : "/"}${src}`;
   };
 
@@ -151,7 +151,7 @@ export default function AdminAdsPage() {
   const renderImage = (ad: AdItem) => {
     const src = ad.image_desktop || ad.image_mobile;
     if (!src) return <span className="text-xs text-gray-400">Sin imagen</span>;
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://3.15.176.110:8080";
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
     const full = src.startsWith("http") ? src : `${base.replace(/\/$/, "")}${src.startsWith("/") ? "" : "/"}${src}`;
     return (
       <img

@@ -29,17 +29,49 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
   useEffect(() => {
     const fetchAds = async () => {
       try {
+        console.log("AdsCarousel: Fetching ads...");
         const res = await fetch("/api/ads/public", { cache: "no-store" });
+        console.log(`AdsCarousel: status ${res.status}`);
+        
         if (!res.ok) {
+          console.error(`AdsCarousel: Failed to fetch ads (${res.status})`);
           setAds([]);
           return;
         }
-        const data = await res.json();
-        const activeAds = Array.isArray(data)
-          ? data.filter((a: PublicAd) => a.is_active !== false)
-          : [];
+        
+        const text = await res.text();
+        if (!text) {
+             console.warn("AdsCarousel: Empty response");
+             setAds([]);
+             return;
+        }
+        
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error("AdsCarousel: JSON parse error", e, text.substring(0, 100));
+            setAds([]);
+            return;
+        }
+        
+        let adsList: PublicAd[] = [];
+        
+        if (Array.isArray(data)) {
+            adsList = data;
+        } else if (data && typeof data === 'object') {
+             // Handle wrapped responses
+             if (Array.isArray((data as any).items)) adsList = (data as any).items;
+             else if (Array.isArray((data as any).results)) adsList = (data as any).results;
+             else if (Array.isArray((data as any).data)) adsList = (data as any).data;
+             else if (Array.isArray((data as any).ads)) adsList = (data as any).ads;
+        }
+
+        const activeAds = adsList.filter((a: PublicAd) => a && a.is_active !== false);
+        console.log(`AdsCarousel: Found ${activeAds.length} active ads`);
         setAds(activeAds);
       } catch (e) {
+        console.error("AdsCarousel: Error fetching ads", e);
         setAds([]);
       } finally {
         setLoading(false);
@@ -59,7 +91,7 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
   const computeImageUrl = (path?: string | null) => {
     if (!path) return null;
     if (path.startsWith("http://") || path.startsWith("https://")) return path;
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://3.15.176.110:8080";
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
     return `${base.replace(/\/$/, "")}${path.startsWith("/") ? "" : "/"}${path}`;
   };
 

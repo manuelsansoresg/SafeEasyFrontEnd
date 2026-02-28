@@ -31,7 +31,7 @@ export default async function Home({
   const products = hasFilters ? await getProducts(page, limit, query, categorySlug, subcategorySlug, token) : [];
 
   const fetchRecommendedList = async (kind: string): Promise<Product[]> => {
-    const base = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://3.15.176.110:8080").replace(/\/$/, "");
+    const base = (process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api").replace(/\/$/, "");
     const params = new URLSearchParams({
       kind,
       limit: "5",

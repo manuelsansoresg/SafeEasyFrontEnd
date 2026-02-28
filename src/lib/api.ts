@@ -10,7 +10,7 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
   const setAuthToken = (token: string) => useAuthStore.getState().setToken(token);
   const logout = () => useAuthStore.getState().logout();
 
-  let token = getAuthToken();
+  const token = getAuthToken();
   
   const getHeaders = (t: string | null) => {
     const headers: Record<string, string> = { ...options.headers };

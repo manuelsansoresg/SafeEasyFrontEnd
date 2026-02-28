@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://3.15.176.110:8080';
+const BASE_URL = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api/';
 
 async function handler(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   // Await the params object
@@ -33,7 +33,7 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
   // Backend requires trailing slash for some endpoints (FastAPI default behavior sometimes)
   // If the original request didn't have a slash, but it's a known collection, force it.
   const pathString = path.join('/');
-  if ((pathString.endsWith('users') || pathString.endsWith('products') || pathString.endsWith('suppliers') || pathString.includes('favorites')) && !targetUrl.endsWith('/')) {
+  if ((pathString.endsWith('users') || pathString.endsWith('products') || pathString.endsWith('suppliers')) && !targetUrl.endsWith('/')) {
       targetUrl += '/';
   }
   
