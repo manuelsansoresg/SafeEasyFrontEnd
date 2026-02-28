@@ -31,45 +31,39 @@ export default async function Home({
   const products = hasFilters ? await getProducts(page, limit, query, categorySlug, subcategorySlug, token) : [];
 
   const fetchRecommendedList = async (kind: string): Promise<Product[]> => {
-    const base = (process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api").replace(/\/$/, "");
+    const base = (process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api").replace(/\/$/, "");
     const params = new URLSearchParams({
       kind,
       limit: "5",
       skip: "0",
     });
 
-    const urls = [
-      // Ruta recomendada por backend a través del rewrite
-      `/api/backend/products/recommended?${params.toString()}`,
-      // Proxy genérico interno
-      `/api/products/recommended?${params.toString()}`,
-      // Ruta absoluta directa al backend
-      `${base}/products/recommended?${params.toString()}`,
-    ];
+    const url = `${base}/products/recommended?${params.toString()}`;
 
-    for (const url of urls) {
-      try {
-        const res = await fetch(url, { cache: "no-store", headers: { accept: "application/json" } });
-        if (!res.ok) continue;
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          return data;
-        }
-        if (data && typeof data === "object") {
-          const arrays = [
-            (data as any).items,
-            (data as any).results,
-            (data as any).products,
-            (data as any).data,
-          ];
-          const found = arrays.find((a) => Array.isArray(a)) as Product[] | undefined;
-          if (found) {
-            return found;
-          }
-        }
-      } catch {
-        // intenta siguiente url
+    try {
+      const res = await fetch(url, { cache: "no-store", headers: { accept: "application/json" } });
+      if (!res.ok) {
+        console.error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
+        return [];
       }
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        return data;
+      }
+      if (data && typeof data === "object") {
+        const arrays = [
+          (data as any).items,
+          (data as any).results,
+          (data as any).products,
+          (data as any).data,
+        ];
+        const found = arrays.find((a) => Array.isArray(a)) as Product[] | undefined;
+        if (found) {
+          return found;
+        }
+      }
+    } catch (error) {
+      console.error(`Error fetching recommended from ${url}:`, error);
     }
 
     // Si nada funciona, devolvemos lista vacía (no mostramos productos para ese tipo)
