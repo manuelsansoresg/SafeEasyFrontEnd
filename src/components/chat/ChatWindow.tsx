@@ -769,11 +769,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
 
     // Si el WebSocket aún no está conectado y no es un archivo, evitamos enviar
     // para no perder mensajes ni generar duplicados.
-    if (!currentFile && status !== 'connected') {
-        console.warn("Attempted to send while WebSocket not connected. Status:", status);
-        setError("El chat todavía se está conectando. Espera unos segundos antes de enviar tu mensaje.");
-        return;
-    }
+    // ACTUALIZACIÓN: Permitimos encolar mensajes si no hay conexión (ver lógica abajo)
+
     
     // Create optimistic message
     const optimisticMessage: Message & { file?: File } = {
@@ -813,6 +810,45 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
              setSelectedFile(currentFile);
              return;
          }
+    }
+
+    // Case 2: New Conversation (No ID or Temporary ID)
+    if (String(activeConversation.id).startsWith('temp-') || activeConversation.id === 0) {
+        try {
+            console.log("Creating conversation before sending message...");
+            const newConv = await chatService.createConversation({
+                supplier_id: activeConversation.supplier_id,
+                product_id: activeConversation.product_id || (activeConversation as any).product?.id || productId || undefined
+            });
+            
+            // Update active conversation with real ID immediately
+            const realConv = { ...activeConversation, ...newConv };
+            setActiveConversation(realConv);
+            
+            // Update messages list to point to new conversation ID
+            setMessages(prev => prev.map(m => ({ ...m, conversation_id: newConv.id })));
+            
+            // Send message with REAL ID via WebSocket
+            if (status === 'connected') {
+                wsSendMessage(messageContent, newConv.id);
+            } else {
+                // If not connected, fallback to REST or Queue
+                // Ideally queue, but for now try REST as fallback for reliability on creation
+                 try {
+                    await chatService.sendMessage(newConv.id, messageContent);
+                 } catch (e) {
+                     console.warn("Failed to send initial message via REST, queueing for WS", e);
+                     setPendingMessages(prev => [...prev, messageContent]);
+                 }
+            }
+            return;
+        } catch (err) {
+            console.error("Failed to create conversation:", err);
+            setError("Error al iniciar la conversación.");
+            setMessages(prev => prev.filter(m => m.id !== tempId));
+            setInputValue(messageContent);
+            return;
+        }
     }
 
     // Attempt 2: WebSocket (Preferred and ONLY supported method as per chat.md)
