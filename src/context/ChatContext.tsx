@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Conversation } from '@/types/chat';
 
 export interface OpenChat extends Conversation {
@@ -19,13 +19,37 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [openChats, setOpenChats] = useState<OpenChat[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('safeeasy_open_chats');
+        if (stored) {
+            try {
+                setOpenChats(JSON.parse(stored));
+            } catch (e) {
+                console.error("Failed to parse stored chats", e);
+            }
+        }
+        setIsLoaded(true);
+    }
+  }, []);
+
+  // Save to localStorage whenever openChats changes
+  useEffect(() => {
+    if (isLoaded && typeof window !== 'undefined') {
+        localStorage.setItem('safeeasy_open_chats', JSON.stringify(openChats));
+    }
+  }, [openChats, isLoaded]);
 
   const openChat = (conversation: Conversation) => {
     setOpenChats(prev => {
       // Check if already open
       if (prev.find(c => c.id === conversation.id)) {
         // If minimized, maximize it
-        return prev.map(c => c.id === conversation.id ? { ...c, isMinimized: false } : c);
+        // Also update the conversation data with new info (e.g. new product context)
+        return prev.map(c => c.id === conversation.id ? { ...c, ...conversation, isMinimized: false } : c);
       }
       // Limit to say 3 chats to avoid clutter
       const newChats = [...prev, { ...conversation, isMinimized: false }];

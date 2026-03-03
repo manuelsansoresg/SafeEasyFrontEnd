@@ -593,6 +593,14 @@ export default function ProductDetailPage() {
 
     if (existingConv) {
         console.log("Found existing conversation:", existingConv);
+        
+        // Update conversation context in backend (fire and forget)
+        chatService.updateConversation(existingConv.id, {
+            product_id: product.id
+        }).then(() => {
+             console.log("Updated conversation product context");
+        });
+
         openChat({
             ...existingConv,
             product_id: product.id,

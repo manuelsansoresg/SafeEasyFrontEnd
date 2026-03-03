@@ -233,5 +233,29 @@ export const chatService = {
          console.error("Error sending message via REST:", err);
          throw err;
      }
+  },
+
+  updateConversation: async (conversationId: number | string, data: Partial<Conversation> & { product_id?: string | number }): Promise<void> => {
+    try {
+        // Backend expects product_id to update the context
+        const body: Record<string, unknown> = {};
+        if (data.product_id) body.product_id = data.product_id;
+        
+        // If there are other fields to update, add them here
+        
+        if (Object.keys(body).length === 0) return;
+
+        const res = await fetchWithAuth(`/api/chat/conversations/${conversationId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(body)
+        });
+        
+        if (!res.ok) {
+            console.warn(`[chatService] Failed to update conversation ${conversationId}: ${res.status}`);
+            // We don't throw here to avoid blocking the UI flow if this is just a context update
+        }
+    } catch (err) {
+        console.error("[chatService] updateConversation error", err);
+    }
   }
 };
