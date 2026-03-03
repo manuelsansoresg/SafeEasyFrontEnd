@@ -201,7 +201,7 @@ export const chatService = {
   // NOTE: The provided documentation (chat.md) ONLY lists WebSocket for sending messages.
   // There is NO documented REST endpoint for sending messages.
   // We will keep this method but it might fail if the backend strictly follows chat.md.
-  sendMessage: async (conversationId: number | string, content: string, message_type: 'text' | 'image' | 'file' = 'text', file?: File): Promise<Message> => {
+  sendMessage: async (conversationId: number | string, content: string, message_type: 'text' | 'image' | 'file' = 'text', file?: File, product_id?: string | number): Promise<Message> => {
      try {
          const formData = new FormData();
          // Backend requires 'message' field. Using a space fallback if empty to avoid "Field required" validation error.
@@ -210,6 +210,11 @@ export const chatService = {
          
          if (file) {
              formData.append('file', file);
+         }
+         
+         // Optional product_id for context cards
+         if (product_id) {
+             formData.append('product_id', String(product_id));
          }
          
          // Try /chat/conversations/{id}/messages

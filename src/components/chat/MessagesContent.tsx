@@ -10,7 +10,7 @@ import { fetchWithAuth } from "@/lib/api";
 import { 
   Send, Search, MessageSquare, Info, Package, CheckCheck, 
   FileText, Download, Image as ImageIcon, CreditCard, Loader2, Paperclip, X,
-  MoreHorizontal, Phone, Video, Smile, PlusCircle
+  MoreHorizontal, Phone, Video, Smile, PlusCircle, ShoppingBag, ChevronRight, Clock
 } from "lucide-react";
 import Image from "next/image";
 
@@ -20,6 +20,8 @@ interface ProductDetail {
   title: string;
   price: number;
   image: string | null;
+  slug?: string;
+  min_order_quantity?: number;
   supplier?: {
     id: number;
     name?: string;
@@ -28,6 +30,16 @@ interface ProductDetail {
     transfer_name?: string | null;
     transfer_accepted?: boolean;
   };
+}
+
+// Interface for Product Card Message Payload
+interface ProductCardPayload {
+  type: 'product_card';
+  product_id: string | number;
+  title: string;
+  price: number;
+  image: string | null;
+  min_order?: number;
 }
 
 export function MessagesContent() {
@@ -49,9 +61,11 @@ export function MessagesContent() {
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [showRightSidebar, setShowRightSidebar] = useState(true);
   
   // Product & Payment State
   const [productData, setProductData] = useState<ProductDetail | null>(null);
+  const [recentProducts, setRecentProducts] = useState<ProductDetail[]>([]); // For history
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<string | number | null>(null);
@@ -158,7 +172,39 @@ export function MessagesContent() {
         setProductData(null);
     }
 
+    // Load Local History (Mock for now, requires backend for true cross-device history)
+    loadLocalHistory();
+
   }, [activeConversation]);
+
+  const loadLocalHistory = () => {
+      // Try to load from localStorage 'safeeasy_open_chats' to simulate history
+      if (typeof window !== 'undefined') {
+          try {
+              const stored = localStorage.getItem('safeeasy_open_chats');
+              if (stored) {
+                  const chats: any[] = JSON.parse(stored);
+                  // Filter chats related to this supplier (if possible) or just show recent
+                  // For now, let's just show recent unique products
+                  const uniqueProducts = new Map();
+                  chats.forEach(c => {
+                      if (c.product_id && c.product_title) {
+                          uniqueProducts.set(c.product_id, {
+                              id: c.product_id,
+                              title: c.product_title,
+                              price: c.product_price || 0,
+                              image: c.product_image,
+                              slug: c.product_slug
+                          });
+                      }
+                  });
+                  setRecentProducts(Array.from(uniqueProducts.values()));
+              }
+          } catch (e) {
+              console.error("Failed to load local history", e);
+          }
+      }
+  };
 
   // Fetch Product & Supplier Details
   const fetchProductDetails = async (productId: string | number) => {
@@ -221,13 +267,8 @@ export function MessagesContent() {
 
     setSending(true);
     try {
-        // Handle file upload if present (omitted for brevity, focusing on text first)
-        // Ideally we use a file upload service first, then send message with attachment_url
-        // For now, assuming text only or existing logic. 
-        // Note: The original ChatWindow had file upload logic. 
-        // We will stick to WS text for now to match basic requirement, 
-        // but if file is selected we should handle it. 
-        // (Assuming wsSendMessage handles text. File upload requires REST endpoint usually)
+        // Handle file upload if present
+        // Note: We use the basic sendMessage for now.
         
         wsSendMessage(inputValue, activeConversation.id);
         setInputValue("");
@@ -238,6 +279,55 @@ export function MessagesContent() {
     } finally {
         setSending(false);
     }
+  };
+
+  // Send a Product Card Message
+  const handleSendProduct = async (product: ProductDetail) => {
+      if (!activeConversation) return;
+      
+      setSending(true);
+      try {
+          // Construct a rich payload
+          // Since backend might not support structured JSON in 'content' field natively for rendering,
+          // we use a convention: JSON string starting with { "type": "product_card" ... }
+          const payload: ProductCardPayload = {
+              type: 'product_card',
+              product_id: product.id,
+              title: product.title,
+              price: product.price,
+              image: product.image,
+              min_order: product.min_order_quantity
+          };
+          
+          // We use the REST endpoint we modified to support product_id
+          await chatService.sendMessage(
+              activeConversation.id, 
+              JSON.stringify(payload), // Send JSON as content
+              'text', 
+              undefined, 
+              product.id // Also pass product_id for backend context
+          );
+          
+          // Optimistic update? No, let WS handle it or reload
+          // But to be responsive:
+          const tempMsg: Message = {
+              id: Date.now(),
+              conversation_id: activeConversation.id,
+              sender_id: user?.id || 0,
+              content: JSON.stringify(payload),
+              created_at: new Date().toISOString(),
+              message_type: 'text',
+              is_read: false
+          };
+          setMessages(prev => [...prev, tempMsg]);
+          scrollToBottom();
+          
+      } catch (err) {
+          console.error("Failed to send product card", err);
+          setError("Error al enviar la referencia del producto.");
+      } finally {
+          setSending(false);
+      }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -352,19 +442,31 @@ export function MessagesContent() {
     } catch (e) { return ''; }
   };
 
+  // Message Parser to handle Product Cards
+  const parseMessageContent = (content: string) => {
+      try {
+          if (content.trim().startsWith('{')) {
+              const data = JSON.parse(content);
+              if (data.type === 'product_card') {
+                  return { type: 'product_card', data };
+              }
+          }
+      } catch (e) {
+          // Not JSON
+      }
+      return { type: 'text', content };
+  };
+
   return (
     <div className="flex h-[calc(100vh-100px)] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden font-sans">
-      {/* Sidebar - Conversations List (Facebook Style) */}
-      <div className={`w-full md:w-[360px] border-r border-gray-200 flex flex-col bg-white z-20 ${activeConversation ? 'hidden md:flex' : 'flex'}`}>
+      {/* Sidebar - Conversations List */}
+      <div className={`w-full md:w-[320px] lg:w-[360px] border-r border-gray-200 flex flex-col bg-white z-20 ${activeConversation ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 px-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-gray-900">Chats</h2>
             <div className="flex gap-2">
                 <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
                     <MoreHorizontal size={20} className="text-gray-700" />
-                </button>
-                <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
-                    <PlusCircle size={20} className="text-gray-700" />
                 </button>
             </div>
           </div>
@@ -425,7 +527,7 @@ export function MessagesContent() {
                   </h3>
                   <div className="flex items-center gap-1 text-[13px] text-gray-500 truncate">
                      <span className={`truncate ${!(conv as any).is_read ? 'font-semibold text-gray-900' : ''}`}>
-                         {conv.last_message || 'Enviaste una foto'}
+                         {conv.last_message || 'Inició chat'}
                      </span>
                      <span className="shrink-0 mx-1">·</span>
                      <span className="shrink-0 text-gray-400">
@@ -439,7 +541,7 @@ export function MessagesContent() {
         </div>
       </div>
 
-      {/* Main Chat Area (Facebook Style) */}
+      {/* Main Chat Area */}
       <div className={`flex-1 flex flex-col bg-white relative ${!activeConversation ? 'hidden md:flex' : 'flex'}`}>
         {activeConversation ? (
           <>
@@ -474,37 +576,18 @@ export function MessagesContent() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {/* Payment Button (Only for Client) - ALWAYS Visible but disabled if conditions not met */}
-                    {user?.role === 'client' && (
-                        <button 
-                            onClick={handlePaymentClick}
-                            disabled={isCreatingOrder || !activeConversation || !productData?.supplier?.transfer_accepted}
-                            className={`mr-2 px-4 py-1.5 rounded-full font-medium text-sm transition-colors flex items-center gap-2 shadow-sm ${
-                                isCreatingOrder || !activeConversation || !productData?.supplier?.transfer_accepted
-                                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
-                                    : 'bg-[#0084FF] hover:bg-[#0078E7] text-white' // Facebook Blue
-                            }`}
-                            title={!productData?.supplier?.transfer_accepted ? "El proveedor aún no ha configurado sus datos de pago." : "Realizar Pago"}
-                        >
-                            {isCreatingOrder ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
-                            <span>Pagar</span>
-                        </button>
-                    )}
-
-                    <button className="p-2 text-primary hover:bg-blue-50 rounded-full transition-colors">
-                        <Phone size={24} />
-                    </button>
-                    <button className="p-2 text-primary hover:bg-blue-50 rounded-full transition-colors">
-                        <Video size={24} />
-                    </button>
-                    <button className="p-2 text-primary hover:bg-blue-50 rounded-full transition-colors">
+                    {/* Toggle Sidebar Button */}
+                    <button 
+                        onClick={() => setShowRightSidebar(!showRightSidebar)}
+                        className={`p-2 rounded-full transition-colors ${showRightSidebar ? 'bg-blue-50 text-primary' : 'text-gray-500 hover:bg-gray-100'}`}
+                    >
                         <Info size={24} />
                     </button>
                 </div>
             </div>
             
-            {/* Product Context Bar (Sub-header) */}
-            {(activeConversation.product_title || productData) && (
+            {/* Product Context Bar (Only if sidebar is hidden, to save space) */}
+            {!showRightSidebar && (activeConversation.product_title || productData) && (
                 <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3">
                     <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 shrink-0 overflow-hidden flex items-center justify-center">
                             {productData?.image ? (
@@ -519,16 +602,13 @@ export function MessagesContent() {
                             {activeConversation.product_title || productData?.title}
                         </span>
                     </div>
-                    {productData && (
-                        <div className="ml-auto font-bold text-gray-900 text-sm">${productData.price.toLocaleString()}</div>
-                    )}
                 </div>
             )}
 
             {/* Messages Area */}
             <div 
                 ref={messagesContainerRef}
-                className="flex-1 overflow-y-auto p-4 space-y-1 bg-white scroll-smooth"
+                className="flex-1 overflow-y-auto p-4 space-y-2 bg-white scroll-smooth"
             >
                {messages.length === 0 && (
                    <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -550,6 +630,7 @@ export function MessagesContent() {
                {messages.map((msg, idx) => {
                  const isMe = String(msg.sender_id) === String(user?.id);
                  const showAvatar = !isMe && (idx === messages.length - 1 || String(messages[idx + 1]?.sender_id) !== String(msg.sender_id));
+                 const parsed = parseMessageContent(msg.content);
                  
                  return (
                    <div key={idx} className={`flex w-full mb-1 ${isMe ? 'justify-end' : 'justify-start items-end gap-2'}`}>
@@ -570,14 +651,17 @@ export function MessagesContent() {
                         </div>
                      )}
 
-                     <div className={`max-w-[75%] md:max-w-[60%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                     <div className={`max-w-[85%] md:max-w-[70%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                         <div 
                             className={`px-4 py-2 text-[15px] leading-relaxed shadow-sm break-words
-                            ${isMe 
-                                ? 'bg-[#0084FF] text-white rounded-2xl rounded-tr-md' 
-                                : 'bg-[#E4E6EB] text-black rounded-2xl rounded-tl-md'
+                            ${parsed.type === 'product_card' 
+                                ? 'bg-transparent p-0 shadow-none' 
+                                : isMe 
+                                    ? 'bg-[#0084FF] text-white rounded-2xl rounded-tr-md' 
+                                    : 'bg-[#E4E6EB] text-black rounded-2xl rounded-tl-md'
                             }`}
                         >
+                          {/* 1. Attachment Handling */}
                           {msg.attachment_url && (
                              <div className="mb-2">
                                  {msg.message_type === 'image' || (msg.attachment_url.match(/\.(jpeg|jpg|gif|png|webp)$/i)) ? (
@@ -602,7 +686,49 @@ export function MessagesContent() {
                                  )}
                              </div>
                           )}
-                          <p>{msg.content}</p>
+                          
+                          {/* 2. Product Card Rendering */}
+                          {parsed.type === 'product_card' ? (
+                              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm w-[280px]">
+                                  <div className="relative h-40 bg-gray-100">
+                                      {parsed.data.image ? (
+                                          <img src={parsed.data.image} alt={parsed.data.title} className="w-full h-full object-cover" />
+                                      ) : (
+                                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                              <Package size={40} />
+                                          </div>
+                                      )}
+                                      <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded-full backdrop-blur-sm">
+                                          Producto
+                                      </div>
+                                  </div>
+                                  <div className="p-3">
+                                      <h4 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2 mb-1">
+                                          {parsed.data.title}
+                                      </h4>
+                                      <div className="flex items-center justify-between mb-2">
+                                          <span className="text-lg font-bold text-red-600">
+                                              ${Number(parsed.data.price).toLocaleString()}
+                                          </span>
+                                          {parsed.data.min_order && (
+                                              <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                                  MOQ: {parsed.data.min_order}
+                                              </span>
+                                          )}
+                                      </div>
+                                      <a 
+                                        href={`/product/${parsed.data.product_id}`} 
+                                        target="_blank"
+                                        className="block w-full text-center py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors"
+                                      >
+                                          Ver Detalles
+                                      </a>
+                                  </div>
+                              </div>
+                          ) : (
+                              // 3. Normal Text
+                              <p>{msg.content}</p>
+                          )}
                         </div>
                      </div>
                    </div>
@@ -621,17 +747,12 @@ export function MessagesContent() {
                )}
 
                <div className="flex items-center gap-1 mb-2">
-                   <button className="p-2 text-primary hover:bg-gray-100 rounded-full transition-colors">
-                       <PlusCircle size={20} />
-                   </button>
+                   {/* Attachments */}
                    <button 
                        onClick={() => fileInputRef.current?.click()}
                        className="p-2 text-primary hover:bg-gray-100 rounded-full transition-colors"
                    >
                        <ImageIcon size={20} />
-                   </button>
-                   <button className="p-2 text-primary hover:bg-gray-100 rounded-full transition-colors">
-                       <Smile size={20} />
                    </button>
                    <input type="file" ref={fileInputRef} className="hidden" />
                </div>
@@ -661,7 +782,6 @@ export function MessagesContent() {
                    </button>
                ) : (
                    <button className="p-3 text-primary hover:bg-blue-50 rounded-full transition-colors mb-0.5">
-                       {/* Like/Thumb icon replacement */}
                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
                    </button>
                )}
@@ -677,6 +797,102 @@ export function MessagesContent() {
           </div>
         )}
       </div>
+
+      {/* Right Sidebar - Product Context & History */}
+      {activeConversation && showRightSidebar && (
+        <div className="w-[300px] border-l border-gray-200 bg-white flex flex-col overflow-y-auto z-10 hidden lg:flex">
+            {/* 1. Profile / Header */}
+            <div className="p-6 flex flex-col items-center border-b border-gray-100">
+                <div className="w-20 h-20 rounded-full bg-gray-200 overflow-hidden mb-3">
+                     {getOtherPartyImage(activeConversation) ? (
+                         <img src={getOtherPartyImage(activeConversation)!} alt="" className="w-full h-full object-cover" />
+                     ) : (
+                         <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-gray-500">
+                             {getOtherPartyName(activeConversation).charAt(0).toUpperCase()}
+                         </div>
+                     )}
+                </div>
+                <h3 className="font-bold text-lg text-gray-900 text-center">{getOtherPartyName(activeConversation)}</h3>
+                <p className="text-sm text-gray-500">Usuario de SafeEasy</p>
+            </div>
+
+            {/* 2. Current Product Context */}
+            {productData && (
+                <div className="p-4 border-b border-gray-100">
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Contexto Actual</h4>
+                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                        <div className="relative aspect-square rounded-lg overflow-hidden bg-white mb-2">
+                             {productData.image ? (
+                                 <img src={productData.image} alt={productData.title} className="w-full h-full object-cover" />
+                             ) : (
+                                 <div className="w-full h-full flex items-center justify-center"><Package className="text-gray-300" /></div>
+                             )}
+                        </div>
+                        <h5 className="font-medium text-sm text-gray-900 line-clamp-2 mb-1">{productData.title}</h5>
+                        <div className="font-bold text-primary mb-2">${productData.price.toLocaleString()}</div>
+                        
+                        <button 
+                            onClick={() => handleSendProduct(productData)}
+                            disabled={sending}
+                            className="w-full py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors"
+                        >
+                            <Send size={14} />
+                            Enviar Referencia
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* 3. History / Suggestions (Mocked from LocalStorage) */}
+            <div className="p-4">
+                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                     <Clock size={12} />
+                     Vistos Recientemente
+                 </h4>
+                 {recentProducts.length > 0 ? (
+                     <div className="space-y-3">
+                         {recentProducts.slice(0, 5).map(prod => (
+                             <div key={prod.id} className="flex gap-3 items-start group">
+                                 <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 border border-gray-200">
+                                     {prod.image && <img src={prod.image} alt="" className="w-full h-full object-cover" />}
+                                 </div>
+                                 <div className="flex-1 min-w-0">
+                                     <h5 className="text-xs font-medium text-gray-900 line-clamp-2 leading-snug mb-0.5">{prod.title}</h5>
+                                     <div className="text-[10px] text-gray-500">${prod.price.toLocaleString()}</div>
+                                     <button 
+                                        onClick={() => handleSendProduct(prod)}
+                                        className="text-[10px] text-primary hover:underline mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                     >
+                                         Enviar referencia
+                                     </button>
+                                 </div>
+                             </div>
+                         ))}
+                     </div>
+                 ) : (
+                     <p className="text-xs text-gray-400 italic">No hay historial reciente disponible.</p>
+                 )}
+            </div>
+
+            {/* 4. Actions */}
+            <div className="mt-auto p-4 border-t border-gray-100">
+                 {user?.role === 'client' && (
+                     <button 
+                        onClick={handlePaymentClick}
+                        disabled={!productData?.supplier?.transfer_accepted}
+                        className={`w-full py-2.5 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 mb-2 ${
+                             !productData?.supplier?.transfer_accepted
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-primary text-white hover:bg-blue-700'
+                        }`}
+                     >
+                         <CreditCard size={16} />
+                         Iniciar Pago
+                     </button>
+                 )}
+            </div>
+        </div>
+      )}
 
       {/* Payment Modal */}
       {isPaymentModalOpen && productData?.supplier && (

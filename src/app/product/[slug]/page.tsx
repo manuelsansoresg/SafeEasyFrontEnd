@@ -130,7 +130,7 @@ import { Conversation } from "@/types/chat";
 export default function ProductDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
-  const { openChat } = useChat();
+  const { openChat, openChats } = useChat();
   const { conversations, fetchConversations } = useChatStore();
   const { toggleFavorite, isFavorite, syncFavorites } = useFavoritesStore();
   
@@ -140,6 +140,31 @@ export default function ProductDetailPage() {
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);
+
+  // Update open chat context when viewing a product
+  useEffect(() => {
+    if (!product || !openChats || openChats.length === 0) return;
+
+    const existingChat = openChats.find(c => 
+        String(c.supplier_id) === String(product.supplier_id)
+    );
+
+    if (existingChat) {
+        // If the chat is open/minimized but has a different product context, update it.
+        // This ensures that if the user refreshes or navigates, the chat reflects the current product.
+        if (String(existingChat.product_id) !== String(product.id)) {
+            console.log(`[ProductPage] Updating chat context to product: ${product.id}`);
+            openChat({
+                ...existingChat,
+                product_id: product.id,
+                product_title: product.title,
+                product_image: product.thumbnail_url || product.image || undefined,
+                product_price: product.price,
+                product_slug: product.slug
+            });
+        }
+    }
+  }, [product, openChats, openChat]);
 
   useEffect(() => {
     if (product?.id) {

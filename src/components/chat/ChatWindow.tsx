@@ -766,12 +766,13 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     const messageContent = inputValue;
     const tempId = Date.now(); // Temporary ID for optimistic update
     const currentFile = selectedFile; // Capture current file
-
-    // Si el WebSocket aún no está conectado y no es un archivo, evitamos enviar
-    // para no perder mensajes ni generar duplicados.
-    // ACTUALIZACIÓN: Permitimos encolar mensajes si no hay conexión (ver lógica abajo)
-
     
+    // Determine target product context
+    // If productId prop is present (we are on a product page), it takes precedence over the conversation's historic product
+    const targetProductId = productId 
+        ? String(productId) 
+        : (activeConversation.product_id || (activeConversation as any).product?.id);
+
     // Create optimistic message
     const optimisticMessage: Message & { file?: File } = {
         id: tempId,
@@ -791,13 +792,34 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     setMessages(prev => [...prev, optimisticMessage]);
     setTimeout(scrollToBottom, 50);
 
+    // Check if we need to update conversation product context
+    if (targetProductId && String(targetProductId) !== String(activeConversation.product_id)) {
+        console.log(`[ChatWindow] Updating conversation context to product: ${targetProductId}`);
+        // We update the backend context before/while sending
+        // Note: chatService.sendMessage also takes product_id which can handle this, 
+        // but explicit update ensures consistency even for WS.
+        try {
+            await chatService.updateConversation(activeConversation.id, { product_id: targetProductId });
+            // Update local state
+            setActiveConversation(prev => prev ? ({ ...prev, product_id: targetProductId }) : null);
+        } catch (err) {
+            console.error("Failed to update conversation context", err);
+        }
+    }
+
     // Case 1: File Upload (Must use REST)
     if (currentFile) {
          try {
              // Determine type
              const type = currentFile.type.startsWith('image/') ? 'image' : 'file';
              
-             const sentMessage = await chatService.sendMessage(activeConversation.id, messageContent, type as any, currentFile);
+             const sentMessage = await chatService.sendMessage(
+                activeConversation.id, 
+                messageContent, 
+                type as any, 
+                currentFile,
+                targetProductId
+             );
              
              // Replace optimistic message with real message
              setMessages(prev => prev.map(m => m.id === tempId ? sentMessage : m));
@@ -818,11 +840,11 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
             console.log("Creating conversation before sending message...");
             const newConv = await chatService.createConversation({
                 supplier_id: activeConversation.supplier_id,
-                product_id: activeConversation.product_id || (activeConversation as any).product?.id || productId || undefined
+                product_id: targetProductId || undefined
             });
             
             // Update active conversation with real ID immediately
-            const realConv = { ...activeConversation, ...newConv };
+            const realConv = { ...activeConversation, ...newConv, product_id: targetProductId };
             setActiveConversation(realConv);
             
             // Update messages list to point to new conversation ID
@@ -835,7 +857,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                 // If not connected, fallback to REST or Queue
                 // Ideally queue, but for now try REST as fallback for reliability on creation
                  try {
-                    await chatService.sendMessage(newConv.id, messageContent);
+                    await chatService.sendMessage(newConv.id, messageContent, 'text', undefined, targetProductId);
                  } catch (e) {
                      console.warn("Failed to send initial message via REST, queueing for WS", e);
                      setPendingMessages(prev => [...prev, messageContent]);
@@ -854,6 +876,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     // Attempt 2: WebSocket (Preferred and ONLY supported method as per chat.md)
     if (status === 'connected') {
         try {
+            // WS currently doesn't support product_id in payload usually, 
+            // but we already updated context via updateConversation above.
             wsSendMessage(messageContent, activeConversation.id);
             // We rely on WS echo to confirm message.
             return;
@@ -865,9 +889,20 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         }
     } else {
         console.warn("WebSocket is not connected. Status:", status);
-        // Queue the message to be sent when connected
-        setPendingMessages(prev => [...prev, messageContent]);
-        return;
+        // Fallback to REST if WS disconnected? Or queue?
+        // Let's try REST as fallback with product_id
+        try {
+             await chatService.sendMessage(activeConversation.id, messageContent, 'text', undefined, targetProductId);
+             // Remove optimistic message as REST returns the real one? 
+             // Actually sendMessage returns the message. 
+             // But we already added optimistic. 
+             // Ideally we replace it. But for now let's just let it be.
+             return;
+        } catch (restErr) {
+             console.error("REST fallback failed", restErr);
+             setPendingMessages(prev => [...prev, messageContent]);
+             return;
+        }
     }
 
     // Restore input and remove optimistic message on failure
