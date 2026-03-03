@@ -9,6 +9,7 @@ interface ChatState {
   error: string | null;
   socket: WebSocket | null;
   isConnected: boolean;
+  isConnecting: boolean;
   
   // Actions
   fetchConversations: () => Promise<void>;
@@ -29,6 +30,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   error: null,
   socket: null,
   isConnected: false,
+  isConnecting: false,
   messageSubscribers: new Set<MessageCallback>(),
 
   fetchConversations: async () => {
@@ -49,9 +51,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   connectSocket: (userId: number) => {
-    const { socket } = get();
+    const { socket, isConnecting, isConnected } = get();
+    
+    // Check if already connected or connecting
     if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-      return; // Already connected or connecting
+      if (!isConnected && socket.readyState === WebSocket.OPEN) {
+          set({ isConnected: true, isConnecting: false });
+      }
+      return; 
+    }
+    
+    // Prevent multiple simultaneous connection attempts
+    if (isConnecting) {
+        console.log('[ChatStore] Connection already in progress...');
+        return;
     }
 
     // Close existing if any (e.g. closed/closing state)
@@ -65,6 +78,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return;
     }
 
+    set({ isConnecting: true });
+
     // Determine WS URL from API Base URL
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
     const wsBase = apiBase.replace(/^http/, 'ws');
@@ -74,108 +89,118 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
     console.log(`[ChatStore] Connecting to WebSocket: ${wsUrl.split('?')[0]}...`); // Log without token for security
     
-    const newSocket = new WebSocket(wsUrl);
+    try {
+        const newSocket = new WebSocket(wsUrl);
 
-    newSocket.onopen = () => {
-      console.log('[ChatStore] WebSocket Connected');
-      set({ isConnected: true, error: null });
-    };
+        newSocket.onopen = () => {
+          console.log('[ChatStore] WebSocket Connected');
+          set({ isConnected: true, error: null, isConnecting: false });
+        };
 
-    newSocket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[ChatStore] WebSocket Message:', data);
-        
-        // Handle incoming messages
-        // Expecting data format consistent with chat system
-        // If it's a new message, we might need to update the conversation list
-        
-        if (data.type === 'message' || data.message) { // Adjust based on actual payload
-            // Normalize message
-            let type = data.message_type;
-            if (!type && data.attachment_url) {
-                const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(data.attachment_url);
-                type = isImage ? 'image' : 'file';
-            }
-
-            const msg: Message = {
-                id: data.id || Date.now(),
-                sender_id: data.sender_id || data.senderId,
-                conversation_id: data.conversation_id || data.conversationId,
-                content: data.message || data.content || '',
-                created_at: data.timestamp || data.created_at || new Date().toISOString(),
-                is_read: data.is_read || false,
-                message_type: type || 'text',
-                attachment_url: data.attachment_url,
-                product_id: data.product_id,
-                product: data.product
-            };
-
-            const conversationId = msg.conversation_id;
+        newSocket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log('[ChatStore] WebSocket Message:', data);
             
-            // Notify subscribers
-            // @ts-ignore - Dynamic property not in interface but used internally
-            const subscribers = get().messageSubscribers as Set<MessageCallback>;
-            if (subscribers) {
-                subscribers.forEach(callback => callback(msg));
-            }
+            // Handle incoming messages
+            // Expecting data format consistent with chat system
+            // If it's a new message, we might need to update the conversation list
             
-            if (conversationId) {
-                // Update conversation list (move to top, update last message, increment unread)
-                const state = get();
-                const existingConvIndex = state.conversations.findIndex(c => String(c.id) === String(conversationId));
+            if (data.type === 'message' || data.message) { // Adjust based on actual payload
+                // Normalize message
+                let type = data.message_type;
+                if (!type && data.attachment_url) {
+                    const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(data.attachment_url);
+                    type = isImage ? 'image' : 'file';
+                }
+    
+                const msg: Message = {
+                    id: data.id || Date.now(),
+                    sender_id: data.sender_id || data.senderId,
+                    conversation_id: data.conversation_id || data.conversationId,
+                    content: data.message || data.content || '',
+                    created_at: data.timestamp || data.created_at || new Date().toISOString(),
+                    is_read: data.is_read || false,
+                    message_type: type || 'text',
+                    attachment_url: data.attachment_url,
+                    product_id: data.product_id,
+                    product: data.product
+                };
+    
+                const conversationId = msg.conversation_id;
                 
-                if (existingConvIndex !== -1) {
-                    const updatedConversations = [...state.conversations];
-                    const conv = updatedConversations[existingConvIndex];
+                // Notify subscribers
+                // @ts-ignore - Dynamic property not in interface but used internally
+                const subscribers = get().messageSubscribers as Set<MessageCallback>;
+                if (subscribers) {
+                    subscribers.forEach(callback => callback(msg));
+                }
+                
+                if (conversationId) {
+                    // Update conversation list (move to top, update last message, increment unread)
+                    const state = get();
+                    const existingConvIndex = state.conversations.findIndex(c => String(c.id) === String(conversationId));
                     
-                    // Update fields
-                    const updatedConv = {
-                        ...conv,
-                        last_message: msg.content || 'Nuevo mensaje',
-                        last_message_at: msg.created_at || new Date().toISOString(),
-                        unread_count: (conv.unread_count || 0) + 1,
-                        updated_at: msg.created_at || new Date().toISOString()
-                    };
-                    
-                    // Remove and add to top
-                    updatedConversations.splice(existingConvIndex, 1);
-                    updatedConversations.unshift(updatedConv);
-                    
-                    set({ conversations: updatedConversations });
-                } else {
-                    // New conversation? Fetch all to be safe or try to construct it
-                    get().fetchConversations();
+                    if (existingConvIndex !== -1) {
+                        const updatedConversations = [...state.conversations];
+                        const conv = updatedConversations[existingConvIndex];
+                        
+                        // Update fields
+                        const updatedConv = {
+                            ...conv,
+                            last_message: msg.content || 'Nuevo mensaje',
+                            last_message_at: msg.created_at || new Date().toISOString(),
+                            unread_count: (conv.unread_count || 0) + 1,
+                            updated_at: msg.created_at || new Date().toISOString()
+                        };
+                        
+                        // Remove and add to top
+                        updatedConversations.splice(existingConvIndex, 1);
+                        updatedConversations.unshift(updatedConv);
+                        
+                        set({ conversations: updatedConversations });
+                    } else {
+                        // New conversation? Fetch all to be safe or try to construct it
+                        get().fetchConversations();
+                    }
                 }
             }
-        }
-      } catch (e) {
-        console.error('[ChatStore] Error parsing WebSocket message:', e);
-      }
-    };
+          } catch (e) {
+            console.error('[ChatStore] Error parsing WebSocket message:', e);
+          }
+        };
 
-    newSocket.onclose = (event) => {
-      console.log('[ChatStore] WebSocket Disconnected', event.code, event.reason);
-      set({ isConnected: false, socket: null });
-      
-      // Attempt to reconnect if not closed normally (1000)
-      if (event.code !== 1000) {
-        console.log('[ChatStore] Attempting to reconnect in 3s...');
-        setTimeout(() => {
-            const currentUser = useAuthStore.getState().user;
-            if (currentUser?.id) {
-                get().connectSocket(currentUser.id);
-            }
-        }, 3000);
-      }
-    };
+        newSocket.onclose = (event) => {
+          console.log('[ChatStore] WebSocket Disconnected', event.code, event.reason);
+          set({ isConnected: false, socket: null, isConnecting: false });
+          
+          // Attempt to reconnect if not closed normally (1000) and NOT an auth error (usually 4xxx codes mapped to WS close codes)
+          // 1000: Normal Closure
+          // 1006: Abnormal Closure (e.g. server died or network lost) - Retry
+          // 4001/4003: Auth errors (custom) - Do NOT retry loop
+          
+          if (event.code !== 1000 && event.code !== 4001 && event.code !== 4003) {
+            console.log('[ChatStore] Attempting to reconnect in 5s...');
+            setTimeout(() => {
+                const currentUser = useAuthStore.getState().user;
+                if (currentUser?.id) {
+                    get().connectSocket(currentUser.id);
+                }
+            }, 5000);
+          }
+        };
 
-    newSocket.onerror = (error) => {
-      console.error('[ChatStore] WebSocket Error:', error);
-      // Let onclose handle reconnection
-    };
+        newSocket.onerror = (error) => {
+          console.error('[ChatStore] WebSocket Error:', error);
+          set({ isConnecting: false });
+          // Let onclose handle reconnection
+        };
 
-    set({ socket: newSocket });
+        set({ socket: newSocket });
+    } catch (e) {
+        console.error("[ChatStore] Failed to create WebSocket", e);
+        set({ isConnecting: false });
+    }
   },
 
   disconnectSocket: () => {

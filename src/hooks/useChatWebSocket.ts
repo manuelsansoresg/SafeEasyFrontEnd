@@ -38,8 +38,14 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
 
   // Ensure connection is active if we need it
   useEffect(() => {
+      // ChatWindow relies on Header.tsx to establish connection generally.
+      // But if we are in a standalone context or Header failed, we might want to trigger it.
+      // However, to avoid loops, we should be careful.
+      // The store now handles isConnecting to prevent race conditions.
+      
       if (shouldConnect && user?.id && !isConnected) {
-          setStatus('connecting');
+          // Check if we should really connect or if it's already being handled
+          // We can call connectSocket, as it now has internal checks
           connectSocket(Number(user.id));
       }
   }, [shouldConnect, user, isConnected, connectSocket]);
