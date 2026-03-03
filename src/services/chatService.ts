@@ -41,6 +41,32 @@ interface ApiMessage {
     [key: string]: unknown;
 }
 
+export const cleanMessageContent = (content: string | undefined | null): string => {
+    if (!content) return '';
+    if (typeof content !== 'string') return String(content);
+    
+    // Check if content is a JSON string wrapper
+    // Example: '{"conversation_id":..., "message":"actual text", ...}'
+    if (content.trim().startsWith('{')) {
+        try {
+            const parsed = JSON.parse(content);
+            // Verify if it looks like the wrapper structure (has 'message' and other fields)
+            // Check for message OR content field
+            const innerMessage = parsed.message || parsed.content;
+            
+            // Metadata keys to check to confirm it's a wrapper
+            const hasMetadata = parsed.conversation_id || parsed.message_type || parsed.sender_id || parsed.product_id || parsed.id;
+
+            if (innerMessage && hasMetadata) {
+                return innerMessage;
+            }
+        } catch (e) {
+            // Not valid JSON, return original
+        }
+    }
+    return content;
+};
+
 export const chatService = {
   // Get all conversations for the current user
   getConversations: async (): Promise<Conversation[]> => {
@@ -61,9 +87,16 @@ export const chatService = {
           c.unread_messages_count ??
           c.unread ??
           0;
+        
+                // Clean last_message if it's JSON
+        let lastMessage = c.last_message;
+        if (typeof lastMessage === 'string' && lastMessage.trim().startsWith('{')) {
+             lastMessage = cleanMessageContent(lastMessage);
+        }
 
         return {
           ...c,
+          last_message: lastMessage,
           // Normalizar campos según chat.md y compatibilidad previa
           my_role: c.my_role,
           other_party_name: c.other_party_name,
@@ -112,7 +145,7 @@ export const chatService = {
 
         return {
             ...msg,
-            content: msg.message || msg.content || '',
+            content: cleanMessageContent(msg.message || msg.content || ''),
             created_at: msg.timestamp || msg.created_at || new Date().toISOString(),
             attachment_url: msg.attachment_url,
             message_type: (type || 'text') as 'text' | 'image' | 'file'

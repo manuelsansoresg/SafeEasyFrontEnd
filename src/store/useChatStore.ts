@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Conversation, Message } from '@/types/chat';
-import { chatService } from '@/services/chatService';
+import { chatService, cleanMessageContent } from '@/services/chatService';
 import { useAuthStore } from './useAuthStore';
 
 interface ChatState {
@@ -132,11 +132,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 let productId = data.product_id;
                 
                 // Handle potential nested JSON string in content (common with some WS backends)
+                // First try to extract metadata if it's a JSON string
                 if (typeof content === 'string' && content.trim().startsWith('{')) {
                     try {
                         const parsed = JSON.parse(content);
-                        if (parsed.message) {
-                            content = parsed.message;
+                        if (parsed.message || parsed.content) {
                             // Recover other fields if missing
                             if (!type) type = parsed.message_type;
                             if (!conversationId) conversationId = parsed.conversation_id;
@@ -147,6 +147,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         // Not JSON, ignore
                     }
                 }
+
+                // Use the shared cleaning function to ensure consistent display
+                content = cleanMessageContent(content);
                 
                 // Determine type
                 if (!type && data.attachment_url) {
