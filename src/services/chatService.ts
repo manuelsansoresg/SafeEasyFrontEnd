@@ -169,48 +169,36 @@ export const chatService = {
   // There is NO documented REST endpoint for sending messages.
   // We will keep this method but it might fail if the backend strictly follows chat.md.
   sendMessage: async (conversationId: number | string, content: string, message_type: 'text' | 'image' | 'file' = 'text', file?: File): Promise<Message> => {
-     // console.warn("[ChatService] Warning: Sending message via REST is not documented in chat.md. Using WebSocket is recommended.");
-     
-     // We'll try the flat endpoint as a best guess, but expect it might not exist.
      try {
-         let body: FormData | string;
-
+         const formData = new FormData();
+         // Backend requires 'message' field. Using a space fallback if empty to avoid "Field required" validation error.
+         const msgContent = content && content.trim() !== '' ? content : ' ';
+         formData.append('message', msgContent);
+         
          if (file) {
-             const formData = new FormData();
-             // Backend requires 'message' field. Using a space fallback if empty to avoid "Field required" validation error.
-             const msgContent = content && content.trim() !== '' ? content : ' ';
-             formData.append('message', msgContent);
-             // Some backends might look for 'content' as well
-             formData.append('content', msgContent);
-             formData.append('message_type', message_type);
              formData.append('file', file);
-             body = formData;
-         } else {
-             const payload = { content, message: content, message_type };
-             body = JSON.stringify(payload);
          }
-
+         
          // Try /chat/conversations/{id}/messages
          const res = await fetchWithAuth(`/api/chat/conversations/${conversationId}/messages`, {
            method: 'POST',
-           body: body
+           body: formData
          });
          
          if (res.ok) {
              const data: ApiMessage = await res.json();
              return {
                  ...data,
-                 content: data.message || data.content || content,
+                 content: data.message || data.content || '',
                  created_at: data.timestamp || data.created_at || new Date().toISOString(),
-                 attachment_url: data.attachment_url,
                  message_type: (data.message_type || 'text') as 'text' | 'image' | 'file'
              } as Message;
          } else {
-             const errText = await res.text();
-             console.error(`[ChatService] REST sendMessage failed: ${res.status} ${res.statusText}`, errText);
+             throw new Error(`Failed to send message: ${res.status}`);
          }
-     } catch (e) { console.error("[ChatService] Exception in sendMessage:", e); }
-
-     throw new Error('REST sendMessage not supported or failed. Please use WebSocket.');
+     } catch (err) {
+         console.error("Error sending message via REST:", err);
+         throw err;
+     }
   }
 };

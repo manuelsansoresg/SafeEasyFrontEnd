@@ -123,12 +123,15 @@ const sanitizeHtml = (html: string) => {
 };
 
 import { useChat } from "@/context/ChatContext";
+import { useChatStore } from "@/store/useChatStore";
+import { chatService } from "@/services/chatService";
 import { Conversation } from "@/types/chat";
 
 export default function ProductDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
   const { openChat } = useChat();
+  const { conversations, fetchConversations } = useChatStore();
   const { toggleFavorite, isFavorite, syncFavorites } = useFavoritesStore();
   
   const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -574,7 +577,7 @@ export default function ProductDetailPage() {
     }
   };
 
-  const handleChatOpen = () => {
+  const handleChatOpen = async () => {
     console.log("handleChatOpen called. Token exists:", !!token);
     if (!token) {
         setIsLoginModalOpen(true);
@@ -583,31 +586,69 @@ export default function ProductDetailPage() {
 
     if (!product || !user) return;
 
-    // Construct a temporary conversation object to initialize the docked chat
-    const tempConv: Conversation = {
-       id: `temp-${product.id}-${product.supplier_id}`,
-       user_id: Number(user.id),
-       supplier_id: product.supplier_id,
-       product_id: product.id,
-       product_title: product.title,
-       product_price: product.price,
-       product_image: product.image || product.thumbnail_url || "",
-       product_slug: product.slug,
-       supplier_name: product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : 'Proveedor',
-       supplier_slug: product.supplier?.slug,
-       supplier_transfer_data: product.supplier ? {
-           transfer_accepted: product.supplier.transfer_accepted,
-           transfer_bank: product.supplier.transfer_bank,
-           transfer_clabe: product.supplier.transfer_clabe,
-           transfer_name: product.supplier.transfer_name
-       } : undefined,
-       created_at: new Date().toISOString(),
-       updated_at: new Date().toISOString(),
-       my_role: user.role === 'client' ? 'client' : 'supplier',
-       other_party_name: product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : 'Proveedor'
-    };
+    // 1. Search for existing conversation with this supplier
+    const existingConv = conversations.find(c => 
+        String(c.supplier_id) === String(product.supplier_id)
+    );
 
-    openChat(tempConv);
+    if (existingConv) {
+        console.log("Found existing conversation:", existingConv);
+        openChat({
+            ...existingConv,
+            product_id: product.id,
+            product_title: product.title,
+            product_image: product.thumbnail_url || product.image || undefined,
+            product_price: product.price,
+            product_slug: product.slug
+        });
+        return;
+    }
+
+    // 2. If not found, create a new one
+    try {
+        console.log("Creating new conversation for supplier:", product.supplier_id);
+        // We pass product_id to associate context, but the system might just link it to supplier
+        const newConv = await chatService.createConversation({
+            supplier_id: product.supplier_id,
+            product_id: product.id,
+            initial_message: `Hola, estoy interesado en ${product.title}`
+        });
+        
+        // Refresh global list
+        fetchConversations();
+        
+        // Open the new chat with product context
+        openChat({
+            ...newConv,
+            product_id: product.id,
+            product_title: product.title,
+            product_image: product.thumbnail_url || product.image || undefined,
+            product_price: product.price,
+            product_slug: product.slug
+        });
+
+    } catch (err) {
+        console.error("Failed to create conversation:", err);
+        // Fallback: Open temporary (though this might fail if ID is invalid)
+        const tempConv: Conversation = {
+            id: `temp-${product.id}-${product.supplier_id}`,
+            user_id: Number(user.id),
+            supplier_id: product.supplier_id,
+            product_id: product.id,
+            product_title: product.title,
+            product_image: product.thumbnail_url || product.image || "",
+            product_price: product.price,
+            product_slug: product.slug,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            supplier_name: product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : 'Proveedor',
+            supplier_image: product.supplier?.logo || undefined,
+            unread_count: 0,
+            my_role: user.role === 'client' ? 'client' : 'supplier',
+            other_party_name: product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : 'Proveedor'
+        };
+        openChat(tempConv);
+    }
   };
 
   const handleRatingClick = () => {

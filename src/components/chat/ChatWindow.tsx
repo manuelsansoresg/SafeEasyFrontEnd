@@ -1149,6 +1149,34 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                 ? 'bg-[#0084FF] text-white rounded-2xl rounded-tr-md' 
                                 : 'bg-[#E4E6EB] text-black rounded-2xl rounded-tl-md'
                             }`}>
+                            
+                            {/* Product Context Card */}
+                            {msg.product && (
+                                <div 
+                                    className={`mb-2 p-2 rounded-lg border flex items-center gap-2 max-w-[220px] cursor-pointer transition-colors ${isMe ? 'bg-white/10 border-white/20 hover:bg-white/20' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (msg.product?.slug) router.push(`/product/${msg.product.slug}`);
+                                    }}
+                                >
+                                    <div className="w-10 h-10 shrink-0 relative rounded overflow-hidden bg-gray-100">
+                                        {msg.product.image ? (
+                                            <img 
+                                                src={getAbsoluteUrl(msg.product.image)} 
+                                                alt={msg.product.title} 
+                                                className="w-full h-full object-cover" 
+                                            />
+                                        ) : (
+                                            <span className="text-[8px] flex items-center justify-center h-full text-gray-400">IMG</span>
+                                        )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                         <p className={`text-xs font-bold truncate ${isMe ? 'text-white' : 'text-gray-800'}`}>{msg.product.title}</p>
+                                         <p className={`text-xs font-bold ${isMe ? 'text-white/90' : 'text-primary'}`}>${Number(msg.product.price).toLocaleString()}</p>
+                                    </div>
+                                </div>
+                            )}
+
                             {msg.message_type === 'image' ? (
                                 <a 
                                     href={getAbsoluteUrl(msg.attachment_url || msg.content)}

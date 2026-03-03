@@ -84,21 +84,30 @@ function MobileSearchBar() {
 }
 
 import { MessagesDropdown } from "@/components/chat/MessagesDropdown";
+import { useChatStore } from "@/store/useChatStore";
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { isAuthenticated, user, logout } = useAuthStore();
   const { fetchFavorites } = useFavoritesStore();
+  const { connectSocket, disconnectSocket, fetchConversations } = useChatStore();
   const pathname = usePathname();
   const router = useRouter();
   const isSupplierPage = pathname?.startsWith('/empresas/');
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user?.id) {
       fetchFavorites();
+      fetchConversations();
+      connectSocket(user.id);
+    } else {
+      disconnectSocket();
     }
-  }, [isAuthenticated]);
+    // Cleanup on unmount (optional, but good practice if Header unmounts, though it usually doesn't)
+    // However, since Header is persistent, we might not want to disconnect unless logout.
+    // The else block handles logout.
+  }, [isAuthenticated, user?.id]);
 
   const handleSupplierScroll = (id: string) => {
     const element = document.getElementById(id);

@@ -7,6 +7,14 @@ export interface Message {
   is_read: boolean;
   message_type?: 'text' | 'image' | 'system' | 'file';
   attachment_url?: string;
+  product_id?: string | number | null;
+  product?: {
+    id: string | number;
+    title: string;
+    image: string;
+    price: number;
+    slug: string;
+  };
 }
 
 export interface Conversation {

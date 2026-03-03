@@ -1,20 +1,19 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { MessageSquare, Search } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { chatService } from "@/services/chatService";
 import { useChat } from "@/context/ChatContext";
+import { useChatStore } from "@/store/useChatStore";
 import { Conversation } from "@/types/chat";
 import { cn } from "@/lib/utils";
 
 export function MessagesDropdown() {
   const { user } = useAuthStore();
   const { openChat } = useChat();
+  const { conversations, loading, markAsRead } = useChatStore();
   const [isOpen, setIsOpen] = useState(false);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [chatEnabled, setChatEnabled] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -29,74 +28,19 @@ export function MessagesDropdown() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const fetchConversations = async (showLoading = false) => {
-    if (!user) return;
-    if (!chatEnabled) {
-      setConversations([]);
-      setUnreadCount(0);
-      return;
-    }
-    if (showLoading) setLoading(true);
-    try {
-      const data = await chatService.getConversations();
-      // Sort by reciente
-      data.sort((a, b) => {
-        const dateA = new Date(a.updated_at || a.created_at || 0).getTime();
-        const dateB = new Date(b.updated_at || b.created_at || 0).getTime();
-        return dateB - dateA;
-      });
-      
-      const limited = data.slice(0, 5);
-      setConversations(limited);
-
-      const count = limited.reduce(
-        (acc, curr) => acc + (curr.unread_count || 0),
-        0
-      );
-      setUnreadCount(count);
-    } catch (err) {
-      console.error("Failed to load dropdown chats", err);
-    } finally {
-      if (showLoading) setLoading(false);
-    }
-  };
-
-  // Fetch conversations when opened
+  // Check if chat is enabled locally
   useEffect(() => {
-    if (isOpen) {
-      fetchConversations(true);
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem("safeeasy:chat_enabled");
+      setChatEnabled(stored !== "0");
     }
-  }, [isOpen, user, chatEnabled]);
+  }, []);
 
-  // Poll for unread messages en segundo plano
-  useEffect(() => {
-    if (!user) return;
-    
-    const stored = typeof window !== "undefined" ? window.localStorage.getItem("safeeasy:chat_enabled") : null;
-    if (stored === "0") {
-      setChatEnabled(false);
-    } else {
-      setChatEnabled(true);
-    }
-
-    fetchConversations(false);
-    
-    const interval = setInterval(() => {
-        fetchConversations(false);
-    }, 7000);
-    
-    return () => clearInterval(interval);
-  }, [user]);
-
-  // Refrescar cuando la ventana recupera el foco (por ejemplo al volver a la pestaña)
-  useEffect(() => {
-    if (!user) return;
-    const handleFocus = () => {
-      fetchConversations(false);
-    };
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [user]);
+  // Derived state for unread count
+  const unreadCount = useMemo(() => {
+    if (!chatEnabled) return 0;
+    return conversations.reduce((acc, curr) => acc + (curr.unread_count || 0), 0);
+  }, [conversations, chatEnabled]);
 
   const toggleOpen = () => setIsOpen(!isOpen);
 
@@ -130,6 +74,11 @@ export function MessagesDropdown() {
         return '';
     }
   };
+
+  const displayConversations = useMemo(() => {
+    if (!chatEnabled) return [];
+    return conversations.slice(0, 5);
+  }, [conversations, chatEnabled]);
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -198,12 +147,12 @@ export function MessagesDropdown() {
                     <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                     <span className="text-xs">Cargando...</span>
                 </div>
-             ) : conversations.length === 0 ? (
+             ) : displayConversations.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
                     <p>No tienes mensajes recientes.</p>
                 </div>
              ) : (
-                conversations.map(conv => {
+                displayConversations.map(conv => {
                     const unread = conv.unread_count || 0;
                     const isNew = unread > 0;
 
@@ -213,21 +162,8 @@ export function MessagesDropdown() {
                         onClick={() => {
                             openChat(conv);
                             setIsOpen(false);
-                            setConversations(prev =>
-                              prev.map(c =>
-                                String(c.id) === String(conv.id)
-                                  ? { ...c, unread_count: 0 }
-                                  : c
-                              )
-                            );
-                            setUnreadCount(prev =>
-                              prev - unread > 0 ? prev - unread : 0
-                            );
-                            chatService
-                              .markAsRead(conv.id)
-                              .catch(err =>
-                                console.error("Failed to mark as read", err)
-                              );
+                            // Mark as read in global store
+                            markAsRead(conv.id);
                         }}
                         className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors mx-2 rounded-lg group cursor-pointer"
                     >
