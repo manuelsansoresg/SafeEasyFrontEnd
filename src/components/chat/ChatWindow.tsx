@@ -737,7 +737,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                 if (prev.length === finalConversations.length && prev[0]?.id === finalConversations[0]?.id) {
                     return prev;
                 }
-                console.log("[ChatWindow] Updating vendor conversation list from poll");
+                // console.log("[ChatWindow] Updating vendor conversation list from poll");
                 return finalConversations;
             });
             
@@ -748,7 +748,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
             }
             
         } catch (err) {
-            console.warn("[ChatWindow] Failed to poll conversations:", err);
+            // console.warn("[ChatWindow] Failed to poll conversations:", err);
         }
     }, 5000);
     
@@ -1002,18 +1002,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                 }
             }}
           >
-            {/* DEBUG PANEL */}
-            <div className="text-[10px] bg-black/80 text-white p-2 rounded mb-1 max-w-[300px] overflow-auto max-h-[200px] absolute top-full left-0 mt-1 z-50 pointer-events-auto cursor-default" onClick={e => e.stopPropagation()}>
-                <div className="font-bold mb-1">DEBUG INFO</div>
-                <div>Status: {status}</div>
-                <div className="break-all">URL: {wsUrl}</div>
-                <div>ID: {activeConversation?.id} ({typeof activeConversation?.id})</div>
-                <div className="text-red-300">{wsError}</div>
-                <details>
-                    <summary>Full Object</summary>
-                    <pre>{JSON.stringify(activeConversation, null, 2)}</pre>
-                </details>
-            </div>
+
 
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative shrink-0">
@@ -1101,7 +1090,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
             onClick={() => {
               const slug = productSlug || productData.slug;
               if (!slug) {
-                console.warn("[ChatWindow] Product slug not available, skipping navigation");
+                // console.warn("[ChatWindow] Product slug not available, skipping navigation");
                 return;
               }
               router.push(`/product/${slug}`);

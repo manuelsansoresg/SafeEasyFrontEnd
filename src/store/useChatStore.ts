@@ -254,7 +254,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           });
           socket.send(payload);
       } else {
-          console.warn('[ChatStore] Cannot send message: Socket not connected');
+          // console.warn('[ChatStore] Cannot send message: Socket not connected');
       }
   },
 

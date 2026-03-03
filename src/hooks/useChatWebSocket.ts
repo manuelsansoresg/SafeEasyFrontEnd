@@ -86,7 +86,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
 
   const sendMessage = useCallback((content: string, conversationId: number | string) => {
      if (!isConnected) {
-         console.warn('[useChatWebSocket] Cannot send: Not connected');
+         // console.warn('[useChatWebSocket] Cannot send: Not connected');
          // We could try to reconnect or throw
          setError('No hay conexión con el chat');
          return;
