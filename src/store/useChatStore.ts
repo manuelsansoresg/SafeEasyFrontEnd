@@ -123,9 +123,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // Expecting data format consistent with chat system
             // If it's a new message, we might need to update the conversation list
             
-            if (data.type === 'message' || data.message) { // Adjust based on actual payload
+            if (data.type === 'message' || data.message) { 
                 // Normalize message
+                let content = data.message || data.content || '';
                 let type = data.message_type;
+                let conversationId = data.conversation_id || data.conversationId;
+                let senderId = data.sender_id || data.senderId;
+                let productId = data.product_id;
+                
+                // Handle potential nested JSON string in content (common with some WS backends)
+                if (typeof content === 'string' && content.trim().startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(content);
+                        if (parsed.message) {
+                            content = parsed.message;
+                            // Recover other fields if missing
+                            if (!type) type = parsed.message_type;
+                            if (!conversationId) conversationId = parsed.conversation_id;
+                            if (!senderId) senderId = parsed.sender_id;
+                            if (!productId) productId = parsed.product_id;
+                        }
+                    } catch (e) {
+                        // Not JSON, ignore
+                    }
+                }
+                
+                // Determine type
                 if (!type && data.attachment_url) {
                     const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(data.attachment_url);
                     type = isImage ? 'image' : 'file';
@@ -133,20 +156,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
                 const msg: Message = {
                     id: data.id || Date.now(),
-                    sender_id: data.sender_id || data.senderId,
-                    conversation_id: data.conversation_id || data.conversationId,
-                    content: data.message || data.content || '',
+                    sender_id: senderId,
+                    conversation_id: conversationId,
+                    content: typeof content === 'string' ? content : String(content),
                     created_at: data.timestamp || data.created_at || new Date().toISOString(),
                     is_read: data.is_read || false,
                     message_type: type || 'text',
                     attachment_url: data.attachment_url,
-                    product_id: data.product_id,
+                    product_id: productId,
                     product: data.product
                 };
     
-                const conversationId = msg.conversation_id;
-                
-                // Notify subscribers
                 // @ts-ignore - Dynamic property not in interface but used internally
                 const subscribers = get().messageSubscribers as Set<MessageCallback>;
                 if (subscribers) {
