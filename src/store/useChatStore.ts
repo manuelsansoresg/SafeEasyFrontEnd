@@ -78,7 +78,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
     // Prevent multiple simultaneous connection attempts
     if (isConnecting) {
-        console.log('[ChatStore] Connection already in progress...');
+        // console.log('[ChatStore] Connection already in progress...');
         return;
     }
 
@@ -89,7 +89,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     const token = useAuthStore.getState().token;
     if (!token) {
-        console.warn('[ChatStore] Cannot connect: No token available');
+        // console.warn('[ChatStore] Cannot connect: No token available');
         return;
     }
 
@@ -104,20 +104,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // IMPORTANT: Backend expects /ws/chat/{conversation_id}
     const wsUrl = `${cleanWsBase}/ws/chat/${conversationId}?token=${token}`;
     
-    console.log(`[ChatStore] Connecting to WebSocket for Conversation ${conversationId}: ${wsUrl.split('?')[0]}...`); 
+    // console.log(`[ChatStore] Connecting to WebSocket for Conversation ${conversationId}: ${wsUrl.split('?')[0]}...`); 
     
     try {
         const newSocket = new WebSocket(wsUrl);
 
         newSocket.onopen = () => {
-          console.log('[ChatStore] WebSocket Connected');
+          // console.log('[ChatStore] WebSocket Connected');
           set({ isConnected: true, error: null, isConnecting: false, activeSocketConversationId: conversationId } as any);
         };
 
         newSocket.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            console.log('[ChatStore] WebSocket Message:', data);
+            // console.log('[ChatStore] WebSocket Message:', data);
             
             // Handle incoming messages
             // Expecting data format consistent with chat system
@@ -188,7 +188,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
 
         newSocket.onclose = (event) => {
-          console.log('[ChatStore] WebSocket Disconnected', event.code, event.reason);
+          // console.log('[ChatStore] WebSocket Disconnected', event.code, event.reason);
           set({ isConnected: false, socket: null, isConnecting: false });
           
           // Attempt to reconnect if not closed normally (1000) and NOT an auth error (usually 4xxx codes mapped to WS close codes)
@@ -197,7 +197,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           // 4001/4003: Auth errors (custom) - Do NOT retry loop
           
           if (event.code !== 1000 && event.code !== 4001 && event.code !== 4003) {
-            console.log('[ChatStore] Attempting to reconnect in 5s...');
+            // console.log('[ChatStore] Attempting to reconnect in 5s...');
             setTimeout(() => {
                 const currentConversationId = (get() as any).activeSocketConversationId;
                 if (currentConversationId) {

@@ -91,13 +91,13 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   // Debug logs
   useEffect(() => {
     if (isOpen) {
-        console.log("[ChatWindow] Debug IDs:", { 
-            currentUserId: user?.id, 
-            productSupplierId: supplierId, 
-            isVendorMode,
-            productId,
-            activeConversationId: activeConversation?.id
-        });
+        // console.log("[ChatWindow] Debug IDs:", { 
+        //     currentUserId: user?.id, 
+        //     productSupplierId: supplierId, 
+        //     isVendorMode,
+        //     productId,
+        //     activeConversationId: activeConversation?.id
+        // });
     }
   }, [isOpen, user, supplierId, isVendorMode, productId, activeConversation]);
 
@@ -123,7 +123,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   // Send pending messages when WebSocket connects
   useEffect(() => {
     if (status === 'connected' && pendingMessages.length > 0 && activeConversation && !String(activeConversation.id).startsWith('temp-')) {
-        console.log("[ChatWindow] Sending pending messages via WebSocket", pendingMessages);
+        // console.log("[ChatWindow] Sending pending messages via WebSocket", pendingMessages);
         
         // Send all pending messages
         pendingMessages.forEach(msg => {
@@ -167,12 +167,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     // 1. Try fetching by SLUG first if available (Most reliable for transfer data)
     if (supplierSlug) {
         try {
-            console.log(`[ChatWindow] Fetching supplier details using slug: ${supplierSlug}`);
+            // console.log(`[ChatWindow] Fetching supplier details using slug: ${supplierSlug}`);
             // Ensure trailing slash for backend compatibility
             const slugRes = await fetchWithAuth(`/api/suppliers/${supplierSlug}/`);
             if (slugRes.ok) {
                 const slugData = await slugRes.json();
-                console.log("[ChatWindow] Resolved supplier from slug:", slugData);
+                // console.log("[ChatWindow] Resolved supplier from slug:", slugData);
                 
                 if (slugData.transfer_accepted) {
                     setLocalTransferData({
@@ -185,7 +185,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                     return; 
                 }
             } else {
-                 console.warn(`[ChatWindow] Failed to fetch supplier by slug (${slugRes.status}). trying without slash...`);
+                 // console.warn(`[ChatWindow] Failed to fetch supplier by slug (${slugRes.status}). trying without slash...`);
                  // Retry without slash just in case
                  const retryRes = await fetchWithAuth(`/api/suppliers/${supplierSlug}`);
                  if (retryRes.ok) {
@@ -211,7 +211,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     if (!supplierId) return;
     
     try {
-        console.log("[ChatWindow] Fetching extra supplier details by User ID:", supplierId);
+        // console.log("[ChatWindow] Fetching extra supplier details by User ID:", supplierId);
         const suppRes = await fetchWithAuth(`/api/users/${supplierId}`);
         if (suppRes.ok) {
             const suppData = await suppRes.json();
@@ -226,7 +226,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
             // If we have a slug but missing transfer details, try fetching the specific supplier endpoint
             // This matches the user's suggestion to use /suppliers/{slug}
             if (suppData.slug && (!transferData.transfer_bank || !transferData.transfer_clabe)) {
-                console.log(`[ChatWindow] Fetching detailed supplier info from /api/suppliers/${suppData.slug}`);
+                // console.log(`[ChatWindow] Fetching detailed supplier info from /api/suppliers/${suppData.slug}`);
                 try {
                     const slugRes = await fetchWithAuth(`/api/suppliers/${suppData.slug}`);
                     if (slugRes.ok) {
@@ -239,7 +239,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                             transfer_clabe: slugData.transfer_clabe ?? transferData.transfer_clabe,
                             transfer_name: slugData.transfer_name ?? transferData.transfer_name
                         };
-                        console.log("[ChatWindow] Updated transfer data from slug endpoint:", transferData);
+                        // console.log("[ChatWindow] Updated transfer data from slug endpoint:", transferData);
                     }
                 } catch (err) {
                     console.warn("Failed to fetch from supplier slug endpoint", err);

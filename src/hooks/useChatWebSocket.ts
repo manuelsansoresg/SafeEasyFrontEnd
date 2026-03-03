@@ -70,7 +70,7 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
       const unsubscribe = subscribeToMessages((msg: Message) => {
           // Filter for current conversation
           if (String(msg.conversation_id) === String(activeConversationId)) {
-              console.log('[useChatWebSocket] Received message for active chat:', msg);
+              // console.log('[useChatWebSocket] Received message for active chat:', msg);
               setLastMessage(msg);
               setMessages(prev => {
                   if (prev.some(m => m.id === msg.id)) return prev;
