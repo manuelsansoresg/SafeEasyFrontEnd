@@ -10,10 +10,11 @@ interface ChatState {
   socket: WebSocket | null;
   isConnected: boolean;
   isConnecting: boolean;
+  activeSocketConversationId?: string | number; // Added
   
   // Actions
   fetchConversations: () => Promise<void>;
-  connectSocket: (userId: number) => void;
+  connectSocket: (conversationId: string | number) => void;
   disconnectSocket: () => void;
   markAsRead: (conversationId: string | number) => Promise<void>;
   addMessageToConversation: (conversationId: string | number, message: Message) => void;
@@ -50,15 +51,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  connectSocket: (userId: number) => {
+  connectSocket: (conversationId: string | number) => {
     const { socket, isConnecting, isConnected } = get();
     
-    // Check if already connected or connecting
+    // Check if already connected or connecting to the SAME conversation?
+    // The store only holds one socket. If we switch conversations, we must reconnect.
+    // Ideally we should track which conversation the socket is connected to.
+    // For now, let's assume if socket is open, we check if we need to switch.
+    // But since we don't store connectedConversationId, let's just close and reopen if ID changes or if closed.
+    
+    // Actually, to avoid aggressive reconnects, let's store currentConversationId in the store state?
+    // Or just rely on the caller to only call this when conversation changes.
+    
     if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-      if (!isConnected && socket.readyState === WebSocket.OPEN) {
-          set({ isConnected: true, isConnecting: false });
-      }
-      return; 
+      // If we are already connected, we might be connected to a different conversation.
+      // We should close and reconnect if the URL doesn't match, but we don't have easy access to URL params here without parsing.
+      // Simpler approach: The caller (ChatWindow) should handle "if activeConversation changed, connect".
+      // But if we call connectSocket(A) then connectSocket(A) again, we should no-op.
+      // Let's add `activeSocketConversationId` to state to track this.
+       const state = get() as any;
+       if (state.activeSocketConversationId === conversationId && isConnected) {
+           return;
+       }
+       // If different, fall through to close and reconnect
     }
     
     // Prevent multiple simultaneous connection attempts
@@ -85,16 +100,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const wsBase = apiBase.replace(/^http/, 'ws');
     // Ensure no double slashes if apiBase ends with /
     const cleanWsBase = wsBase.replace(/\/$/, '');
-    const wsUrl = `${cleanWsBase}/ws/chat/${userId}?token=${token}`;
     
-    console.log(`[ChatStore] Connecting to WebSocket: ${wsUrl.split('?')[0]}...`); // Log without token for security
+    // IMPORTANT: Backend expects /ws/chat/{conversation_id}
+    const wsUrl = `${cleanWsBase}/ws/chat/${conversationId}?token=${token}`;
+    
+    console.log(`[ChatStore] Connecting to WebSocket for Conversation ${conversationId}: ${wsUrl.split('?')[0]}...`); 
     
     try {
         const newSocket = new WebSocket(wsUrl);
 
         newSocket.onopen = () => {
           console.log('[ChatStore] WebSocket Connected');
-          set({ isConnected: true, error: null, isConnecting: false });
+          set({ isConnected: true, error: null, isConnecting: false, activeSocketConversationId: conversationId } as any);
         };
 
         newSocket.onmessage = (event) => {
@@ -182,9 +199,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           if (event.code !== 1000 && event.code !== 4001 && event.code !== 4003) {
             console.log('[ChatStore] Attempting to reconnect in 5s...');
             setTimeout(() => {
-                const currentUser = useAuthStore.getState().user;
-                if (currentUser?.id) {
-                    get().connectSocket(currentUser.id);
+                const currentConversationId = (get() as any).activeSocketConversationId;
+                if (currentConversationId) {
+                    get().connectSocket(currentConversationId);
                 }
             }, 5000);
           }

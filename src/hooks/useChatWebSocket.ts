@@ -42,13 +42,19 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
       // But if we are in a standalone context or Header failed, we might want to trigger it.
       // However, to avoid loops, we should be careful.
       // The store now handles isConnecting to prevent race conditions.
+      // UPDATED: Now we connect per conversation, so activeConversationId is required.
       
-      if (shouldConnect && user?.id && !isConnected) {
+      if (shouldConnect && activeConversationId) {
+          // Do not attempt to connect to temporary conversations
+          if (String(activeConversationId).startsWith('temp-')) {
+              return;
+          }
+
           // Check if we should really connect or if it's already being handled
           // We can call connectSocket, as it now has internal checks
-          connectSocket(Number(user.id));
+          connectSocket(activeConversationId);
       }
-  }, [shouldConnect, user, isConnected, connectSocket]);
+  }, [shouldConnect, activeConversationId, connectSocket]);
 
   // Subscribe to messages
   useEffect(() => {

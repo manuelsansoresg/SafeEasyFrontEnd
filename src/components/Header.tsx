@@ -100,13 +100,17 @@ export function Header() {
     if (isAuthenticated && user?.id) {
       fetchFavorites();
       fetchConversations();
-      connectSocket(user.id);
+      // connectSocket(user.id); // Disabled: Backend requires conversation_id
+      // Global socket is not possible with current backend.
+      
+      // Polling for unread counts (every 60s)
+      const interval = setInterval(() => {
+          fetchConversations();
+      }, 60000);
+      return () => clearInterval(interval);
     } else {
       disconnectSocket();
     }
-    // Cleanup on unmount (optional, but good practice if Header unmounts, though it usually doesn't)
-    // However, since Header is persistent, we might not want to disconnect unless logout.
-    // The else block handles logout.
   }, [isAuthenticated, user?.id]);
 
   const handleSupplierScroll = (id: string) => {
