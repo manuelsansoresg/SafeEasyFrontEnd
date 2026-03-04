@@ -85,12 +85,12 @@ export function MessagesDropdown() {
       <button 
         onClick={toggleOpen}
         className={cn(
-            "p-2 rounded-full transition-colors relative",
-            isOpen ? "bg-primary/10 text-primary" : "hover:bg-gray-100 text-gray-600"
+            "flex items-center justify-center w-10 h-10 rounded-full border border-white transition-all relative",
+            isOpen ? "bg-white text-primary" : "text-white hover:bg-white hover:text-primary"
         )}
       >
         <div className="relative">
-            <MessageSquare size={22} className={isOpen ? "fill-current" : ""} />
+            <MessageSquare size={20} className={isOpen ? "fill-current" : ""} />
             {chatEnabled && unreadCount > 0 && (
                 <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white">
                     {unreadCount > 9 ? '9+' : unreadCount}

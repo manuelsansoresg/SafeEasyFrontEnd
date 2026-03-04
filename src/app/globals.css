@@ -3,27 +3,29 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #000000;
   
-  /* Brand Colors - Elegant Purple */
-  --primary: #7c3aed;
+  /* Brand Colors - Drooopy */
+  --primary: #004e28;
   --primary-foreground: #ffffff;
   
-  --secondary: #f3f4f6;
-  --secondary-foreground: #1f2937;
+  --secondary: #168e00;
+  --secondary-foreground: #ffffff;
   
-  --accent: #f5f3ff;
-  --accent-foreground: #5b21b6;
+  --brand-light: #7ed957;
+
+  --accent: #f2f3f4;
+  --accent-foreground: #000000;
   
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
 
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
+  --muted: #f2f3f4;
+  --muted-foreground: #000000;
   
   --border: #e5e7eb;
   --input: #e5e7eb;
-  --ring: #7c3aed;
+  --ring: #168e00;
 }
 
 @theme inline {
@@ -43,14 +45,14 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-poppins);
+  --font-display: var(--font-varela-round);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* Cursor de mano para todos los botones globalmente */

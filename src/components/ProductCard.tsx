@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Heart, BadgeCheck } from "lucide-react";
+import { Heart, Star } from "lucide-react";
 import slugify from "slugify";
-import StarRating from "./StarRating";
 import { Supplier } from "@/lib/products";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 interface ProductCardProps {
   id: string;
@@ -17,6 +17,7 @@ interface ProductCardProps {
   minOrder?: string;
   slug: string;
   rating?: number;
+  sales?: number;
   supplier?: Supplier;
   onClick?: (e: React.MouseEvent) => void;
 }
@@ -28,7 +29,8 @@ export function ProductCard({
   image,
   minOrder = "1 pieza",
   slug,
-  rating = 0,
+  rating = 4.8,
+  sales = 500,
   supplier,
   onClick,
 }: ProductCardProps) {
@@ -75,68 +77,71 @@ export function ProductCard({
     }
   };
 
+  const displayPrice = (typeof price === 'number' ? price : 0).toFixed(0);
+
   return (
-    <div className="group block bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full relative">
-      <Link 
-        href={`/product/${slug}`} 
-        className="block relative aspect-square overflow-hidden bg-secondary"
-        onClick={handleCardClick}
-      >
+    <div className="group block bg-white rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 flex flex-col h-full relative font-sans">
+      {/* Image Container */}
+      <div className="relative aspect-square bg-[#f9f9f9] p-4">
+        <Link 
+            href={`/product/${slug}`} 
+            onClick={handleCardClick}
+            className="block w-full h-full relative"
+        >
+            {image ? (
+            <img 
+                src={getImageUrl(image)} 
+                alt={title} 
+                className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500" 
+            />
+            ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                <span className="text-4xl">📦</span>
+            </div>
+            )}
+        </Link>
+        
+        {/* Favorite Button */}
         <button
           onClick={handleFavoriteClick}
-          className="absolute top-2 right-2 p-2 bg-white/90 rounded-full hover:bg-white transition-all z-10 shadow-sm hover:scale-110"
+          className="absolute top-3 right-3 p-1.5 bg-white rounded-full hover:bg-gray-50 transition-all z-10 shadow-sm"
           title={isFav ? "Quitar de favoritos" : "Agregar a favoritos"}
         >
           <Heart
             size={18}
             className={cn(
               "transition-colors",
-              isFav ? "fill-primary text-primary" : "text-gray-400 hover:text-primary"
+              isFav ? "fill-black text-black" : "text-gray-400 hover:text-black"
             )}
           />
         </button>
-        {image ? (
-          <img 
-            src={getImageUrl(image)} 
-            alt={title} 
-            className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500" 
-          />
-        ) : (
-          /* Placeholder for Image */
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-gray-100 group-hover:scale-105 transition-transform duration-500">
-             <span className="text-4xl">📦</span>
-          </div>
-        )}
-      </Link>
-      <div className="p-4 flex flex-col flex-grow">
-        <Link href={`/product/${slug}`} onClick={handleCardClick}>
-          <h3 className="text-sm font-medium text-gray-800 line-clamp-2 group-hover:text-primary transition-colors mb-2 h-10">
+      </div>
+
+      {/* Content */}
+      <div className="p-3 flex flex-col flex-grow">
+        <Link href={`/product/${slug}`} onClick={handleCardClick} className="flex-grow">
+          <h3 className="text-[15px] font-bold text-gray-900 leading-tight mb-1 line-clamp-2 group-hover:text-primary transition-colors">
             {title}
           </h3>
+          
+          <div className="flex items-center justify-between mb-1">
+             <span className="text-lg font-bold text-secondary">${displayPrice}</span>
+          </div>
+          
+          <div className="text-xs text-gray-400 mb-3 truncate">
+             {supplier?.city || "North Purwokerto"}
+          </div>
         </Link>
         
-        <div className="mb-2">
-            <StarRating rating={rating} size={14} showCount={true} />
+        {/* Rating and Sales */}
+        <div className="flex items-center gap-1 text-sm text-gray-600 mt-auto">
+            <div className="flex items-center gap-1">
+                <Star size={16} className="fill-amber-400 text-amber-400" />
+                <span className="font-medium">{rating}</span>
+            </div>
+            <span className="text-gray-300 mx-1">|</span>
+            <span>{sales} ventas</span>
         </div>
-        <div className="flex items-baseline gap-1 mt-auto">
-          <span className="text-lg font-bold text-gray-900">${(typeof price === 'number' ? price : 0).toFixed(2)}</span>
-          <span className="text-xs text-muted-foreground">/ pieza</span>
-        </div>
-
-        {supplier && supplierHref ? (
-          <Link
-            href={supplierHref}
-            className="text-xs text-primary mt-1 inline-flex items-center gap-1 hover:underline cursor-pointer"
-          >
-            {supplier.name}
-          </Link>
-        ) : (
-          supplier && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {supplier.name}
-            </p>
-          )
-        )}
       </div>
     </div>
   );

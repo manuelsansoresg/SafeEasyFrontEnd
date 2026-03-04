@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Poppins, Varela_Round } from "next/font/google";
+import "@fortawesome/fontawesome-free/css/all.min.css";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -7,18 +8,20 @@ import { MobileNav } from "@/components/MobileNav";
 import { ChatProvider } from "@/context/ChatContext";
 import { ChatOverlay } from "@/components/chat/ChatOverlay";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
+  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const varelaRound = Varela_Round({
+  variable: "--font-varela-round",
   subsets: ["latin"],
+  weight: "400",
 });
 
 export const metadata: Metadata = {
-  title: "SafeEasy - Compra y Vende Seguro",
+  title: "Drooopy - Compra y Vende Seguro",
   description: "Tu plataforma segura para compras y ventas online.",
 };
 
@@ -31,11 +34,11 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${poppins.variable} ${varelaRound.variable} font-sans antialiased bg-background text-foreground`}
       >
         <ChatProvider>
           <Header />
-          <main className="pt-16 pb-16 md:pb-0 min-h-screen">
+          <main className="pt-32 pb-16 md:pb-0 min-h-screen">
             {children}
           </main>
           <Footer />

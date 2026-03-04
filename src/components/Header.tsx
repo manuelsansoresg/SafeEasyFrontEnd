@@ -2,13 +2,16 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { Search, User, ChevronDown, ShoppingBag, LogOut } from "lucide-react";
+import Image from "next/image";
+import { Search, ChevronDown, LogOut, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { registerInteraction } from "@/lib/interactions";
+import { MessagesDropdown } from "@/components/chat/MessagesDropdown";
+import { useChatStore } from "@/store/useChatStore";
 
 function SearchBar() {
   const router = useRouter();
@@ -33,77 +36,35 @@ function SearchBar() {
   };
 
   return (
-    <form onSubmit={handleSearch} className="relative w-full flex items-center">
+    <form onSubmit={handleSearch} className="relative w-full sm:w-64 md:w-96 flex items-center">
       <input
         type="text"
-        placeholder="¿Qué estás buscando?"
+        placeholder="Buscar"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="w-full h-10 pl-4 pr-32 rounded-full border-2 border-primary/50 focus:border-primary focus:outline-none transition-colors"
+        className="w-full h-9 pl-5 pr-10 rounded-full border-2 border-white bg-transparent text-white placeholder:text-white/80 focus:outline-none focus:ring-1 focus:ring-white transition-all text-sm font-medium"
       />
-      <button type="submit" className="absolute right-0 top-0 bottom-0 px-6 bg-primary text-primary-foreground rounded-r-full font-medium hover:bg-primary/90 transition-colors flex items-center gap-2">
-        <Search size={18} />
-        Buscar
+      <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-white hover:text-[#7ed957] transition-colors">
+        <Search size={20} strokeWidth={2.5} />
       </button>
     </form>
   );
 }
-
-function MobileSearchBar() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    setQuery(searchParams.get("q") || "");
-  }, [searchParams]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (query.trim()) {
-      router.push(`/?q=${encodeURIComponent(query)}`);
-    } else {
-      router.push("/");
-    }
-  };
-
-  return (
-    <form onSubmit={handleSearch} className="relative w-full flex items-center">
-      <input
-        type="text"
-        placeholder="Buscar..."
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        className="w-full h-9 pl-3 pr-10 rounded-full border border-border bg-secondary focus:border-primary focus:outline-none text-sm"
-      />
-      <button type="submit" className="absolute right-3 p-1 text-muted-foreground">
-        <Search size={16} />
-      </button>
-    </form>
-  );
-}
-
-import { MessagesDropdown } from "@/components/chat/MessagesDropdown";
-import { useChatStore } from "@/store/useChatStore";
 
 export function Header() {
-  const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { isAuthenticated, user, logout } = useAuthStore();
   const { fetchFavorites } = useFavoritesStore();
   const { connectSocket, disconnectSocket, fetchConversations } = useChatStore();
   const pathname = usePathname();
   const router = useRouter();
-  const isSupplierPage = pathname?.startsWith('/empresas/');
 
   useEffect(() => {
     if (isAuthenticated && user?.id) {
       fetchFavorites();
       fetchConversations();
-      // connectSocket(user.id); // Disabled: Backend requires conversation_id
-      // Global socket is not possible with current backend.
       
-      // Polling for unread counts (every 60s)
       const interval = setInterval(() => {
           fetchConversations();
       }, 60000);
@@ -113,177 +74,163 @@ export function Header() {
     }
   }, [isAuthenticated, user?.id]);
 
-  const handleSupplierScroll = (id: string) => {
-    const element = document.getElementById(id);
-    if (element) {
-      const headerOffset = 80;
-      const elementPosition = element.getBoundingClientRect().top + window.scrollY;
-      const offsetPosition = elementPosition - headerOffset;
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: "smooth",
-      });
-    }
-  };
-
+  // Close mobile menu on route change
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
 
   return (
-    <header
-      className={cn(
-        "fixed top-0 left-0 right-0 z-50 bg-white transition-shadow duration-300",
-        isScrolled ? "shadow-md" : "border-b border-border"
-      )}
-    >
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
-        {/* Logo */}
-        <Link href="/" className="flex-shrink-0">
-          <span className="text-2xl font-bold text-primary tracking-tight">
-            SafeEasy
-          </span>
-        </Link>
+    <header className="fixed top-0 left-0 right-0 z-50 flex flex-col font-sans">
+      {/* Top Bar */}
+      <div className="bg-white text-black py-2 px-4 text-center text-[10px] sm:text-xs md:text-sm italic border-b border-gray-100 hidden sm:block">
+        Promociona tu marca en Drooopy.com • Encuentra lo que buscas, chatea directo con el vendedor y compra seguro.
+      </div>
 
-        {/* Search Bar - Hidden on very small screens if needed, or adapted */}
-        {!isSupplierPage ? (
-          <div className="flex-1 max-w-2xl mx-4 hidden md:flex relative group">
-            <Suspense fallback={<div className="w-full h-10 bg-gray-100 rounded-full" />}>
-              <SearchBar />
-            </Suspense>
-          </div>
-        ) : (
-          <nav className="hidden md:flex flex-1 items-center justify-center mx-6">
-            <div className="flex items-center gap-1 bg-gray-100/80 p-1.5 rounded-full border border-gray-200/60 shadow-sm backdrop-blur-sm">
-              {[
-                { id: "inicio", label: "Inicio" },
-                { id: "productos", label: "Productos" },
-                { id: "certificados", label: "Certificados" },
-                { id: "calificaciones", label: "Calificaciones" },
-                { id: "nosotros", label: "Nosotros" },
-                { id: "contacto", label: "Contacto" },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleSupplierScroll(item.id)}
-                  className="px-4 py-2 text-sm font-medium text-gray-600 rounded-full hover:bg-white hover:text-primary hover:shadow-sm transition-all duration-200 whitespace-nowrap"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </nav>
-        )}
-
-        {/* Mobile Search - Simplified */}
-        {!isSupplierPage && (
-          <div className="flex-1 md:hidden mx-2">
-             <Suspense fallback={<div className="w-full h-9 bg-gray-100 rounded-full" />}>
-               <MobileSearchBar />
-             </Suspense>
-          </div>
-        )}
-
-        {/* Desktop Actions */}
-        <div className="hidden md:flex items-center gap-6">
-          {!isSupplierPage && (
-            <Link
-              href="/sell"
-              className="flex items-center gap-2 text-sm font-bold text-white bg-primary hover:bg-primary/90 py-2 px-4 rounded-full transition-all shadow-md hover:shadow-lg transform hover:scale-105"
-            >
-              <ShoppingBag size={18} />
-              <span>Vende en SafeEasy</span>
+      {/* Main Header */}
+      <div className="bg-primary text-white shadow-md transition-all duration-300">
+        <div className="container mx-auto px-4 h-20 md:h-24 flex items-center justify-between">
+          
+          {/* Left Side: Logo + Nav */}
+          <div className="flex items-center gap-8 md:gap-16">
+            {/* Logo */}
+            <Link href="/" className="flex items-center gap-2 group">
+               <div className="relative w-56 h-14 md:w-[200px] md:h-20">
+                 <Image 
+                   src="/logo-drooopy.svg" 
+                   alt="Drooopy Logo" 
+                   fill
+                   className="object-contain object-left"
+                   priority
+                 />
+               </div>
             </Link>
-          )}
 
-          {/* Messages Dropdown */}
-          {isAuthenticated && <MessagesDropdown />}
-
-          {/* User Menu */}
-          <div
-            className="relative"
-            onMouseEnter={() => setIsUserMenuOpen(true)}
-            onMouseLeave={() => setIsUserMenuOpen(false)}
-          >
-            {isAuthenticated ? (
-              <button className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors py-2">
-                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                  <span className="text-primary font-bold text-xs">
-                    {user?.name?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div className="flex flex-col items-start leading-none">
-                  <span className="text-xs text-muted-foreground">
-                    Hola, {user?.name}
-                  </span>
-                  <span className="flex items-center gap-1 font-bold">
-                    Mi Cuenta <ChevronDown size={14} />
-                  </span>
-                </div>
-              </button>
-            ) : (
-              <Link href="/login" className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors py-2">
-                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                  <User size={18} />
-                </div>
-                <div className="flex flex-col items-start leading-none">
-                  <span className="text-xs text-muted-foreground">Hola, Inicia sesión</span>
-                  <span className="font-bold">Inicia sesión</span>
-                </div>
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center gap-8 text-base font-medium font-[family-name:var(--font-varela-round)]">
+              <Link href="/" className="hover:text-[#7ed957] transition-colors text-white">
+                Inicio
               </Link>
-            )}
+              <Link href="/nosotros" className="hover:text-[#7ed957] transition-colors text-white">
+                Nosotros
+              </Link>
+              <Link href="/contacto" className="hover:text-[#7ed957] transition-colors text-white">
+                Contacto
+              </Link>
+            </nav>
+          </div>
 
-            <AnimatePresence>
-              {isUserMenuOpen && isAuthenticated && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute right-0 top-full w-64 bg-white rounded-xl shadow-xl border border-border overflow-hidden py-2"
-                >
-                  <div className="px-4 py-3 border-b border-border bg-secondary/30">
-                    <p className="font-semibold text-sm">Tu cuenta</p>
-                  </div>
-                  <nav className="flex flex-col">
-                    {(user?.role === 'admin' || user?.role === 'supplier') && (
-                      <Link href="/admin/dashboard" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3 font-medium text-primary">
-                        <span>🛡️</span> {user.role === 'admin' ? 'Panel Admin' : 'Mi Empresa'}
-                      </Link>
+          {/* Right Side: Search + Actions */}
+          <div className="flex items-center gap-4 md:gap-6">
+            {/* Search Bar (Desktop) */}
+            <div className="hidden md:block">
+              <Suspense fallback={<div className="w-64 h-10 bg-primary/50 border border-white/30 rounded-full" />}>
+                <SearchBar />
+              </Suspense>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-4">
+              {/* Messages */}
+              {isAuthenticated && <MessagesDropdown />}
+
+              {/* User Menu */}
+              <div
+                className="relative"
+                onMouseEnter={() => setIsUserMenuOpen(true)}
+                onMouseLeave={() => setIsUserMenuOpen(false)}
+              >
+                {isAuthenticated ? (
+                  <button className="flex items-center justify-center w-10 h-10 rounded-full text-white hover:text-[#7ed957] transition-all">
+                    {user?.name ? (
+                        <span className="font-bold text-lg">{user.name.charAt(0).toUpperCase()}</span>
+                    ) : (
+                        <i className="fa-solid fa-circle-user text-[28px]" />
                     )}
-                    {user?.role === 'client' && (
-                      <Link href="/client/profile" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3 font-medium text-primary">
-                        <span>👤</span> Mi Perfil
-                      </Link>
-                    )}
-                    {/* Mensajes link removed */}
-                    <Link href="/client/favorites" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
-                      <span>❤️</span> Favoritos
-                    </Link>
-                    <Link href="/coupons" className="px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3">
-                      <span>🎫</span> Mis Cupones
-                    </Link>
-                    <div className="h-px bg-border my-1" />
-                    <button
-                      onClick={() => {
-                        logout();
-                        router.push("/login");
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-secondary flex items-center gap-3 text-red-500"
+                  </button>
+                ) : (
+                  <Link href="/login" className="flex items-center justify-center w-10 h-10 rounded-full text-white hover:text-[#7ed957] transition-all">
+                    <i className="fa-solid fa-circle-user text-[28px]" />
+                  </Link>
+                )}
+
+                {/* Dropdown Menu */}
+                <AnimatePresence>
+                  {isUserMenuOpen && isAuthenticated && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute right-0 top-full mt-2 w-64 bg-white text-black rounded-xl shadow-xl border border-gray-100 overflow-hidden py-2"
                     >
-                      <LogOut size={16} /> Cerrar Sesión
-                    </button>
-                  </nav>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                      <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                        <p className="font-semibold text-sm text-primary">Hola, {user?.name}</p>
+                      </div>
+                      <nav className="flex flex-col">
+                        {(user?.role === 'admin' || user?.role === 'supplier') && (
+                          <Link href="/admin/dashboard" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
+                            <span>🛡️</span> {user.role === 'admin' ? 'Panel Admin' : 'Mi Empresa'}
+                          </Link>
+                        )}
+                        {user?.role === 'client' && (
+                          <Link href="/client/profile" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
+                            <span>👤</span> Mi Perfil
+                          </Link>
+                        )}
+                        <Link href="/client/favorites" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 text-gray-700 hover:text-primary">
+                          <span>❤️</span> Favoritos
+                        </Link>
+                        <div className="h-px bg-gray-100 my-1" />
+                        <button
+                          onClick={() => {
+                            logout();
+                            router.push("/login");
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 flex items-center gap-3 text-red-500"
+                        >
+                          <LogOut size={16} /> Cerrar Sesión
+                        </button>
+                      </nav>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Mobile Menu Toggle */}
+              <button 
+                className="md:hidden text-white hover:text-secondary transition-colors"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              >
+                {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        <AnimatePresence>
+            {isMobileMenuOpen && (
+                <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="md:hidden bg-primary border-t border-white/10 overflow-hidden"
+                >
+                    <div className="p-4 flex flex-col gap-4">
+                        <div className="pb-4 border-b border-white/10">
+                            <Suspense fallback={<div className="w-full h-10 bg-primary/50 rounded-full" />}>
+                                <SearchBar />
+                            </Suspense>
+                        </div>
+                        <nav className="flex flex-col gap-2">
+                            <Link href="/" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Inicio</Link>
+                            <Link href="/nosotros" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Nosotros</Link>
+                            <Link href="/contacto" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Contacto</Link>
+                        </nav>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
       </div>
     </header>
   );
