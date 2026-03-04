@@ -83,55 +83,55 @@ export function HomeCategories() {
   }
 
   return (
-    <div className="py-8">
+    <div className="py-8 relative">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-3xl font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">Categorías</h2>
-        
-        {/* Pagination Arrows */}
-        <div className="flex gap-2">
-            <button 
-                onClick={handlePrev}
-                disabled={currentPage === 0}
-                className="p-2 rounded-full border border-gray-200 hover:bg-gray-50 text-gray-400 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-            >
-                <ChevronLeft size={24} />
-            </button>
-            <button 
-                onClick={handleNext}
-                disabled={currentPage === totalPages - 1}
-                className="p-2 rounded-full border border-gray-200 hover:bg-gray-50 text-gray-400 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-            >
-                <ChevronRight size={24} />
-            </button>
-        </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {currentCategories.map((category) => {
-          const Icon = category.icon && ICON_COMPONENTS[category.icon] 
-            ? ICON_COMPONENTS[category.icon] 
-            : Package;
-            
-          // Generar un número aleatorio fijo basado en el ID para que parezca real pero sea consistente
-          const productCount = (category.id * 1234) % 15000 + 500; 
-          const formattedCount = productCount > 1000 
-            ? `${(productCount / 1000).toFixed(1)}k` 
-            : productCount;
+      <div className="relative">
+        {/* Pagination Arrows */}
+        <button 
+            onClick={handlePrev}
+            disabled={currentPage === 0}
+            className="absolute -left-4 md:-left-12 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-gray-400 disabled:opacity-0 disabled:cursor-default transition-all shadow-sm"
+        >
+            <ChevronLeft size={24} />
+        </button>
+        <button 
+            onClick={handleNext}
+            disabled={currentPage === totalPages - 1}
+            className="absolute -right-4 md:-right-12 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-gray-400 disabled:opacity-0 disabled:cursor-default transition-all shadow-sm"
+        >
+            <ChevronRight size={24} />
+        </button>
 
-          return (
-            <Link 
-              key={category.id} 
-              href={`/?category=${category.slug}`}
-              className="flex flex-col items-center justify-center p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition-shadow group h-40"
-            >
-              <div className="mb-4 text-[#004e28] group-hover:text-[#168e00] transition-colors">
-                <Icon size={32} strokeWidth={1.5} />
-              </div>
-              <h3 className="font-bold text-[#004e28] font-[family-name:var(--font-varela-round)] text-center mb-1 line-clamp-1 group-hover:text-[#168e00] transition-colors text-lg">{category.name}</h3>
-              <p className="text-xs text-gray-400 font-medium">{formattedCount} products</p>
-            </Link>
-          );
-        })}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+          {currentCategories.map((category) => {
+            const Icon = category.icon && ICON_COMPONENTS[category.icon] 
+              ? ICON_COMPONENTS[category.icon] 
+              : Package;
+              
+            // Generar un número aleatorio fijo basado en el ID para que parezca real pero sea consistente
+            const productCount = (category.id * 1234) % 15000 + 500; 
+            const formattedCount = productCount > 1000 
+              ? `${(productCount / 1000).toFixed(1)}k` 
+              : productCount;
+
+            return (
+              <Link 
+                key={category.id} 
+                href={`/?category=${category.slug}`}
+                className="flex flex-col items-center justify-center p-3 md:p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition-shadow group h-32 md:h-40"
+              >
+                <div className="mb-2 md:mb-4 text-[#004e28] group-hover:text-[#168e00] transition-colors">
+                  <Icon className="w-6 h-6 md:w-8 md:h-8" strokeWidth={1.5} />
+                </div>
+                <h3 className="font-bold text-[#004e28] font-[family-name:var(--font-varela-round)] text-center mb-1 line-clamp-1 group-hover:text-[#168e00] transition-colors text-sm md:text-lg">{category.name}</h3>
+                <p className="text-[10px] md:text-xs text-gray-400 font-medium">{formattedCount} products</p>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

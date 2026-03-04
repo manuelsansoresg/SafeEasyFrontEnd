@@ -64,33 +64,33 @@ export function HomeFeaturedProducts() {
           <button 
             onClick={handlePrev}
             disabled={skip === 0}
-            className="absolute -left-4 md:-left-12 top-1/2 -translate-y-1/2 z-10 p-2 bg-transparent text-gray-300 hover:text-gray-500 disabled:opacity-0 disabled:cursor-default transition-opacity"
+            className="absolute -left-2 md:-left-12 top-1/2 -translate-y-1/2 z-10 p-1 md:p-2 bg-white/80 md:bg-transparent rounded-full md:rounded-none text-gray-400 hover:text-gray-600 disabled:opacity-0 disabled:cursor-default transition-all shadow-sm md:shadow-none border md:border-0 border-gray-100"
           >
-            <ChevronLeft size={48} strokeWidth={1} />
+            <ChevronLeft className="w-6 h-6 md:w-12 md:h-12" strokeWidth={1} />
           </button>
           
           <button 
             onClick={handleNext}
             disabled={!hasMore}
-            className="absolute -right-4 md:-right-12 top-1/2 -translate-y-1/2 z-10 p-2 bg-transparent text-gray-300 hover:text-gray-500 disabled:opacity-0 disabled:cursor-default transition-opacity"
+            className="absolute -right-2 md:-right-12 top-1/2 -translate-y-1/2 z-10 p-1 md:p-2 bg-white/80 md:bg-transparent rounded-full md:rounded-none text-gray-400 hover:text-gray-600 disabled:opacity-0 disabled:cursor-default transition-all shadow-sm md:shadow-none border md:border-0 border-gray-100"
           >
-            <ChevronRight size={48} strokeWidth={1} />
+            <ChevronRight className="w-6 h-6 md:w-12 md:h-12" strokeWidth={1} />
           </button>
 
           {/* Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
             {loading ? (
                [1, 2, 3].map((i) => (
-                 <div key={i} className="bg-gray-50 rounded-2xl h-80 animate-pulse"></div>
+                 <div key={i} className="bg-gray-50 rounded-xl md:rounded-2xl h-48 md:h-80 animate-pulse"></div>
                ))
             ) : (
               products.map((product) => (
                 <Link 
                   href={`/products/${product.slug}`}
                   key={product.id}
-                  className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all group border border-gray-100 h-full flex flex-col"
+                  className="bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all group border border-gray-100 h-full flex flex-col"
                 >
-                  <div className="relative h-48 w-full bg-gray-50">
+                  <div className="relative h-32 md:h-48 w-full bg-gray-50">
                     {product.image ? (
                       <Image
                         src={product.image}
@@ -100,22 +100,22 @@ export function HomeFeaturedProducts() {
                       />
                     ) : (
                       <div className="flex items-center justify-center h-full text-gray-400">
-                        <span className="text-4xl font-bold opacity-20">{product.title.charAt(0)}</span>
+                        <span className="text-2xl md:text-4xl font-bold opacity-20">{product.title.charAt(0)}</span>
                       </div>
                     )}
                   </div>
                   
-                  <div className="p-4 flex flex-col flex-1">
-                    <h3 className="font-bold text-gray-900 text-lg group-hover:text-[#004e28] transition-colors line-clamp-2 leading-tight mb-2">
+                  <div className="p-3 md:p-4 flex flex-col flex-1">
+                    <h3 className="font-bold text-gray-900 text-sm md:text-lg group-hover:text-[#004e28] transition-colors line-clamp-2 leading-tight mb-1 md:mb-2">
                         {product.title}
                     </h3>
                     
                     <div className="mt-auto flex items-center justify-between">
-                        <div className="flex items-center gap-1 text-yellow-400 text-sm">
-                            <Star size={16} fill="currentColor" />
-                            <span className="text-gray-600 font-medium ml-1">{product.average_rating || 0}</span>
+                        <div className="flex items-center gap-0.5 md:gap-1 text-yellow-400 text-xs md:text-sm">
+                            <Star className="w-3 h-3 md:w-4 md:h-4" fill="currentColor" />
+                            <span className="text-gray-600 font-medium ml-0.5 md:ml-1">{product.average_rating || 0}</span>
                         </div>
-                        <p className="text-xs text-gray-400 font-medium">
+                        <p className="text-[10px] md:text-xs text-gray-400 font-medium">
                           +{product.views || 0} vistas
                         </p>
                     </div>
