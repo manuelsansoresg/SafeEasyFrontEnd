@@ -4,6 +4,8 @@ import { HomeCategories } from "@/components/home/HomeCategories";
 import { HomeFeaturedSuppliers } from "@/components/home/HomeFeaturedSuppliers";
 import { HomeFeaturedProducts } from "@/components/home/HomeFeaturedProducts";
 import { RecommendationsSection } from "@/components/recommendations/RecommendationsSection";
+import { HomeBusinessSupport } from "@/components/home/HomeBusinessSupport";
+import { HomeRegisterBanner } from "@/components/home/HomeRegisterBanner";
 
 type SearchParams = { [key: string]: string | string[] | undefined };
 
@@ -44,6 +46,12 @@ export default async function Home({
             initialSubcategory={subcategorySlug}
          />
       </div>
+
+      {/* Business Support Section */}
+      <HomeBusinessSupport />
+
+      {/* Register Banner Section */}
+      <HomeRegisterBanner />
     </div>
   );
 }
