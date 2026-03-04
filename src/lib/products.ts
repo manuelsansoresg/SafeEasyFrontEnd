@@ -13,6 +13,7 @@ export interface Product {
   slug: string;
   thumbnail_url?: string | null;
   average_rating?: number;
+  sales_count?: number;
   supplier?: Supplier;
 }
 
@@ -80,6 +81,9 @@ export async function getProducts(
   query: string = "",
   categorySlug?: string,
   subcategorySlug?: string,
+  minPrice?: number,
+  maxPrice?: number,
+  bestRated?: boolean,
   token?: string
 ): Promise<Product[]> {
   const skip = (page - 1) * limit;
@@ -93,21 +97,18 @@ export async function getProducts(
   
   const baseUrl = envBase.replace(/\/$/, '');
   
-  let url = `${baseUrl}/products/?skip=${skip}&limit=${limit}`;
+  const queryParams = new URLSearchParams();
+  queryParams.append("skip", skip.toString());
+  queryParams.append("limit", limit.toString());
   
-  // Note: Adjust the query parameter name ('search', 'q', etc.) based on your backend implementation.
-  // Assuming 'search' for now as it's common.
-  if (query) {
-    url += `&search=${encodeURIComponent(query)}`;
-  }
+  if (query) queryParams.append("search", query);
+  if (categorySlug) queryParams.append("category", categorySlug);
+  if (subcategorySlug) queryParams.append("subcategory", subcategorySlug);
+  if (minPrice !== undefined) queryParams.append("min_price", minPrice.toString());
+  if (maxPrice !== undefined) queryParams.append("max_price", maxPrice.toString());
+  if (bestRated) queryParams.append("best_rated", "true");
 
-  if (categorySlug) {
-    url += `&category=${encodeURIComponent(categorySlug)}`;
-  }
-
-  if (subcategorySlug) {
-    url += `&subcategory=${encodeURIComponent(subcategorySlug)}`;
-  }
+  let url = `${baseUrl}/products/?${queryParams.toString()}`;
   
   console.log("Fetching products from:", url);
 
@@ -122,7 +123,6 @@ export async function getProducts(
 
   try {
     const res = await fetch(url, { 
-      // cache: 'no-store', // Deprecated in favor of next: { revalidate: 0 } or similar in some contexts, but valid in 14/15/16
       next: { revalidate: 0 },
       headers
     });

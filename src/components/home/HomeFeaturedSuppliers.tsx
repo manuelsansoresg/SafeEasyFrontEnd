@@ -50,7 +50,7 @@ export function HomeFeaturedSuppliers() {
   };
 
   return (
-    <div className="py-12 bg-gray-50 -mx-4 px-4 md:-mx-8 md:px-8">
+    <div className="py-12 bg-[#f2f3f4] -mx-4 px-4 md:-mx-8 md:px-8">
       <div className="container mx-auto">
         <h2 className="text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">Marcas destacadas</h2>
         <div className="flex justify-center gap-1 mb-8 text-yellow-400">

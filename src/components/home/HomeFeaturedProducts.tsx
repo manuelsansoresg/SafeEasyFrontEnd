@@ -50,7 +50,7 @@ export function HomeFeaturedProducts() {
   };
 
   return (
-    <div className="py-12 bg-white">
+    <div className="py-12 bg-[#f2f3f4]">
       <div className="container mx-auto">
         <h2 className="text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">Productos destacados</h2>
         <div className="flex justify-center gap-1 mb-8 text-yellow-400">

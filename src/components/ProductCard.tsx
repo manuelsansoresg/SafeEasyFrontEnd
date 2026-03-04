@@ -80,9 +80,25 @@ export function ProductCard({
   const displayPrice = (typeof price === 'number' ? price : 0).toFixed(0);
 
   return (
-    <div className="group block bg-white rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 flex flex-col h-full relative font-sans">
+    <div className="group block h-full relative font-sans">
       {/* Image Container */}
-      <div className="relative aspect-square bg-[#f9f9f9] p-4">
+      <div className="relative aspect-square bg-[#f9f9f9] rounded-2xl overflow-hidden mb-3">
+        {/* Favorite Button */}
+        <button
+            onClick={handleFavoriteClick}
+            className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-white rounded-full hover:bg-gray-50 transition-all z-30 shadow-sm border border-gray-100 group/btn"
+            title={isFav ? "Quitar de favoritos" : "Agregar a favoritos"}
+        >
+            <Heart
+            size={16}
+            className={cn(
+                "transition-colors",
+                isFav ? "fill-red-500 text-red-500" : "text-gray-400 group-hover/btn:text-red-500"
+            )}
+            strokeWidth={2}
+            />
+        </button>
+
         <Link 
             href={`/product/${slug}`} 
             onClick={handleCardClick}
@@ -92,7 +108,7 @@ export function ProductCard({
             <img 
                 src={getImageUrl(image)} 
                 alt={title} 
-                className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500" 
+                className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500 p-4" 
             />
             ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-300">
@@ -100,47 +116,43 @@ export function ProductCard({
             </div>
             )}
         </Link>
-        
-        {/* Favorite Button */}
-        <button
-          onClick={handleFavoriteClick}
-          className="absolute top-3 right-3 p-1.5 bg-white rounded-full hover:bg-gray-50 transition-all z-10 shadow-sm"
-          title={isFav ? "Quitar de favoritos" : "Agregar a favoritos"}
-        >
-          <Heart
-            size={18}
-            className={cn(
-              "transition-colors",
-              isFav ? "fill-black text-black" : "text-gray-400 hover:text-black"
-            )}
-          />
-        </button>
       </div>
 
       {/* Content */}
-      <div className="p-3 flex flex-col flex-grow">
-        <Link href={`/product/${slug}`} onClick={handleCardClick} className="flex-grow">
-          <h3 className="text-[15px] font-bold text-gray-900 leading-tight mb-1 line-clamp-2 group-hover:text-primary transition-colors">
-            {title}
-          </h3>
+      <div className="flex flex-col flex-grow">
+        <div className="flex justify-between items-start gap-2 mb-1">
+          <Link href={`/product/${slug}`} onClick={handleCardClick} className="flex-grow">
+            <h3 className="text-[15px] font-bold text-gray-900 leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+              {title}
+            </h3>
+          </Link>
+          <span className="text-lg font-bold text-[#168e00] shrink-0">${displayPrice}</span>
+        </div>
           
-          <div className="flex items-center justify-between mb-1">
-             <span className="text-lg font-bold text-secondary">${displayPrice}</span>
-          </div>
-          
-          <div className="text-xs text-gray-400 mb-3 truncate">
-             {supplier?.city || "North Purwokerto"}
-          </div>
-        </Link>
+        <div className="mb-2 truncate">
+           {supplier ? (
+             supplierHref ? (
+               <Link href={supplierHref} className="text-xs text-gray-400 hover:text-primary hover:underline transition-colors">
+                 {supplier.name || supplier.city || "Proveedor"}
+               </Link>
+             ) : (
+               <span className="text-xs text-gray-400">
+                 {supplier.name || supplier.city || "Proveedor"}
+               </span>
+             )
+           ) : (
+             <span className="text-xs text-gray-400">North Purwokerto</span>
+           )}
+        </div>
         
         {/* Rating and Sales */}
         <div className="flex items-center gap-1 text-sm text-gray-600 mt-auto">
             <div className="flex items-center gap-1">
                 <Star size={16} className="fill-amber-400 text-amber-400" />
-                <span className="font-medium">{rating}</span>
+                <span className="font-medium text-xs">{rating}</span>
             </div>
             <span className="text-gray-300 mx-1">|</span>
-            <span>{sales} ventas</span>
+            <span className="text-xs">{sales} ventas</span>
         </div>
       </div>
     </div>
