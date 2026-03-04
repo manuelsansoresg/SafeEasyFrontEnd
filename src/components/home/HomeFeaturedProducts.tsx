@@ -52,7 +52,7 @@ export function HomeFeaturedProducts() {
   return (
     <div className="py-12 bg-[#f2f3f4]">
       <div className="container mx-auto">
-        <h2 className="text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">Productos destacados</h2>
+        <h2 className="text-xl md:text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">Productos destacados</h2>
         <div className="flex justify-center gap-1 mb-8 text-yellow-400">
           {[1, 2, 3, 4, 5].map((star) => (
             <Star key={star} size={20} fill="currentColor" className="text-yellow-400" />
@@ -78,19 +78,19 @@ export function HomeFeaturedProducts() {
           </button>
 
           {/* Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
+          <div className="flex overflow-x-auto pb-4 md:pb-0 gap-3 md:grid md:grid-cols-3 md:gap-6 snap-x snap-mandatory scrollbar-thin md:scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
             {loading ? (
                [1, 2, 3].map((i) => (
-                 <div key={i} className="bg-gray-50 rounded-xl md:rounded-2xl h-48 md:h-80 animate-pulse"></div>
+                 <div key={i} className="flex-shrink-0 w-[45%] md:w-auto bg-gray-50 rounded-xl md:rounded-2xl h-48 md:h-80 animate-pulse snap-center"></div>
                ))
             ) : (
               products.map((product) => (
                 <Link 
                   href={`/products/${product.slug}`}
                   key={product.id}
-                  className="bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all group border border-gray-100 h-full flex flex-col"
+                  className="flex-shrink-0 w-[45%] md:w-auto bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all group border border-gray-100 h-full flex flex-col snap-center"
                 >
-                  <div className="relative h-32 md:h-48 w-full bg-gray-50">
+                  <div className="relative h-24 md:h-48 w-full bg-gray-50">
                     {product.image ? (
                       <Image
                         src={product.image}
@@ -105,7 +105,7 @@ export function HomeFeaturedProducts() {
                     )}
                   </div>
                   
-                  <div className="p-3 md:p-4 flex flex-col flex-1">
+                  <div className="p-2 md:p-4 flex flex-col flex-1">
                     <h3 className="font-bold text-gray-900 text-sm md:text-lg group-hover:text-[#004e28] transition-colors line-clamp-2 leading-tight mb-1 md:mb-2">
                         {product.title}
                     </h3>

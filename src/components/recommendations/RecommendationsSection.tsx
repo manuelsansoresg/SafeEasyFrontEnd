@@ -6,7 +6,7 @@ import { RecommendationsSidebar } from "./RecommendationsSidebar";
 import { getRecommendations, RecommendationsParams } from "@/lib/recommendations";
 import { getProducts } from "@/lib/products";
 import { Product } from "@/lib/products";
-import { Search } from "lucide-react";
+import { Search, Filter, X } from "lucide-react";
 
 // Simple debounce hook implementation if not present
 function useLocalDebounce<T>(value: T, delay: number): T {
@@ -46,6 +46,7 @@ export function RecommendationsSection({
   const [maxPrice, setMaxPrice] = useState<number | undefined>();
   const [bestRated, setBestRated] = useState<boolean | undefined>(false);
   const [search, setSearch] = useState(initialSearch);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const debouncedSearch = useLocalDebounce(search, 500);
 
@@ -158,21 +159,48 @@ export function RecommendationsSection({
   return (
     <div className="bg-white py-8">
       <div className="container mx-auto px-4">
-        <h2 className="text-3xl font-bold text-[#004e28] mb-6 font-[family-name:var(--font-varela-round)]">
-            {debouncedSearch ? "Resultados de búsqueda" : "Recomendados / Resultados"}
-        </h2>
+        <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl md:text-3xl font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
+                {debouncedSearch ? "Resultados de búsqueda" : "Recomendados / Resultados"}
+            </h2>
+            
+            {/* Mobile Filter Icon */}
+            <button 
+              onClick={() => setIsFilterOpen(true)}
+              className="lg:hidden p-2 text-[#004e28] hover:bg-gray-100 rounded-full transition-colors"
+              aria-label="Filtrar"
+            >
+              <Filter size={24} />
+            </button>
+        </div>
 
-        <div className="flex flex-col lg:flex-row gap-8">
+        <div className="flex flex-col lg:flex-row gap-8 relative">
           {/* Sidebar */}
-          <RecommendationsSidebar 
-            selectedCategory={category}
-            selectedSubcategory={subcategory}
-            minPrice={minPrice}
-            maxPrice={maxPrice}
-            bestRated={bestRated}
-            onFilterChange={handleFilterChange}
-            onClear={handleClear}
-          />
+          <div className={`
+            fixed inset-0 z-[60] bg-white transform transition-transform duration-300 lg:relative lg:transform-none lg:z-0 lg:bg-transparent lg:w-auto lg:inset-auto
+            ${isFilterOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          `}>
+            <div className="h-full lg:h-auto">
+                <RecommendationsSidebar 
+                    selectedCategory={category}
+                    selectedSubcategory={subcategory}
+                    minPrice={minPrice}
+                    maxPrice={maxPrice}
+                    bestRated={bestRated}
+                    onFilterChange={handleFilterChange}
+                    onClear={handleClear}
+                    onClose={() => setIsFilterOpen(false)}
+                />
+            </div>
+          </div>
+          
+          {/* Overlay for mobile */}
+          {isFilterOpen && (
+            <div 
+              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+              onClick={() => setIsFilterOpen(false)}
+            />
+          )}
 
           {/* Main Content */}
           <div className="flex-1">

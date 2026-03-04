@@ -85,7 +85,7 @@ export function HomeCategories() {
   return (
     <div className="py-8 relative">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-3xl font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">Categorías</h2>
+        <h2 className="text-xl md:text-3xl font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">Categorías</h2>
       </div>
 
       <div className="relative">
@@ -105,7 +105,7 @@ export function HomeCategories() {
             <ChevronRight size={24} />
         </button>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+        <div className="flex overflow-x-auto pb-4 gap-3 md:grid md:grid-cols-3 lg:grid-cols-6 md:gap-4 snap-x snap-mandatory scrollbar-thin md:scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
           {currentCategories.map((category) => {
             const Icon = category.icon && ICON_COMPONENTS[category.icon] 
               ? ICON_COMPONENTS[category.icon] 
@@ -121,12 +121,12 @@ export function HomeCategories() {
               <Link 
                 key={category.id} 
                 href={`/?category=${category.slug}`}
-                className="flex flex-col items-center justify-center p-3 md:p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition-shadow group h-32 md:h-40"
+                className="flex-shrink-0 w-28 md:w-auto flex flex-col items-center justify-center p-2 md:p-6 bg-transparent md:bg-white md:border md:border-gray-200 rounded-xl hover:shadow-md transition-shadow group h-auto md:h-40 snap-start"
               >
                 <div className="mb-2 md:mb-4 text-[#004e28] group-hover:text-[#168e00] transition-colors">
-                  <Icon className="w-6 h-6 md:w-8 md:h-8" strokeWidth={1.5} />
+                  <Icon className="w-8 h-8 md:w-8 md:h-8" strokeWidth={1.5} />
                 </div>
-                <h3 className="font-bold text-[#004e28] font-[family-name:var(--font-varela-round)] text-center mb-1 line-clamp-1 group-hover:text-[#168e00] transition-colors text-sm md:text-lg">{category.name}</h3>
+                <h3 className="font-bold text-[#004e28] font-[family-name:var(--font-varela-round)] text-center mb-1 leading-tight md:line-clamp-1 group-hover:text-[#168e00] transition-colors text-xs md:text-lg w-full break-words">{category.name}</h3>
                 <p className="text-[10px] md:text-xs text-gray-400 font-medium">{formattedCount} products</p>
               </Link>
             );

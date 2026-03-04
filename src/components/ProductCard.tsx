@@ -120,7 +120,7 @@ export function ProductCard({
 
       {/* Content */}
       <div className="flex flex-col flex-grow">
-        <div className="flex justify-between items-start gap-2 mb-1">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-1 md:gap-2 mb-1">
           <Link href={`/product/${slug}`} onClick={handleCardClick} className="flex-grow">
             <h3 className="text-[15px] font-bold text-gray-900 leading-tight line-clamp-2 group-hover:text-primary transition-colors">
               {title}

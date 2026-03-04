@@ -52,7 +52,7 @@ export function HomeFeaturedSuppliers() {
   return (
     <div className="py-12 bg-[#f2f3f4] -mx-4 px-4 md:-mx-8 md:px-8">
       <div className="container mx-auto">
-        <h2 className="text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">Marcas destacadas</h2>
+        <h2 className="text-xl md:text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">Marcas destacadas</h2>
         <div className="flex justify-center gap-1 mb-8 text-yellow-400">
           {[1, 2, 3, 4, 5].map((star) => (
             <Star key={star} size={20} fill="currentColor" className="text-yellow-400" />
@@ -78,19 +78,19 @@ export function HomeFeaturedSuppliers() {
           </button>
 
           {/* Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
+          <div className="flex overflow-x-auto pb-4 md:pb-0 gap-3 md:grid md:grid-cols-3 md:gap-6 snap-x snap-mandatory scrollbar-thin md:scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
             {loading ? (
                [1, 2, 3].map((i) => (
-                 <div key={i} className="bg-white rounded-2xl h-64 md:h-80 animate-pulse"></div>
+                 <div key={i} className="flex-shrink-0 w-[45%] md:w-auto bg-white rounded-2xl h-48 md:h-80 animate-pulse snap-center"></div>
                ))
             ) : (
               suppliers.map((supplier) => (
                 <Link 
                   href={`/empresas/${supplier.slug}`}
                   key={supplier.id}
-                  className="bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group flex flex-col h-full"
+                  className="flex-shrink-0 w-[45%] md:w-auto bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group flex flex-col h-full snap-center border border-gray-100"
                 >
-                  <div className="relative h-32 md:h-48 w-full bg-gray-200">
+                  <div className="relative h-24 md:h-48 w-full bg-gray-200">
                     {supplier.logo ? (
                       <Image
                         src={supplier.logo}
