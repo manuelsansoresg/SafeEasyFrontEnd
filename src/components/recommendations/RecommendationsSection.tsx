@@ -83,7 +83,16 @@ export function RecommendationsSection({
       if (debouncedSearch) {
         // Search Logic: Call getProducts
         const page = Math.floor(currentSkip / limit) + 1;
-        const locationParam = (city || (latitude && longitude)) ? { latitude, longitude, city, state } : null;
+        
+        // Determinar ubicación: Si no hay city/lat/long, usar "Mérida" por defecto
+        let locationParam = null;
+        if (city || (latitude && longitude)) {
+            locationParam = { latitude, longitude, city, state };
+        } else {
+             // Fallback por defecto solicitado por usuario
+             locationParam = { city: "Mérida", state: "Yucatán" };
+             console.log("⚠️ No location detected, using default: Mérida");
+        }
         
         console.log('[RecommendationsSection] Search location params:', locationParam);
         
