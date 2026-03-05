@@ -8,7 +8,15 @@ export function LocationProvider() {
   const { setAddress, setError } = useLocationStore();
 
   useEffect(() => {
-    // Intentar leer la cookie directamente del navegador si el helper falla
+            // Verificar si el middleware se ejecutó (busca la cookie de debug)
+            const mwDebug = getCookie("mw_debug");
+            if (mwDebug) {
+              console.log("✅ Middleware está corriendo correctamente (mw_debug cookie encontrada).");
+            } else {
+              console.warn("⚠️ Middleware NO parece estar corriendo o no pudo setear cookies (mw_debug no encontrada).");
+            }
+
+            // Intentar leer la cookie directamente del navegador si el helper falla
     const city = getCookie("user_city") || document.cookie.split('; ').find(row => row.startsWith('user_city='))?.split('=')[1];
     
     if (city && city !== "undefined") {
