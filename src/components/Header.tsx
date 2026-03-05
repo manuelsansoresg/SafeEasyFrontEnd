@@ -83,7 +83,7 @@ export function Header() {
     <header className="fixed top-0 left-0 right-0 z-50 flex flex-col font-sans">
       {/* Top Bar */}
       <div className="bg-white text-black py-2 px-4 text-center text-[10px] sm:text-xs md:text-sm italic border-b border-gray-100 hidden sm:block">
-        Promociona tu marca en Drooopy.com • Encuentra lo que buscas, chatea directo con el vendedor y compra seguro.
+        Promociona tu empresa en Drooopy.com • Encuentra lo que buscas, chatea directo con el vendedor y compra seguro.
       </div>
 
       {/* Main Header */}

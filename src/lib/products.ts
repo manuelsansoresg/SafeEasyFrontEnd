@@ -84,7 +84,8 @@ export async function getProducts(
   minPrice?: number,
   maxPrice?: number,
   bestRated?: boolean,
-  token?: string
+  token?: string,
+  location?: { latitude?: number | null; longitude?: number | null; city?: string | null; state?: string | null } | null
 ): Promise<Product[]> {
   const skip = (page - 1) * limit;
   // Use the internal API URL or fallback
@@ -107,11 +108,36 @@ export async function getProducts(
   if (minPrice !== undefined) queryParams.append("min_price", minPrice.toString());
   if (maxPrice !== undefined) queryParams.append("max_price", maxPrice.toString());
   if (bestRated) queryParams.append("best_rated", "true");
+  
+  if (location) {
+    if (location.city) {
+      // If we have a city name, use it as the location search term
+      queryParams.append("location", location.city);
+    } else {
+      // Fallback to coordinates if no city name (or if backend supports it)
+      queryParams.append("location", `${location.latitude},${location.longitude}`);
+    }
+  } else {
+    // If no location provided, check for client-side cookies if running in browser
+    if (typeof window !== 'undefined') {
+        const getCookie = (name: string) => {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop()?.split(';').shift();
+        };
+        
+        const cityCookie = getCookie('user_city');
+        if (cityCookie) {
+            queryParams.append("location", decodeURIComponent(cityCookie));
+        }
+    }
+  }
 
   let url = `${baseUrl}/products/?${queryParams.toString()}`;
   
-  console.log("Fetching products from:", url);
-
+  console.log("🔍 Fetching products with params:", queryParams.toString());
+  console.log("📍 Location param sent:", queryParams.get("location") || "None");
+  
   const headers: Record<string, string> = {
     'Accept': 'application/json',
     'User-Agent': 'SafeEasyFrontEnd/1.0'

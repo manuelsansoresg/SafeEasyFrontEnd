@@ -7,6 +7,7 @@ import { getRecommendations, RecommendationsParams } from "@/lib/recommendations
 import { getProducts } from "@/lib/products";
 import { Product } from "@/lib/products";
 import { Search, Filter, X } from "lucide-react";
+import { useLocationStore } from "@/store/useLocationStore";
 
 // Simple debounce hook implementation if not present
 function useLocalDebounce<T>(value: T, delay: number): T {
@@ -47,6 +48,8 @@ export function RecommendationsSection({
   const [bestRated, setBestRated] = useState<boolean | undefined>(false);
   const [search, setSearch] = useState(initialSearch);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  
+  const { latitude, longitude, city, state } = useLocationStore();
 
   const debouncedSearch = useLocalDebounce(search, 500);
 
@@ -80,6 +83,7 @@ export function RecommendationsSection({
       if (debouncedSearch) {
         // Search Logic: Call getProducts
         const page = Math.floor(currentSkip / limit) + 1;
+        const locationParam = (city || (latitude && longitude)) ? { latitude, longitude, city, state } : null;
         newProducts = await getProducts(
             page,
             limit,
@@ -88,7 +92,9 @@ export function RecommendationsSection({
             subcategory,
             minPrice,
             maxPrice,
-            bestRated
+            bestRated,
+            undefined, // token
+            locationParam
         );
       } else {
         // Recommendations Logic
@@ -101,6 +107,7 @@ export function RecommendationsSection({
             max_price: maxPrice,
             best_rated: bestRated,
             // search is removed here because we use getProducts for searching
+            location: (city || (latitude && longitude)) ? { latitude, longitude, city, state } : null
         };
         newProducts = await getRecommendations(params);
       }
@@ -123,7 +130,7 @@ export function RecommendationsSection({
   // Reset and fetch when filters change
   useEffect(() => {
     fetchProducts(true);
-  }, [category, subcategory, minPrice, maxPrice, bestRated, debouncedSearch]);
+  }, [category, subcategory, minPrice, maxPrice, bestRated, debouncedSearch, latitude, longitude, city, state]);
 
   // Fetch more when skip changes (infinite scroll)
   useEffect(() => {

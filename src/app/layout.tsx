@@ -7,6 +7,7 @@ import { Footer } from "@/components/Footer";
 import { MobileNav } from "@/components/MobileNav";
 import { ChatProvider } from "@/context/ChatContext";
 import { ChatOverlay } from "@/components/chat/ChatOverlay";
+import { LocationProvider } from "@/components/LocationProvider";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -37,6 +38,7 @@ export default function RootLayout({
         className={`${poppins.variable} ${varelaRound.variable} font-sans antialiased bg-background text-foreground`}
       >
         <ChatProvider>
+          <LocationProvider />
           <Header />
           <main className="pt-32 pb-16 md:pb-0 min-h-screen">
             {children}

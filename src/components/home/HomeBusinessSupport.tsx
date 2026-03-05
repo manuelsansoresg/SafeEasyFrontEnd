@@ -37,7 +37,7 @@ export function HomeBusinessSupport() {
                 Somos una empresa Mexicana que apoya a los negocios locales a promocionar sus productos y servicios desde nuestra página web.
               </p>
               <p>
-                Aqui encontrarás una amplia variedad de recursos diseñados para impulsar tu marca al siguiente nivel. Además, nuestro equipo de expertos está comprometido a brindarte un servicio excepcional y resultados tangibles. Únete a nosotros y descubre cómo podemos ayudarte a crecer y destacar en el mercado local.
+                Aqui encontrarás una amplia variedad de recursos diseñados para impulsar tu empresa al siguiente nivel. Además, nuestro equipo de expertos está comprometido a brindarte un servicio excepcional y resultados tangibles. Únete a nosotros y descubre cómo podemos ayudarte a crecer y destacar en el mercado local.
               </p>
             </div>
 

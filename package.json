@@ -16,6 +16,7 @@
     "@types/react-facebook-login": "^4.1.11",
     "@types/uuid": "^10.0.0",
     "clsx": "^2.1.1",
+    "cookies-next": "^6.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.26",
     "jwt-decode": "^4.0.0",

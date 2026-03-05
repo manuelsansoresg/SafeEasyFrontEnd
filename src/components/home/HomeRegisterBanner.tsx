@@ -6,7 +6,7 @@ export function HomeRegisterBanner() {
       <div className="container mx-auto px-4">
         <div className="flex flex-col md:flex-row items-center justify-between gap-8">
           <h2 className="text-3xl md:text-5xl font-bold text-white font-[family-name:var(--font-varela-round)] text-center md:text-left leading-tight">
-            Registra tu marca en Drooopy.com
+            Registra tu empresa en Drooopy.com
           </h2>
           
           <Link 
