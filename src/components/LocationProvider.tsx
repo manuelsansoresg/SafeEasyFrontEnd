@@ -5,7 +5,7 @@ import { useLocationStore } from "@/store/useLocationStore";
 import { getCookie } from "cookies-next";
 
 export function LocationProvider() {
-  const { setAddress, setError } = useLocationStore();
+  const { setAddress, setError, setLocation } = useLocationStore();
 
   useEffect(() => {
     // Try to get location from cookies (set by Middleware/Cloudflare)
@@ -17,12 +17,26 @@ export function LocationProvider() {
       // We set state as null because we don't have lat/long, only city text
       setAddress(city as string, (country as string) || "");
     } else {
-       // Fallback: If no cookie (dev environment), maybe we want to keep navigator?
-       // But user asked to change implementation.
-       // We can keep a log or optional fallback.
-       console.log("⚠️ No se detectó ubicación en headers (Cloudflare/Vercel)");
+       // Fallback: If no cookie (dev environment), use browser geolocation
+       console.log("⚠️ No se detectó ubicación en headers (Cloudflare/Vercel). Intentando navegador...");
+       
+       if (navigator.geolocation) {
+         navigator.geolocation.getCurrentPosition(
+           (position) => {
+             const { latitude, longitude } = position.coords;
+             console.log("📍 Ubicación desde Navegador:", latitude, longitude);
+             setLocation(latitude, longitude);
+           },
+           (error) => {
+             console.error("Error obteniendo ubicación del navegador:", error);
+             setError(error.message);
+           }
+         );
+       } else {
+         console.error("Geolocalización no soportada por el navegador.");
+       }
     }
-  }, [setAddress, setError]);
+  }, [setAddress, setError, setLocation]);
 
   return null;
 }
