@@ -84,6 +84,9 @@ export function RecommendationsSection({
         // Search Logic: Call getProducts
         const page = Math.floor(currentSkip / limit) + 1;
         const locationParam = (city || (latitude && longitude)) ? { latitude, longitude, city, state } : null;
+        
+        console.log('[RecommendationsSection] Search location params:', locationParam);
+        
         newProducts = await getProducts(
             page,
             limit,
@@ -109,6 +112,7 @@ export function RecommendationsSection({
             // search is removed here because we use getProducts for searching
             location: (city || (latitude && longitude)) ? { latitude, longitude, city, state } : null
         };
+        console.log('[RecommendationsSection] Recommendations location params:', params.location);
         newProducts = await getRecommendations(params);
       }
       
