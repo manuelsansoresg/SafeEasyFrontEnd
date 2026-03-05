@@ -4,26 +4,14 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
   
-  // Cloudflare inyecta estas cabeceras.
-  // 'cf-ipcity' suele venir en minúsculas en los headers de Request.
+  // Captura los headers de Cloudflare
   const city = request.headers.get('cf-ipcity');
-  const country = request.headers.get('cf-ipcountry');
+
+  console.log('Middleware running. City:', city || 'None', 'URL:', request.url);
 
   if (city) {
-    response.cookies.set('user_city', city, { 
-      path: '/', 
-      sameSite: 'lax', 
-      secure: true, 
-      httpOnly: false 
-    });
-  }
-  if (country) {
-    response.cookies.set('user_country', country, { 
-      path: '/', 
-      sameSite: 'lax', 
-      secure: true, 
-      httpOnly: false 
-    });
+    // IMPORTANTE: httpOnly debe ser false para que tu JS lo pueda leer
+    response.cookies.set('user_city', city, { httpOnly: false, path: '/' });
   }
 
   return response;
