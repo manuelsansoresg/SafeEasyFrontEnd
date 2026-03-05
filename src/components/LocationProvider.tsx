@@ -22,13 +22,20 @@ export function LocationProvider() {
             }
 
             // Intentar leer la cookie directamente del navegador si el helper falla
-    const city = getCookie("user_city") || document.cookie.split('; ').find(row => row.startsWith('user_city='))?.split('=')[1];
-    
-    if (city && city !== "undefined") {
-      const cleanCity = decodeURIComponent(city as string);
-      console.log("📍 Ubicación recuperada:", cleanCity);
-      setAddress(cleanCity, (getCookie("user_country") as string) || "MX");
-    } else {
+            const city = getCookie("user_city") || document.cookie.split('; ').find(row => row.startsWith('user_city='))?.split('=')[1];
+            
+            if (city && city !== "undefined") {
+              try {
+                  // Doble decode por si acaso, algunos navegadores o frameworks codifican extra
+                  const cleanCity = decodeURIComponent(decodeURIComponent(city as string));
+                  console.log("📍 Ubicación recuperada:", cleanCity);
+                  setAddress(cleanCity, (getCookie("user_country") as string) || "MX");
+              } catch(e) {
+                  console.error("Error decoding city cookie:", e);
+                  // Fallback sin decode si falla
+                  setAddress(city as string, (getCookie("user_country") as string) || "MX");
+              }
+            } else {
        console.log("⚠️ No se detectó ubicación en cookies cliente");
        
        // Fallback for local development

@@ -37,10 +37,14 @@ export function middleware(request: NextRequest) {
 
   if (city) {
     // Decodificar por si viene con caracteres especiales
+    // Cloudflare envía caracteres latinos codificados en ISO-8859-1 o UTF-8 a veces extraño.
+    // Usamos encodeURIComponent para asegurar que la cookie sea válida y luego decode en el cliente.
     try {
-      city = decodeURIComponent(city);
+        // Intento simple de limpieza de caracteres raros si es necesario, 
+        // pero lo más seguro para cookies es codificarlo
+        city = encodeURIComponent(city);
     } catch (e) {
-      console.error('Error decoding city:', e);
+      console.error('Error encoding city:', e);
     }
 
     // IMPORTANTE: httpOnly: false para que el cliente (JS) pueda leerla
