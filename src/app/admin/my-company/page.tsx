@@ -59,39 +59,92 @@ function MyCompanyContent() {
           }
       } catch (e) {}
 
-      // 2. Try filtering by user_id
-      const urlUserId = `/api/suppliers?user_id=${user.id}`;
-      addLog(`Fetching ${urlUserId}`);
-      let res = await fetch(urlUserId, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      let data = await res.json();
-      addLog("Respuesta user_id:", Array.isArray(data) ? `Array(${data.length})` : `Object (keys: ${Object.keys(data).join(',')})`);
-      
-      let items = Array.isArray(data) ? data : data.items || [];
-      let mySupplier = items.find((s: any) => Number(s.user_id) === Number(user.id));
+      // 2. Try filtering by user_id or id as per backend update
+      try {
+        // First try standard user_id filter
+        const urlUserId = `/api/suppliers?user_id=${user.id}`;
+        addLog(`Fetching ${urlUserId}`);
+        let res = await fetch(urlUserId, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (res.ok) {
+            let data = await res.json();
+            addLog("Respuesta user_id:", Array.isArray(data) ? `Array(${data.length})` : `Object (keys: ${Object.keys(data).join(',')})`);
+            
+            let items = Array.isArray(data) ? data : data.items || [];
+            // If API returns list, find match
+            let mySupplier = items.find((s: any) => Number(s.user_id) === Number(user.id));
+            
+            // If backend returns single object instead of list (sometimes APIs do this)
+            if (!Array.isArray(data) && data.id && Number(data.user_id) === Number(user.id)) {
+                mySupplier = data;
+            }
+
+            if (mySupplier) {
+                addLog("✅ Empresa encontrada por user_id:", mySupplier.name);
+                setSupplier(mySupplier);
+                setLoading(false);
+                return;
+            }
+        }
+
+        // Fallback: Try ?id={user.id} in case backend maps user ID to supplier ID or param name is 'id'
+        const urlId = `/api/suppliers?id=${user.id}`;
+        addLog(`Intentando fallback: ${urlId}`);
+        res = await fetch(urlId, {
+             headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+             let data = await res.json();
+             addLog("Respuesta id:", Array.isArray(data) ? `Array(${data.length})` : `Object`);
+             
+             let items = Array.isArray(data) ? data : data.items || [];
+             let mySupplier = items.find((s: any) => Number(s.user_id) === Number(user.id));
+
+             if (!Array.isArray(data) && data.id && Number(data.user_id) === Number(user.id)) {
+                 mySupplier = data;
+             }
+
+             if (mySupplier) {
+                 addLog("✅ Empresa encontrada por id:", mySupplier.name);
+                 setSupplier(mySupplier);
+                 setLoading(false);
+                 return;
+             }
+        }
+
+      } catch (e) {
+        addLog("Excepción buscando por ID (continuando...)", e);
+      }
 
       // 3. Fallback to larger list
-      if (!mySupplier) {
+      try {
          addLog("No encontrado, intentando fetch general limit=1000");
-         res = await fetch(`/api/suppliers?limit=1000`, {
+         const res = await fetch(`/api/suppliers?limit=1000`, {
            headers: { Authorization: `Bearer ${token}` }
          });
          if (res.ok) {
-           data = await res.json();
-           items = Array.isArray(data) ? data : data.items || [];
+           const data = await res.json();
+           const items = Array.isArray(data) ? data : data.items || [];
            addLog(`General fetch items: ${items.length}`);
-           mySupplier = items.find((s: any) => Number(s.user_id) === Number(user.id));
+           const mySupplier = items.find((s: any) => Number(s.user_id) === Number(user.id));
+           
+           if (mySupplier) {
+             addLog("✅ Empresa encontrada en lista general:", mySupplier.name);
+             setSupplier(mySupplier);
+             setLoading(false);
+             return;
+           }
+         } else {
+             addLog(`Error general fetch: ${res.status}`);
          }
+      } catch (e) {
+         addLog("Excepción en fetch general", e);
       }
       
-      if (mySupplier) {
-        addLog("✅ Empresa encontrada:", mySupplier.name);
-        setSupplier(mySupplier);
-      } else {
-        addLog("❌ No se encontró empresa vinculada");
-      }
+      addLog("❌ No se encontró empresa vinculada tras intentar todos los métodos");
     } catch (e) {
       addLog("Error fetching supplier", e);
       console.error("Error fetching supplier", e);
