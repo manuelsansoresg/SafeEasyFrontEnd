@@ -35,10 +35,15 @@ function MyCompanyContent() {
     
     setLoading(true);
     try {
-      // Direct fetch by user_id as requested
-      const urlUserId = `/api/suppliers?user_id=${user.id}`;
+      // Direct fetch by user_id as requested with skip and limit to match working curl
+      const urlUserId = `/api/suppliers?skip=0&limit=100&user_id=${user.id}`;
       const res = await fetch(urlUserId, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 
+            Authorization: `Bearer ${token}`,
+            'Cache-Control': 'no-cache',
+            'Accept': 'application/json'
+        },
+        cache: 'no-store'
       });
       
       if (res.ok) {
