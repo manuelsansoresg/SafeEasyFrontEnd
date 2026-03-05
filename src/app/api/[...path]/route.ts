@@ -72,10 +72,34 @@ async function handler(request: NextRequest) {
     const forwardHeaders = new Headers();
     
     // Forward all headers except those that are automatically handled or problematic
+    // Also exclude geolocation headers to prevent backend from auto-filtering based on IP headers
+    // We want to control filtering explicitly via query parameters (e.g. ?location=...)
+    const headersToExclude = [
+        'host', 
+        'content-length', 
+        'connection', 
+        'transfer-encoding',
+        'x-vercel-ip-city',
+        'x-vercel-ip-country',
+        'cf-ipcity',
+        'cf-ipcountry'
+    ];
+
     request.headers.forEach((value, key) => {
         const lowerKey = key.toLowerCase();
-        if (!['host', 'content-length', 'connection', 'transfer-encoding'].includes(lowerKey)) {
-            forwardHeaders.set(key, value);
+        if (!headersToExclude.includes(lowerKey)) {
+            if (lowerKey === 'cookie') {
+                // Remove user_city and user_country cookies to prevent unwanted filtering
+                const cookies = value.split(';').filter(c => 
+                    !c.trim().startsWith('user_city=') && 
+                    !c.trim().startsWith('user_country=')
+                ).join(';');
+                if (cookies.trim()) {
+                    forwardHeaders.set(key, cookies);
+                }
+            } else {
+                forwardHeaders.set(key, value);
+            }
         }
     });
 
