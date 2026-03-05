@@ -10,10 +10,20 @@ export function middleware(request: NextRequest) {
   const country = request.headers.get('cf-ipcountry');
 
   if (city) {
-    response.cookies.set('user_city', city, { httpOnly: false });
+    response.cookies.set('user_city', city, { 
+      path: '/', 
+      sameSite: 'lax', 
+      secure: true, 
+      httpOnly: false 
+    });
   }
   if (country) {
-    response.cookies.set('user_country', country, { httpOnly: false });
+    response.cookies.set('user_country', country, { 
+      path: '/', 
+      sameSite: 'lax', 
+      secure: true, 
+      httpOnly: false 
+    });
   }
 
   return response;

@@ -8,24 +8,23 @@ export function LocationProvider() {
   const { setAddress, setError } = useLocationStore();
 
   useEffect(() => {
-    // Try to get location from cookies (set by Middleware/Cloudflare)
-    const city = getCookie("user_city");
-    const country = getCookie("user_country");
-
-    if (city) {
-      console.log("📍 Ubicación desde Cloudflare/Vercel:", city);
-      // We set state as null because we don't have lat/long, only city text
-      setAddress(city as string, (country as string) || "");
+    // Intentar leer la cookie directamente del navegador si el helper falla
+    const city = getCookie("user_city") || document.cookie.split('; ').find(row => row.startsWith('user_city='))?.split('=')[1];
+    
+    if (city && city !== "undefined") {
+      const cleanCity = decodeURIComponent(city as string);
+      console.log("📍 Ubicación recuperada:", cleanCity);
+      setAddress(cleanCity, (getCookie("user_country") as string) || "MX");
     } else {
-       console.log("⚠️ No se detectó ubicación en headers (Cloudflare/Vercel)");
+       console.log("⚠️ No se detectó ubicación en cookies cliente");
        
        // Fallback for local development
        if (process.env.NODE_ENV === 'development') {
-           console.log("� Modo Desarrollo: Usando ubicación simulada (Mérida, MX)");
+           console.log("🔧 Modo Desarrollo: Usando ubicación simulada (Mérida, MX)");
            setAddress("Mérida", "Mexico");
        }
     }
-  }, [setAddress, setError]);
+  }, [setAddress]);
 
   return null;
 }
