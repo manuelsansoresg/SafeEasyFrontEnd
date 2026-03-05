@@ -27,6 +27,7 @@ import {
 import Link from "next/link";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { cn } from "@/lib/utils";
+import DOMPurify from "isomorphic-dompurify";
 
 // Interfaces
 interface ProductMedia {
@@ -110,16 +111,7 @@ interface ProductDetail {
 
 const sanitizeHtml = (html: string) => {
   if (!html) return "";
-  return html
-    .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
-    .replace(/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/gim, "")
-    .replace(/<object\b[^>]*>([\s\S]*?)<\/object>/gim, "")
-    .replace(/on\w+="[^"]*"/gim, "")
-    .replace(/on\w+='[^']*'/gim, "")
-    .replace(/javascript:/gim, "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/\sstyle="[^"]*"/gim, "")
-    .replace(/\sstyle='[^']*'/gim, "");
+  return DOMPurify.sanitize(html);
 };
 
 import { useChat } from "@/context/ChatContext";

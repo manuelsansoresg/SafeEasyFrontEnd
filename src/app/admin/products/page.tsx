@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
+import DOMPurify from "isomorphic-dompurify";
 import { 
   Plus, 
   Edit2, 
@@ -189,7 +190,7 @@ export default function AdminProductsPage() {
                         <div className="font-medium text-gray-800">{product.title}</div>
                         <div 
                           className="text-xs text-gray-400 truncate max-w-[200px]" 
-                          dangerouslySetInnerHTML={{ __html: product.description.substring(0, 100) + (product.description.length > 100 ? '...' : '') }} 
+                          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description).substring(0, 100) + (product.description.length > 100 ? '...' : '') }} 
                         />
                       </td>
                       <td className="p-4 text-sm text-gray-600">{product.sku}</td>
