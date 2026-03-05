@@ -36,7 +36,10 @@ function MyCompanyContent() {
     setLoading(true);
     try {
       // Direct fetch by user_id as requested with skip and limit to match working curl
-      const urlUserId = `/api/suppliers?skip=0&limit=100&user_id=${user.id}`;
+      // Adding trailing slash explicitly as backend might be strict and curl used it
+      const urlUserId = `/api/suppliers/?skip=0&limit=100&user_id=${user.id}`;
+      console.log('Fetching supplier:', { url: urlUserId, userId: user.id });
+      
       const res = await fetch(urlUserId, {
         headers: { 
             Authorization: `Bearer ${token}`,
@@ -45,9 +48,12 @@ function MyCompanyContent() {
         },
         cache: 'no-store'
       });
+
+      console.log('Supplier fetch status:', res.status);
       
       if (res.ok) {
         const data = await res.json();
+        console.log('Supplier data received:', data);
         
         let mySupplier = null;
         if (Array.isArray(data)) {
