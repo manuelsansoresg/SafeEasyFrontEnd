@@ -38,7 +38,7 @@ function MyCompanyContent() {
       // Direct fetch by user_id as requested with skip and limit to match working curl
       // Adding trailing slash explicitly as backend might be strict and curl used it
       const urlUserId = `/api/suppliers/?skip=0&limit=100&user_id=${user.id}`;
-      console.log('Fetching supplier:', { url: urlUserId, userId: user.id });
+     
       
       const res = await fetch(urlUserId, {
         headers: { 

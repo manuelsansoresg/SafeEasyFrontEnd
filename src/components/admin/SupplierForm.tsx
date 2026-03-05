@@ -436,8 +436,10 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
       };
 
       if (isEdit) {
-        const url = `/api/suppliers/${initialData.id}/`;
+        // Removed trailing slash as Swagger shows /suppliers/{id} without it
+        const url = `/api/suppliers/${initialData.id}`;
         const data = buildFormData();
+        console.log('[SupplierForm] Updating supplier:', { url, id: initialData.id, data: Object.fromEntries(data.entries()) });
 
         response = await fetchWithAuth(url, {
           method: "PUT",
