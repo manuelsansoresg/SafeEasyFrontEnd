@@ -59,9 +59,8 @@ function MyCompanyContent() {
           }
       } catch (e) {}
 
-      // 2. Try filtering by user_id or id as per backend update
+      // 2. Try filtering by user_id
       try {
-        // First try standard user_id filter
         const urlUserId = `/api/suppliers?user_id=${user.id}`;
         addLog(`Fetching ${urlUserId}`);
         let res = await fetch(urlUserId, {
@@ -87,36 +86,15 @@ function MyCompanyContent() {
                 setLoading(false);
                 return;
             }
+        } else {
+            addLog(`Error user_id fetch: ${res.status}`);
+            try {
+                const errText = await res.text();
+                addLog("Detalle error user_id:", errText.substring(0, 100));
+            } catch (e) {}
         }
-
-        // Fallback: Try ?id={user.id} in case backend maps user ID to supplier ID or param name is 'id'
-        const urlId = `/api/suppliers?id=${user.id}`;
-        addLog(`Intentando fallback: ${urlId}`);
-        res = await fetch(urlId, {
-             headers: { Authorization: `Bearer ${token}` }
-        });
-
-        if (res.ok) {
-             let data = await res.json();
-             addLog("Respuesta id:", Array.isArray(data) ? `Array(${data.length})` : `Object`);
-             
-             let items = Array.isArray(data) ? data : data.items || [];
-             let mySupplier = items.find((s: any) => Number(s.user_id) === Number(user.id));
-
-             if (!Array.isArray(data) && data.id && Number(data.user_id) === Number(user.id)) {
-                 mySupplier = data;
-             }
-
-             if (mySupplier) {
-                 addLog("✅ Empresa encontrada por id:", mySupplier.name);
-                 setSupplier(mySupplier);
-                 setLoading(false);
-                 return;
-             }
-        }
-
       } catch (e) {
-        addLog("Excepción buscando por ID (continuando...)", e);
+        addLog("Excepción buscando user_id (continuando...)", e);
       }
 
       // 3. Fallback to larger list
@@ -129,7 +107,17 @@ function MyCompanyContent() {
            const data = await res.json();
            const items = Array.isArray(data) ? data : data.items || [];
            addLog(`General fetch items: ${items.length}`);
-           const mySupplier = items.find((s: any) => Number(s.user_id) === Number(user.id));
+           
+           if (items.length > 0) {
+               addLog(`Ejemplo item[0]:`, JSON.stringify(items[0]).substring(0, 150));
+           }
+
+           // Check for user_id direct or nested user.id
+           const mySupplier = items.find((s: any) => {
+               const directMatch = Number(s.user_id) === Number(user.id);
+               const nestedMatch = s.user && Number(s.user.id) === Number(user.id);
+               return directMatch || nestedMatch;
+           });
            
            if (mySupplier) {
              addLog("✅ Empresa encontrada en lista general:", mySupplier.name);
