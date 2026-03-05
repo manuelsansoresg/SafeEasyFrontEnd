@@ -22,14 +22,42 @@ export function LocationProvider() {
             }
 
             // Intentar leer la cookie directamente del navegador si el helper falla
-            const city = getCookie("user_city") || document.cookie.split('; ').find(row => row.startsWith('user_city='))?.split('=')[1];
+            const cityCookie = getCookie("user_city");
+            let city = typeof cityCookie === 'string' ? cityCookie : undefined;
+            
+            if (!city) {
+                city = document.cookie.split('; ').find(row => row.startsWith('user_city='))?.split('=')[1];
+            }
             
             if (city && city !== "undefined") {
               try {
-                  // Doble decode por si acaso, algunos navegadores o frameworks codifican extra
-                  const cleanCity = decodeURIComponent(decodeURIComponent(city as string));
-                  console.log("📍 Ubicación recuperada:", cleanCity);
-                  setAddress(cleanCity, (getCookie("user_country") as string) || "MX");
+                  // Corrección robusta de encoding (ISO-8859-1 a UTF-8)
+                  // "MÃ©rida" es como se ve "Mérida" cuando se interpreta UTF-8 como ISO
+                  let cleanCity = city;
+                  
+                  // 1. Decodificar URI components por si viene encoded
+                  try {
+                    cleanCity = decodeURIComponent(city);
+                  } catch (e) { /* ignorar */ }
+
+                  // 2. Corregir caracteres mal interpretados (latin1 vs utf8)
+                  try {
+                    // Si contiene caracteres típicos de error de encoding
+                    if (cleanCity.includes('Ã')) {
+                        // @ts-ignore
+                        const bytes = Uint8Array.from(cleanCity.split('').map(c => c.charCodeAt(0)));
+                        cleanCity = new TextDecoder('utf-8').decode(bytes);
+                    }
+                  } catch (e) {
+                      console.log("No se pudo corregir encoding avanzado, usando valor original");
+                  }
+
+                  console.log("📍 Ubicación recuperada (Original):", city);
+                  console.log("📍 Ubicación recuperada (Corregida):", cleanCity);
+                  
+                  const countryCookie = getCookie("user_country");
+                  const country = typeof countryCookie === 'string' ? countryCookie : "MX";
+                  setAddress(cleanCity, country);
               } catch(e) {
                   console.error("Error decoding city cookie:", e);
                   // Fallback sin decode si falla
