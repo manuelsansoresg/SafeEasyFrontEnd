@@ -28,113 +28,39 @@ function MyCompanyContent() {
     router.replace(`/admin/my-company?tab=${tab}`);
   };
 
-  const [debugLogs, setDebugLogs] = useState<string[]>([]);
-
-  const addLog = (msg: string, data?: any) => {
-    console.log(msg, data || "");
-    setDebugLogs(prev => [...prev, `${new Date().toLocaleTimeString()} - ${msg} ${data ? JSON.stringify(data).substring(0, 100) : ''}`]);
-  };
-
   const fetchSupplier = async () => {
     if (!user || !token) {
-        // addLog("No user or token", { user: !!user, token: !!token });
         return;
     }
     
     setLoading(true);
     try {
-      addLog(`Buscando empresa para usuario: ${user.id} (${user.email})`);
+      // Direct fetch by user_id as requested
+      const urlUserId = `/api/suppliers?user_id=${user.id}`;
+      const res = await fetch(urlUserId, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       
-      // 1. Try explicit /me endpoint if available
-      try {
-          const resMe = await fetch('/api/suppliers/me', { headers: { Authorization: `Bearer ${token}` } });
-          if (resMe.ok) {
-              const dataMe = await resMe.json();
-              if (dataMe && dataMe.id) {
-                  addLog("Encontrado via /me", dataMe);
-                  setSupplier(dataMe);
-                  setLoading(false);
-                  return;
-              }
-          }
-      } catch (e) {}
-
-      // 2. Try filtering by user_id
-      try {
-        const urlUserId = `/api/suppliers?user_id=${user.id}`;
-        addLog(`Fetching ${urlUserId}`);
-        let res = await fetch(urlUserId, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+      if (res.ok) {
+        const data = await res.json();
         
-        if (res.ok) {
-            let data = await res.json();
-            addLog("Respuesta user_id:", Array.isArray(data) ? `Array(${data.length})` : `Object (keys: ${Object.keys(data).join(',')})`);
-            
-            let items = Array.isArray(data) ? data : data.items || [];
-            // If API returns list, find match
-            let mySupplier = items.find((s: any) => Number(s.user_id) === Number(user.id));
-            
-            // If backend returns single object instead of list (sometimes APIs do this)
-            if (!Array.isArray(data) && data.id && Number(data.user_id) === Number(user.id)) {
-                mySupplier = data;
-            }
-
-            if (mySupplier) {
-                addLog("✅ Empresa encontrada por user_id:", mySupplier.name);
-                setSupplier(mySupplier);
-                setLoading(false);
-                return;
-            }
-        } else {
-            addLog(`Error user_id fetch: ${res.status}`);
-            try {
-                const errText = await res.text();
-                addLog("Detalle error user_id:", errText.substring(0, 100));
-            } catch (e) {}
+        let mySupplier = null;
+        if (Array.isArray(data)) {
+            // If it returns an array, look for the matching user_id
+            mySupplier = data.find((s: any) => Number(s.user_id) === Number(user.id));
+        } else if (data && (data.items || Array.isArray(data.items))) {
+             // Handle pagination structure { items: [], ... }
+             mySupplier = data.items.find((s: any) => Number(s.user_id) === Number(user.id));
+        } else if (data && data.id && Number(data.user_id) === Number(user.id)) {
+            // If it returns a single object
+            mySupplier = data;
         }
-      } catch (e) {
-        addLog("Excepción buscando user_id (continuando...)", e);
-      }
 
-      // 3. Fallback to larger list
-      try {
-         addLog("No encontrado, intentando fetch general limit=1000");
-         const res = await fetch(`/api/suppliers?limit=1000`, {
-           headers: { Authorization: `Bearer ${token}` }
-         });
-         if (res.ok) {
-           const data = await res.json();
-           const items = Array.isArray(data) ? data : data.items || [];
-           addLog(`General fetch items: ${items.length}`);
-           
-           if (items.length > 0) {
-               addLog(`Ejemplo item[0]:`, JSON.stringify(items[0]).substring(0, 150));
-           }
-
-           // Check for user_id direct or nested user.id
-           const mySupplier = items.find((s: any) => {
-               const directMatch = Number(s.user_id) === Number(user.id);
-               const nestedMatch = s.user && Number(s.user.id) === Number(user.id);
-               return directMatch || nestedMatch;
-           });
-           
-           if (mySupplier) {
-             addLog("✅ Empresa encontrada en lista general:", mySupplier.name);
-             setSupplier(mySupplier);
-             setLoading(false);
-             return;
-           }
-         } else {
-             addLog(`Error general fetch: ${res.status}`);
-         }
-      } catch (e) {
-         addLog("Excepción en fetch general", e);
+        if (mySupplier) {
+            setSupplier(mySupplier);
+        }
       }
-      
-      addLog("❌ No se encontró empresa vinculada tras intentar todos los métodos");
     } catch (e) {
-      addLog("Error fetching supplier", e);
       console.error("Error fetching supplier", e);
     } finally {
       setLoading(false);
@@ -147,37 +73,6 @@ function MyCompanyContent() {
     }
   }, [user, token]);
 
-  const [manualSlug, setManualSlug] = useState('');
-  const [manualLoading, setManualLoading] = useState(false);
-
-  const fetchBySlug = async () => {
-    if (!manualSlug.trim() || !token) return;
-    setManualLoading(true);
-    try {
-        addLog(`Intentando buscar por slug: ${manualSlug}`);
-        const res = await fetch(`/api/suppliers/${manualSlug}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (res.ok) {
-            const data = await res.json();
-            addLog("✅ Empresa encontrada por slug:", data);
-            addLog(`Comparación IDs: User(${user?.id}) vs Supplier(${data.user_id})`);
-            setSupplier(data);
-        } else {
-            addLog(`❌ Error buscando slug ${manualSlug}: ${res.status}`);
-            try {
-                const errText = await res.text();
-                addLog("Detalle error:", errText);
-            } catch (e) {}
-        }
-    } catch (e) {
-        addLog("Error en fetchBySlug", e);
-    } finally {
-        setManualLoading(false);
-    }
-  };
-
   if (loading) return <div className="p-8">Cargando...</div>;
 
   if (!supplier) {
@@ -188,41 +83,10 @@ function MyCompanyContent() {
             <div className="flex">
                 <div className="ml-3">
                     <p className="text-sm text-yellow-700">
-                        No se encontró una empresa asociada automáticamente a su cuenta (ID: {user?.id}).
+                        No se encontró una empresa asociada automáticamente a su cuenta.
                     </p>
                 </div>
             </div>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 max-w-md">
-            <h2 className="text-lg font-medium mb-4">Buscar manualmente</h2>
-            <p className="text-sm text-gray-600 mb-4">
-                Si conoce el "slug" o nombre corto de su empresa (ej: xpert-shirts), ingréselo aquí para cargarla:
-            </p>
-            <div className="flex gap-2">
-                <input 
-                    type="text" 
-                    value={manualSlug}
-                    onChange={(e) => setManualSlug(e.target.value)}
-                    placeholder="Ej: xpert-shirts"
-                    className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm"
-                />
-                <button 
-                    onClick={fetchBySlug}
-                    disabled={manualLoading || !manualSlug}
-                    className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-                >
-                    {manualLoading ? 'Buscando...' : 'Buscar'}
-                </button>
-            </div>
-        </div>
-
-        <div className="mt-8 border-t pt-4">
-            <h3 className="font-bold text-sm mb-2">Logs de Depuración:</h3>
-            <div className="bg-gray-100 p-2 text-xs font-mono max-h-60 overflow-y-auto rounded border">
-                {debugLogs.map((l, i) => <div key={i}>{l}</div>)}
-            </div>
-            <button onClick={fetchSupplier} className="mt-2 text-xs bg-gray-200 px-2 py-1 rounded">Reintentar</button>
         </div>
       </div>
     );
