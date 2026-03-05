@@ -56,18 +56,30 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     const checkExisting = async () => {
       if (!userId || !token) return;
       try {
-        const res = await fetch('/api/suppliers', {
+        // Try to fetch by user_id first
+        let res = await fetch(`/api/suppliers?user_id=${userId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        if (res.ok) {
-          const data = await res.json();
-          const items = Array.isArray(data) ? data : data.items || [];
-          const existing = items.find((s: any) => Number(s.user_id) === Number(userId));
+        
+        let data = await res.json();
+        let items = Array.isArray(data) ? data : data.items || [];
+        let existing = items.find((s: any) => Number(s.user_id) === Number(userId));
+
+        if (!existing) {
+             // Fallback to fetching list with higher limit
+             res = await fetch('/api/suppliers?limit=100', {
+                headers: { Authorization: `Bearer ${token}` }
+             });
+             if (res.ok) {
+                data = await res.json();
+                items = Array.isArray(data) ? data : data.items || [];
+                existing = items.find((s: any) => Number(s.user_id) === Number(userId));
+             }
+        }
           
-          if (existing) {
+        if (existing) {
             console.log("Supplier already exists, advancing...", existing);
             onSuccess(existing.id);
-          }
         }
       } catch (e) {
         console.error("Error checking existing supplier", e);

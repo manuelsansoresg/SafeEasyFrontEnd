@@ -32,21 +32,36 @@ function MyCompanyContent() {
     const fetchSupplier = async () => {
       if (!user || !token) return;
       try {
-        // Try to find supplier by user_id
-        // Assuming GET /suppliers returns a list
-        const res = await fetch('/api/suppliers', {
+        console.log("🔍 Buscando empresa para usuario:", user.id);
+        
+        // Intentar filtrar por user_id directamente (más eficiente si el backend lo soporta)
+        let res = await fetch(`/api/suppliers?user_id=${user.id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        if (res.ok) {
-          const data = await res.json();
-          // Assuming data is array or { items: [] }
-          const items = Array.isArray(data) ? data : data.items || [];
-          const mySupplier = items.find((s: any) => s.user_id === user.id);
-          
-          if (mySupplier) {
-            setSupplier(mySupplier);
-          }
+        let data = await res.json();
+        let items = Array.isArray(data) ? data : data.items || [];
+        let mySupplier = items.find((s: any) => Number(s.user_id) === Number(user.id));
+
+        // Si no se encuentra, intentar traer más items (por si es paginación)
+        if (!mySupplier) {
+           console.log("⚠️ No encontrado con filtro user_id, intentando fetch general...");
+           res = await fetch(`/api/suppliers?limit=100`, {
+             headers: { Authorization: `Bearer ${token}` }
+           });
+           if (res.ok) {
+             data = await res.json();
+             items = Array.isArray(data) ? data : data.items || [];
+             mySupplier = items.find((s: any) => Number(s.user_id) === Number(user.id));
+           }
+        }
+        
+        if (mySupplier) {
+          console.log("✅ Empresa encontrada:", mySupplier);
+          setSupplier(mySupplier);
+        } else {
+          console.warn("❌ No se encontró empresa vinculada al usuario", user.id);
+          console.log("📦 Items recibidos:", items);
         }
       } catch (e) {
         console.error("Error fetching supplier", e);
