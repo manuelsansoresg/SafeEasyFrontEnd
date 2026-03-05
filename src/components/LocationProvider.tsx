@@ -10,8 +10,13 @@ export function LocationProvider() {
   useEffect(() => {
             // Verificar si el middleware se ejecutó (busca la cookie de debug)
             const mwDebug = getCookie("mw_debug");
+            const mwHeaders = getCookie("mw_debug_headers");
+            
             if (mwDebug) {
-              console.log("✅ Middleware está corriendo correctamente (mw_debug cookie encontrada).");
+              console.log("✅ Middleware está corriendo correctamente.");
+              if (mwHeaders) {
+                console.log("🔍 Headers recibidos por Middleware:", JSON.parse(decodeURIComponent(mwHeaders as string)));
+              }
             } else {
               console.warn("⚠️ Middleware NO parece estar corriendo o no pudo setear cookies (mw_debug no encontrada).");
             }

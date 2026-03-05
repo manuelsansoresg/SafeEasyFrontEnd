@@ -14,6 +14,18 @@ export function middleware(request: NextRequest) {
     country = request.headers.get('x-vercel-ip-country');
   }
 
+  // Debug: Guardar en cookie lo que estamos viendo
+  const debugInfo = JSON.stringify({
+    cf_city: request.headers.get('cf-ipcity') || 'null',
+    cf_country: request.headers.get('cf-ipcountry') || 'null',
+    vercel_city: request.headers.get('x-vercel-ip-city') || 'null',
+    vercel_country: request.headers.get('x-vercel-ip-country') || 'null',
+    url: request.url
+  });
+  
+  // Cookie de depuración detallada
+  response.cookies.set('mw_debug_headers', debugInfo, { httpOnly: false, path: '/' });
+
   // Log para depuración en el servidor (Vercel/Cloudflare logs)
   console.log('Middleware running.');
   console.log('Headers City:', city || 'None');
