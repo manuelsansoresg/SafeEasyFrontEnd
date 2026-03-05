@@ -5,7 +5,7 @@ import { useLocationStore } from "@/store/useLocationStore";
 import { getCookie } from "cookies-next";
 
 export function LocationProvider() {
-  const { setAddress, setError, setLocation } = useLocationStore();
+  const { setAddress, setError } = useLocationStore();
 
   useEffect(() => {
     // Try to get location from cookies (set by Middleware/Cloudflare)
@@ -17,26 +17,15 @@ export function LocationProvider() {
       // We set state as null because we don't have lat/long, only city text
       setAddress(city as string, (country as string) || "");
     } else {
-       // Fallback: If no cookie (dev environment), use browser geolocation
-       console.log("⚠️ No se detectó ubicación en headers (Cloudflare/Vercel). Intentando navegador...");
+       console.log("⚠️ No se detectó ubicación en headers (Cloudflare/Vercel)");
        
-       if (navigator.geolocation) {
-         navigator.geolocation.getCurrentPosition(
-           (position) => {
-             const { latitude, longitude } = position.coords;
-             console.log("📍 Ubicación desde Navegador:", latitude, longitude);
-             setLocation(latitude, longitude);
-           },
-           (error) => {
-             console.error("Error obteniendo ubicación del navegador:", error);
-             setError(error.message);
-           }
-         );
-       } else {
-         console.error("Geolocalización no soportada por el navegador.");
+       // Fallback for local development
+       if (process.env.NODE_ENV === 'development') {
+           console.log("� Modo Desarrollo: Usando ubicación simulada (Mérida, MX)");
+           setAddress("Mérida", "Mexico");
        }
     }
-  }, [setAddress, setError, setLocation]);
+  }, [setAddress, setError]);
 
   return null;
 }
