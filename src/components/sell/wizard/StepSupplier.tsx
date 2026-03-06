@@ -545,11 +545,11 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                    helperText="Recomendado: Formato cuadrado, mín. 400x400px"
                />
                <FileUpload
-                   label="Imagen o video 'Sobre Nosotros'"
+                   label="Imagen 'Sobre Nosotros'"
                    value={aboutImage}
                    onChange={setAboutImage}
-                   accept="image/*,video/*"
-                   helperText="Formatos recomendados: JPG/PNG o MP4/WEBM/MOV"
+                   accept="image/*"
+                   helperText="Formatos recomendados: JPG/PNG"
                />
              </div>
 

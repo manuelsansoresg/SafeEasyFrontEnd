@@ -964,12 +964,12 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
             />
 
             <FileUpload
-              label="Imagen o video 'Sobre Nosotros'"
+              label="Imagen 'Sobre Nosotros'"
               value={aboutImage}
             onChange={handleAboutImageChange}
-            accept="image/*,video/*"
+            accept="image/*"
             currentImageUrl={aboutMediaPreviewUrl || undefined}
-            helperText="Formatos recomendados: JPG/PNG o MP4/WEBM/MOV"
+            helperText="Formatos recomendados: JPG/PNG"
             />
           </div>
 

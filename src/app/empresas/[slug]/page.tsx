@@ -497,16 +497,36 @@ export default function SupplierPage() {
         </div>
       </div>
 
-      {supplier.carousel_images && supplier.carousel_images.length > 0 && (
+      {((supplier.header_media_type === 'video' && supplier.header_video) || (supplier.carousel_images && supplier.carousel_images.length > 0)) && (
         <section id="inicio" className="scroll-mt-32">
           <div className="relative w-full bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950">
             <div className="w-full max-w-none lg:max-w-7xl xl:max-w-[1400px] mx-auto px-0 sm:px-4 lg:px-8 py-6 md:py-10">
               <div className="w-full rounded-none sm:rounded-2xl md:rounded-3xl overflow-hidden relative shadow-2xl shadow-black/40 bg-gray-900 group">
-                <div className="relative w-full pb-[56.25%] md:pb-[50%] lg:pb-[45%] xl:pb-[40%]">
-                  <div className="absolute inset-0">
-                    <Carousel images={supplier.carousel_images} />
+                {supplier.header_media_type === 'video' && supplier.header_video ? (
+                  <div className="relative h-[60vh] md:h-[80vh] w-full overflow-hidden bg-black">
+                    <video 
+                      src={getImageUrl(supplier.header_video)} 
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      className="absolute inset-0 w-full h-full object-cover z-0"
+                    />
+                    {/* Overlay oscuro semitransparente */}
+                    <div className="absolute inset-0 bg-black/40 bg-gradient-to-b from-black/60 via-transparent to-black/60 z-10" />
+                    
+                    {/* Contenedor para el título (futuro) */}
+                    <div className="relative z-20 h-full w-full flex items-center justify-center">
+                      {/* Aquí irá el título en Varela Round */}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="relative w-full pb-[56.25%] md:pb-[50%] lg:pb-[45%] xl:pb-[40%]">
+                    <div className="absolute inset-0">
+                      <Carousel images={supplier.carousel_images || []} />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
