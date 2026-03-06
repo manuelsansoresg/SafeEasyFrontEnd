@@ -134,7 +134,7 @@ export default function EditSupplierPage() {
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            Carrusel de Imágenes
+            Encabezado
           </button>
           <button
             onClick={() => setActiveTab("certificates")}

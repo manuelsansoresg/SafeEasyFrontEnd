@@ -433,14 +433,20 @@ export default function SupplierPage() {
     );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm border-b md:sticky md:top-16 md:z-40 transition-all duration-300">
+    <div 
+      className="min-h-screen bg-gray-50"
+      style={{ backgroundColor: supplier.page_background_color || supplier.background_color || '#f9fafb' }}
+    >
+      <div 
+        className="transition-all duration-300"
+        style={{ backgroundColor: supplier.header_background_color || '#ffffff' }}
+      >
         <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row items-center gap-4 md:gap-6">
-          <div className="w-20 h-20 md:w-24 md:h-24 relative shrink-0 bg-white border rounded-xl overflow-hidden shadow-sm">
+          <div className="w-20 h-20 md:w-24 md:h-24 relative shrink-0 rounded-xl overflow-hidden bg-white/5">
             {supplier.logo ? (
               <img src={supplier.logo} alt={supplier.name} className="w-full h-full object-contain p-2" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+              <div className="w-full h-full flex items-center justify-center text-gray-300">
                 <Store size={32} />
               </div>
             )}
@@ -472,7 +478,7 @@ export default function SupplierPage() {
                 )}
               </div>
 
-              <div className="hidden md:flex flex-col items-end bg-gray-50/50 p-2 rounded-lg border border-gray-100 min-w-[140px]">
+              <div className="hidden md:flex flex-col items-end p-2 min-w-[140px]">
                 <div className="flex items-center gap-2">
                   <div className="flex items-baseline gap-1">
                     <span className="text-2xl font-bold text-gray-900">
@@ -510,7 +516,10 @@ export default function SupplierPage() {
       <div className="container mx-auto px-4 py-10 space-y-16 overflow-x-hidden">
         <section className="space-y-8">
           {supplier.description && (
-            <div className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+            <div 
+              className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100"
+              style={supplier.card_background_color ? { backgroundColor: supplier.card_background_color, borderColor: 'rgba(0,0,0,0.05)' } : undefined}
+            >
               <h2 className="text-xl font-bold mb-6 text-gray-900 border-b pb-4">Descripción de la Empresa</h2>
               <div className="prose prose-lg max-w-none w-full text-gray-600 prose-headings:text-gray-800 prose-a:text-primary">
                 <div
@@ -530,7 +539,10 @@ export default function SupplierPage() {
         </section>
 
         <section id="productos" className="scroll-mt-32">
-          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+          <div 
+            className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100"
+            style={supplier.card_background_color ? { backgroundColor: supplier.card_background_color, borderColor: 'rgba(0,0,0,0.05)' } : undefined}
+          >
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Productos</h2>
@@ -661,7 +673,10 @@ export default function SupplierPage() {
         </section>
 
         <section id="certificados" className="scroll-mt-32">
-          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+          <div 
+            className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100"
+            style={supplier.card_background_color ? { backgroundColor: supplier.card_background_color, borderColor: 'rgba(0,0,0,0.05)' } : undefined}
+          >
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Certificados</h2>
@@ -725,7 +740,10 @@ export default function SupplierPage() {
 
         {mapLocation && (
           <section id="ubicacion" className="scroll-mt-32 relative z-10">
-            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+            <div 
+              className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100"
+              style={supplier.card_background_color ? { backgroundColor: supplier.card_background_color, borderColor: 'rgba(0,0,0,0.05)' } : undefined}
+            >
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">Ubicación</h2>
@@ -748,7 +766,10 @@ export default function SupplierPage() {
         )}
 
         <section id="calificaciones" className="scroll-mt-32">
-          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+          <div 
+            className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100"
+            style={supplier.card_background_color ? { backgroundColor: supplier.card_background_color, borderColor: 'rgba(0,0,0,0.05)' } : undefined}
+          >
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Calificaciones</h2>

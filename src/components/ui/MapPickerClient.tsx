@@ -67,6 +67,11 @@ function LocationMarker({
 
   const eventHandlers = useMemo(
     () => ({
+      click() {
+        if (readOnly && location) {
+          window.open(`https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`, '_blank');
+        }
+      },
       dragend() {
         const marker = markerRef.current;
         if (marker != null && onChange) {
@@ -74,7 +79,7 @@ function LocationMarker({
         }
       },
     }),
-    [onChange]
+    [onChange, readOnly, location]
   );
 
   return location === null ? null : (

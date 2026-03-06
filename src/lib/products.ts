@@ -48,6 +48,12 @@ export interface Supplier {
   transfer_bank?: string;
   transfer_name?: string;
   map_location?: string;
+  page_background_color?: string;
+  background_color?: string; // Legacy field
+  card_background_color?: string;
+  header_background_color?: string;
+  header_media_type?: 'image' | 'video';
+  header_video?: string;
 }
 
 export interface CarouselImage {

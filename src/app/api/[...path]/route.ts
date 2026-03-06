@@ -55,18 +55,7 @@ async function handler(request: NextRequest) {
 
   try {
     // Use text for JSON to ensure correct formatting and debugging
-    let body: any = undefined;
-    const contentType = request.headers.get('Content-Type');
-    
-    if (!['GET', 'HEAD'].includes(request.method)) {
-        if (contentType?.includes('application/json')) {
-            const text = await request.text();
-            console.log(`[Generic Proxy] Request Body (JSON): ${text}`);
-            body = text;
-        } else {
-            body = await request.blob();
-        }
-    }
+    // let body: any = undefined; // REMOVED: We use streaming body now
     
     // Explicitly construct headers to ensure nothing is lost
     const forwardHeaders = new Headers();
@@ -76,7 +65,6 @@ async function handler(request: NextRequest) {
     // We want to control filtering explicitly via query parameters (e.g. ?location=...)
     const headersToExclude = [
         'host', 
-        'content-length', 
         'connection', 
         'transfer-encoding',
         'x-vercel-ip-city',
@@ -109,12 +97,22 @@ async function handler(request: NextRequest) {
         forwardHeaders.set('X-Requested-With', 'XMLHttpRequest');
     }
 
-    const fetchOptions: RequestInit = {
+    // Determine body based on content type and method
+    let body: any = undefined;
+    if (!['GET', 'HEAD'].includes(request.method)) {
+        // For streaming uploads, use the raw body stream
+        // This avoids buffering the entire file in memory
+        body = request.body;
+    }
+
+    const fetchOptions: any = {
       method: request.method,
       headers: forwardHeaders,
       body,
       redirect: 'manual', // Do not follow redirects automatically
       cache: 'no-store',
+      // Required for streaming bodies in Node.js environment (Next.js App Router)
+      duplex: 'half', 
     };
 
     let response = await fetch(targetUrl, fetchOptions);

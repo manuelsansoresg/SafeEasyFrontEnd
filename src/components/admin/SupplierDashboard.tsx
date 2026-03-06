@@ -25,7 +25,7 @@ export default function SupplierDashboard() {
             href="/admin/my-company?tab=carousel"
             icon={<Image className="w-8 h-8 text-primary" />}
             title="Personalizar Sitio"
-            description="Suba imágenes a su carrusel y destaque sus productos."
+            description="Personalice el encabezado de su sitio con imágenes o video."
             delay={0.1}
           />
           

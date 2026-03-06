@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import SupplierForm from '@/components/admin/SupplierForm';
 import StepCarousel from '@/components/sell/wizard/StepCarousel';
 import StepCertificates from '@/components/sell/wizard/StepCertificates';
+import StepPersonalization from '@/components/sell/wizard/StepPersonalization';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 function MyCompanyContent() {
@@ -12,17 +13,17 @@ function MyCompanyContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  const initialTab = (searchParams.get('tab') as 'info' | 'carousel' | 'certificates') || 'info';
+  const initialTab = (searchParams.get('tab') as 'info' | 'carousel' | 'certificates' | 'customization') || 'info';
   
   const [supplier, setSupplier] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'info' | 'carousel' | 'certificates'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'info' | 'carousel' | 'certificates' | 'customization'>(initialTab);
 
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  const handleTabChange = (tab: 'info' | 'carousel' | 'certificates') => {
+  const handleTabChange = (tab: 'info' | 'carousel' | 'certificates' | 'customization') => {
     setActiveTab(tab);
     // Optional: Update URL without reload to reflect tab change
     router.replace(`/admin/my-company?tab=${tab}`);
@@ -127,7 +128,7 @@ function MyCompanyContent() {
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          Carrusel de Imágenes
+          Encabezado
         </button>
         <button
           onClick={() => handleTabChange('certificates')}
@@ -138,6 +139,16 @@ function MyCompanyContent() {
           }`}
         >
           Certificados
+        </button>
+        <button
+          onClick={() => handleTabChange('customization')}
+          className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 ${
+            activeTab === 'customization' 
+              ? 'border-primary text-primary' 
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Personalización
         </button>
       </div>
 
@@ -162,6 +173,14 @@ function MyCompanyContent() {
             slug={supplier.slug || supplier.short_name || undefined}
             token={token} 
             onNext={() => {}} 
+          />
+        )}
+        
+        {activeTab === 'customization' && token && (
+          <StepPersonalization
+            supplierId={supplier.id}
+            token={token}
+            initialData={supplier}
           />
         )}
       </div>
