@@ -373,7 +373,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
 
              {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
 
-             <form onSubmit={handleVideoSubmit} className="space-y-6">
+             <form id="video-form" onSubmit={handleVideoSubmit} className="space-y-6">
                 <FileUpload
                     label={savedVideoUrl ? "Cambiar Video Actual" : "Subir Video"}
                     value={headerVideo}
@@ -392,17 +392,6 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                         />
                     </div>
                 )}
-
-                <div className="flex justify-end">
-                    <button 
-                        type="submit" 
-                        disabled={isVideoLoading || !headerVideo}
-                        className="bg-primary text-white font-bold py-2 px-6 rounded-xl hover:bg-primary/90 disabled:opacity-50 shadow-lg shadow-primary/20 transition-all flex items-center gap-2"
-                    >
-                        {isVideoLoading && <Loader2 className="animate-spin" size={18} />}
-                        {isVideoLoading ? 'Guardando...' : 'Guardar Video'}
-                    </button>
-                </div>
              </form>
         </div>
       ) : (
@@ -430,7 +419,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                 
                 {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
                 
-                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <form id="image-form" onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium mb-1 text-gray-700">Título</label>
                     <input 
@@ -460,24 +449,6 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                     rows={2}
                     placeholder="Una breve descripción para tus clientes..."
                     />
-                </div>
-                <div className="md:col-span-2 flex justify-end gap-3">
-                    {editingId && (
-                    <button 
-                        type="button"
-                        onClick={handleCancelEdit}
-                        className="px-6 py-2 text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-                    >
-                        Cancelar
-                    </button>
-                    )}
-                    <button 
-                    type="submit" 
-                    disabled={loading || (!editingId && items.length >= 3)}
-                    className="bg-primary text-white font-bold py-2 px-6 rounded-xl hover:bg-primary/90 disabled:opacity-50 shadow-lg shadow-primary/20 transition-all"
-                    >
-                    {loading ? 'Guardando...' : (editingId ? 'Actualizar Imagen' : 'Agregar Imagen')}
-                    </button>
                 </div>
                 {!editingId && items.length >= 3 && (
                     <div className="md:col-span-2 text-center mt-2">
@@ -550,12 +521,30 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
         </>
       )}
 
-      <div className="flex justify-end pt-4 border-t border-gray-100">
+      <div className="flex justify-end pt-4 border-t border-gray-100 gap-3">
+        {activeTab === 'image' && editingId && (
+            <button 
+                type="button"
+                onClick={handleCancelEdit}
+                className="px-6 py-2 text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+            >
+                Cancelar
+            </button>
+        )}
         <button
-          onClick={onNext}
-          className="bg-gray-800 text-white font-bold py-3 px-8 rounded-xl hover:bg-gray-900 transition-colors shadow-lg"
+          type="submit"
+          form={activeTab === 'video' ? 'video-form' : 'image-form'}
+          disabled={activeTab === 'video' ? (isVideoLoading || !headerVideo) : (loading || (!editingId && items.length >= 3))}
+          className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
         >
-          Continuar
+          {(activeTab === 'video' ? isVideoLoading : loading) ? (
+            <>
+              <Loader2 className="animate-spin" size={20} />
+              Guardando...
+            </>
+          ) : (
+            "Guardar"
+          )}
         </button>
       </div>
     </div>

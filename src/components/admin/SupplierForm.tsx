@@ -1049,7 +1049,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
               Guardando...
             </>
           ) : (
-            "Guardar Cambios"
+            "Guardar"
           )}
         </button>
       </div>

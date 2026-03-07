@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trash2, Edit2, X, Award, Calendar, Link as LinkIcon, MapPin, FileText } from 'lucide-react';
+import { Trash2, Edit2, X, Award, Calendar, Link as LinkIcon, MapPin, FileText, Loader2 } from 'lucide-react';
 import FileUpload from '@/components/ui/FileUpload';
 
 interface StepCertificatesProps {
@@ -211,7 +211,7 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
 
         {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
         
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form id="certificate-form" onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <label className="block text-sm font-medium mb-1 text-gray-700">Nombre/Descripción del Certificado</label>
             <input 
@@ -276,25 +276,6 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
               className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
               placeholder="https://..."
             />
-          </div>
-
-          <div className="md:col-span-2 mt-2 flex justify-end gap-3">
-             {editingId && (
-              <button 
-                type="button"
-                onClick={handleCancelEdit}
-                className="px-6 py-2 text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                Cancelar
-              </button>
-            )}
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="bg-primary text-white font-bold py-2 px-6 rounded-xl hover:bg-primary/90 disabled:opacity-50 shadow-lg shadow-primary/20 transition-all"
-            >
-              {loading ? 'Guardando...' : (editingId ? 'Actualizar Certificado' : 'Agregar Certificado')}
-            </button>
           </div>
         </form>
       </div>
@@ -386,12 +367,30 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
         )}
       </div>
 
-      <div className="flex justify-end pt-4 border-t border-gray-100">
+      <div className="flex justify-end pt-4 border-t border-gray-100 gap-3">
+        {editingId && (
+          <button 
+            type="button"
+            onClick={handleCancelEdit}
+            className="px-6 py-2 text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+        )}
         <button
-          onClick={onNext}
-          className="bg-gray-800 text-white font-bold py-3 px-8 rounded-xl hover:bg-gray-900 transition-colors shadow-lg"
+          type="submit"
+          form="certificate-form"
+          disabled={loading}
+          className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
         >
-          Finalizar Registro
+          {loading ? (
+            <>
+              <Loader2 className="animate-spin" size={20} />
+              Guardando...
+            </>
+          ) : (
+            "Guardar"
+          )}
         </button>
       </div>
     </div>

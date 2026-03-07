@@ -17,6 +17,13 @@ export interface Product {
   supplier?: Supplier;
 }
 
+export interface BusinessHour {
+  day_of_week: number;
+  open_time: string | null;
+  close_time: string | null;
+  is_closed: boolean;
+}
+
 export interface Supplier {
   id: number;
   name: string;
@@ -54,6 +61,7 @@ export interface Supplier {
   header_background_color?: string;
   header_media_type?: 'image' | 'video';
   header_video?: string;
+  business_hours?: BusinessHour[];
 }
 
 export interface CarouselImage {

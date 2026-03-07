@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Supplier, CarouselImage, Certificate } from "@/lib/products";
-import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play } from "lucide-react";
+import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play, Clock } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -249,19 +249,31 @@ export default function SupplierPage() {
   }, [slug]);
 
   useEffect(() => {
-    if (slug) {
-      fetchProducts(slug as string, 1, false);
-      fetchRatings(slug as string, 0, false);
+    if (supplier?.id) {
+      fetchProducts(String(supplier.id), 1, false);
+      // Use slug for ratings if available, as the endpoint requires it
+      fetchRatings(supplier.slug || String(supplier.id), 0, false);
     }
-  }, [slug, token]);
+  }, [supplier?.id, supplier?.slug, token]);
 
   const fetchSupplier = async (slug: string) => {
     try {
-      const res = await fetch(`/api/suppliers/${slug}`, {
+      let url = `/api/suppliers/${slug}`;
+      // If slug is not numeric, search by slug query param
+      if (isNaN(Number(slug))) {
+        url = `/api/suppliers/?slug=${slug}`;
+      }
+
+      const res = await fetch(url, {
         cache: "no-store",
       });
+
       if (res.ok) {
-        const data = await res.json();
+        let data = await res.json();
+        // If we searched by slug, we get an array
+        if (Array.isArray(data)) {
+           data = data[0] || null;
+        }
         setSupplier(data);
       }
     } catch (error) {
@@ -1018,80 +1030,181 @@ export default function SupplierPage() {
         </section>
 
         <section id="contacto" className="scroll-mt-32">
-          <div className="max-w-4xl mx-auto">
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-                <h2 className="text-xl font-bold mb-6 text-gray-900">Información de Contacto</h2>
-                <div className="space-y-6">
+          <div className="max-w-6xl mx-auto px-4">
+            
+            {/* Top Container: Contact Info & Business Hours */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+              
+              {/* Contact Info Card */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 transition-shadow hover:shadow-md h-full">
+                <h2 className="text-2xl font-bold mb-8 text-gray-900 flex items-center gap-3 font-display">
+                  <span className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shadow-sm">
+                    <Store className="text-primary" size={24} />
+                  </span>
+                  Información de Contacto
+                </h2>
+                
+                <div className="grid gap-8">
                   {supplier.address && (
-                    <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <MapPin className="text-primary" size={20} />
+                    <div className="flex items-start gap-5 group">
+                      <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center shrink-0 text-primary group-hover:bg-primary/10 transition-colors">
+                        <MapPin size={24} />
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">Dirección</p>
-                        <p className="text-gray-600 mt-1">
+                      <div className="font-sans">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Dirección</p>
+                        <p className="text-gray-900 font-medium text-lg leading-snug">
                           {supplier.address} {supplier.exterior_number} {supplier.interior_number}
                         </p>
-                        <p className="text-gray-600">{supplier.neighborhood}</p>
-                        <p className="text-gray-600">
-                          {supplier.city}, {supplier.state}, {supplier.country}
+                        <p className="text-gray-500 text-sm mt-1">
+                          {supplier.neighborhood && `${supplier.neighborhood}, `}
+                          {[supplier.city, supplier.state, supplier.country].filter(Boolean).join(", ")}
                         </p>
                       </div>
                     </div>
                   )}
+
                   {supplier.phone && (
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <Phone className="text-primary" size={20} />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">Teléfono</p>
-                        <p className="text-gray-600 mt-1">{supplier.phone}</p>
+                    <div className="flex items-start gap-5 group">
+                      <a 
+                        href={`tel:${supplier.phone}`}
+                        className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center shrink-0 text-primary group-hover:scale-110 group-hover:bg-primary/10 transition-all cursor-pointer"
+                      >
+                        <Phone size={24} />
+                      </a>
+                      <div className="font-sans">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Teléfono</p>
+                        <a 
+                          href={`tel:${supplier.phone}`}
+                          className="text-gray-900 font-medium text-lg hover:text-primary transition-colors block"
+                        >
+                          {supplier.phone}
+                        </a>
                       </div>
                     </div>
                   )}
+                    
                   {supplier.email && (
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <Mail className="text-primary" size={20} />
+                    <div className="flex items-start gap-5 group">
+                      <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center shrink-0 text-primary group-hover:bg-primary/10 transition-colors">
+                        <Mail size={24} />
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">Correo Electrónico</p>
-                        <p className="text-gray-600 mt-1">{supplier.email}</p>
+                      <div className="font-sans overflow-hidden">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Email</p>
+                        <p className="text-gray-900 font-medium text-lg truncate" title={supplier.email}>
+                          {supplier.email}
+                        </p>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="bg-primary text-white p-8 rounded-2xl shadow-lg relative overflow-hidden">
-                <div className="relative z-10">
-                  <h2 className="text-xl font-bold mb-4">¿Tienes preguntas?</h2>
-                  <p className="mb-6 opacity-90">
-                    Contáctanos directamente para obtener más información sobre nuestros productos y servicios.
-                  </p>
+              {/* Business Hours Card */}
+              {supplier.business_hours && supplier.business_hours.length > 0 ? (
+                <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 transition-shadow hover:shadow-md h-full">
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0 shadow-sm">
+                      <Clock className="text-primary" size={24} />
+                    </div>
+                    <h3 className="font-bold text-gray-900 text-2xl font-display">Horario de Atención</h3>
+                  </div>
+                  
+                  <div className="space-y-4 font-sans">
+                    {[1, 2, 3, 4, 5, 6, 0].map((dayId) => {
+                      const daySchedule = supplier.business_hours?.find(h => h.day_of_week === dayId);
+                      const dayName = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"][dayId];
+                      const isToday = new Date().getDay() === dayId;
+                      
+                      if (!daySchedule) return null;
+                      
+                      return (
+                        <div 
+                          key={dayId} 
+                          className={`flex justify-between items-center py-3 px-4 rounded-xl transition-all ${
+                            isToday 
+                              ? "bg-primary/5 border border-primary/20 shadow-sm" 
+                              : "hover:bg-gray-50 border border-transparent"
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            {isToday ? (
+                              <div className="relative flex h-3 w-3">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                              </div>
+                            ) : (
+                              <div className={`h-2 w-2 rounded-full ${daySchedule.is_closed ? "bg-red-300" : "bg-gray-300"}`}></div>
+                            )}
+                            <span className={`font-medium text-base ${isToday ? "text-primary font-bold" : "text-gray-600"}`}>
+                              {dayName} {isToday && <span className="ml-2 text-[10px] font-bold text-white bg-primary px-2 py-0.5 rounded-full uppercase tracking-wide">Hoy</span>}
+                            </span>
+                          </div>
+                          <span className="font-medium">
+                            {daySchedule.is_closed ? (
+                              <span className="text-red-500 text-xs font-bold bg-red-50 px-3 py-1.5 rounded-full border border-red-100">CERRADO</span>
+                            ) : (
+                              <span className={`text-sm px-3 py-1.5 rounded-lg border ${isToday ? "bg-white text-gray-900 border-primary/20" : "bg-gray-50 text-gray-700 border-gray-100"}`}>
+                                {daySchedule.open_time?.slice(0, 5)} - {daySchedule.close_time?.slice(0, 5)}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 p-8 rounded-3xl border border-gray-100 border-dashed flex items-center justify-center h-full text-gray-400">
+                  <div className="text-center">
+                    <Clock size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>Horarios no disponibles</p>
+                  </div>
+                </div>
+              )}
+            </div>
 
+            {/* Bottom Container: Questions / Action Banner */}
+            <div className="bg-gray-50 p-10 rounded-3xl shadow-sm border border-gray-200 relative overflow-hidden">
+              <div className="relative z-10 grid md:grid-cols-2 gap-8 items-center">
+                <div>
+                  <h2 className="text-2xl font-bold mb-4 font-display text-gray-900">¿Tienes preguntas?</h2>
+                  <p className="text-gray-600 leading-relaxed text-lg font-sans">
+                    Contáctanos directamente para obtener más información sobre nuestros productos y servicios. Estamos aquí para ayudarte.
+                  </p>
+                  <div className="mt-6 pt-6 border-t border-gray-200/50">
+                    <p className="text-sm text-gray-500 font-sans flex items-center gap-2">
+                       <Clock size={16} />
+                       Respondemos usualmente en menos de 24 horas.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-center md:justify-end">
                   {supplier.phone ? (
                     <a 
                       href={`https://wa.me/${supplier.phone.replace(/\D/g, '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block w-full text-center py-3 bg-white text-primary font-bold rounded-xl hover:bg-gray-100 transition-colors shadow-sm"
+                      className="group flex items-center justify-center gap-3 w-full md:w-auto md:min-w-[280px] px-8 py-5 bg-primary text-white font-bold rounded-2xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5"
                     >
-                      Enviar Mensaje
+                      <MessageCircle size={24} className="group-hover:scale-110 transition-transform" />
+                      <span className="font-sans text-lg">Enviar Mensaje</span>
                     </a>
                   ) : (
-                    <button disabled className="w-full py-3 bg-white/70 text-primary/50 font-bold rounded-xl cursor-not-allowed shadow-sm">
-                      Enviar Mensaje
+                    <button disabled className="w-full md:w-auto md:min-w-[280px] px-8 py-5 bg-gray-200 text-gray-400 font-bold rounded-2xl cursor-not-allowed shadow-none flex items-center justify-center gap-2">
+                      <MessageCircle size={24} />
+                      <span className="font-sans text-lg">Enviar Mensaje</span>
                     </button>
                   )}
                 </div>
-
-                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
-                <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
               </div>
+
+              {/* Decorative subtle elements */}
+              <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
+              <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none opacity-50"></div>
             </div>
+
           </div>
         </section>
       </div>

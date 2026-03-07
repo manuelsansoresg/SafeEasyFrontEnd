@@ -282,22 +282,13 @@ export default function StepPersonalization({ supplierId, token, onNext, initial
         </div>
 
         <div className="pt-4 flex justify-end gap-4">
-          {slug && (
-            <button
-              type="button"
-              onClick={() => window.open(`/empresas/${slug}`, '_blank')}
-              className="bg-white text-gray-700 border border-gray-300 px-6 py-3 rounded-lg hover:bg-gray-50 flex items-center gap-2 font-medium shadow-sm transition-colors"
-            >
-              Previsualizar
-            </button>
-          )}
           <button
             type="submit"
             disabled={saving}
-            className="bg-primary text-white px-8 py-3 rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 font-medium shadow-sm transition-colors"
+            className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            Guardar Personalización
+            Guardar
           </button>
         </div>
       </form>

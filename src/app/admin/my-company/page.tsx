@@ -2,10 +2,12 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
+import { ExternalLink } from 'lucide-react';
 import SupplierForm from '@/components/admin/SupplierForm';
 import StepCarousel from '@/components/sell/wizard/StepCarousel';
 import StepCertificates from '@/components/sell/wizard/StepCertificates';
 import StepPersonalization from '@/components/sell/wizard/StepPersonalization';
+import BusinessHoursEditor from '@/components/admin/BusinessHoursEditor';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 function MyCompanyContent() {
@@ -13,17 +15,17 @@ function MyCompanyContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  const initialTab = (searchParams.get('tab') as 'info' | 'carousel' | 'certificates' | 'customization') || 'info';
+  const initialTab = (searchParams.get('tab') as 'info' | 'carousel' | 'certificates' | 'customization' | 'hours') || 'info';
   
   const [supplier, setSupplier] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'info' | 'carousel' | 'certificates' | 'customization'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'info' | 'carousel' | 'certificates' | 'customization' | 'hours'>(initialTab);
 
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  const handleTabChange = (tab: 'info' | 'carousel' | 'certificates' | 'customization') => {
+  const handleTabChange = (tab: 'info' | 'carousel' | 'certificates' | 'customization' | 'hours') => {
     setActiveTab(tab);
     // Optional: Update URL without reload to reflect tab change
     router.replace(`/admin/my-company?tab=${tab}`);
@@ -106,7 +108,20 @@ function MyCompanyContent() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8 text-gray-800">Gestionar Mi Empresa</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-800">Gestionar Mi Empresa</h1>
+        {supplier && supplier.slug && (
+            <a
+                href={`/empresas/${supplier.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:text-primary/80 font-medium flex items-center gap-2"
+            >
+                Ver mi empresa
+                <ExternalLink size={18} />
+            </a>
+        )}
+      </div>
       
       {/* Tabs */}
       <div className="flex space-x-4 border-b border-gray-200 mb-8">
@@ -150,6 +165,16 @@ function MyCompanyContent() {
         >
           Personalización
         </button>
+        <button
+          onClick={() => handleTabChange('hours')}
+          className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 ${
+            activeTab === 'hours' 
+              ? 'border-primary text-primary' 
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Horarios de Atención
+        </button>
       </div>
 
       {/* Content */}
@@ -181,6 +206,13 @@ function MyCompanyContent() {
             supplierId={supplier.id}
             token={token}
             initialData={supplier}
+          />
+        )}
+
+        {activeTab === 'hours' && token && (
+          <BusinessHoursEditor
+            supplierId={supplier.id}
+            token={token}
           />
         )}
       </div>

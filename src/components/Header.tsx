@@ -81,11 +81,6 @@ export function Header() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex flex-col font-sans">
-      {/* Top Bar */}
-      <div className="bg-white text-black py-2 px-4 text-center text-[10px] sm:text-xs md:text-sm italic border-b border-gray-100 hidden sm:block">
-        Promociona tu empresa en Drooopy.com • Encuentra lo que buscas, chatea directo con el vendedor y compra seguro.
-      </div>
-
       {/* Main Header */}
       <div className="bg-primary text-white shadow-md transition-all duration-300">
         <div className="container mx-auto px-4 h-20 md:h-24 flex items-center justify-between">
