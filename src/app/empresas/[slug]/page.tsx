@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Supplier, CarouselImage, Certificate } from "@/lib/products";
-import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play, Clock, ArrowDown } from "lucide-react";
+import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play, Clock, ArrowDown, Volume2, VolumeX } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -237,7 +237,36 @@ export default function SupplierPage() {
   const [loading, setLoading] = useState(true);
   const headerVideoRef = useRef<HTMLVideoElement>(null);
   const [isHeaderVideoPlaying, setIsHeaderVideoPlaying] = useState(false);
-  
+  const [isMuted, setIsMuted] = useState(true);
+
+  useEffect(() => {
+    if (headerVideoRef.current) {
+      if (isHeaderVideoPlaying) {
+        headerVideoRef.current.play().catch(e => console.log("Auto-play prevented", e));
+      } else {
+        headerVideoRef.current.pause();
+      }
+    }
+  }, [isHeaderVideoPlaying]);
+
+  // Header Video Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          setIsHeaderVideoPlaying(entry.isIntersecting);
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    if (headerVideoRef.current) {
+      observer.observe(headerVideoRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
   const [products, setProducts] = useState<SupplierProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -478,6 +507,12 @@ export default function SupplierPage() {
     return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
   };
 
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsMuted(prev => !prev);
+  };
+
   const getBusinessStatus = () => {
       if (!supplier?.business_hours || supplier.business_hours.length === 0) return { isOpen: false, status: "Sin Horario" };
       
@@ -583,7 +618,10 @@ export default function SupplierPage() {
              <video 
                ref={headerVideoRef}
                src={getImageUrl(supplier.header_video)} 
-               autoPlay muted loop playsInline
+               autoPlay 
+               muted={isMuted} 
+               loop 
+               playsInline
                className="absolute inset-0 w-full h-full object-cover opacity-90 scale-105 group-hover:scale-100 transition-transform duration-[30s] ease-linear"
              />
          ) : (
@@ -626,29 +664,42 @@ export default function SupplierPage() {
 
          {/* Floating Stats Bar */}
          <div className="absolute bottom-0 left-0 w-full z-30 border-t border-white/10 bg-black/20 backdrop-blur-xl">
-             <div className="container mx-auto px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-8">
+             <div className="container mx-auto px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-8 items-center">
                  <div className="text-center md:text-left">
                      <div className="text-[#168e00] text-3xl font-black font-[family-name:var(--font-varela-round)]">{supplier.average_rating ? supplier.average_rating.toFixed(1) : "5.0"}</div>
                      <div className="text-white/60 text-xs uppercase tracking-widest font-bold">Calificación</div>
                  </div>
                  <div className="text-center md:text-left">
-                     <div className="text-white text-3xl font-black font-[family-name:var(--font-varela-round)]">+500</div>
+                     <div className="text-white text-3xl font-black font-[family-name:var(--font-varela-round)]">{supplier.sales_count ? `+${supplier.sales_count}` : "+500"}</div>
                      <div className="text-white/60 text-xs uppercase tracking-widest font-bold">Ventas Exitosas</div>
                  </div>
                  <div className="text-center md:text-left">
-                     <div className="text-white text-3xl font-black font-[family-name:var(--font-varela-round)]">24h</div>
-                     <div className="text-white/60 text-xs uppercase tracking-widest font-bold">Respuesta</div>
+                     <div className="text-white text-2xl md:text-3xl font-black font-[family-name:var(--font-varela-round)] flex flex-col items-center md:items-start justify-center md:justify-start leading-none gap-1">
+                        <span>Atención</span>
+                        <span className="text-[#168e00]">Personalizada</span>
+                     </div>
                  </div>
                  <div className="hidden md:flex items-center justify-end">
-                      <div className="flex -space-x-3">
-                          {[1,2,3,4].map(i => (
-                              <div key={i} className="w-10 h-10 rounded-full border-2 border-black bg-gray-200" />
-                          ))}
-                          <div className="w-10 h-10 rounded-full border-2 border-black bg-[#168e00] flex items-center justify-center text-white text-xs font-bold">+99</div>
+                      <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
+                          <div className="w-8 h-8 rounded-full bg-[#168e00] flex items-center justify-center text-white">
+                              <Check size={18} strokeWidth={4} />
+                          </div>
+                          <span className="text-white font-bold text-sm uppercase tracking-wider">Empresa Verificada</span>
                       </div>
                  </div>
              </div>
          </div>
+
+         {/* Audio Toggle */}
+         {supplier.header_media_type === 'video' && supplier.header_video && (
+             <button 
+                onClick={toggleMute}
+                className="absolute bottom-24 right-6 z-40 p-3 bg-black/40 hover:bg-black/60 backdrop-blur-md rounded-full text-white transition-all hover:scale-110 border border-white/20"
+                aria-label={isMuted ? "Activar sonido" : "Silenciar"}
+             >
+                 {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+             </button>
+         )}
       </section>
 
       {/* --- PRODUCTS SECTION --- */}
@@ -955,25 +1006,32 @@ export default function SupplierPage() {
 
               {/* MIDDLE ROW: Map (Full Width) */}
               <div className="w-full h-[400px] bg-white/5 backdrop-blur-md rounded-[2rem] overflow-hidden border border-white/10 relative shadow-2xl mb-12 group">
-                  {mapLocation ? (
-                      <MapPicker
-                          location={mapLocation}
-                          readOnly={true}
-                          height="100%"
-                          className="w-full h-full max-w-none grayscale-[50%] group-hover:grayscale-0 transition-all duration-500"
-                      />
-                  ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white/30 bg-black/20">
-                          <div className="text-center">
-                              <MapPin size={48} className="mx-auto mb-2 opacity-50" />
-                              <p>Ubicación no disponible</p>
+                  <a 
+                    href={mapLocation ? `https://www.google.com/maps/search/?api=1&query=${mapLocation.lat},${mapLocation.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(supplier.address || '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full h-full relative"
+                  >
+                      {mapLocation ? (
+                          <MapPicker
+                              location={mapLocation}
+                              readOnly={true}
+                              height="100%"
+                              className="w-full h-full max-w-none grayscale-[50%] group-hover:grayscale-0 transition-all duration-500 pointer-events-none" 
+                          />
+                      ) : (
+                          <div className="w-full h-full flex items-center justify-center text-white/30 bg-black/20">
+                              <div className="text-center">
+                                  <MapPin size={48} className="mx-auto mb-2 opacity-50" />
+                                  <p>Ubicación no disponible</p>
+                              </div>
                           </div>
+                      )}
+                      {/* Floating Location Badge */}
+                      <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur text-[#004e28] px-4 py-2 rounded-xl text-sm font-bold shadow-lg flex items-center gap-2 group-hover:scale-105 transition-transform">
+                          <MapPin size={16} /> Ver Ubicación Exacta
                       </div>
-                  )}
-                  {/* Floating Location Badge */}
-                  <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur text-[#004e28] px-4 py-2 rounded-xl text-sm font-bold shadow-lg flex items-center gap-2 pointer-events-none">
-                      <MapPin size={16} /> Ubicación Exacta
-                  </div>
+                  </a>
               </div>
 
               {/* BOTTOM ROW: CTA (Full Width) */}

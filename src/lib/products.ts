@@ -50,6 +50,7 @@ export interface Supplier {
   certificates: Certificate[];
   average_rating?: number;
   rating_count?: number;
+  sales_count?: number;
   transfer_accepted?: boolean;
   transfer_clabe?: string;
   transfer_bank?: string;
