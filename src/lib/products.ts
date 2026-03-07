@@ -61,6 +61,7 @@ export interface Supplier {
   header_background_color?: string;
   header_media_type?: 'image' | 'video';
   header_video?: string;
+  primary_color?: string;
   business_hours?: BusinessHour[];
 }
 

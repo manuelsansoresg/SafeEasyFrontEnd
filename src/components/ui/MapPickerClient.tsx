@@ -36,6 +36,7 @@ interface MapPickerClientProps {
   height?: string;
   zoom?: number;
   addressContext?: AddressDetails;
+  className?: string;
 }
 
 function LocationMarker({
@@ -927,7 +928,8 @@ export default function MapPickerClient({
   readOnly = false,
   height = "300px",
   zoom = 13,
-  addressContext
+  addressContext,
+  className
 }: MapPickerClientProps) {
   useEffect(() => {
     fixLeafletIcon();
@@ -937,7 +939,7 @@ export default function MapPickerClient({
   const center = location || { lat: 19.4326, lng: -99.1332 };
 
   return (
-    <div className="relative w-full md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto rounded-lg overflow-hidden border border-gray-300 z-0" style={{ height }}>
+    <div className={`relative w-full md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto rounded-lg overflow-hidden border border-gray-300 z-0 ${className || ''}`} style={{ height }}>
       <MapContainer
         center={center}
         zoom={zoom}

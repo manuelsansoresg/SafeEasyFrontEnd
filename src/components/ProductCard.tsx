@@ -80,20 +80,20 @@ export function ProductCard({
   const displayPrice = (typeof price === 'number' ? price : 0).toFixed(0);
 
   return (
-    <div className="group block h-full relative font-sans">
-      {/* Image Container */}
-      <div className="relative aspect-square bg-[#f9f9f9] rounded-2xl overflow-hidden mb-3">
-        {/* Favorite Button */}
+    <div className="group block h-full relative bg-white rounded-[2rem] overflow-hidden transition-all duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,78,40,0.2)] hover:-translate-y-2">
+      {/* Image Container - Premium Aspect Ratio */}
+      <div className="relative aspect-[4/5] bg-[#f2f3f4] overflow-hidden">
+        {/* Favorite Button - Floating Glass Effect */}
         <button
             onClick={handleFavoriteClick}
-            className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-white rounded-full hover:bg-gray-50 transition-all z-30 shadow-sm border border-gray-100 group/btn"
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-white/90 backdrop-blur-md rounded-full hover:bg-[#168e00] hover:text-white transition-all z-30 shadow-sm group/btn"
             title={isFav ? "Quitar de favoritos" : "Agregar a favoritos"}
         >
             <Heart
-            size={16}
+            size={20}
             className={cn(
-                "transition-colors",
-                isFav ? "fill-red-500 text-red-500" : "text-gray-400 group-hover/btn:text-red-500"
+                "transition-colors duration-300",
+                isFav ? "fill-[#168e00] text-[#168e00]" : "text-gray-400 group-hover/btn:text-white"
             )}
             strokeWidth={2}
             />
@@ -108,51 +108,52 @@ export function ProductCard({
             <img 
                 src={getImageUrl(image)} 
                 alt={title} 
-                className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500 p-4" 
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out" 
             />
             ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-300">
-                <span className="text-4xl">📦</span>
+            <div className="w-full h-full flex items-center justify-center text-gray-300 bg-[#f2f3f4]">
+                <span className="text-4xl opacity-50">📦</span>
             </div>
             )}
+            
+            {/* Quick View Overlay (Optional Premium Touch) */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#004e28]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            
+            {/* Floating Action Button on Hover */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 translate-y-10 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-500 delay-75">
+                <span className="bg-white text-[#004e28] px-6 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2 font-[family-name:var(--font-varela-round)]">
+                    Ver Detalles
+                </span>
+            </div>
         </Link>
       </div>
 
-      {/* Content */}
-      <div className="flex flex-col flex-grow">
-        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-1 md:gap-2 mb-1">
-          <Link href={`/product/${slug}`} onClick={handleCardClick} className="flex-grow">
-            <h3 className="text-[15px] font-bold text-gray-900 leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+      {/* Content - Minimalist & Clean */}
+      <div className="p-6 flex flex-col flex-grow relative z-10 bg-white">
+        <div className="flex flex-col gap-2 mb-3">
+           <div className="flex items-center justify-between">
+                {supplier && (
+                    <div className="text-xs font-bold text-[#168e00] uppercase tracking-wider font-[family-name:var(--font-varela-round)]">
+                        {supplier.name || "Proveedor"}
+                    </div>
+                )}
+                <div className="flex items-center gap-1 bg-[#f2f3f4] px-2 py-1 rounded-md">
+                    <Star size={10} className="fill-amber-400 text-amber-400" />
+                    <span className="font-bold text-xs text-gray-700">{rating}</span>
+                </div>
+           </div>
+          
+          <Link href={`/product/${slug}`} onClick={handleCardClick} className="block group-hover:text-[#004e28] transition-colors">
+            <h3 className="text-lg font-bold text-gray-900 leading-tight line-clamp-2 font-[family-name:var(--font-varela-round)]">
               {title}
             </h3>
           </Link>
-          <span className="text-lg font-bold text-[#168e00] shrink-0">${displayPrice}</span>
-        </div>
           
-        <div className="mb-2 truncate">
-           {supplier ? (
-             supplierHref ? (
-               <Link href={supplierHref} className="text-xs text-gray-400 hover:text-primary hover:underline transition-colors">
-                 {supplier.name || supplier.city || "Proveedor"}
-               </Link>
-             ) : (
-               <span className="text-xs text-gray-400">
-                 {supplier.name || supplier.city || "Proveedor"}
-               </span>
-             )
-           ) : (
-             <span className="text-xs text-gray-400">North Purwokerto</span>
-           )}
-        </div>
-        
-        {/* Rating and Sales */}
-        <div className="flex items-center gap-1 text-sm text-gray-600 mt-auto">
-            <div className="flex items-center gap-1">
-                <Star size={16} className="fill-amber-400 text-amber-400" />
-                <span className="font-medium text-xs">{rating}</span>
-            </div>
-            <span className="text-gray-300 mx-1">|</span>
-            <span className="text-xs">{sales} ventas</span>
+          <div className="flex items-baseline gap-1 mt-2">
+             <span className="text-sm font-medium text-gray-400">$</span>
+             <span className="text-2xl font-black text-[#004e28] tracking-tight font-[family-name:var(--font-poppins)]">{displayPrice}</span>
+             <span className="text-xs text-gray-400 ml-1 font-normal">/ {minOrder}</span>
+          </div>
         </div>
       </div>
     </div>

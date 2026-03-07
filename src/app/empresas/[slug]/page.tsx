@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Supplier, CarouselImage, Certificate } from "@/lib/products";
-import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play, Clock } from "lucide-react";
+import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play, Clock, ArrowDown } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -12,6 +12,15 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import MapPicker from "@/components/ui/MapPicker";
 import DOMPurify from "isomorphic-dompurify";
+
+// --- THEME CONSTANTS (From user request) ---
+const THEME = {
+  primaryDark: "#004e28", // Barra principal, Titulos
+  primary: "#168e00",     // Subtitulos, Botones
+  bgAlt: "#f2f3f4",       // Fondos contraste
+  textMain: "#000000",
+  textInv: "#ffffff"
+};
 
 function InlineVideo({ src, poster }: { src: string; poster?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -33,7 +42,6 @@ function InlineVideo({ src, poster }: { src: string; poster?: string }) {
 
   const startPlayback = () => {
     setShowPlayer(true);
-    // Attempt playback on next tick once the video is mounted
     setTimeout(async () => {
       if (!videoRef.current) return;
       try {
@@ -45,14 +53,13 @@ function InlineVideo({ src, poster }: { src: string; poster?: string }) {
           setPlaying(true);
         }
       } catch {
-        // Keep player visible with controls so user can try manual play.
         setPlaying(false);
       }
     }, 0);
   };
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl">
       {showPlayer && !error && (
         <video
           ref={videoRef}
@@ -72,31 +79,31 @@ function InlineVideo({ src, poster }: { src: string; poster?: string }) {
         <button
           type="button"
           onClick={startPlayback}
-          className="relative w-full aspect-video overflow-hidden"
+          className="relative w-full h-full group"
           aria-label="Reproducir video"
         >
           {poster ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={poster} alt="" className="w-full h-full object-cover" />
+            <img src={poster} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
           ) : (
             <div className="w-full h-full bg-gray-900" />
           )}
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-            <span className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/90 text-gray-900 shadow-lg">
-              <Play size={28} />
+          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+            <span className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#168e00] text-white shadow-lg transform group-hover:scale-110 transition-transform duration-300">
+              <Play size={32} className="ml-1" />
             </span>
           </div>
         </button>
       )}
 
       {error && (
-        <div className="w-full h-64 md:h-80 bg-gray-900 text-white flex flex-col items-center justify-center gap-2">
-          <div className="text-sm opacity-80">No se pudo reproducir el video aquí.</div>
+        <div className="w-full h-full bg-gray-900 text-white flex flex-col items-center justify-center gap-2">
+          <div className="text-sm opacity-80">No se pudo reproducir el video.</div>
           <a
             href={src}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-4 py-2 bg-white text-gray-900 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors"
+            className="px-6 py-2 bg-white text-[#004e28] rounded-full text-sm font-bold hover:bg-gray-100 transition-colors"
           >
             Ver archivo
           </a>
@@ -104,6 +111,64 @@ function InlineVideo({ src, poster }: { src: string; poster?: string }) {
       )}
     </div>
   );
+}
+
+function Carousel({ images }: { images: CarouselImage[] }) {
+    const [currentIndex, setCurrentIndex] = useState(0);
+  
+    useEffect(() => {
+      if (images.length <= 1) return;
+      const interval = setInterval(() => {
+        setCurrentIndex((prev) => (prev + 1) % images.length);
+      }, 5000);
+      return () => clearInterval(interval);
+    }, [images.length]);
+  
+    const getImageUrl = (path: string) => {
+      if (!path) return "/placeholder.png";
+      if (path.startsWith('http')) return path;
+      const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api').replace(/\/+$/, '');
+      const cleanPath = path.startsWith('/') ? path : `/${path}`;
+      return `${baseUrl}${cleanPath}`.replace(/([^:])\/{2,}/g, '$1/');
+    };
+  
+    if (!images || images.length === 0) return null;
+  
+    return (
+      <div className="relative w-full h-full overflow-hidden">
+        {images.map((img, index) => (
+          <div
+            key={index}
+            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+              index === currentIndex ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            <img
+              src={getImageUrl(img.image)}
+              alt={`Slide ${index + 1}`}
+              className="w-full h-full object-cover"
+            />
+            {/* Dark overlay specifically for carousel images to ensure text readability */}
+            <div className="absolute inset-0 bg-black/40" />
+          </div>
+        ))}
+        
+        {images.length > 1 && (
+            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-2 z-30">
+                {images.map((_, idx) => (
+                    <button
+                        key={idx}
+                        onClick={() => setCurrentIndex(idx)}
+                        className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                            idx === currentIndex ? "bg-[#168e00] w-8" : "bg-white/50 hover:bg-white"
+                        }`}
+                        aria-label={`Ir a slide ${idx + 1}`}
+                    />
+                ))}
+            </div>
+        )}
+      </div>
+    );
 }
 
 interface SupplierProductCategory {
@@ -170,22 +235,9 @@ export default function SupplierPage() {
   const { slug } = useParams();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("inicio");
   const headerVideoRef = useRef<HTMLVideoElement>(null);
   const [isHeaderVideoPlaying, setIsHeaderVideoPlaying] = useState(false);
   
-  const toggleHeaderVideo = () => {
-    if (headerVideoRef.current) {
-      if (isHeaderVideoPlaying) {
-        headerVideoRef.current.pause();
-      } else {
-        headerVideoRef.current.muted = false;
-        headerVideoRef.current.play();
-      }
-      setIsHeaderVideoPlaying(!isHeaderVideoPlaying);
-    }
-  };
-
   const [products, setProducts] = useState<SupplierProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -205,6 +257,7 @@ export default function SupplierPage() {
       return null;
     }
   })() : null;
+  
   const [ratingsTotal, setRatingsTotal] = useState(0);
   const [ratingsSkip, setRatingsSkip] = useState(0);
   const ratingsLimit = 50;
@@ -212,7 +265,6 @@ export default function SupplierPage() {
   const [ratingsLoadingMore, setRatingsLoadingMore] = useState(false);
   const [ratingsError, setRatingsError] = useState<string | null>(null);
   const [ratingsHasMore, setRatingsHasMore] = useState(false);
-  const [selectedCertificate, setSelectedCertificate] = useState<Certificate | null>(null);
   const { syncFavorites } = useFavoritesStore();
   const { token } = useAuthStore();
   
@@ -250,27 +302,26 @@ export default function SupplierPage() {
 
   useEffect(() => {
     if (supplier?.id) {
-      fetchProducts(String(supplier.id), 1, false);
-      // Use slug for ratings if available, as the endpoint requires it
-      fetchRatings(supplier.slug || String(supplier.id), 0, false);
+      // Robust Identifier Logic: Prefer URL slug -> Supplier Slug -> Supplier ID
+      const identifier = (slug as string) || supplier.slug || String(supplier.id);
+      
+      console.log("Fetching products for identifier:", identifier);
+      fetchProducts(identifier, 1, false);
+      fetchRatings(identifier, 0, false);
     }
-  }, [supplier?.id, supplier?.slug, token]);
+  }, [supplier?.id, supplier?.slug, slug, token]);
 
   const fetchSupplier = async (slug: string) => {
     try {
       let url = `/api/suppliers/${slug}`;
-      // If slug is not numeric, search by slug query param
       if (isNaN(Number(slug))) {
         url = `/api/suppliers/?slug=${slug}`;
       }
 
-      const res = await fetch(url, {
-        cache: "no-store",
-      });
+      const res = await fetch(url, { cache: "no-store" });
 
       if (res.ok) {
         let data = await res.json();
-        // If we searched by slug, we get an array
         if (Array.isArray(data)) {
            data = data[0] || null;
         }
@@ -285,9 +336,7 @@ export default function SupplierPage() {
 
   const fetchProducts = async (supplierSlug: string, currentPage: number, append: boolean = false) => {
     try {
-      if (!append) {
-         setProductsLoading(true);
-      }
+      if (!append) setProductsLoading(true);
       setProductsError(null);
 
       const skip = (currentPage - 1) * limit;
@@ -300,10 +349,27 @@ export default function SupplierPage() {
       });
 
       if (!res.ok) {
-        console.error("Error fetching supplier products", res.status, res.statusText);
+        // Fallback: Try with ID if slug failed, or vice versa (basic retry logic could go here)
+        console.error("Error fetching supplier products by slug, trying ID", res.status);
+        if (supplier?.id) {
+             const resId = await fetchWithAuth(`/api/products/by-supplier/${supplier.id}?${params.toString()}`, {
+                cache: "no-store",
+              });
+             if (resId.ok) {
+                 const dataId = await resId.json();
+                 const itemsId = Array.isArray(dataId) ? dataId : (dataId.items || dataId.results || []);
+                 const newProductsId = itemsId as SupplierProduct[];
+                 syncFavorites(newProductsId);
+                 setProducts(prev => append ? [...prev, ...newProductsId] : newProductsId);
+                 setHasMore(Array.isArray(itemsId) && itemsId.length === limit);
+                 setProductsLoading(false);
+                 return;
+             }
+        }
+        
         if (!append) setProducts([]);
         setHasMore(false);
-        setProductsError("No fue posible cargar los productos.");
+        setProductsError("No se pudieron cargar los productos.");
         return;
       }
 
@@ -317,7 +383,7 @@ export default function SupplierPage() {
       setHasMore(Array.isArray(items) && items.length === limit);
     } catch (error) {
       console.error("Error fetching supplier products", error);
-      setProductsError("Ocurrió un error al cargar los productos.");
+      setProductsError("Error de conexión.");
       if (!append) setProducts([]);
       setHasMore(false);
     } finally {
@@ -343,13 +409,7 @@ export default function SupplierPage() {
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        console.error("Error fetching supplier ratings", res.status, res.statusText, text);
         setRatings([]);
-        setRatingsTotal(0);
-        setRatingsSkip(0);
-        setRatingsHasMore(false);
-        setRatingsError("No fue posible cargar las calificaciones.");
         return;
       }
 
@@ -361,25 +421,15 @@ export default function SupplierPage() {
         : [];
 
       const total = typeof (data as SupplierRatingsResponse).total === "number" ? (data as SupplierRatingsResponse).total : ratingsList.length;
-      const responseSkip = typeof (data as SupplierRatingsResponse).skip === "number" ? (data as SupplierRatingsResponse).skip : skip;
-      const responseLimit = typeof (data as SupplierRatingsResponse).limit === "number" ? (data as SupplierRatingsResponse).limit : ratingsLimit;
 
       setRatings((prev) => {
         const next = append ? [...prev, ...ratingsList] : ratingsList;
-        const hasMore = total > next.length && ratingsList.length >= responseLimit;
-        setRatingsHasMore(hasMore);
         return next;
       });
 
       setRatingsTotal(total);
-      setRatingsSkip(responseSkip);
     } catch (error) {
-      console.error("Error fetching supplier ratings", error);
-      setRatings([]);
-      setRatingsTotal(0);
-      setRatingsSkip(0);
-      setRatingsHasMore(false);
-      setRatingsError("Ocurrió un error al cargar las calificaciones.");
+      console.error("Error fetching ratings", error);
     } finally {
       setRatingsLoading(false);
       setRatingsLoadingMore(false);
@@ -389,44 +439,10 @@ export default function SupplierPage() {
   useEffect(() => {
     if (!slug) return;
     if (page === 1) return;
-    fetchProducts(slug as string, page, true);
+    // @ts-ignore
+    const identifier = (slug as string) || supplier?.slug || String(supplier?.id);
+    fetchProducts(identifier, page, true);
   }, [page, slug]);
-
-  const sanitizeHtml = (html: string) => {
-    if (!html) return "";
-    return DOMPurify.sanitize(html);
-  };
-
-  const categories = (() => {
-    const map = new Map<string, SupplierProductCategory>();
-    products.forEach((product) => {
-      if (product.category) {
-        map.set(product.category.slug, product.category);
-      }
-    });
-    return Array.from(map.values());
-  })();
-
-  const subcategories = (() => {
-    const map = new Map<string, SupplierProductSubcategory>();
-    products.forEach((product) => {
-      if (
-        product.subcategory &&
-        (!selectedCategorySlug || product.category?.slug === selectedCategorySlug)
-      ) {
-        map.set(product.subcategory.slug, product.subcategory);
-      }
-    });
-    return Array.from(map.values());
-  })();
-
-  const getRatingLabel = (rating: number) => {
-    if (rating >= 4.5) return "Excelente";
-    if (rating >= 4.0) return "Muy Bueno";
-    if (rating >= 3.0) return "Bueno";
-    if (rating >= 2.0) return "Regular";
-    return "Malo";
-  };
 
   const getImageUrl = (path: string | null) => {
     if (!path) return "/placeholder.png";
@@ -436,6 +452,109 @@ export default function SupplierPage() {
     return `${baseUrl}${cleanPath}`.replace(/([^:])\/{2,}/g, '$1/');
   };
 
+  const sanitizeHtml = (html: string) => {
+    if (!html) return "";
+    return DOMPurify.sanitize(html);
+  };
+
+  // --- BUSINESS HOURS HELPERS ---
+  const DAYS_MAP: Record<number, string> = {
+    1: "Lunes",
+    2: "Martes",
+    3: "Miércoles",
+    4: "Jueves",
+    5: "Viernes",
+    6: "Sábado",
+    0: "Domingo",
+  };
+
+  const formatTime = (time: string | null) => {
+    if (!time) return "";
+    const [hours, minutes] = time.split(":");
+    const h = parseInt(hours, 10);
+    const m = parseInt(minutes, 10);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
+  };
+
+  const getBusinessStatus = () => {
+      if (!supplier?.business_hours || supplier.business_hours.length === 0) return { isOpen: false, status: "Sin Horario" };
+      
+      const now = new Date();
+      const currentDay = now.getDay(); // 0 = Sunday
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+      const currentTimeVal = currentHours * 60 + currentMinutes;
+
+      const todaySchedule = supplier.business_hours.find(h => h.day_of_week === currentDay);
+
+      if (!todaySchedule || todaySchedule.is_closed) return { isOpen: false, status: "Cerrado Ahora" };
+      if (!todaySchedule.open_time || !todaySchedule.close_time) return { isOpen: false, status: "Cerrado" };
+
+      const [openH, openM] = todaySchedule.open_time.split(":").map(Number);
+      const [closeH, closeM] = todaySchedule.close_time.split(":").map(Number);
+      
+      const openTimeVal = openH * 60 + openM;
+      const closeTimeVal = closeH * 60 + closeM;
+
+      if (currentTimeVal >= openTimeVal && currentTimeVal <= closeTimeVal) {
+          return { isOpen: true, status: "Abierto Ahora" };
+      }
+      
+      return { isOpen: false, status: "Cerrado Ahora" };
+  };
+
+  const groupBusinessHours = () => {
+      if (!supplier?.business_hours || supplier.business_hours.length === 0) return [];
+      
+      // Sort: Monday (1) to Sunday (0)
+      const sorted = [...supplier.business_hours].sort((a, b) => {
+          const aOrder = a.day_of_week === 0 ? 7 : a.day_of_week;
+          const bOrder = b.day_of_week === 0 ? 7 : b.day_of_week;
+          return aOrder - bOrder;
+      });
+
+      const groups: { start: number; end: number; open: string; close: string; isClosed: boolean }[] = [];
+      
+      if (sorted.length === 0) return [];
+
+      let current = {
+          start: sorted[0].day_of_week,
+          end: sorted[0].day_of_week,
+          open: sorted[0].open_time || "",
+          close: sorted[0].close_time || "",
+          isClosed: sorted[0].is_closed
+      };
+
+      for (let i = 1; i < sorted.length; i++) {
+          const h = sorted[i];
+          const prevDayOrder = current.end === 0 ? 7 : current.end;
+          const currDayOrder = h.day_of_week === 0 ? 7 : h.day_of_week;
+          
+          const isConsecutive = currDayOrder === prevDayOrder + 1;
+          const isSameTime = (h.open_time || "") === current.open && (h.close_time || "") === current.close && h.is_closed === current.isClosed;
+
+          if (isConsecutive && isSameTime) {
+              current.end = h.day_of_week;
+          } else {
+              groups.push(current);
+              current = {
+                  start: h.day_of_week,
+                  end: h.day_of_week,
+                  open: h.open_time || "",
+                  close: h.close_time || "",
+                  isClosed: h.is_closed
+              };
+          }
+      }
+      groups.push(current);
+      return groups;
+  };
+
+  const businessStatus = getBusinessStatus();
+  const groupedHours = groupBusinessHours();
+
   const filteredProducts = products.filter((product) => {
     const matchesCategory = selectedCategorySlug ? product.category?.slug === selectedCategorySlug : true;
     const matchesSubcategory = selectedSubcategorySlug ? product.subcategory?.slug === selectedSubcategorySlug : true;
@@ -444,979 +563,441 @@ export default function SupplierPage() {
 
   if (loading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-
-  if (!supplier)
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Empresa no encontrada</h2>
-          <p className="text-gray-500">No pudimos encontrar la empresa que buscas.</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#f2f3f4]">
+        <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#004e28]"></div>
+            <p className="text-[#004e28] font-bold animate-pulse font-[family-name:var(--font-varela-round)]">Cargando Experiencia...</p>
         </div>
       </div>
     );
 
-  return (
-    <div 
-      className="min-h-screen bg-gray-50"
-      style={{ backgroundColor: supplier.page_background_color || supplier.background_color || '#f9fafb' }}
-    >
-      <div 
-        className="transition-all duration-300"
-        style={{ backgroundColor: supplier.header_background_color || '#ffffff' }}
-      >
-        <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row items-center gap-4 md:gap-6">
-          <div className="w-20 h-20 md:w-24 md:h-24 relative shrink-0 rounded-xl overflow-hidden bg-white/5">
-            {supplier.logo ? (
-              <img src={supplier.logo} alt={supplier.name} className="w-full h-full object-contain p-2" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-300">
-                <Store size={32} />
-              </div>
-            )}
-          </div>
+  if (!supplier) return null;
 
-          <div className="flex-1 text-center md:text-left space-y-1">
-            <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-4">
-              <div>
-                <h1 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center justify-center md:justify-start gap-2 flex-wrap">
-                  {supplier.name}
-                  {supplier.certificates && supplier.certificates.length > 0 && (
-                    <div className="flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-medium border border-blue-100 uppercase tracking-wide">
-                      <CheckCircle size={12} />
-                      <span>Certificado</span>
+  return (
+    <div className="min-h-screen bg-[#ffffff] font-sans selection:bg-[#168e00] selection:text-white -mt-32 pt-20 md:pt-24">
+      
+      {/* --- HERO SECTION --- */}
+      <section className="relative w-full h-[90vh] bg-black overflow-hidden group">
+         {/* Media Background */}
+         {supplier.header_media_type === 'video' && supplier.header_video ? (
+             <video 
+               ref={headerVideoRef}
+               src={getImageUrl(supplier.header_video)} 
+               autoPlay muted loop playsInline
+               className="absolute inset-0 w-full h-full object-cover opacity-90 scale-105 group-hover:scale-100 transition-transform duration-[30s] ease-linear"
+             />
+         ) : (
+             <div className="absolute inset-0 w-full h-full">
+                <Carousel images={(supplier.carousel_images || []).slice(0, 3)} />
+             </div>
+         )}
+
+         {/* Gradient Overlay - Theme Based */}
+         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-[#004e28]/90 z-10" />
+         <div className="absolute inset-0 bg-gradient-to-r from-[#004e28]/80 to-transparent z-10" />
+
+         {/* Content */}
+         <div className="absolute inset-0 z-20 flex flex-col justify-center px-6 md:px-20 lg:px-32">
+             <div className="animate-in fade-in slide-in-from-left-10 duration-1000">
+                {supplier.logo && (
+                    <div className="mb-8 w-24 h-24 md:w-32 md:h-32 bg-white/10 backdrop-blur-md rounded-3xl p-4 border border-white/20 shadow-2xl">
+                        <img src={supplier.logo} alt={supplier.name} className="w-full h-full object-contain drop-shadow-md" />
                     </div>
-                  )}
+                )}
+                
+                <h1 className="text-5xl md:text-7xl lg:text-9xl font-black text-white mb-6 tracking-tighter drop-shadow-2xl font-[family-name:var(--font-varela-round)] uppercase leading-[0.9]">
+                   {supplier.name}
                 </h1>
-                <p className="text-gray-500 text-sm md:text-base max-w-2xl line-clamp-1">
-                  {supplier.short_description || "Empresa destacada en SafeEasy"}
-                </p>
                 
-                {supplier.city && supplier.country && (
-                  <div className="flex items-center justify-center md:justify-start gap-1.5 text-gray-400 text-xs mt-1">
-                    <MapPin size={14} />
-                    <span>
-                      {supplier.city}, {supplier.state}, {supplier.country}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="hidden md:flex flex-col items-end p-2 min-w-[140px]">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-bold text-gray-900">
-                      {supplier.average_rating ? supplier.average_rating.toFixed(1) : "0.0"}
-                    </span>
-                    <span className="text-gray-400 text-xs font-medium">/5</span>
-                  </div>
-                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                </div>
-                <div className="font-medium text-gray-700 text-xs">
-                  {supplier.average_rating ? getRatingLabel(supplier.average_rating) : "Sin calificaciones"}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {((supplier.header_media_type === 'video' && supplier.header_video) || (supplier.carousel_images && supplier.carousel_images.length > 0)) && (
-        <section id="inicio" className="scroll-mt-32">
-          <div className="relative w-full bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950">
-            <div className="w-full max-w-none lg:max-w-7xl xl:max-w-[1400px] mx-auto px-0 sm:px-4 lg:px-8 py-6 md:py-10">
-              <div className="w-full rounded-none sm:rounded-2xl md:rounded-3xl overflow-hidden relative shadow-2xl shadow-black/40 bg-gray-900 group">
-                {supplier.header_media_type === 'video' && supplier.header_video ? (
-                  <div className="relative h-[60vh] md:h-[80vh] w-full overflow-hidden bg-black group/video">
-                    <video 
-                      ref={headerVideoRef}
-                      src={getImageUrl(supplier.header_video)} 
-                      playsInline
-                      onClick={toggleHeaderVideo}
-                      onEnded={() => setIsHeaderVideoPlaying(false)}
-                      className="absolute inset-0 w-full h-full object-cover z-0 cursor-pointer"
-                    />
-                    {/* Overlay oscuro semitransparente */}
-                    <div className={`absolute inset-0 bg-black/40 bg-gradient-to-b from-black/60 via-transparent to-black/60 z-10 pointer-events-none transition-opacity duration-500 ${isHeaderVideoPlaying ? 'opacity-40' : 'opacity-100'}`} />
-                    
-                    {/* Play Button */}
-                    {!isHeaderVideoPlaying && (
-                      <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
-                        <button 
-                          onClick={toggleHeaderVideo}
-                          className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover/video:scale-110 transition-transform duration-300 pointer-events-auto border border-white/50"
-                        >
-                          <Play className="w-10 h-10 text-white fill-white ml-1" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Contenedor para el título (futuro) */}
-                    <div className="relative z-20 h-full w-full flex items-center justify-center pointer-events-none">
-                      {/* Aquí irá el título en Varela Round */}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="relative w-full pb-[56.25%] md:pb-[50%] lg:pb-[45%] xl:pb-[40%]">
-                    <div className="absolute inset-0">
-                      <Carousel images={supplier.carousel_images || []} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      <div className="container mx-auto px-4 py-10 space-y-16 overflow-x-hidden">
-        <section className="space-y-8">
-          {supplier.description && (
-            <div 
-              className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100"
-              style={supplier.card_background_color ? { backgroundColor: supplier.card_background_color, borderColor: 'rgba(0,0,0,0.05)' } : undefined}
-            >
-              <h2 className="text-xl font-bold mb-6 text-gray-900 border-b pb-4">Descripción de la Empresa</h2>
-              <div className="prose prose-lg max-w-none w-full text-gray-600 prose-headings:text-gray-800 prose-a:text-primary">
-                <div
-                  className="whitespace-normal max-w-full description-html"
-                  style={{ 
-                    textAlign: "left", 
-                    wordBreak: "normal", 
-                    overflowWrap: "normal",
-                    hyphens: "none",
-                    WebkitHyphens: "none"
-                  }}
-                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(supplier.description) }}
-                />
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section id="productos" className="scroll-mt-32">
-          <div 
-            className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100"
-            style={supplier.card_background_color ? { backgroundColor: supplier.card_background_color, borderColor: 'rgba(0,0,0,0.05)' } : undefined}
-          >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Productos</h2>
-                <p className="text-gray-500 text-sm md:text-base">
-                  Explora los productos que ofrece {supplier.name}.
+                <p className="text-xl md:text-2xl text-gray-100 max-w-2xl font-light leading-relaxed drop-shadow-lg font-[family-name:var(--font-poppins)] border-l-4 border-[#168e00] pl-6 mb-10">
+                   {supplier.short_description || "Innovación y calidad en cada producto. Tu socio estratégico de confianza."}
                 </p>
-              </div>
-            </div>
 
-            <div className="space-y-3 mb-6">
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Categorías
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCategorySlug(null);
-                    setSelectedSubcategorySlug(null);
-                  }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                    !selectedCategorySlug
-                      ? "bg-primary text-white border-primary"
-                      : "bg-white text-gray-700 border-gray-200 hover:border-primary/50"
-                  }`}
-                >
-                  Todas
-                </button>
-                {categories.map((category) => (
-                  <button
-                    key={category.slug}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCategorySlug(category.slug);
-                      setSelectedSubcategorySlug(null);
-                    }}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                      selectedCategorySlug === category.slug
-                        ? "bg-primary text-white border-primary"
-                        : "bg-white text-gray-700 border-gray-200 hover:border-primary/50"
-                    }`}
-                  >
-                    {category.name}
-                  </button>
-                ))}
-              </div>
-
-              {selectedCategorySlug && subcategories.length > 0 && (
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Subcategorías
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedSubcategorySlug(null)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                      !selectedSubcategorySlug
-                        ? "bg-primary text-white border-primary"
-                        : "bg-white text-gray-700 border-gray-200 hover:border-primary/50"
-                    }`}
-                  >
-                    Todas
-                  </button>
-                  {subcategories.map((subcategory) => (
-                    <button
-                      key={subcategory.slug}
-                      type="button"
-                      onClick={() => setSelectedSubcategorySlug(subcategory.slug)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                        selectedSubcategorySlug === subcategory.slug
-                          ? "bg-primary text-white border-primary"
-                          : "bg-white text-gray-700 border-gray-200 hover:border-primary/50"
-                      }`}
-                    >
-                      {subcategory.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {productsLoading && page === 1 ? (
-              <div className="flex justify-center py-10">
-                <div className="flex items-center gap-3 text-gray-500">
-                  <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm">Cargando productos...</span>
-                </div>
-              </div>
-            ) : productsError ? (
-              <div className="py-8 text-center text-sm text-red-500">
-                {productsError}
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              <div className="py-8 text-center text-sm text-gray-500">
-                No se encontraron productos para esta empresa.
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {filteredProducts.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      id={String(product.id)}
-                      title={product.title}
-                      price={product.price}
-                      image={product.thumbnail_url || ""}
-                      minOrder="1 pieza"
-                      slug={product.slug}
-                      rating={Number(product.average_rating || 0)}
-                      supplier={supplier}
-                    />
-                  ))}
-                </div>
-
-                {hasMore && (
-                  <div ref={observerTarget} className="flex justify-center py-8">
-                    {productsLoading && (
-                      <div className="flex items-center gap-3 text-gray-500">
-                        <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        <span className="text-sm">Cargando más productos...</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </section>
-
-        <section id="certificados" className="scroll-mt-32">
-          <div 
-            className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100"
-            style={supplier.card_background_color ? { backgroundColor: supplier.card_background_color, borderColor: 'rgba(0,0,0,0.05)' } : undefined}
-          >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Certificados</h2>
-                <p className="text-gray-500 text-sm md:text-base">
-                  Documentación y certificaciones de {supplier.name}.
-                </p>
-              </div>
-            </div>
-
-            {supplier.certificates && supplier.certificates.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {supplier.certificates.map((cert: Certificate) => {
-                  const isPdf = (cert.image || cert.path || cert.url || "").toLowerCase().endsWith('.pdf');
-                  return (
-                    <div 
-                      key={cert.id} 
-                      className="group cursor-pointer"
-                      onClick={() => setSelectedCertificate(cert)}
-                    >
-                      <div className="aspect-[3/4] rounded-xl overflow-hidden border border-gray-200 bg-gray-50 relative mb-3 transition-all group-hover:shadow-md group-hover:border-primary/30">
-                        {isPdf ? (
-                           <div className="w-full h-full flex flex-col items-center justify-center p-4">
-                             <FileText className="w-12 h-12 text-red-500 mb-2" />
-                             <span className="text-xs text-center font-medium text-gray-500">Documento PDF</span>
-                           </div>
-                        ) : (
-                          <img 
-                            src={getImageUrl(cert.thumbnail || cert.image || cert.path || cert.url || "")} 
-                            alt={cert.name || cert.description}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                          />
-                        )}
-                        
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                          <div className="opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-sm">
-                             <ExternalLink size={20} className="text-primary" />
-                          </div>
-                        </div>
-                      </div>
-                      <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 group-hover:text-primary transition-colors">
-                        {cert.name || cert.description}
-                      </h3>
-                      {cert.certificate_date && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(cert.certificate_date).toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                <Award className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-900 font-medium">No hay certificados disponibles.</p>
-                <p className="text-sm text-gray-500">Este proveedor aún no ha subido certificaciones.</p>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {mapLocation && (
-          <section id="ubicacion" className="scroll-mt-32 relative z-10">
-            <div 
-              className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100"
-              style={supplier.card_background_color ? { backgroundColor: supplier.card_background_color, borderColor: 'rgba(0,0,0,0.05)' } : undefined}
-            >
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Ubicación</h2>
-                  <p className="text-gray-500 text-sm md:text-base">
-                    Localización de {supplier.name}.
-                  </p>
-                </div>
-              </div>
-              <MapPicker location={mapLocation} readOnly height="400px" zoom={17} />
-              <div className="mt-4 text-sm text-gray-500 flex items-center gap-2">
-                <MapPin size={16} />
-                <span>
-                  {[supplier.address, supplier.exterior_number, supplier.interior_number, supplier.neighborhood, supplier.city, supplier.state, supplier.country]
-                    .filter(Boolean)
-                    .join(", ")}
-                </span>
-              </div>
-            </div>
-          </section>
-        )}
-
-        <section id="calificaciones" className="scroll-mt-32">
-          <div 
-            className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100"
-            style={supplier.card_background_color ? { backgroundColor: supplier.card_background_color, borderColor: 'rgba(0,0,0,0.05)' } : undefined}
-          >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Calificaciones</h2>
-                <p className="text-gray-500 text-sm md:text-base">
-                  Opiniones de compradores sobre {supplier.name}.
-                </p>
-              </div>
-              <div className="flex flex-col items-center bg-gray-50 p-4 rounded-xl border border-gray-100 min-w-[180px]">
-                <div className="flex items-center gap-2">
-                  <StarRating rating={Number(supplier.average_rating || 0)} size={18} />
-                  <span className="text-xs text-gray-500 font-medium">/5</span>
-                </div>
-                <div className="mt-1 text-lg font-bold text-gray-900">
-                  {supplier.average_rating ? supplier.average_rating.toFixed(1) : "0.0"}
-                </div>
-                <div className="text-sm font-semibold text-gray-800">
-                  {supplier.average_rating ? getRatingLabel(supplier.average_rating) : "Sin calificaciones"}
-                </div>
-                <div className="text-primary text-xs mt-1">
-                  {supplier.rating_count || 0} calificaciones
-                </div>
-              </div>
-            </div>
-
-            {ratingsLoading && ratings.length === 0 ? (
-              <div className="flex justify-center py-10">
-                <div className="flex items-center gap-3 text-gray-500">
-                  <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm">Cargando calificaciones...</span>
-                </div>
-              </div>
-            ) : ratingsError ? (
-              <div className="py-8 text-center text-sm text-red-500">
-                {ratingsError}
-              </div>
-            ) : ratings.length === 0 ? (
-              <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-900 font-medium">Aún no hay calificaciones para este proveedor.</p>
-                <p className="text-sm text-gray-500">Cuando los compradores dejen su opinión, aparecerá aquí.</p>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-8">
-                  {ratings.map((rating) => (
-                    <div key={rating.id} className="border-b border-gray-100 pb-8 last:border-0 last:pb-0">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-600 uppercase">
-                            {rating.user_name ? rating.user_name[0] : "U"}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-gray-900 text-sm">
-                                {rating.user_name || "Usuario"}
-                              </span>
-                             
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <StarRating rating={rating.rating} size={14} />
-                              <span className="text-xs text-gray-400 font-medium">
-                                {rating.rating.toFixed(1)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        {rating.created_at && (
-                          <span className="text-xs text-gray-400 font-medium">
-                            {new Date(rating.created_at).toLocaleDateString("es-MX", {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            })}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-gray-600 text-sm leading-relaxed pl-[52px] mb-4">{rating.comment}</p>
-                      <div className="pl-[52px]">
-                        <Link
-                          href={`/product/${rating.product_slug}`}
-                          className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 hover:bg-gray-100 transition-colors"
-                        >
-                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-white flex items-center justify-center">
-                            {rating.product_thumbnail_url || rating.product_image ? (
-                              <img
-                                src={rating.product_thumbnail_url || rating.product_image || ""}
-                                alt={rating.product_title}
-                                className="w-full h-full object-contain"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-gray-300 text-xl">
-                                <Store size={24} />
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                              {rating.product_title}
-                            </p>
-                          </div>
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {ratingsHasMore && (
-                  <div className="flex justify-center mt-8">
-                    <button
-                      type="button"
-                      disabled={ratingsLoadingMore}
-                      onClick={() => {
-                        if (slug) {
-                          fetchRatings(slug as string, ratingsSkip + ratingsLimit, true);
-                        }
-                      }}
-                      className="px-6 py-2 rounded-full border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {ratingsLoadingMore ? "Cargando más..." : "Ver más calificaciones"}
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </section>
-
-        <section id="nosotros" className="scroll-mt-32 relative z-[1]">
-          <div className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-gray-100">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900">Sobre Nosotros</h2>
-
-            {(() => {
-              const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
-              const buildUrl = (url: string | null | undefined) => {
-                if (!url) return null;
-                if (url.startsWith("http://") || url.startsWith("https://")) return url;
-                if (apiBase && url.startsWith("/")) {
-                  const base = apiBase.replace(/\/+$/, '');
-                  return `${base}${url}`.replace(/([^:])\/{2,}/g, '$1/');
-                }
-                return url;
-              };
-              const raw =
-                (supplier as any).about_media_url ||
-                (supplier as any).about_media ||
-                (supplier as any).about_image_url ||
-                (supplier as any).about_image;
-              const thumbRaw =
-                (supplier as any).about_media_thumbnail || null;
-              const mediaSrc = buildUrl(raw);
-              const posterSrc = buildUrl(thumbRaw);
-              if (!mediaSrc) return null;
-              const lower = mediaSrc.toLowerCase();
-              const isVideo = /\.(mp4|webm|ogg|mov)(\?|#|$)/.test(lower);
-              return (
-                <div className="w-full mb-6 rounded-xl overflow-hidden shadow-md">
-                  {isVideo ? (
-                    <div className="relative w-full md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto">
-                      <div className="relative w-full pb-[56.25%]">
-                        <div className="absolute inset-0">
-                          <InlineVideo src={mediaSrc} poster={posterSrc || undefined} />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={mediaSrc}
-                      alt="Acerca de nosotros"
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                </div>
-              );
-            })()}
-
-            <div className="prose prose-lg max-w-none w-full text-gray-600">
-              {supplier.about ? (
-                <div
-                  className="whitespace-normal max-w-full about-html"
-                  style={{ 
-                    textAlign: "left", 
-                    wordBreak: "normal", 
-                    overflowWrap: "normal",
-                    hyphens: "none",
-                    WebkitHyphens: "none"
-                  }}
-                  dangerouslySetInnerHTML={{
-                    __html: sanitizeHtml(supplier.about),
-                  }}
-                />
-              ) : (
-                <p className="italic text-gray-400">Información detallada no disponible.</p>
-              )}
-            </div>
-
-            
-          </div>
-        </section>
-
-        <section id="contacto" className="scroll-mt-32">
-          <div className="max-w-6xl mx-auto px-4">
-            
-            {/* Top Container: Contact Info & Business Hours */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-              
-              {/* Contact Info Card */}
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 transition-shadow hover:shadow-md h-full">
-                <h2 className="text-2xl font-bold mb-8 text-gray-900 flex items-center gap-3 font-display">
-                  <span className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shadow-sm">
-                    <Store className="text-primary" size={24} />
-                  </span>
-                  Información de Contacto
-                </h2>
-                
-                <div className="grid gap-8">
-                  {supplier.address && (
-                    <div className="flex items-start gap-5 group">
-                      <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center shrink-0 text-primary group-hover:bg-primary/10 transition-colors">
-                        <MapPin size={24} />
-                      </div>
-                      <div className="font-sans">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Dirección</p>
-                        <p className="text-gray-900 font-medium text-lg leading-snug">
-                          {supplier.address} {supplier.exterior_number} {supplier.interior_number}
-                        </p>
-                        <p className="text-gray-500 text-sm mt-1">
-                          {supplier.neighborhood && `${supplier.neighborhood}, `}
-                          {[supplier.city, supplier.state, supplier.country].filter(Boolean).join(", ")}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {supplier.phone && (
-                    <div className="flex items-start gap-5 group">
-                      <a 
-                        href={`tel:${supplier.phone}`}
-                        className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center shrink-0 text-primary group-hover:scale-110 group-hover:bg-primary/10 transition-all cursor-pointer"
-                      >
-                        <Phone size={24} />
-                      </a>
-                      <div className="font-sans">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Teléfono</p>
-                        <a 
-                          href={`tel:${supplier.phone}`}
-                          className="text-gray-900 font-medium text-lg hover:text-primary transition-colors block"
-                        >
-                          {supplier.phone}
-                        </a>
-                      </div>
-                    </div>
-                  )}
-                    
-                  {supplier.email && (
-                    <div className="flex items-start gap-5 group">
-                      <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center shrink-0 text-primary group-hover:bg-primary/10 transition-colors">
-                        <Mail size={24} />
-                      </div>
-                      <div className="font-sans overflow-hidden">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Email</p>
-                        <p className="text-gray-900 font-medium text-lg truncate" title={supplier.email}>
-                          {supplier.email}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Business Hours Card */}
-              {supplier.business_hours && supplier.business_hours.length > 0 ? (
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 transition-shadow hover:shadow-md h-full">
-                  <div className="flex items-center gap-3 mb-8">
-                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0 shadow-sm">
-                      <Clock className="text-primary" size={24} />
-                    </div>
-                    <h3 className="font-bold text-gray-900 text-2xl font-display">Horario de Atención</h3>
-                  </div>
-                  
-                  <div className="space-y-4 font-sans">
-                    {[1, 2, 3, 4, 5, 6, 0].map((dayId) => {
-                      const daySchedule = supplier.business_hours?.find(h => h.day_of_week === dayId);
-                      const dayName = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"][dayId];
-                      const isToday = new Date().getDay() === dayId;
-                      
-                      if (!daySchedule) return null;
-                      
-                      return (
-                        <div 
-                          key={dayId} 
-                          className={`flex justify-between items-center py-3 px-4 rounded-xl transition-all ${
-                            isToday 
-                              ? "bg-primary/5 border border-primary/20 shadow-sm" 
-                              : "hover:bg-gray-50 border border-transparent"
-                          }`}
-                        >
-                          <div className="flex items-center gap-4">
-                            {isToday ? (
-                              <div className="relative flex h-3 w-3">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                              </div>
-                            ) : (
-                              <div className={`h-2 w-2 rounded-full ${daySchedule.is_closed ? "bg-red-300" : "bg-gray-300"}`}></div>
-                            )}
-                            <span className={`font-medium text-base ${isToday ? "text-primary font-bold" : "text-gray-600"}`}>
-                              {dayName} {isToday && <span className="ml-2 text-[10px] font-bold text-white bg-primary px-2 py-0.5 rounded-full uppercase tracking-wide">Hoy</span>}
-                            </span>
-                          </div>
-                          <span className="font-medium">
-                            {daySchedule.is_closed ? (
-                              <span className="text-red-500 text-xs font-bold bg-red-50 px-3 py-1.5 rounded-full border border-red-100">CERRADO</span>
-                            ) : (
-                              <span className={`text-sm px-3 py-1.5 rounded-lg border ${isToday ? "bg-white text-gray-900 border-primary/20" : "bg-gray-50 text-gray-700 border-gray-100"}`}>
-                                {daySchedule.open_time?.slice(0, 5)} - {daySchedule.close_time?.slice(0, 5)}
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-gray-50 p-8 rounded-3xl border border-gray-100 border-dashed flex items-center justify-center h-full text-gray-400">
-                  <div className="text-center">
-                    <Clock size={48} className="mx-auto mb-4 opacity-50" />
-                    <p>Horarios no disponibles</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Bottom Container: Questions / Action Banner */}
-            <div className="bg-gray-50 p-10 rounded-3xl shadow-sm border border-gray-200 relative overflow-hidden">
-              <div className="relative z-10 grid md:grid-cols-2 gap-8 items-center">
-                <div>
-                  <h2 className="text-2xl font-bold mb-4 font-display text-gray-900">¿Tienes preguntas?</h2>
-                  <p className="text-gray-600 leading-relaxed text-lg font-sans">
-                    Contáctanos directamente para obtener más información sobre nuestros productos y servicios. Estamos aquí para ayudarte.
-                  </p>
-                  <div className="mt-6 pt-6 border-t border-gray-200/50">
-                    <p className="text-sm text-gray-500 font-sans flex items-center gap-2">
-                       <Clock size={16} />
-                       Respondemos usualmente en menos de 24 horas.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex justify-center md:justify-end">
-                  {supplier.phone ? (
-                    <a 
-                      href={`https://wa.me/${supplier.phone.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group flex items-center justify-center gap-3 w-full md:w-auto md:min-w-[280px] px-8 py-5 bg-primary text-white font-bold rounded-2xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5"
-                    >
-                      <MessageCircle size={24} className="group-hover:scale-110 transition-transform" />
-                      <span className="font-sans text-lg">Enviar Mensaje</span>
+                <div className="flex flex-wrap gap-4">
+                    <a href="#productos" className="px-8 py-4 bg-[#168e00] hover:bg-[#137a00] text-white rounded-full font-bold text-lg transition-all shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] hover:-translate-y-1 flex items-center gap-2 font-[family-name:var(--font-varela-round)]">
+                        Ver Catálogo <ArrowDown size={20} />
                     </a>
-                  ) : (
-                    <button disabled className="w-full md:w-auto md:min-w-[280px] px-8 py-5 bg-gray-200 text-gray-400 font-bold rounded-2xl cursor-not-allowed shadow-none flex items-center justify-center gap-2">
-                      <MessageCircle size={24} />
-                      <span className="font-sans text-lg">Enviar Mensaje</span>
-                    </button>
-                  )}
+                    <a href="#contacto" className="px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full font-bold text-lg transition-all hover:-translate-y-1 font-[family-name:var(--font-varela-round)]">
+                        Contactar Ahora
+                    </a>
                 </div>
-              </div>
+             </div>
+         </div>
 
-              {/* Decorative subtle elements */}
-              <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
-              <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none opacity-50"></div>
-            </div>
-
-          </div>
-        </section>
-      </div>
-
-      {selectedCertificate && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedCertificate(null)}>
-          <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 border-b flex items-center justify-between bg-gray-50">
-              <h3 className="font-bold text-lg text-gray-900">
-                {selectedCertificate.name || "Detalle del Certificado"}
-              </h3>
-              <button 
-                onClick={() => setSelectedCertificate(null)}
-                className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="grid md:grid-cols-2 gap-8">
-                <div className="bg-gray-100 rounded-xl overflow-hidden border border-gray-200 flex items-center justify-center min-h-[300px]">
-                   {(selectedCertificate.image || selectedCertificate.path || selectedCertificate.url || "").toLowerCase().endsWith('.pdf') ? (
-                      <div className="text-center p-8">
-                         <FileText className="w-24 h-24 text-red-500 mx-auto mb-4" />
-                         <p className="text-gray-900 font-medium mb-4">Este certificado es un documento PDF</p>
-                         <a 
-                           href={getImageUrl(selectedCertificate.image || selectedCertificate.path || selectedCertificate.url || "")}
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           className="inline-flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors"
-                         >
-                           <ExternalLink size={18} />
-                           Abrir Documento
-                         </a>
+         {/* Floating Stats Bar */}
+         <div className="absolute bottom-0 left-0 w-full z-30 border-t border-white/10 bg-black/20 backdrop-blur-xl">
+             <div className="container mx-auto px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-8">
+                 <div className="text-center md:text-left">
+                     <div className="text-[#168e00] text-3xl font-black font-[family-name:var(--font-varela-round)]">{supplier.average_rating ? supplier.average_rating.toFixed(1) : "5.0"}</div>
+                     <div className="text-white/60 text-xs uppercase tracking-widest font-bold">Calificación</div>
+                 </div>
+                 <div className="text-center md:text-left">
+                     <div className="text-white text-3xl font-black font-[family-name:var(--font-varela-round)]">+500</div>
+                     <div className="text-white/60 text-xs uppercase tracking-widest font-bold">Ventas Exitosas</div>
+                 </div>
+                 <div className="text-center md:text-left">
+                     <div className="text-white text-3xl font-black font-[family-name:var(--font-varela-round)]">24h</div>
+                     <div className="text-white/60 text-xs uppercase tracking-widest font-bold">Respuesta</div>
+                 </div>
+                 <div className="hidden md:flex items-center justify-end">
+                      <div className="flex -space-x-3">
+                          {[1,2,3,4].map(i => (
+                              <div key={i} className="w-10 h-10 rounded-full border-2 border-black bg-gray-200" />
+                          ))}
+                          <div className="w-10 h-10 rounded-full border-2 border-black bg-[#168e00] flex items-center justify-center text-white text-xs font-bold">+99</div>
                       </div>
-                   ) : (
-                     <img 
-                       src={getImageUrl(selectedCertificate.image || selectedCertificate.path || selectedCertificate.url || "")} 
-                       alt={selectedCertificate.name || selectedCertificate.description}
-                       className="w-full h-full object-contain"
-                     />
-                   )}
-                </div>
-                
-                <div className="space-y-6">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Descripción</h4>
-                    <p className="text-gray-700 leading-relaxed">
-                      {selectedCertificate.description}
+                 </div>
+             </div>
+         </div>
+      </section>
+
+      {/* --- PRODUCTS SECTION --- */}
+      <section id="productos" className="relative py-24 bg-[#f2f3f4] overflow-hidden">
+        {/* Decorative Background Blob */}
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#004e28]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+
+        <div className="container mx-auto px-4 md:px-8 relative z-10">
+            <div className="flex flex-col md:flex-row items-end justify-between mb-16 gap-6">
+                <div>
+                    <h2 className="text-4xl md:text-5xl font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]">
+                        Catálogo Exclusivo
+                    </h2>
+                    <p className="text-gray-500 max-w-xl text-lg">
+                        Explora nuestra selección premium de productos diseñados para transformar tu negocio. Calidad garantizada en cada pedido.
                     </p>
-                  </div>
-                  
-                  {selectedCertificate.place && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Lugar de Expedición</h4>
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <MapPin size={18} className="text-gray-400" />
-                        <span>{selectedCertificate.place}</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    {selectedCertificate.certificate_date && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Fecha de Emisión</h4>
-                        <div className="flex items-center gap-2 text-gray-700">
-                          <Calendar size={18} className="text-gray-400" />
-                          <span>{new Date(selectedCertificate.certificate_date).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {selectedCertificate.expiration_date && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Fecha de Vencimiento</h4>
-                        <div className="flex items-center gap-2 text-gray-700">
-                          <Calendar size={18} className="text-gray-400" />
-                          <span>{new Date(selectedCertificate.expiration_date).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {selectedCertificate.link && (
-                    <div>
-                       <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Enlace de Verificación</h4>
-                       <a 
-                         href={selectedCertificate.link} 
-                         target="_blank" 
-                         rel="noopener noreferrer"
-                         className="text-primary hover:underline break-all flex items-start gap-2"
-                       >
-                         <ExternalLink size={16} className="mt-1 shrink-0" />
-                         {selectedCertificate.link}
-                       </a>
-                    </div>
-                  )}
                 </div>
-              </div>
+                {/* Category Filters could go here */}
             </div>
-          </div>
+
+            {productsLoading && products.length === 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                    {[1,2,3,4].map(i => (
+                        <div key={i} className="aspect-[4/5] bg-gray-200 rounded-[2rem] animate-pulse" />
+                    ))}
+                </div>
+            ) : productsError ? (
+                <div className="text-center py-20 bg-white rounded-[3rem] shadow-sm">
+                    <p className="text-xl text-red-500 font-bold mb-4">{productsError}</p>
+                    <button 
+                        onClick={() => fetchProducts((slug as string) || supplier.slug || String(supplier.id), 1, false)}
+                        className="px-6 py-3 bg-[#004e28] text-white rounded-full hover:bg-[#168e00] transition-colors"
+                    >
+                        Reintentar Carga
+                    </button>
+                </div>
+            ) : products.length === 0 ? (
+                <div className="text-center py-20 bg-white rounded-[3rem] shadow-sm">
+                    <p className="text-xl text-gray-400 font-bold">No hay productos disponibles en este momento.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 md:gap-10">
+                    {filteredProducts.map((product) => (
+                        <div key={product.id} className="h-full">
+                            <ProductCard
+                                id={String(product.id)}
+                                title={product.title}
+                                price={product.price}
+                                image={product.thumbnail_url || product.subcategory?.thumbnail_url || ""}
+                                minOrder={`${product.stock > 0 ? "1" : "10"} pzas`}
+                                slug={product.slug}
+                                rating={product.average_rating || 5.0}
+                                sales={product.stock} // Using stock as proxy for sales visual
+                                supplier={supplier}
+                            />
+                        </div>
+                    ))}
+                </div>
+            )}
+            
+            {/* Infinite Scroll Trigger */}
+            <div ref={observerTarget} className="h-20 w-full flex items-center justify-center mt-12">
+                {productsLoading && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#004e28]" />}
+            </div>
         </div>
+      </section>
+
+      {/* --- NUESTRA ESENCIA (Storytelling) --- */}
+      <section className="py-24 bg-white relative overflow-hidden">
+         <div className="container mx-auto px-6 md:px-12">
+             <div className="bg-[#f2f3f4] rounded-[3rem] p-8 md:p-16 relative overflow-hidden group">
+                 <div className="absolute top-0 right-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5" />
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center relative z-10">
+                     <div className="order-2 md:order-1">
+                         <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-[0_20px_50px_-20px_rgba(0,0,0,0.3)] transform md:-rotate-2 hover:rotate-0 transition-transform duration-700">
+                             {supplier.about_media ? (
+                                <img src={getImageUrl(supplier.about_media)} alt="Nosotros" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full bg-gray-300 flex items-center justify-center">
+                                    <Store size={64} className="text-gray-400" />
+                                </div>
+                            )}
+                            {/* Overlay Text */}
+                            <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[#004e28] to-transparent p-8">
+                                <p className="text-white font-bold font-[family-name:var(--font-varela-round)] text-xl">Nuestra Misión</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="order-1 md:order-2">
+                        <h2 className="text-3xl md:text-5xl font-black text-[#004e28] mb-8 font-[family-name:var(--font-varela-round)] leading-tight">
+                            Más que un proveedor,<br/>
+                            <span className="text-[#168e00]">tu aliado estratégico.</span>
+                        </h2>
+                        <div 
+                            className="prose prose-lg text-gray-600 font-[family-name:var(--font-poppins)]"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(supplier.about || "Comprometidos con la excelencia y el servicio al cliente.") }}
+                        />
+                         
+                         <div className="mt-10 flex items-center gap-4">
+                             <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-[#168e00] shadow-md">
+                                 <Award size={32} />
+                             </div>
+                             <div>
+                                 <p className="text-[#004e28] font-bold text-lg">Certificado de Calidad</p>
+                                 <p className="text-sm text-gray-500">Verificado por SafeEasy</p>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+         </div>
+      </section>
+
+      {/* --- CERTIFICATES SECTION --- */}
+      {supplier.certificates && supplier.certificates.length > 0 && (
+        <section className="py-20 bg-[#f9fafb]">
+            <div className="container mx-auto px-6 md:px-12">
+                <div className="text-center mb-16">
+                    <h2 className="text-3xl md:text-4xl font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]">
+                        Calidad Certificada
+                    </h2>
+                    <p className="text-gray-500 max-w-2xl mx-auto">
+                        Nuestros procesos y productos cumplen con los más altos estándares internacionales.
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                    {supplier.certificates.map((cert) => (
+                        <div key={cert.id} className="group relative bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 text-center border border-gray-100">
+                            <div className="h-32 mb-4 flex items-center justify-center p-2 bg-gray-50 rounded-xl">
+                                <img 
+                                    src={getImageUrl(cert.image || cert.image_url || "/placeholder-cert.png")} 
+                                    alt={cert.name || "Certificado"} 
+                                    className="max-h-full max-w-full object-contain grayscale group-hover:grayscale-0 transition-all duration-500" 
+                                />
+                            </div>
+                            <h3 className="font-bold text-[#004e28] mb-1 font-[family-name:var(--font-varela-round)] line-clamp-1">{cert.name || "Certificado"}</h3>
+                            <p className="text-xs text-gray-500 line-clamp-2">{cert.description}</p>
+                            
+                            {/* Zoom Effect Overlay */}
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl flex items-center justify-center backdrop-blur-sm cursor-pointer">
+                                <span className="text-white font-bold px-4 py-2 border border-white/30 rounded-full bg-white/10 backdrop-blur-md">
+                                    Ver Certificado
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </section>
       )}
-    </div>
-  );
-}
 
-function Carousel({ images }: { images: CarouselImage[] }) {
-  const [current, setCurrent] = useState(0);
+      {/* --- RATINGS SECTION --- */}
+      <section className="py-24 bg-white border-t border-gray-100">
+          <div className="container mx-auto px-6 md:px-12">
+              <div className="flex flex-col md:flex-row items-center justify-between mb-12 gap-8">
+                  <div>
+                      <h2 className="text-3xl md:text-4xl font-black text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">
+                          Opiniones Verificadas
+                      </h2>
+                      <div className="flex items-center gap-2 text-[#168e00]">
+                          <span className="font-bold text-xl">{supplier.average_rating ? supplier.average_rating.toFixed(1) : "5.0"}</span>
+                          <StarRating rating={supplier.average_rating || 5} size={20} />
+                          <span className="text-gray-400 text-sm">({ratingsTotal} reseñas)</span>
+                      </div>
+                  </div>
+                  
+                  <button className="px-6 py-3 bg-white border-2 border-[#004e28] text-[#004e28] font-bold rounded-full hover:bg-[#004e28] hover:text-white transition-all font-[family-name:var(--font-varela-round)]">
+                      Escribir una Reseña
+                  </button>
+              </div>
 
-  useEffect(() => {
-    if (images.length <= 1) return;
-    const timer = setInterval(() => {
-      setCurrent((c) => (c + 1) % images.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [images.length]);
+              {ratingsLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                      {[1,2,3].map(i => (
+                          <div key={i} className="h-48 bg-gray-100 rounded-2xl animate-pulse" />
+                      ))}
+                  </div>
+              ) : ratings.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {ratings.map((rating) => (
+                          <div key={rating.id} className="bg-[#f9fafb] p-8 rounded-[2rem] relative">
+                              <div className="flex items-center gap-4 mb-4">
+                                  <div className="w-12 h-12 rounded-full bg-[#004e28] flex items-center justify-center text-white font-bold text-xl">
+                                      {rating.user_name ? rating.user_name.charAt(0).toUpperCase() : "U"}
+                                  </div>
+                                  <div>
+                                      <p className="font-bold text-gray-900">{rating.user_name || "Usuario Anónimo"}</p>
+                                      <StarRating rating={rating.rating} size={14} />
+                                  </div>
+                              </div>
+                              <p className="text-gray-600 italic mb-6">"{rating.comment}"</p>
+                              <div className="flex items-center gap-3 mt-auto pt-4 border-t border-gray-200">
+                                  <img 
+                                    src={getImageUrl(rating.product_thumbnail_url || rating.product_image || null)} 
+                                    alt="" 
+                                    className="w-10 h-10 rounded-lg object-cover bg-white"
+                                  />
+                                  <div className="text-xs text-gray-400">
+                                      <p className="line-clamp-1">Sobre: {rating.product_title}</p>
+                                      <p>{rating.created_at ? new Date(rating.created_at).toLocaleDateString() : ""}</p>
+                                  </div>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              ) : (
+                  <div className="text-center py-16 bg-[#f9fafb] rounded-[3rem]">
+                      <MessageCircle size={48} className="mx-auto text-gray-300 mb-4" />
+                      <p className="text-gray-500 text-lg">Aún no hay reseñas para este proveedor.</p>
+                      <p className="text-gray-400 text-sm">¡Sé el primero en compartir tu experiencia!</p>
+                  </div>
+              )}
+          </div>
+      </section>
 
-  if (images.length === 0) return null;
-
-  const getImageUrl = (path: string | null) => {
-    if (!path) return '/placeholder.png';
-    if (path.startsWith('http') || path.startsWith('data:')) return path;
-    
-    const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api').replace(/\/+$/, '');
-    let cleanPath = path.startsWith('/') ? path : `/${path}`;
-    
-    // Ensure path doesn't start with /static/ if we're adding it manually, 
-    // or if the logic implies it needs to be there. 
-    // The original logic removed leading slash and added static/ if missing.
-    // Let's preserve that intent but cleaner.
-    
-    let pathSegment = path.startsWith('/') ? path.substring(1) : path;
-    if (!pathSegment.startsWith('static/') && !pathSegment.startsWith('http')) {
-        pathSegment = `static/${pathSegment}`;
-    }
-    
-    return `${baseUrl}/${pathSegment}`.replace(/([^:])\/{2,}/g, '$1/');
-  };
-
-  const nextSlide = () => setCurrent((c) => (c + 1) % images.length);
-  const prevSlide = () => setCurrent((c) => (c - 1 + images.length) % images.length);
-
-  return (
-    <div className="relative w-full h-full">
-      {images.map((item, idx) => (
-        <div
-          key={idx}
-          className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-            idx === current ? "opacity-100 z-10" : "opacity-0 z-0"
-          }`}
-        >
-          <img 
-            src={getImageUrl(item.image || item.thumbnail)} 
-            alt={item.title || `Slide ${idx}`} 
-            className="w-full h-full object-cover" 
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+      {/* --- CONTACT & MAP (Dark Mode / Expert UI) --- */}
+      <section id="contacto" className="relative bg-[#004e28] text-white py-24 overflow-hidden">
+          {/* Background Elements */}
+          <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
           
-          <div className="absolute bottom-8 left-8 right-8 text-white z-20">
-             {item.title && item.title.trim() !== '' && item.title.trim().toLowerCase() !== 'string' && (
-                <h3 className="text-2xl font-bold mb-2 drop-shadow-md">{item.title}</h3>
-             )}
-             {item.description && item.description.trim() !== '' && item.description.trim().toLowerCase() !== 'string' && (
-                <p className="text-white/90 line-clamp-2 drop-shadow-md max-w-3xl">{item.description}</p>
-             )}
-          </div>
-        </div>
-      ))}
+          <div className="container mx-auto px-4 md:px-8 max-w-6xl relative z-10">
+              
+              {/* TOP ROW: Info & Hours */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+                  {/* Info Card */}
+                  <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-8 rounded-[2rem] hover:bg-white/10 transition-colors">
+                      <h3 className="text-2xl font-bold mb-6 font-[family-name:var(--font-varela-round)] flex items-center gap-3">
+                          <MessageCircle className="text-[#168e00]" /> Contáctanos
+                      </h3>
+                      <div className="space-y-4">
+                          {supplier.phone && (
+                              <div className="flex items-center gap-4 group">
+                                  <div className="w-10 h-10 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
+                                      <Phone size={18} className="text-[#168e00] group-hover:text-white" />
+                                  </div>
+                                  <span className="font-medium text-lg">{supplier.phone}</span>
+                              </div>
+                          )}
+                          {supplier.email && (
+                              <div className="flex items-center gap-4 group">
+                                  <div className="w-10 h-10 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
+                                      <Mail size={18} className="text-[#168e00] group-hover:text-white" />
+                                  </div>
+                                  <span className="font-medium text-lg">{supplier.email}</span>
+                              </div>
+                          )}
+                          {supplier.address && (
+                              <div className="flex items-center gap-4 group">
+                                  <div className="w-10 h-10 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
+                                      <MapPin size={18} className="text-[#168e00] group-hover:text-white" />
+                                  </div>
+                                  <span className="font-medium text-lg">{supplier.address}</span>
+                              </div>
+                          )}
+                      </div>
+                  </div>
 
-      {images.length > 1 && (
-        <>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              prevSlide();
-            }}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-black/30 hover:bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-colors opacity-0 group-hover:opacity-100"
-          >
-            <ChevronLeft size={24} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              nextSlide();
-            }}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-black/30 hover:bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-colors opacity-0 group-hover:opacity-100"
-          >
-            <ChevronRight size={24} />
-          </button>
+                  {/* Hours Card */}
+                  <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-8 rounded-[2rem]">
+                      <h3 className="text-2xl font-bold mb-6 font-[family-name:var(--font-varela-round)] flex items-center gap-3">
+                          <Clock style={{ color: supplier.primary_color || '#168e00' }} /> Horarios de Atención
+                      </h3>
+                      <div className="space-y-4 text-gray-300">
+                          {groupedHours.length > 0 ? (
+                              groupedHours.map((group, idx) => (
+                                  <div key={idx} className="flex justify-between items-center border-b border-white/5 pb-2 last:border-0">
+                                      <span>
+                                          {group.start === group.end 
+                                              ? DAYS_MAP[group.start] 
+                                              : `${DAYS_MAP[group.start]} - ${DAYS_MAP[group.end]}`}
+                                      </span>
+                                      <span className="font-bold text-white">
+                                          {group.isClosed ? "Cerrado" : `${formatTime(group.open)} - ${formatTime(group.close)}`}
+                                      </span>
+                                  </div>
+                              ))
+                          ) : (
+                              <div className="text-center text-white/60 italic">Horarios no disponibles</div>
+                          )}
 
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
-            {images.map((_, idx) => (
-              <button
-                key={idx}
-                className={`w-2.5 h-2.5 rounded-full transition-all ${
-                  idx === current ? "bg-white w-6" : "bg-white/50 hover:bg-white/80"
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrent(idx);
-                }}
-              />
-            ))}
+                          <div className="mt-4 flex items-center gap-3">
+                              {businessStatus.isOpen ? (
+                                  <div 
+                                    className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide text-white inline-flex items-center gap-2"
+                                    style={{ backgroundColor: supplier.primary_color || '#168e00' }}
+                                  >
+                                      <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                      Abierto Ahora
+                                  </div>
+                              ) : (
+                                  <div className="px-3 py-1 bg-red-500/20 border border-red-500/50 rounded-full text-xs font-bold uppercase tracking-wide text-red-200 inline-flex items-center gap-2">
+                                      <div className="w-2 h-2 rounded-full bg-red-500" />
+                                      Cerrado Ahora
+                                  </div>
+                              )}
+                              <span className="text-sm text-white/60">Tiempo de respuesta: ~10 min</span>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              {/* MIDDLE ROW: Map (Full Width) */}
+              <div className="w-full h-[400px] bg-white/5 backdrop-blur-md rounded-[2rem] overflow-hidden border border-white/10 relative shadow-2xl mb-12 group">
+                  {mapLocation ? (
+                      <MapPicker
+                          location={mapLocation}
+                          readOnly={true}
+                          height="100%"
+                          className="w-full h-full max-w-none grayscale-[50%] group-hover:grayscale-0 transition-all duration-500"
+                      />
+                  ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white/30 bg-black/20">
+                          <div className="text-center">
+                              <MapPin size={48} className="mx-auto mb-2 opacity-50" />
+                              <p>Ubicación no disponible</p>
+                          </div>
+                      </div>
+                  )}
+                  {/* Floating Location Badge */}
+                  <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur text-[#004e28] px-4 py-2 rounded-xl text-sm font-bold shadow-lg flex items-center gap-2 pointer-events-none">
+                      <MapPin size={16} /> Ubicación Exacta
+                  </div>
+              </div>
+
+              {/* BOTTOM ROW: CTA (Full Width) */}
+              <div className="bg-[#168e00] rounded-[2rem] p-8 md:p-12 text-center relative overflow-hidden shadow-[0_0_50px_-10px_rgba(22,142,0,0.4)]">
+                  <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
+                  <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                      <div className="text-left">
+                          <h3 className="text-2xl md:text-3xl font-black mb-2 font-[family-name:var(--font-varela-round)]">¿Tienes preguntas sobre nuestros productos?</h3>
+                          <p className="text-white/80 text-lg">Estamos listos para atenderte y resolver todas tus dudas al instante.</p>
+                      </div>
+                      <a 
+                        href={`https://wa.me/${supplier.phone?.replace(/[^0-9]/g, '')}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="whitespace-nowrap px-8 py-4 bg-white text-[#004e28] rounded-full font-bold text-lg hover:bg-gray-100 transition-all shadow-xl hover:-translate-y-1 flex items-center gap-2"
+                      >
+                          <MessageCircle size={24} />
+                          Enviar Mensaje
+                      </a>
+                  </div>
+              </div>
+
           </div>
-        </>
-      )}
+      </section>
     </div>
   );
 }

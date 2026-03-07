@@ -24,6 +24,7 @@ interface MapPickerProps {
   height?: string;
   zoom?: number;
   addressContext?: AddressDetails;
+  className?: string;
 }
 
 export default function MapPicker(props: MapPickerProps) {
