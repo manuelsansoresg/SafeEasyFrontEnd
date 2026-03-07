@@ -171,6 +171,21 @@ export default function SupplierPage() {
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("inicio");
+  const headerVideoRef = useRef<HTMLVideoElement>(null);
+  const [isHeaderVideoPlaying, setIsHeaderVideoPlaying] = useState(false);
+  
+  const toggleHeaderVideo = () => {
+    if (headerVideoRef.current) {
+      if (isHeaderVideoPlaying) {
+        headerVideoRef.current.pause();
+      } else {
+        headerVideoRef.current.muted = false;
+        headerVideoRef.current.play();
+      }
+      setIsHeaderVideoPlaying(!isHeaderVideoPlaying);
+    }
+  };
+
   const [products, setProducts] = useState<SupplierProduct[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -503,20 +518,32 @@ export default function SupplierPage() {
             <div className="w-full max-w-none lg:max-w-7xl xl:max-w-[1400px] mx-auto px-0 sm:px-4 lg:px-8 py-6 md:py-10">
               <div className="w-full rounded-none sm:rounded-2xl md:rounded-3xl overflow-hidden relative shadow-2xl shadow-black/40 bg-gray-900 group">
                 {supplier.header_media_type === 'video' && supplier.header_video ? (
-                  <div className="relative h-[60vh] md:h-[80vh] w-full overflow-hidden bg-black">
+                  <div className="relative h-[60vh] md:h-[80vh] w-full overflow-hidden bg-black group/video">
                     <video 
+                      ref={headerVideoRef}
                       src={getImageUrl(supplier.header_video)} 
-                      autoPlay
-                      muted
-                      loop
                       playsInline
-                      className="absolute inset-0 w-full h-full object-cover z-0"
+                      onClick={toggleHeaderVideo}
+                      onEnded={() => setIsHeaderVideoPlaying(false)}
+                      className="absolute inset-0 w-full h-full object-cover z-0 cursor-pointer"
                     />
                     {/* Overlay oscuro semitransparente */}
-                    <div className="absolute inset-0 bg-black/40 bg-gradient-to-b from-black/60 via-transparent to-black/60 z-10" />
+                    <div className={`absolute inset-0 bg-black/40 bg-gradient-to-b from-black/60 via-transparent to-black/60 z-10 pointer-events-none transition-opacity duration-500 ${isHeaderVideoPlaying ? 'opacity-40' : 'opacity-100'}`} />
                     
+                    {/* Play Button */}
+                    {!isHeaderVideoPlaying && (
+                      <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+                        <button 
+                          onClick={toggleHeaderVideo}
+                          className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover/video:scale-110 transition-transform duration-300 pointer-events-auto border border-white/50"
+                        >
+                          <Play className="w-10 h-10 text-white fill-white ml-1" />
+                        </button>
+                      </div>
+                    )}
+
                     {/* Contenedor para el título (futuro) */}
-                    <div className="relative z-20 h-full w-full flex items-center justify-center">
+                    <div className="relative z-20 h-full w-full flex items-center justify-center pointer-events-none">
                       {/* Aquí irá el título en Varela Round */}
                     </div>
                   </div>
