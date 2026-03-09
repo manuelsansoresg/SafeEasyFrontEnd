@@ -97,12 +97,12 @@ const fetchGlobalProducts = async (limit: number, token?: string) => {
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     const searchParams = request.nextUrl.searchParams;
     const kind = searchParams.get('kind') || 'most_searched';
     const limit = parseInt(searchParams.get('limit') || '5');
-    const supplierId = params.id;
+    const { id: supplierId } = await params;
     const token = request.headers.get('Authorization') || undefined;
 
     // 1. Try to fetch from real backend first (Recommended Endpoint)
