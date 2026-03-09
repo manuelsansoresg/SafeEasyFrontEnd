@@ -41,7 +41,7 @@ export default function SellHero() {
   }, []);
 
   return (
-    <div className="relative h-[600px] w-full overflow-hidden bg-gray-900">
+    <div className="relative h-[600px] w-full overflow-hidden bg-gray-900 -mt-12 md:-mt-8">
       {/* Slides */}
       {slides.map((slide, index) => (
         <div

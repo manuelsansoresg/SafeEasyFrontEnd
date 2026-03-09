@@ -111,6 +111,9 @@ export function Header() {
               <Link href="/contacto" className="hover:text-[#7ed957] transition-colors text-white">
                 Contacto
               </Link>
+              <Link href="/sell" className="hover:text-[#7ed957] transition-colors text-white">
+                Vender en Drooopy
+              </Link>
             </nav>
           </div>
 
@@ -221,6 +224,7 @@ export function Header() {
                             <Link href="/" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Inicio</Link>
                             <Link href="/nosotros" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Nosotros</Link>
                             <Link href="/contacto" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Contacto</Link>
+                            <Link href="/sell" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Vender en Drooopy</Link>
                         </nav>
                     </div>
                 </motion.div>

@@ -3,48 +3,33 @@ import Link from 'next/link';
 export default function SellPlans() {
   const plans = [
     {
-      name: 'Básico',
-      price: 'Gratis',
-      period: '/mes',
-      description: 'Ideal para comenzar a vender.',
+      name: 'Estándar',
+      price: '$3,600',
+      period: '/año',
+      description: 'Ideal para negocios establecidos.',
       features: [
-        'Hasta 50 productos',
-        'Perfil de proveedor básico',
+        'Hasta 500 productos',
+        'Perfil verificado',
         'Soporte por correo',
         'Acceso al mercado global',
       ],
-      buttonText: 'Empezar Gratis',
+      buttonText: 'Empezar Ahora',
       highlight: false,
     },
     {
       name: 'Profesional',
-      price: '$499',
-      period: '/mes',
-      description: 'Para negocios en crecimiento.',
+      price: '$4,600',
+      period: '/año',
+      description: 'Para maximizar sus ventas.',
       features: [
-        'Hasta 500 productos',
-        'Perfil verificado',
+        'Productos ilimitados',
+        'Perfil verificado + Badge',
         'Prioridad en búsquedas',
         'Soporte prioritario 24/7',
         'Analíticas avanzadas',
       ],
       buttonText: 'Seleccionar Pro',
       highlight: true,
-    },
-    {
-      name: 'Empresarial',
-      price: '$999',
-      period: '/mes',
-      description: 'Soluciones para grandes volúmenes.',
-      features: [
-        'Productos ilimitados',
-        'Gestor de cuenta dedicado',
-        'API personalizada',
-        'Promoción destacada',
-        'Auditoría de fábrica',
-      ],
-      buttonText: 'Contactar Ventas',
-      highlight: false,
     },
   ];
 
@@ -56,11 +41,11 @@ export default function SellPlans() {
             Elija el plan perfecto para su negocio
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Planes flexibles diseñados para escalar con usted.
+            Planes anuales diseñados para escalar con usted.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {plans.map((plan, index) => (
             <div
               key={index}
