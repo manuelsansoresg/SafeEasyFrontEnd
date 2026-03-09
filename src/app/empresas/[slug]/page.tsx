@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Supplier, CarouselImage, Certificate } from "@/lib/products";
-import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play, Clock, ArrowDown, Volume2, VolumeX } from "lucide-react";
+import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play, Clock, ArrowDown, Volume2, VolumeX, Search } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -278,6 +278,7 @@ export default function SupplierPage() {
   const [hasMore, setHasMore] = useState(false);
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [selectedSubcategorySlug, setSelectedSubcategorySlug] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [ratings, setRatings] = useState<SupplierRating[]>([]);
 
   const mapLocation = supplier?.map_location ? (() => {
@@ -596,7 +597,10 @@ export default function SupplierPage() {
   const filteredProducts = products.filter((product) => {
     const matchesCategory = selectedCategorySlug ? product.category?.slug === selectedCategorySlug : true;
     const matchesSubcategory = selectedSubcategorySlug ? product.subcategory?.slug === selectedSubcategorySlug : true;
-    return matchesCategory && matchesSubcategory;
+    const matchesSearch = searchQuery 
+      ? product.title.toLowerCase().includes(searchQuery.toLowerCase()) 
+      : true;
+    return matchesCategory && matchesSubcategory && matchesSearch;
   });
 
   if (loading)
@@ -732,7 +736,7 @@ export default function SupplierPage() {
         <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#004e28]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 
         <div className="container mx-auto px-4 md:px-8 relative z-10">
-            <div className="flex flex-col md:flex-row items-end justify-between mb-16 gap-6">
+            <div className="flex flex-col md:flex-row items-center justify-between mb-16 gap-6">
                 <div>
                     <h2 className="text-4xl md:text-5xl font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]">
                         Productos
@@ -741,7 +745,29 @@ export default function SupplierPage() {
                         Explora nuestra selección premium de productos diseñados para transformar tu negocio. Calidad garantizada en cada pedido.
                     </p>
                 </div>
-                {/* Category Filters could go here */}
+                
+                <div className="w-full md:w-auto">
+                    <div className="relative w-full md:w-96 group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <Search className="h-5 w-5 text-gray-400 group-focus-within:text-[#168e00] transition-colors" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Buscar en este proveedor..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="block w-full pl-11 pr-4 py-4 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#168e00]/20 focus:border-[#168e00] transition-all shadow-sm hover:shadow-md"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery("")}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                            >
+                                <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                            </button>
+                        )}
+                    </div>
+                </div>
             </div>
 
             {productsLoading && products.length === 0 ? (
