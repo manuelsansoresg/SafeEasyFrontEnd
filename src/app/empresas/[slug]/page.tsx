@@ -231,9 +231,12 @@ interface SupplierRatingsResponse {
 
 
 
+import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCarousel";
+
 export default function SupplierPage() {
   const { slug } = useParams();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
+  const [activeTab, setActiveTab] = useState<'main' | 'products'>('main');
   const [loading, setLoading] = useState(true);
   const headerVideoRef = useRef<HTMLVideoElement>(null);
   const [isHeaderVideoPlaying, setIsHeaderVideoPlaying] = useState(false);
@@ -702,7 +705,28 @@ export default function SupplierPage() {
          )}
       </section>
 
-      {/* --- PRODUCTS SECTION --- */}
+      {/* --- TABS NAVIGATION --- */}
+      <div className="sticky top-[0px] md:top-[0px] z-40 bg-white border-b border-gray-100 shadow-sm backdrop-blur-md bg-white/90">
+        <div className="container mx-auto px-4 md:px-8">
+           <div className="flex gap-8 overflow-x-auto no-scrollbar">
+              <button 
+                onClick={() => setActiveTab('main')} 
+                className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'main' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
+              >
+                Página Principal
+              </button>
+              <button 
+                onClick={() => setActiveTab('products')} 
+                className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'products' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
+              >
+                Productos
+              </button>
+           </div>
+        </div>
+      </div>
+
+      {/* --- PRODUCTS SECTION (Tab Content) --- */}
+      {activeTab === 'products' && (
       <section id="productos" className="relative py-24 bg-[#f2f3f4] overflow-hidden">
         {/* Decorative Background Blob */}
         <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#004e28]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
@@ -711,7 +735,7 @@ export default function SupplierPage() {
             <div className="flex flex-col md:flex-row items-end justify-between mb-16 gap-6">
                 <div>
                     <h2 className="text-4xl md:text-5xl font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]">
-                        Catálogo Exclusivo
+                        Productos
                     </h2>
                     <p className="text-gray-500 max-w-xl text-lg">
                         Explora nuestra selección premium de productos diseñados para transformar tu negocio. Calidad garantizada en cada pedido.
@@ -766,6 +790,17 @@ export default function SupplierPage() {
             </div>
         </div>
       </section>
+      )}
+
+      {/* --- MAIN TAB CONTENT --- */}
+      {activeTab === 'main' && (
+      <>
+        {/* Recommended Carousels */}
+        <div className="container mx-auto px-4 md:px-8 py-12 space-y-8 bg-gray-50/30">
+             <SupplierProductCarousel supplierId={supplier.id} kind="most_searched" title="Más Buscados" />
+             <SupplierProductCarousel supplierId={supplier.id} kind="most_purchased" title="Más Comprados" />
+             <SupplierProductCarousel supplierId={supplier.id} kind="best_rated" title="Mejor Calificados" />
+        </div>
 
       {/* --- NUESTRA ESENCIA (Storytelling) --- */}
       <section className="py-24 bg-white relative overflow-hidden">
@@ -1056,6 +1091,8 @@ export default function SupplierPage() {
 
           </div>
       </section>
+      </>
+      )}
     </div>
   );
 }

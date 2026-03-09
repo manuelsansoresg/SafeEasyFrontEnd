@@ -29,7 +29,7 @@ export function ProductCard({
   image,
   minOrder = "1 pieza",
   slug,
-  rating = 4.8,
+  rating = 0,
   sales = 500,
   supplier,
   onClick,
