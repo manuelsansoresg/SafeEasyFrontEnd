@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,10 +30,21 @@ interface Category {
 }
 
 export function HomeCategories() {
+  const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const itemsPerPage = 6; // Adjust based on screen size if needed, but 6 is a good start for desktop
+
+  const handleCategoryClick = (slug: string) => {
+    // Navigate to the category page with query param
+    router.push(`/?category=${slug}`, { scroll: false });
+    
+    // Scroll to recommendations section
+    setTimeout(() => {
+        document.getElementById('recommendations-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -118,17 +129,17 @@ export function HomeCategories() {
               : productCount;
 
             return (
-              <Link 
+              <div 
                 key={category.id} 
-                href={`/?category=${category.slug}`}
-                className="flex-shrink-0 w-28 md:w-auto flex flex-col items-center justify-center p-2 md:p-6 bg-transparent md:bg-white md:border md:border-gray-200 rounded-xl hover:shadow-md transition-shadow group h-auto md:h-40 snap-start"
+                onClick={() => handleCategoryClick(category.slug)}
+                className="cursor-pointer flex-shrink-0 w-28 md:w-auto flex flex-col items-center justify-center p-2 md:p-6 bg-transparent md:bg-white md:border md:border-gray-200 rounded-xl hover:shadow-md transition-shadow group h-auto md:h-40 snap-start"
               >
                 <div className="mb-2 md:mb-4 text-[#004e28] group-hover:text-[#168e00] transition-colors">
                   <Icon className="w-8 h-8 md:w-8 md:h-8" strokeWidth={1.5} />
                 </div>
                 <h3 className="font-bold text-[#004e28] font-[family-name:var(--font-varela-round)] text-center mb-1 leading-tight md:line-clamp-1 group-hover:text-[#168e00] transition-colors text-xs md:text-lg w-full break-words">{category.name}</h3>
                 <p className="text-[10px] md:text-xs text-gray-400 font-medium">{formattedCount} products</p>
-              </Link>
+              </div>
             );
           })}
         </div>

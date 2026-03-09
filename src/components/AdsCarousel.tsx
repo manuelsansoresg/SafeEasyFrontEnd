@@ -103,8 +103,8 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
   const currentAd = ads[currentIndex];
 
   const handleClick = () => {
-    if (!enableNavigation) return;
-    router.push("/recomendados?kind=most_searched");
+    // if (!enableNavigation) return;
+    // router.push("/recomendados?kind=most_searched");
   };
 
   const handlePrev = (e: React.MouseEvent) => {
@@ -137,7 +137,7 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
 
   return (
     <div
-      className="relative w-full mb-6 rounded-2xl overflow-hidden bg-gray-100 cursor-pointer aspect-[16/7] md:aspect-[16/6]"
+      className="relative w-full mb-6 rounded-2xl overflow-hidden bg-gray-100 aspect-[16/7] md:aspect-[16/6]"
       onClick={handleClick}
     >
       <picture>

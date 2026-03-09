@@ -58,7 +58,13 @@ export function RecommendationsSection({
     if (initialSearch !== undefined) {
         setSearch(initialSearch);
     }
-  }, [initialSearch]);
+    if (initialCategory !== undefined) {
+        setCategory(initialCategory);
+    }
+    if (initialSubcategory !== undefined) {
+        setSubcategory(initialSubcategory);
+    }
+  }, [initialSearch, initialCategory, initialSubcategory]);
   
   // Observer for infinite scroll
   const observer = useRef<IntersectionObserver | null>(null);
@@ -177,7 +183,7 @@ export function RecommendationsSection({
   };
 
   return (
-    <div className="bg-white py-8">
+    <div id="recommendations-section" className="bg-white py-8">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl md:text-3xl font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
