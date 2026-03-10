@@ -87,6 +87,79 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         setIsVendorMode(true);
     }
   }, [user, supplierId, isOwner]);
+
+  // Track if we sent the initial context message for this session
+  const contextSentRef = useRef(false);
+
+  // Reset ref when closed or productId changes
+  useEffect(() => {
+    if (!isOpen) {
+        contextSentRef.current = false;
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    contextSentRef.current = false;
+  }, [productId]);
+
+  // Auto-initiate chat and send context message for clients
+  useEffect(() => {
+    const autoInitChat = async () => {
+        // Only run if open, client mode, valid props, not loading, and not already processed
+        if (isOpen && !isVendorMode && productId && supplierId && !loading && !contextSentRef.current) {
+            
+            try {
+                let targetConvId = activeConversation?.id;
+                
+                // If no active conversation, create one
+                if (!targetConvId) {
+                    // Check if we already have one in the list (initChat might have found it but not selected it?)
+                    // initChat logic usually selects the first one.
+                    // If activeConversation is null here, it means initChat didn't find one or failed.
+                    
+                    console.log("[ChatWindow] Auto-creating conversation for new context...");
+                    const newConv = await chatService.createConversation({
+                        supplier_id: Number(supplierId),
+                        product_id: String(productId)
+                    });
+                    
+                    setActiveConversation(newConv);
+                    targetConvId = newConv.id;
+                    setConversations(prev => [newConv, ...prev]);
+                }
+                
+                // Now send the empty context message if we have a valid conversation
+                if (targetConvId && !String(targetConvId).startsWith('temp-')) {
+                    console.log("[ChatWindow] Sending auto-context message...");
+                    contextSentRef.current = true; // Mark as sent
+                    
+                    await chatService.sendMessage(
+                        targetConvId,
+                        " ", // Empty message (space) with product_id context
+                        "text",
+                        undefined,
+                        productId
+                    );
+                    
+                    // Refresh messages to show the new context
+                    loadMessages(targetConvId);
+                }
+            } catch (err) {
+                console.error("[ChatWindow] Auto-init failed", err);
+                // Don't set contextSentRef to true so we might retry? 
+                // Or set it to true to avoid infinite loops on error.
+                // Better to set true to be safe.
+                contextSentRef.current = true; 
+            }
+        }
+    };
+    
+    // Wait for initial load to complete
+    if (!loading) {
+        autoInitChat();
+    }
+    
+  }, [isOpen, isVendorMode, productId, supplierId, loading, activeConversation]);
   
   // Debug logs
   useEffect(() => {
@@ -1120,6 +1193,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
           )}
 
           {/* Product Context Bar (Sub-header) */}
+          {( !isVendorMode || (isVendorMode && productData?.title) ) && (
           <div
             className={productSlug ? "px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0 cursor-pointer hover:bg-gray-50" : "px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0"}
             onClick={() => {
@@ -1131,6 +1205,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
               router.push(`/product/${slug}`);
             }}
           >
+                {!isVendorMode && (
                 <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 shrink-0 overflow-hidden flex items-center justify-center">
                         {productData?.image ? (
                             <img src={getAbsoluteUrl(productData.image)} alt="" className="w-full h-full object-cover" />
@@ -1138,16 +1213,20 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                             <span className="text-xs text-gray-400">IMG</span>
                         )}
                 </div>
+                )}
                 <div className="flex flex-col min-w-0">
-                    <span className="text-xs text-gray-500">Producto de interés:</span>
+                    {!isVendorMode && <span className="text-xs text-gray-500">Producto de interés:</span>}
                     <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={productData?.title}>
                         {productData?.title}
                     </span>
                 </div>
+                {!isVendorMode && (
                 <div className="ml-auto text-sm font-bold text-primary">
                     ${Number(productPrice || 0).toLocaleString()}
                 </div>
+                )}
           </div>
+        )}
 
 
           {/* Content Area (Messages or Empty State) */}
