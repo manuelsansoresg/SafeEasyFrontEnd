@@ -431,6 +431,12 @@ export function MessagesContent() {
 
      // 3. Default (Supplier/Admin) -> Show Client Name
      // Do NOT fallback to other_party_name as it might be Supplier Name
+     
+     // Fix: Prioritize structured user object over flat strings to avoid backend mapping errors
+     if ((conv as any).user && ((conv as any).user.name || (conv as any).user.first_name)) {
+         return (conv as any).user.name || `${(conv as any).user.first_name || ''} ${(conv as any).user.last_name || ''}`.trim();
+     }
+
      return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
   };
   

@@ -67,6 +67,12 @@ export function MessagesDropdown() {
 
      // 3. Default (Supplier/Admin/Other) -> Show Client Name
       // We intentionally exclude conv.other_party_name here because it might be the Supplier Name
+      
+      // Fix: Prioritize structured user object over flat strings to avoid backend mapping errors
+      if (conv.user && (conv.user.name || conv.user.first_name)) {
+          return conv.user.name || `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim();
+      }
+
       return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
    };
 

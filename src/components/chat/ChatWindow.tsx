@@ -1252,10 +1252,9 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                             {/* Sender Name Label */}
                             {!isMe && (
                                 <span className="text-[10px] text-gray-400 mb-1 ml-1">
-                                    {activeConversation?.other_party_name || 
-                                     (isVendorMode 
-                                        ? (activeConversation?.user_name || activeConversation?.buyer_name || 'Cliente') 
-                                        : (activeConversation?.supplier_name || supplierName || 'Proveedor'))}
+                                    {(isVendorMode 
+                                        ? (activeConversation?.user ? (activeConversation.user.name || `${activeConversation.user.first_name || ''} ${activeConversation.user.last_name || ''}`.trim()) : (activeConversation?.user_name || activeConversation?.buyer_name || 'Cliente')) 
+                                        : (activeConversation?.supplier_name || activeConversation?.other_party_name || supplierName || 'Proveedor'))}
                                 </span>
                             )}
                             

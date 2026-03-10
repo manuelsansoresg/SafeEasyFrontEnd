@@ -25,8 +25,14 @@ export function ChatOverlay() {
      }
 
      // 3. Default (Supplier/Admin) -> Show Client Name
-     return chat.user_name || chat.buyer_name || `Usuario #${chat.user_id}`;
-  };
+      
+      // Fix: Prioritize structured user object over flat strings to avoid backend mapping errors
+      if (chat.user && (chat.user.name || chat.user.first_name)) {
+          return chat.user.name || `${chat.user.first_name || ''} ${chat.user.last_name || ''}`.trim();
+      }
+
+      return chat.user_name || chat.buyer_name || `Usuario #${chat.user_id}`;
+   };
 
   if (openChats.length === 0) return null;
 
