@@ -52,6 +52,9 @@ export function MessagesDropdown() {
      const myId = String(user.id);
      const supplierId = String(conv.supplier_id);
      const buyerId = String(conv.user_id || conv.buyer_id);
+     
+     // Construct my name for comparison
+      const myName = user.name || '';
 
      // 1. Am I the Supplier? (Or Admin acting as Supplier)
      // If my ID matches the supplier_id, I MUST see the Client's Name.
@@ -62,11 +65,28 @@ export function MessagesDropdown() {
              // CRITICAL: Only use conv.user if it is NOT me.
              if (convUserId !== myId) {
                  const name = conv.user.name || `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim();
-                 if (name) return name;
+                 if (name && name.toLowerCase() !== myName.toLowerCase()) return name;
              }
          }
+         
          // Fallback to flat fields
-         return conv.buyer_name || conv.user_name || `Cliente #${buyerId}`;
+         // PRIORITIZE buyer_name, as that is explicitly the client.
+         if (conv.buyer_name && conv.buyer_name.toLowerCase() !== myName.toLowerCase()) {
+             return conv.buyer_name;
+         }
+         
+         // If buyer_name fails, try other_party_name (sometimes contains the client name)
+         if (conv.other_party_name && conv.other_party_name.toLowerCase() !== myName.toLowerCase()) {
+             return conv.other_party_name;
+         }
+
+         // If user_name is different from my name, use it.
+         if (conv.user_name && conv.user_name.toLowerCase() !== myName.toLowerCase()) {
+             return conv.user_name;
+         }
+         
+         // Absolute last resort
+         return `Cliente #${buyerId}`;
      }
 
      // 2. Am I the Client?
@@ -273,7 +293,8 @@ export function MessagesDropdown() {
                         <div className="flex-1 min-w-0">
                             <h4 className="font-semibold text-gray-900 text-[15px] truncate flex items-center gap-1">
                                 <span className="truncate">{getOtherPartyName(conv)}</span>
-                                {conv.product_title && (
+                                {/* Product title removed for suppliers as requested */}
+                                {!user || (user.role !== 'supplier' && user.role !== 'admin') && conv.product_title && (
                                     <span className="text-[11px] font-normal text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full truncate max-w-[120px]">
                                         {conv.product_title}
                                     </span>

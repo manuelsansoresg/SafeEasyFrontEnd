@@ -421,6 +421,8 @@ export function MessagesContent() {
      const myId = String(user.id);
      const supplierId = String(conv.supplier_id);
      const buyerId = String(conv.user_id || conv.buyer_id);
+     
+     const myName = user.name || '';
 
      // 1. Am I the Supplier? (Or Admin acting as Supplier)
      if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
@@ -428,10 +430,15 @@ export function MessagesContent() {
              const convUserId = String(conv.user.id);
              if (convUserId !== myId) {
                  const name = (conv.user as any).name || `${(conv.user as any).first_name || ''} ${(conv.user as any).last_name || ''}`.trim();
-                 if (name) return name;
+                 if (name && name.toLowerCase() !== myName.toLowerCase()) return name;
              }
          }
-         return conv.buyer_name || conv.user_name || `Cliente #${buyerId}`;
+         
+         if (conv.buyer_name && conv.buyer_name.toLowerCase() !== myName.toLowerCase()) return conv.buyer_name;
+         if (conv.other_party_name && conv.other_party_name.toLowerCase() !== myName.toLowerCase()) return conv.other_party_name;
+         if (conv.user_name && conv.user_name.toLowerCase() !== myName.toLowerCase()) return conv.user_name;
+
+         return `Cliente #${buyerId}`;
      }
 
      // 2. Am I the Client?
@@ -607,7 +614,7 @@ export function MessagesContent() {
                   <h3 className={`font-medium text-[15px] truncate mb-0.5 flex flex-col ${activeConversation?.id === conv.id ? 'text-gray-900' : 'text-gray-900'}`}>
                       <span>{getOtherPartyName(conv)}</span>
                       {/* Show product title (context) - User requested "solo el nombre" for suppliers */}
-                      {conv.product_title && (
+                      {!user || (user.role !== 'supplier' && user.role !== 'admin') && conv.product_title && (
                           <span className="text-[11px] text-gray-500 font-normal truncate">
                               {conv.product_title}
                           </span>

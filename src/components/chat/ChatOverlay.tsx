@@ -16,6 +16,8 @@ export function ChatOverlay() {
      const myId = String(user.id);
      const supplierId = String(chat.supplier_id);
      const buyerId = String(chat.user_id || chat.buyer_id);
+     
+     const myName = user.name || '';
 
      // 1. Am I the Supplier? (Or Admin acting as Supplier)
      if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
@@ -23,10 +25,15 @@ export function ChatOverlay() {
              const chatUserId = String(chat.user.id);
              if (chatUserId !== myId) {
                  const name = chat.user.name || `${chat.user.first_name || ''} ${chat.user.last_name || ''}`.trim();
-                 if (name) return name;
+                 if (name && name.toLowerCase() !== myName.toLowerCase()) return name;
              }
          }
-         return chat.buyer_name || chat.user_name || `Cliente #${buyerId}`;
+         
+         if (chat.buyer_name && chat.buyer_name.toLowerCase() !== myName.toLowerCase()) return chat.buyer_name;
+         if (chat.other_party_name && chat.other_party_name.toLowerCase() !== myName.toLowerCase()) return chat.other_party_name;
+         if (chat.user_name && chat.user_name.toLowerCase() !== myName.toLowerCase()) return chat.user_name;
+
+         return `Cliente #${buyerId}`;
      }
 
      // 2. Am I the Client?

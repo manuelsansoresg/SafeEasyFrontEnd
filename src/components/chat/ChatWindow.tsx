@@ -98,6 +98,37 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     }
   }, [isOpen]);
 
+  // Helper to get consistent chat name (avoiding self-name)
+  const getChatName = (conv: Conversation | null) => {
+      if (!conv) return supplierName || 'Chat';
+      if (!user) return conv.user_name || conv.buyer_name || 'Usuario';
+
+      const myId = String(user.id);
+      const myName = (user.name || '').trim();
+      
+      // 1. Vendor Mode (I am Supplier)
+      if (isVendorMode) {
+           // Try user object first
+           if (conv.user) {
+               const convUserId = String(conv.user.id);
+               if (convUserId !== myId) {
+                   const name = (conv.user.name || `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim());
+                   if (name && name.toLowerCase() !== myName.toLowerCase()) return name;
+               }
+           }
+           
+           // Try flat fields, avoiding my name
+           if (conv.buyer_name && conv.buyer_name.trim().toLowerCase() !== myName.toLowerCase()) return conv.buyer_name;
+           if (conv.other_party_name && conv.other_party_name.trim().toLowerCase() !== myName.toLowerCase()) return conv.other_party_name;
+           if (conv.user_name && conv.user_name.trim().toLowerCase() !== myName.toLowerCase()) return conv.user_name;
+           
+           return `Cliente #${conv.user_id || conv.buyer_id}`;
+      }
+      
+      // 2. Client Mode (I am Client)
+      return conv.supplier_name || conv.other_party_name || supplierName || 'Proveedor';
+  };
+
   useEffect(() => {
     contextSentRef.current = false;
   }, [productId]);
@@ -1028,19 +1059,11 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                           >
                               <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold shrink-0">
                                   {/* Avatar placeholder */}
-                            {((isVendorMode ? 
-                                (conv.user && String(conv.user.id) !== String(user?.id) 
-                                    ? (conv.user.name || `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim())
-                                    : (conv.user_name || conv.buyer_name || 'C')) 
-                                : (conv.supplier_name || conv.other_party_name || supplierName || 'P')) || '?').charAt(0)}
+                              {getChatName(conv).charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="font-medium text-sm text-gray-800 truncate">
-                                {(isVendorMode ? 
-                                    (conv.user && String(conv.user.id) !== String(user?.id)
-                                        ? (conv.user.name || `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim())
-                                        : (conv.user_name || conv.buyer_name || `Cliente #${conv.user_id}`)) 
-                                    : (conv.supplier_name || conv.other_party_name || supplierName || 'Proveedor'))}
+                                {getChatName(conv)}
                             </div>
                             <div className="text-xs text-gray-500 truncate">
                                       {conv.last_message || 'Ver conversación...'}
@@ -1077,9 +1100,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                     ) : (
                         <span className="text-gray-500 font-bold text-lg">
                             {(activeConversation 
-                                ? (isVendorMode 
-                                        ? (activeConversation.user_name || activeConversation.buyer_name || 'C') 
-                                        : (activeConversation.supplier_name || activeConversation.other_party_name || supplierName || 'P'))
+                                ? getChatName(activeConversation)
                                 : (productData.title || 'P')).charAt(0).toUpperCase()}
                         </span>
                     )}
@@ -1098,9 +1119,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
               <div className="flex flex-col justify-center min-w-0">
                 <h3 className="font-semibold text-[17px] text-gray-900 leading-tight truncate">
                     {activeConversation 
-                        ? (isVendorMode 
-                                ? (activeConversation.user_name || activeConversation.buyer_name || (activeConversation.user ? `${activeConversation.user.first_name || ''} ${activeConversation.user.last_name || ''}`.trim() : `Cliente #${activeConversation.user_id}`)) 
-                                : (activeConversation.supplier_name || activeConversation.other_party_name || supplierName || 'Proveedor'))
+                        ? getChatName(activeConversation)
                         : 'Chat del Producto'}
                 </h3>
                 <p className={`text-[12px] leading-none mt-0.5 ${
@@ -1260,9 +1279,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                             {/* Sender Name Label */}
                             {!isMe && (
                                 <span className="text-[10px] text-gray-400 mb-1 ml-1">
-                                    {(isVendorMode 
-                                        ? (activeConversation?.user ? (activeConversation.user.name || `${activeConversation.user.first_name || ''} ${activeConversation.user.last_name || ''}`.trim()) : (activeConversation?.user_name || activeConversation?.buyer_name || 'Cliente')) 
-                                        : (activeConversation?.supplier_name || activeConversation?.other_party_name || supplierName || 'Proveedor'))}
+                                    {getChatName(activeConversation)}
                                 </span>
                             )}
                             
