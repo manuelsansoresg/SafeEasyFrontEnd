@@ -1069,10 +1069,9 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                     ) : (
                         <span className="text-gray-500 font-bold text-lg">
                             {(activeConversation 
-                                ? (activeConversation.other_party_name || 
-                                   (isVendorMode 
-                                        ? (activeConversation.user_name || activeConversation.buyer_name || 'C') 
-                                        : (activeConversation.supplier_name || supplierName || 'P')))
+                                ? (isVendorMode 
+                                        ? (activeConversation.user_name || activeConversation.buyer_name || activeConversation.other_party_name || 'C') 
+                                        : (activeConversation.supplier_name || activeConversation.other_party_name || supplierName || 'P'))
                                 : (productData.title || 'P')).charAt(0).toUpperCase()}
                         </span>
                     )}
@@ -1091,10 +1090,9 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
               <div className="flex flex-col justify-center min-w-0">
                 <h3 className="font-semibold text-[17px] text-gray-900 leading-tight truncate">
                     {activeConversation 
-                        ? (activeConversation.other_party_name || 
-                           (isVendorMode 
-                                ? (activeConversation.user_name || activeConversation.buyer_name || (activeConversation.user ? `${activeConversation.user.first_name || ''} ${activeConversation.user.last_name || ''}`.trim() : `Cliente #${activeConversation.user_id}`)) 
-                                : (activeConversation.supplier_name || supplierName || 'Proveedor')))
+                        ? (isVendorMode 
+                                ? (activeConversation.user_name || activeConversation.buyer_name || activeConversation.other_party_name || (activeConversation.user ? `${activeConversation.user.first_name || ''} ${activeConversation.user.last_name || ''}`.trim() : `Cliente #${activeConversation.user_id}`)) 
+                                : (activeConversation.supplier_name || activeConversation.other_party_name || supplierName || 'Proveedor'))
                         : 'Chat del Producto'}
                 </h3>
                 <p className={`text-[12px] leading-none mt-0.5 ${

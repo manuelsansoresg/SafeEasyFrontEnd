@@ -9,6 +9,22 @@ export function ChatOverlay() {
   const { openChats, closeChat, toggleChat } = useChat();
   const { user } = useAuthStore();
 
+  const getDisplayName = (chat: any) => {
+    if (user) {
+        const myId = String(user.id);
+        const supplierId = String(chat.supplier_id);
+        const buyerId = String(chat.user_id || chat.buyer_id);
+
+        if (supplierId === myId) {
+             return chat.user_name || chat.buyer_name || `Usuario #${chat.user_id}`;
+        }
+        if (buyerId === myId) {
+             return chat.supplier_name || chat.other_party_name || `Proveedor #${chat.supplier_id}`;
+        }
+    }
+    return chat.other_party_name || chat.supplier_name || 'Chat';
+  };
+
   if (openChats.length === 0) return null;
 
   return (
@@ -28,10 +44,10 @@ export function ChatOverlay() {
                  >
                     <div className="flex items-center gap-2 overflow-hidden">
                         <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold shrink-0">
-                            {(chat.other_party_name || chat.supplier_name || 'U').charAt(0)}
+                            {getDisplayName(chat).charAt(0)}
                         </div>
                         <span className="font-semibold text-sm truncate">
-                            {chat.other_party_name || chat.supplier_name || 'Chat'}
+                            {getDisplayName(chat)}
                         </span>
                     </div>
                     <button 

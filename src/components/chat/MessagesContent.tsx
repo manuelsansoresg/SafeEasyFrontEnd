@@ -450,6 +450,20 @@ export function MessagesContent() {
   };
   
   const getOtherPartyImage = (conv: Conversation) => {
+      if (user) {
+         const userIdStr = String(user.id);
+         const supplierIdStr = String(conv.supplier_id);
+         const buyerIdStr = String(conv.user_id || conv.buyer_id);
+         
+         // If I am the supplier, show buyer's image
+         if (supplierIdStr === userIdStr) {
+             return conv.user_image || null;
+         }
+         // If I am the buyer, show supplier's image
+         if (buyerIdStr === userIdStr) {
+             return conv.supplier_image || null;
+         }
+      }
       return conv.user_image || conv.supplier_image || null;
   };
 

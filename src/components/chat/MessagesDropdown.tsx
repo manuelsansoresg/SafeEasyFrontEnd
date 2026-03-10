@@ -46,6 +46,21 @@ export function MessagesDropdown() {
 
   // Helper to get name
   const getOtherPartyName = (conv: Conversation) => {
+     if (user) {
+         const userIdStr = String(user.id);
+         const supplierIdStr = String(conv.supplier_id);
+         const buyerIdStr = String(conv.user_id || conv.buyer_id);
+         
+         // If I am the supplier, show buyer
+         if (supplierIdStr === userIdStr) {
+             return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
+         }
+         // If I am the buyer, show supplier
+         if (buyerIdStr === userIdStr) {
+             return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
+         }
+     }
+
      if (user?.role === 'supplier') {
         return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
      }
@@ -76,9 +91,46 @@ export function MessagesDropdown() {
   };
 
   const displayConversations = useMemo(() => {
-    if (!chatEnabled) return [];
-    return conversations.slice(0, 5);
-  }, [conversations, chatEnabled]);
+    if (!chatEnabled || !user) return [];
+    
+    return conversations
+        .filter((conv, index, self) => {
+            const myId = String(user.id);
+            const supplierId = String(conv.supplier_id);
+            const buyerId = String(conv.user_id || conv.buyer_id);
+
+            // 1. Identify if I am involved
+            let otherId = '';
+            if (supplierId === myId) {
+                otherId = buyerId;
+            } else if (buyerId === myId) {
+                otherId = supplierId;
+            } else {
+                return false;
+            }
+
+            // 2. Filter out Self-Chats
+            if (otherId === myId) return false;
+
+            // 3. Deduplicate by (OtherID + ProductID)
+            const key = `${otherId}-${conv.product_id || 'general'}`;
+            const firstIndex = self.findIndex(c => {
+                const cSupplierId = String(c.supplier_id);
+                const cBuyerId = String(c.user_id || c.buyer_id);
+                let cOtherId = '';
+                
+                if (cSupplierId === myId) cOtherId = cBuyerId;
+                else if (cBuyerId === myId) cOtherId = cSupplierId;
+                else return false;
+                
+                const cKey = `${cOtherId}-${c.product_id || 'general'}`;
+                return cKey === key;
+            });
+            
+            return firstIndex === index;
+        })
+        .slice(0, 5);
+  }, [conversations, chatEnabled, user]);
 
   return (
     <div className="relative" ref={dropdownRef}>
