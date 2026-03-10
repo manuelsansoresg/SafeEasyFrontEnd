@@ -415,15 +415,7 @@ export function MessagesContent() {
 
   // UI Helpers
   const getOtherPartyName = (conv: Conversation) => {
-     // 1. Try to use backend-provided role if available
-     if (conv.my_role === 'supplier') {
-         return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
-     }
-     if (conv.my_role === 'client') {
-         return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
-     }
-
-     // 2. Fallback: Check IDs against current user
+     // 1. Priority: Check IDs against current user (Ground Truth)
      if (user) {
          const userIdStr = String(user.id);
          const supplierIdStr = String(conv.supplier_id);
@@ -437,6 +429,14 @@ export function MessagesContent() {
          if (buyerIdStr === userIdStr) {
              return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
          }
+     }
+
+     // 2. Fallback: Try to use backend-provided role
+     if (conv.my_role === 'supplier') {
+         return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
+     }
+     if (conv.my_role === 'client') {
+         return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
      }
 
      // 3. Last resort: Global role (legacy behavior)
@@ -520,17 +520,48 @@ export function MessagesContent() {
              </div>
           ) : (
             conversations
-            .filter(conv => {
-                // Filter out self-chats or invalid chats
-                if (String(conv.supplier_id) === String(conv.user_id || conv.buyer_id)) return false;
-                
-                // Also filter if I am BOTH the supplier AND the buyer (just in case IDs are confusing)
-                if (user) {
-                    const myId = String(user.id);
-                    if (String(conv.supplier_id) === myId && String(conv.user_id || conv.buyer_id) === myId) return false;
+            .filter((conv, index, self) => {
+                if (!user) return false;
+                const myId = String(user.id);
+
+                // 1. Identify if I am involved and who the other party is
+                let otherId = '';
+                const supplierId = String(conv.supplier_id);
+                const buyerId = String(conv.user_id || conv.buyer_id);
+
+                if (supplierId === myId) {
+                    otherId = buyerId;
+                } else if (buyerId === myId) {
+                    otherId = supplierId;
+                } else {
+                    // I am not involved in this conversation (unless admin viewing all?)
+                    // For safety, filter it out.
+                    return false;
                 }
+
+                // 2. Filter out Self-Chats (where I am both supplier and buyer)
+                // This handles cases where database has bad data or test data
+                if (otherId === myId) return false;
                 
-                return true;
+                // 3. Deduplicate by (OtherID + ProductID)
+                // We want only ONE conversation per OtherUser+Product combo in the list.
+                // If there are duplicates, we keep the first one (which is sorted by recent activity)
+                const key = `${otherId}-${conv.product_id || 'general'}`;
+                
+                const firstIndex = self.findIndex(c => {
+                    const cSupplierId = String(c.supplier_id);
+                    const cBuyerId = String(c.user_id || c.buyer_id);
+                    let cOtherId = '';
+                    
+                    if (cSupplierId === myId) cOtherId = cBuyerId;
+                    else if (cBuyerId === myId) cOtherId = cSupplierId;
+                    else return false; // Should not match if not involved
+                    
+                    const cKey = `${cOtherId}-${c.product_id || 'general'}`;
+                    return cKey === key;
+                });
+                
+                return firstIndex === index;
             })
             .map((conv) => (
               <button
@@ -557,11 +588,8 @@ export function MessagesContent() {
                 <div className="flex-1 min-w-0 text-left">
                   <h3 className={`font-medium text-[15px] truncate mb-0.5 flex flex-col ${activeConversation?.id === conv.id ? 'text-gray-900' : 'text-gray-900'}`}>
                       <span>{getOtherPartyName(conv)}</span>
-                      {/* Only show product title if I am NOT the supplier of this conversation */}
-                      {conv.product_title && 
-                       user?.role !== 'supplier' && 
-                       user?.role !== 'vendor' && 
-                       String(conv.supplier_id) !== String(user?.id) && (
+                      {/* Show product title (context) - User requested "solo el nombre" for suppliers */}
+                      {conv.product_title && (
                           <span className="text-[11px] text-gray-500 font-normal truncate">
                               {conv.product_title}
                           </span>
@@ -631,15 +659,20 @@ export function MessagesContent() {
             {/* Product Context Bar (Only if sidebar is hidden, to save space) */}
             {!showRightSidebar && (activeConversation.product_title || productData) && (
                 <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 shrink-0 overflow-hidden flex items-center justify-center">
-                            {productData?.image ? (
-                                <img src={productData.image} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                                <Package size={16} className="text-gray-400" />
-                            )}
-                    </div>
+                    {/* Hide image for suppliers (User request: "solo el nombre") */}
+                    {!(user?.id && String(user.id) === String(activeConversation.supplier_id)) && (
+                        <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 shrink-0 overflow-hidden flex items-center justify-center">
+                                {productData?.image ? (
+                                    <img src={productData.image} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                    <Package size={16} className="text-gray-400" />
+                                )}
+                        </div>
+                    )}
                     <div className="flex flex-col min-w-0">
-                        <span className="text-xs text-gray-500">Producto de interés:</span>
+                        {!(user?.id && String(user.id) === String(activeConversation.supplier_id)) && (
+                            <span className="text-xs text-gray-500">Producto de interés:</span>
+                        )}
                         <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={activeConversation.product_title || productData?.title}>
                             {activeConversation.product_title || productData?.title}
                         </span>
@@ -863,24 +896,33 @@ export function MessagesContent() {
                 <div className="p-4 border-b border-gray-100">
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Contexto Actual</h4>
                     <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                        <div className="relative aspect-square rounded-lg overflow-hidden bg-white mb-2">
-                             {productData.image ? (
-                                 <img src={productData.image} alt={productData.title} className="w-full h-full object-cover" />
-                             ) : (
-                                 <div className="w-full h-full flex items-center justify-center"><Package className="text-gray-300" /></div>
-                             )}
-                        </div>
-                        <h5 className="font-medium text-sm text-gray-900 line-clamp-2 mb-1">{productData.title}</h5>
-                        <div className="font-bold text-primary mb-2">${productData.price.toLocaleString()}</div>
+                        {/* Hide Image and Price for Supplier (User request: "solo el nombre") */}
+                        {!(user?.id && String(user.id) === String(activeConversation.supplier_id)) && (
+                            <div className="relative aspect-square rounded-lg overflow-hidden bg-white mb-2">
+                                {productData.image ? (
+                                    <img src={productData.image} alt={productData.title} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center"><Package className="text-gray-300" /></div>
+                                )}
+                            </div>
+                        )}
                         
-                        <button 
-                            onClick={() => handleSendProduct(productData)}
-                            disabled={sending}
-                            className="w-full py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors"
-                        >
-                            <Send size={14} />
-                            Enviar Referencia
-                        </button>
+                        <h5 className="font-medium text-sm text-gray-900 line-clamp-2 mb-1">{productData.title}</h5>
+                        
+                        {!(user?.id && String(user.id) === String(activeConversation.supplier_id)) && (
+                            <div className="font-bold text-primary mb-2">${productData.price.toLocaleString()}</div>
+                        )}
+                        
+                        {!(user?.id && String(user.id) === String(activeConversation.supplier_id)) && (
+                            <button 
+                                onClick={() => handleSendProduct(productData)}
+                                disabled={sending}
+                                className="w-full py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors"
+                            >
+                                <ShoppingBag size={16} />
+                                Enviar Referencia
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
