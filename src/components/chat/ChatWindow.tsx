@@ -54,6 +54,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<string | number | null>(null);
+  const [isCreatingOrderAsSupplier, setIsCreatingOrderAsSupplier] = useState(false);
+  const [supplierOrderByProductId, setSupplierOrderByProductId] = useState<Record<string, string | number>>({});
 
   // Rating State
   const [isRatingOpen, setIsRatingOpen] = useState(false);
@@ -419,6 +421,44 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         setError("Error al procesar la solicitud de pago. Verifica tu conexión.");
     } finally {
         setIsCreatingOrder(false);
+    }
+  };
+
+  const handleCreateOrderAsSupplier = async (product: Message["product"]) => {
+    if (!product || !activeConversation) return;
+
+    const productKey = String(product.id);
+    if (supplierOrderByProductId[productKey]) return;
+
+    setIsCreatingOrderAsSupplier(true);
+    setError(null);
+    try {
+      const payload = {
+        supplier_id: Number(activeConversation.supplier_id || supplierId),
+        product_id: String(product.id),
+        total_amount: Number(product.price || 0),
+        payment_status: "pending",
+        receipt_url: "",
+        conversation_id: String(activeConversation.id),
+      };
+
+      const res = await fetchWithAuth("/api/orders/", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError((data as any)?.message || (data as any)?.error || "No se pudo crear la orden.");
+        return;
+      }
+
+      const orderId = (data as any)?.id || (data as any)?.order_id || Date.now();
+      setSupplierOrderByProductId((prev) => ({ ...prev, [productKey]: orderId }));
+    } catch (err) {
+      setError("No se pudo crear la orden. Verifica tu conexión.");
+    } finally {
+      setIsCreatingOrderAsSupplier(false);
     }
   };
 
@@ -1180,7 +1220,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
           {/* Product Context Bar (Sub-header) - HIDDEN for Vendors as requested */}
           {(!isVendorMode && productData?.title) && (
           <div
-            className={productSlug ? "px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0 cursor-pointer hover:bg-gray-50" : "px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0"}
+            className={productSlug ? "px-4 py-2 bg-white border-b border-gray-100 flex items-start gap-3 shrink-0 cursor-pointer hover:bg-gray-50" : "px-4 py-2 bg-white border-b border-gray-100 flex items-start gap-3 shrink-0"}
             onClick={async () => {
               if (isVendorMode) return; // Should not be clickable if hidden, but safety first
 
@@ -1226,14 +1266,37 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                 )}
                 <div className="flex flex-col min-w-0">
                     {!isVendorMode && <span className="text-xs text-gray-500">Producto de interés:</span>}
-                    <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={productData?.title}>
+                    <span className="text-sm font-medium text-gray-900 truncate max-w-[140px] md:max-w-[220px]" title={productData?.title}>
                         {productData?.title}
                     </span>
                 </div>
                 {!isVendorMode && (
-                <div className="ml-auto text-sm font-bold text-primary">
-                    ${Number(productPrice || 0).toLocaleString()}
-                </div>
+                  <div className="ml-auto flex flex-col items-end gap-1 shrink-0">
+                    <div className="text-sm font-bold text-primary">
+                      ${Number(productPrice || 0).toLocaleString()}
+                    </div>
+                    {user?.role === "client" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePaymentClick();
+                        }}
+                        disabled={isCreatingOrder}
+                        className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
+                          isCreatingOrder
+                            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                            : "bg-[#168e00] hover:bg-[#137500] text-white"
+                        }`}
+                      >
+                        {isCreatingOrder ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <CreditCard size={14} />
+                        )}
+                        <span>Solicitar orden</span>
+                      </button>
+                    )}
+                  </div>
                 )}
           </div>
         )}
@@ -1321,6 +1384,38 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                          <p className={`text-xs font-bold ${isMe ? 'text-white/90' : 'text-primary'}`}>${Number(msg.product.price).toLocaleString()}</p>
                                     </div>
                                 </div>
+                            )}
+                            {isVendorMode && msg.product && (
+                              <div className="mb-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCreateOrderAsSupplier(msg.product);
+                                  }}
+                                  disabled={
+                                    isCreatingOrderAsSupplier ||
+                                    !!supplierOrderByProductId[String(msg.product.id)]
+                                  }
+                                  className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
+                                    isCreatingOrderAsSupplier
+                                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                                      : supplierOrderByProductId[String(msg.product.id)]
+                                        ? "bg-green-600 text-white cursor-not-allowed"
+                                        : "bg-primary hover:bg-primary/90 text-white"
+                                  }`}
+                                >
+                                  {isCreatingOrderAsSupplier ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                  ) : (
+                                    <PlusCircle size={14} />
+                                  )}
+                                  <span>
+                                    {supplierOrderByProductId[String(msg.product.id)]
+                                      ? "Orden creada"
+                                      : "Crear nueva orden"}
+                                  </span>
+                                </button>
+                              </div>
                             )}
 
                             {msg.message_type === 'image' ? (
@@ -1470,7 +1565,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                         <div className="flex items-center gap-2">
 
                              {/* Payment Button (Cliente con datos de transferencia completos) */}
-                             {user?.role === 'client' && canPay && localTransferData?.transfer_accepted && (localTransferData.transfer_clabe || localTransferData.transfer_bank) && (
+                             {user?.role === 'client' && !productId && canPay && localTransferData?.transfer_accepted && (localTransferData.transfer_clabe || localTransferData.transfer_bank) && (
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); handlePaymentClick(); }}
                                     className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
