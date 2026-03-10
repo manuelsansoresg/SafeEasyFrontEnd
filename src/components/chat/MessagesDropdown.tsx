@@ -45,6 +45,12 @@ export function MessagesDropdown() {
         const myId = String(user.id);
         const supplierId = String(c.supplier_id);
         const buyerId = String(c.user_id || c.buyer_id);
+        const effectiveMyRole =
+          c.my_role ||
+          (supplierId === myId ? "supplier" : buyerId === myId ? "client" : undefined);
+        const userIsSupplier = user.role === "supplier" || user.role === "admin";
+
+        if (userIsSupplier && effectiveMyRole !== "supplier") return false;
         return !(supplierId === myId && buyerId === myId);
       })
       .reduce((acc, curr) => acc + (curr.unread_count || 0), 0);
@@ -63,10 +69,22 @@ export function MessagesDropdown() {
      
      // Construct my name for comparison
       const myName = (user.name || '').trim();
+     const effectiveMyRole =
+       conv.my_role ||
+       (myId === supplierId ? "supplier" : myId === buyerId ? "client" : undefined);
 
      // 1. Am I the Supplier? (Or Admin acting as Supplier)
      // If my ID matches the supplier_id, I MUST see the Client's Name.
-     if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+     if (
+       effectiveMyRole === "supplier" ||
+       myId === supplierId ||
+       user.role === "supplier" ||
+       user.role === "admin"
+     ) {
+         if (conv.buyer_name && conv.buyer_name.trim()) {
+             return conv.buyer_name;
+         }
+
          // Check structured user object first
          if (conv.user) {
              const convUserId = String(conv.user.id);
@@ -79,12 +97,8 @@ export function MessagesDropdown() {
          
          // Fallback to flat fields
          // PRIORITIZE buyer_name, as that is explicitly the client.
-         if (conv.buyer_name && conv.buyer_name.trim().toLowerCase() !== myName.toLowerCase()) {
-             return conv.buyer_name;
-         }
-
          // Use user_name if different from me
-         if (conv.user_name && conv.user_name.trim().toLowerCase() !== myName.toLowerCase()) {
+         if (conv.user_name && conv.user_name.trim() && conv.user_name.trim().toLowerCase() !== myName.toLowerCase()) {
              return conv.user_name;
          }
          
@@ -106,7 +120,7 @@ export function MessagesDropdown() {
 
      // 2. Am I the Client?
      // If my ID matches the buyer_id, I MUST see the Supplier's Name.
-     if (myId === buyerId || user.role === 'client') {
+     if (effectiveMyRole === "client" || myId === buyerId || user.role === 'client') {
          return conv.supplier_name || conv.other_party_name || `Proveedor #${supplierId}`;
      }
 
@@ -121,9 +135,17 @@ export function MessagesDropdown() {
        const myId = String(user.id);
        const supplierId = String(conv.supplier_id);
        const buyerId = String(conv.user_id || conv.buyer_id);
+       const effectiveMyRole =
+         conv.my_role ||
+         (myId === supplierId ? "supplier" : myId === buyerId ? "client" : undefined);
 
        // 1. Am I the Supplier? -> Show Client Image
-        if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+        if (
+          effectiveMyRole === "supplier" ||
+          myId === supplierId ||
+          user.role === "supplier" ||
+          user.role === "admin"
+        ) {
             // Use 'any' cast to check properties not in strict interface
             const userObj = conv.user as any;
             if (userObj && String(userObj.id) !== myId) {
@@ -172,16 +194,22 @@ export function MessagesDropdown() {
             const myId = String(user.id);
             const supplierId = String(conv.supplier_id);
             const buyerId = String(conv.user_id || conv.buyer_id);
+            const effectiveMyRole =
+              conv.my_role ||
+              (supplierId === myId ? "supplier" : buyerId === myId ? "client" : undefined);
+            const userIsSupplier = user.role === "supplier" || user.role === "admin";
+
+            if (userIsSupplier) {
+                if (effectiveMyRole !== "supplier") return false;
+            }
 
             // 1. Identify if I am involved
             let otherId = '';
-            if (supplierId === myId) {
-                otherId = buyerId;
-            } else if (buyerId === myId) {
-                otherId = supplierId;
-            } else {
-                return false;
-            }
+            if (supplierId === myId) otherId = buyerId;
+            else if (buyerId === myId) otherId = supplierId;
+            else if (effectiveMyRole === "supplier") otherId = buyerId;
+            else if (effectiveMyRole === "client") otherId = supplierId;
+            else return false;
 
             // 2. Filter out Self-Chats
             if (otherId === myId) return false;
@@ -191,10 +219,15 @@ export function MessagesDropdown() {
             const firstIndex = self.findIndex(c => {
                 const cSupplierId = String(c.supplier_id);
                 const cBuyerId = String(c.user_id || c.buyer_id);
+                const cEffectiveMyRole =
+                  c.my_role ||
+                  (cSupplierId === myId ? "supplier" : cBuyerId === myId ? "client" : undefined);
                 let cOtherId = '';
                 
                 if (cSupplierId === myId) cOtherId = cBuyerId;
                 else if (cBuyerId === myId) cOtherId = cSupplierId;
+                else if (cEffectiveMyRole === "supplier") cOtherId = cBuyerId;
+                else if (cEffectiveMyRole === "client") cOtherId = cSupplierId;
                 else return false;
                 
                 // Compare only the other party ID
@@ -308,12 +341,6 @@ export function MessagesDropdown() {
                         <div className="flex-1 min-w-0">
                             <h4 className="font-semibold text-gray-900 text-[15px] truncate flex items-center gap-1">
                                 <span className="truncate">{getOtherPartyName(conv)}</span>
-                                {/* Product title removed for suppliers as requested */}
-                                {!user || (user.role !== 'supplier' && user.role !== 'admin') && conv.product_title && (
-                                    <span className="text-[11px] font-normal text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full truncate max-w-[120px]">
-                                        {conv.product_title}
-                                    </span>
-                                )}
                             </h4>
                             <div className="flex items-center gap-1 text-[13px] text-gray-500">
                                 <p className={cn(
