@@ -478,10 +478,11 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         method: "POST",
         body: JSON.stringify(payload),
       });
+
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError((data as any)?.message || (data as any)?.error || "No se pudo crear la orden.");
+        setError((data as any)?.detail || (data as any)?.message || (data as any)?.error || "No se pudo crear la orden.");
         return;
       }
 

@@ -44,7 +44,13 @@ async function handler(request: NextRequest) {
   
   // Backend requires trailing slash for some endpoints (FastAPI default behavior sometimes)
   // If the original request didn't have a slash, but it's a known collection, force it.
-  if ((targetUrl.endsWith('users') || targetUrl.endsWith('products') || targetUrl.endsWith('suppliers')) && !targetUrl.endsWith('/')) {
+  if (
+    (targetUrl.endsWith('users') ||
+      targetUrl.endsWith('products') ||
+      targetUrl.endsWith('suppliers') ||
+      targetUrl.endsWith('orders')) &&
+    !targetUrl.endsWith('/')
+  ) {
       targetUrl += '/';
   }
   
@@ -97,12 +103,25 @@ async function handler(request: NextRequest) {
         forwardHeaders.set('X-Requested-With', 'XMLHttpRequest');
     }
 
-    // Determine body based on content type and method
+    // Determine body based on content type and method.
+    // IMPORTANT: request.body is a stream; if we follow redirects manually we must be able to replay the body.
+    // We only stream for multipart/octet-stream; JSON is buffered to support safe redirect replay.
     let body: any = undefined;
-    if (!['GET', 'HEAD'].includes(request.method)) {
-        // For streaming uploads, use the raw body stream
-        // This avoids buffering the entire file in memory
+    let isStreamingBody = false;
+    const contentType = request.headers.get('content-type') || '';
+    const methodHasBody = !['GET', 'HEAD'].includes(request.method);
+
+    if (methodHasBody) {
+      const shouldStream =
+        contentType.includes('multipart/form-data') ||
+        contentType.includes('application/octet-stream');
+
+      if (shouldStream) {
         body = request.body;
+        isStreamingBody = true;
+      } else {
+        body = await request.arrayBuffer();
+      }
     }
 
     const fetchOptions: any = {
@@ -111,19 +130,30 @@ async function handler(request: NextRequest) {
       body,
       redirect: 'manual', // Do not follow redirects automatically
       cache: 'no-store',
-      // Required for streaming bodies in Node.js environment (Next.js App Router)
-      duplex: 'half', 
     };
+    
+    // Required for streaming bodies in Node.js environment (Next.js App Router)
+    if (isStreamingBody) {
+      fetchOptions.duplex = 'half';
+    }
 
     let response = await fetch(targetUrl, fetchOptions);
 
     console.log(`[Generic Proxy] Response status: ${response.status}`);
 
-    // Manually follow redirect (once) to preserve Authorization header
+    // Manually follow redirect (once) to preserve Authorization header.
+    // NOTE: This requires a replayable body; streaming bodies cannot be resent.
     if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('Location');
         if (location) {
              console.log(`[Generic Proxy] Redirect detected to: ${location}`);
+             
+             if (isStreamingBody) {
+                 return new NextResponse(response.body, {
+                   status: response.status,
+                   headers: response.headers
+                 });
+             }
              
              let newUrlString = location;
              if (!location.startsWith('http')) {
