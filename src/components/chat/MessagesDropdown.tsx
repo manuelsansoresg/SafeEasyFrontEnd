@@ -46,30 +46,49 @@ export function MessagesDropdown() {
 
   // Helper to get name
   const getOtherPartyName = (conv: Conversation) => {
+     // 1. Explicit Client Role -> Show Supplier
+     if (user?.role === 'client') {
+        return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
+     }
+     
+     // 2. ID Match: If I am the buyer (and NOT supplier/admin), show Supplier
+     // But be careful: if I am BOTH (self-chat), I want to see Client Name (myself as client?)
+     // The user says "no debo salir yo mismo" (I shouldn't see myself).
+     // If I am Admin/Supplier, I want to see Client Name.
+     
      if (user) {
          const userIdStr = String(user.id);
-         const supplierIdStr = String(conv.supplier_id);
          const buyerIdStr = String(conv.user_id || conv.buyer_id);
-         
-         // If I am the supplier, show buyer
-         if (supplierIdStr === userIdStr) {
-             return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
-         }
-         // If I am the buyer, show supplier
-         if (buyerIdStr === userIdStr) {
+         // If I am the buyer AND NOT admin/supplier role (double check to be safe)
+         if (buyerIdStr === userIdStr && user.role !== 'supplier' && user.role !== 'admin') {
              return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
          }
      }
 
-     // Role-based fallback (Admin treated as Supplier)
-     if (user?.role === 'supplier' || user?.role === 'admin') {
-        return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
-     }
-     if (user?.role === 'client') {
-        return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
-     }
-     return conv.other_party_name || conv.user_name || 'Usuario';
-  };
+     // 3. Default (Supplier/Admin/Other) -> Show Client Name
+      // We intentionally exclude conv.other_party_name here because it might be the Supplier Name
+      return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
+   };
+
+   const getOtherPartyImage = (conv: Conversation) => {
+       // 1. Explicit Client Role -> Show Supplier Image
+       if (user?.role === 'client') {
+           return conv.supplier_image || null;
+       }
+       
+       // 2. ID Match Check
+       if (user) {
+          const userIdStr = String(user.id);
+          const buyerIdStr = String(conv.user_id || conv.buyer_id);
+          // If I am explicitly the buyer AND NOT admin/supplier
+          if (buyerIdStr === userIdStr && user.role !== 'supplier' && user.role !== 'admin') {
+              return conv.supplier_image || null;
+          }
+       }
+
+       // 3. Default (Supplier/Admin) -> Show Client Image
+       return conv.user_image || null;
+   };
 
   const formatTime = (dateString?: string) => {
     if (!dateString) return '';
@@ -222,8 +241,8 @@ export function MessagesDropdown() {
                     >
                         <div className="relative shrink-0">
                             <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border border-gray-100 group-hover:border-white transition-colors">
-                                {conv.user_image || conv.supplier_image ? (
-                                    <img src={conv.user_image || conv.supplier_image} alt="" className="w-full h-full object-cover" />
+                                {getOtherPartyImage(conv) ? (
+                                    <img src={getOtherPartyImage(conv)!} alt="" className="w-full h-full object-cover" />
                                 ) : (
                                     <span className="text-gray-500 font-bold text-lg">
                                         {getOtherPartyName(conv).charAt(0).toUpperCase()}

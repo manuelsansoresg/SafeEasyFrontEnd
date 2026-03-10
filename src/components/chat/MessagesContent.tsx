@@ -415,65 +415,44 @@ export function MessagesContent() {
 
   // UI Helpers
   const getOtherPartyName = (conv: Conversation) => {
-     // 1. Priority: Check IDs against current user (Ground Truth)
+     // 1. Explicit Client Role -> Show Supplier Name
+     if (user?.role === 'client') {
+         return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
+     }
+     
+     // 2. ID Match
      if (user) {
          const userIdStr = String(user.id);
-         const supplierIdStr = String(conv.supplier_id);
          const buyerIdStr = String(conv.user_id || conv.buyer_id);
-         
-         // If I am the supplier, show buyer
-         if (supplierIdStr === userIdStr) {
-             return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
-         }
-         // If I am the buyer, show supplier
-         if (buyerIdStr === userIdStr) {
+         if (buyerIdStr === userIdStr && user.role !== 'supplier' && user.role !== 'admin') {
              return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
          }
      }
 
-     // 2. Fallback: Try to use backend-provided role
-     if (conv.my_role === 'supplier') {
-         return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
-     }
-     if (conv.my_role === 'client') {
-         return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
-     }
-
-     // 3. Last resort: Global role (legacy behavior)
-     if (user?.role === 'supplier' || user?.role === 'admin') {
-        return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
-     }
-     if (user?.role === 'client') {
-        return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
-     }
-     return conv.other_party_name || conv.user_name || 'Usuario';
+     // 3. Default (Supplier/Admin) -> Show Client Name
+     // Do NOT fallback to other_party_name as it might be Supplier Name
+     return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
   };
   
   const getOtherPartyImage = (conv: Conversation) => {
+      // 1. Explicit Client Role -> Show Supplier Image
+      if (user?.role === 'client') {
+          return conv.supplier_image || null;
+      }
+      
+      // 2. ID Match Check
       if (user) {
          const userIdStr = String(user.id);
-         const supplierIdStr = String(conv.supplier_id);
          const buyerIdStr = String(conv.user_id || conv.buyer_id);
-         
-         // If I am the supplier, show buyer's image
-         if (supplierIdStr === userIdStr) {
-             return conv.user_image || null;
-         }
-         // If I am the buyer, show supplier's image
-         if (buyerIdStr === userIdStr) {
+         // If I am explicitly the buyer AND NOT admin/supplier
+         if (buyerIdStr === userIdStr && user.role !== 'supplier' && user.role !== 'admin') {
              return conv.supplier_image || null;
          }
       }
 
-      // Fallback for Admin/Supplier role mismatch
-      if (user?.role === 'supplier' || user?.role === 'admin') {
-          return conv.user_image || null;
-      }
-      if (user?.role === 'client') {
-          return conv.supplier_image || null;
-      }
-
-      return conv.user_image || conv.supplier_image || null;
+      // 3. Default (Supplier/Admin) -> Show Client Image
+      // Do NOT fallback to supplier_image, because that would be my own image
+      return conv.user_image || null;
   };
 
   const formatDate = (dateString?: string) => {

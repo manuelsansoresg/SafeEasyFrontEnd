@@ -10,28 +10,22 @@ export function ChatOverlay() {
   const { user } = useAuthStore();
 
   const getDisplayName = (chat: any) => {
-    if (user) {
-        const myId = String(user.id);
-        const supplierId = String(chat.supplier_id);
-        const buyerId = String(chat.user_id || chat.buyer_id);
-
-        if (supplierId === myId) {
-             return chat.user_name || chat.buyer_name || `Usuario #${chat.user_id}`;
-        }
-        if (buyerId === myId) {
-             return chat.supplier_name || chat.other_party_name || `Proveedor #${chat.supplier_id}`;
-        }
-    }
-
-    // Fallback for Admin/Supplier role mismatch
-     if (user?.role === 'supplier' || user?.role === 'admin') {
-          return chat.user_name || chat.buyer_name || `Usuario #${chat.user_id}`;
-     }
-    if (user?.role === 'client') {
+     // 1. Explicit Client Role -> Show Supplier Name
+     if (user?.role === 'client') {
          return chat.supplier_name || chat.other_party_name || `Proveedor #${chat.supplier_id}`;
-    }
-    
-    return chat.other_party_name || chat.supplier_name || 'Chat';
+     }
+
+     // 2. ID Match Check
+     if (user) {
+         const userIdStr = String(user.id);
+         const buyerIdStr = String(chat.user_id || chat.buyer_id);
+         if (buyerIdStr === userIdStr && user.role !== 'supplier' && user.role !== 'admin') {
+             return chat.supplier_name || chat.other_party_name || `Proveedor #${chat.supplier_id}`;
+         }
+     }
+
+     // 3. Default (Supplier/Admin) -> Show Client Name
+     return chat.user_name || chat.buyer_name || `Usuario #${chat.user_id}`;
   };
 
   if (openChats.length === 0) return null;
