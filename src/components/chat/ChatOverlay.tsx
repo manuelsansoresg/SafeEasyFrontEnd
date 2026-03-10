@@ -22,6 +22,15 @@ export function ChatOverlay() {
              return chat.supplier_name || chat.other_party_name || `Proveedor #${chat.supplier_id}`;
         }
     }
+
+    // Fallback for Admin/Supplier role mismatch
+    if (user?.role === 'supplier' || user?.role === 'admin') {
+         return chat.user_name || chat.buyer_name || chat.other_party_name || `Usuario #${chat.user_id}`;
+    }
+    if (user?.role === 'client') {
+         return chat.supplier_name || chat.other_party_name || `Proveedor #${chat.supplier_id}`;
+    }
+    
     return chat.other_party_name || chat.supplier_name || 'Chat';
   };
 
@@ -63,7 +72,7 @@ export function ChatOverlay() {
                     supplierId={chat.supplier_id}
                     supplierName={chat.supplier_name || chat.other_party_name}
                     supplierSlug={chat.supplier_slug}
-                    isOwner={String(user?.id) === String(chat.supplier_id)}
+                    isOwner={String(user?.id) === String(chat.supplier_id) || user?.role === 'admin'}
                     productData={{
                         title: chat.product_title || "Producto",
                         // Backend contract: conversation.product_price ya viene calculado

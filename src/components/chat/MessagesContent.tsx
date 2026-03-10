@@ -440,8 +440,8 @@ export function MessagesContent() {
      }
 
      // 3. Last resort: Global role (legacy behavior)
-     if (user?.role === 'supplier') {
-        return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
+     if (user?.role === 'supplier' || user?.role === 'admin') {
+        return conv.user_name || conv.buyer_name || conv.other_party_name || `Usuario #${conv.user_id}`;
      }
      if (user?.role === 'client') {
         return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
@@ -464,6 +464,15 @@ export function MessagesContent() {
              return conv.supplier_image || null;
          }
       }
+
+      // Fallback for Admin/Supplier role mismatch
+      if (user?.role === 'supplier' || user?.role === 'admin') {
+          return conv.user_image || null;
+      }
+      if (user?.role === 'client') {
+          return conv.supplier_image || null;
+      }
+
       return conv.user_image || conv.supplier_image || null;
   };
 

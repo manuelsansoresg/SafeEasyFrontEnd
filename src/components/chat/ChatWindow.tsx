@@ -1028,11 +1028,11 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                           >
                               <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold shrink-0">
                                   {/* Avatar placeholder */}
-                            {(conv.other_party_name || (isVendorMode ? (conv.user_name || `C${conv.user_id}`) : (conv.supplier_name || supplierName || 'P')) || '?').charAt(0)}
+                            {((isVendorMode ? (conv.user_name || conv.other_party_name || `C${conv.user_id}`) : (conv.supplier_name || conv.other_party_name || supplierName || 'P')) || '?').charAt(0)}
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="font-medium text-sm text-gray-800 truncate">
-                                {conv.other_party_name || (isVendorMode ? (conv.user_name || (conv.user ? `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim() : `Cliente #${conv.user_id}`)) : (conv.supplier_name || supplierName || 'Proveedor'))}
+                                {(isVendorMode ? (conv.user_name || conv.other_party_name || (conv.user ? `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim() : `Cliente #${conv.user_id}`)) : (conv.supplier_name || conv.other_party_name || supplierName || 'Proveedor'))}
                             </div>
                             <div className="text-xs text-gray-500 truncate">
                                       {conv.last_message || 'Ver conversación...'}
@@ -1064,8 +1064,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
               <div className="relative shrink-0">
                   <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold shrink-0 text-lg overflow-hidden">
                     {/* Avatar Logic */}
-                    {(activeConversation?.user_image || activeConversation?.supplier_image) ? (
-                        <img src={activeConversation.user_image || activeConversation.supplier_image} alt="" className="w-full h-full object-cover" />
+                    {(isVendorMode ? activeConversation?.user_image : activeConversation?.supplier_image) ? (
+                        <img src={isVendorMode ? activeConversation?.user_image : activeConversation?.supplier_image} alt="" className="w-full h-full object-cover" />
                     ) : (
                         <span className="text-gray-500 font-bold text-lg">
                             {(activeConversation 
