@@ -86,7 +86,7 @@ export function HomeFeaturedProducts() {
             ) : (
               products.map((product) => (
                 <Link 
-                  href={`/products/${product.slug}`}
+                  href={`/product/${product.slug}`}
                   key={product.id}
                   className="flex-shrink-0 w-[45%] md:w-auto bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all group border border-gray-100 h-full flex flex-col snap-center"
                 >

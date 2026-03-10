@@ -102,64 +102,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     contextSentRef.current = false;
   }, [productId]);
 
-  // Auto-initiate chat and send context message for clients
+  // Auto-initiate chat removed. Logic moved to onClick of context bar.
+  /*
   useEffect(() => {
-    const autoInitChat = async () => {
-        // Only run if open, client mode, valid props, not loading, and not already processed
-        if (isOpen && !isVendorMode && productId && supplierId && !loading && !contextSentRef.current) {
-            
-            try {
-                let targetConvId = activeConversation?.id;
-                
-                // If no active conversation, create one
-                if (!targetConvId) {
-                    // Check if we already have one in the list (initChat might have found it but not selected it?)
-                    // initChat logic usually selects the first one.
-                    // If activeConversation is null here, it means initChat didn't find one or failed.
-                    
-                    console.log("[ChatWindow] Auto-creating conversation for new context...");
-                    const newConv = await chatService.createConversation({
-                        supplier_id: Number(supplierId),
-                        product_id: String(productId)
-                    });
-                    
-                    setActiveConversation(newConv);
-                    targetConvId = newConv.id;
-                    setConversations(prev => [newConv, ...prev]);
-                }
-                
-                // Now send the empty context message if we have a valid conversation
-                if (targetConvId && !String(targetConvId).startsWith('temp-')) {
-                    console.log("[ChatWindow] Sending auto-context message...");
-                    contextSentRef.current = true; // Mark as sent
-                    
-                    await chatService.sendMessage(
-                        targetConvId,
-                        " ", // Empty message (space) with product_id context
-                        "text",
-                        undefined,
-                        productId
-                    );
-                    
-                    // Refresh messages to show the new context
-                    loadMessages(targetConvId);
-                }
-            } catch (err) {
-                console.error("[ChatWindow] Auto-init failed", err);
-                // Don't set contextSentRef to true so we might retry? 
-                // Or set it to true to avoid infinite loops on error.
-                // Better to set true to be safe.
-                contextSentRef.current = true; 
-            }
-        }
-    };
-    
-    // Wait for initial load to complete
-    if (!loading) {
-        autoInitChat();
-    }
-    
-  }, [isOpen, isVendorMode, productId, supplierId, loading, activeConversation]);
+     // ... logic moved ...
+  }, []);
+  */
   
   // Debug logs
   useEffect(() => {
@@ -1196,13 +1144,43 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
           {( !isVendorMode || (isVendorMode && productData?.title) ) && (
           <div
             className={productSlug ? "px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0 cursor-pointer hover:bg-gray-50" : "px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0"}
-            onClick={() => {
-              const slug = productSlug || productData.slug;
-              if (!slug) {
-                // console.warn("[ChatWindow] Product slug not available, skipping navigation");
-                return;
+            onClick={async () => {
+              if (isVendorMode) {
+                  const slug = productSlug || productData.slug;
+                  if (!slug) return;
+                  router.push(`/product/${slug}`);
+                  return;
               }
-              router.push(`/product/${slug}`);
+
+              // Client behavior: Send context message
+              if (!loading && !contextSentRef.current) {
+                  try {
+                    let targetConvId = activeConversation?.id;
+                    if (!targetConvId && supplierId) {
+                        const newConv = await chatService.createConversation({
+                            supplier_id: Number(supplierId),
+                            product_id: String(productId)
+                        });
+                        setActiveConversation(newConv);
+                        targetConvId = newConv.id;
+                        setConversations(prev => [newConv, ...prev]);
+                    }
+
+                    if (targetConvId && !String(targetConvId).startsWith('temp-')) {
+                        contextSentRef.current = true;
+                        await chatService.sendMessage(
+                            targetConvId,
+                            " ", 
+                            "text",
+                            undefined,
+                            productId ?? undefined
+                        );
+                        loadMessages(targetConvId);
+                    }
+                  } catch (err) {
+                      console.error("[ChatWindow] Failed to send context message", err);
+                  }
+              }
             }}
           >
                 {!isVendorMode && (
