@@ -522,7 +522,14 @@ export function MessagesContent() {
             conversations
             .filter(conv => {
                 // Filter out self-chats or invalid chats
-                if (conv.supplier_id === conv.user_id) return false;
+                if (String(conv.supplier_id) === String(conv.user_id || conv.buyer_id)) return false;
+                
+                // Also filter if I am BOTH the supplier AND the buyer (just in case IDs are confusing)
+                if (user) {
+                    const myId = String(user.id);
+                    if (String(conv.supplier_id) === myId && String(conv.user_id || conv.buyer_id) === myId) return false;
+                }
+                
                 return true;
             })
             .map((conv) => (
@@ -551,7 +558,10 @@ export function MessagesContent() {
                   <h3 className={`font-medium text-[15px] truncate mb-0.5 flex flex-col ${activeConversation?.id === conv.id ? 'text-gray-900' : 'text-gray-900'}`}>
                       <span>{getOtherPartyName(conv)}</span>
                       {/* Only show product title if I am NOT the supplier of this conversation */}
-                      {conv.product_title && String(conv.supplier_id) !== String(user?.id) && user?.role !== 'supplier' && user?.role !== 'vendor' && (
+                      {conv.product_title && 
+                       user?.role !== 'supplier' && 
+                       user?.role !== 'vendor' && 
+                       String(conv.supplier_id) !== String(user?.id) && (
                           <span className="text-[11px] text-gray-500 font-normal truncate">
                               {conv.product_title}
                           </span>
