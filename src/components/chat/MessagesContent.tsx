@@ -415,49 +415,59 @@ export function MessagesContent() {
 
   // UI Helpers
   const getOtherPartyName = (conv: Conversation) => {
-     // 1. Explicit Client Role -> Show Supplier Name
-     if (user?.role === 'client') {
-         return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
-     }
-     
-     // 2. ID Match
-     if (user) {
-         const userIdStr = String(user.id);
-         const buyerIdStr = String(conv.user_id || conv.buyer_id);
-         if (buyerIdStr === userIdStr && user.role !== 'supplier' && user.role !== 'admin') {
-             return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
+     // Safety check
+     if (!user) return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
+
+     const myId = String(user.id);
+     const supplierId = String(conv.supplier_id);
+     const buyerId = String(conv.user_id || conv.buyer_id);
+
+     // 1. Am I the Supplier? (Or Admin acting as Supplier)
+     if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+         if (conv.user) {
+             const convUserId = String(conv.user.id);
+             if (convUserId !== myId) {
+                 const name = (conv.user as any).name || `${(conv.user as any).first_name || ''} ${(conv.user as any).last_name || ''}`.trim();
+                 if (name) return name;
+             }
          }
+         return conv.buyer_name || conv.user_name || `Cliente #${buyerId}`;
      }
 
-     // 3. Default (Supplier/Admin) -> Show Client Name
-     // Do NOT fallback to other_party_name as it might be Supplier Name
-     
-     // Fix: Prioritize structured user object over flat strings to avoid backend mapping errors
-     if ((conv as any).user && ((conv as any).user.name || (conv as any).user.first_name)) {
-         return (conv as any).user.name || `${(conv as any).user.first_name || ''} ${(conv as any).user.last_name || ''}`.trim();
+     // 2. Am I the Client?
+     if (myId === buyerId || user.role === 'client') {
+         return conv.supplier_name || conv.other_party_name || `Proveedor #${supplierId}`;
      }
 
+     // 3. Fallback
      return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
   };
   
   const getOtherPartyImage = (conv: Conversation) => {
-      // 1. Explicit Client Role -> Show Supplier Image
-      if (user?.role === 'client') {
-          return conv.supplier_image || null;
-      }
-      
-      // 2. ID Match Check
-      if (user) {
-         const userIdStr = String(user.id);
-         const buyerIdStr = String(conv.user_id || conv.buyer_id);
-         // If I am explicitly the buyer AND NOT admin/supplier
-         if (buyerIdStr === userIdStr && user.role !== 'supplier' && user.role !== 'admin') {
-             return conv.supplier_image || null;
-         }
+      if (!user) return conv.user_image || null;
+
+      const myId = String(user.id);
+      const supplierId = String(conv.supplier_id);
+      const buyerId = String(conv.user_id || conv.buyer_id);
+
+      // 1. Am I the Supplier? -> Show Client Image
+      if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+          // Use 'any' cast to check properties not in strict interface
+          const userObj = conv.user as any;
+          if (userObj && String(userObj.id) !== myId) {
+              return userObj.image || userObj.avatar || conv.user_image || null;
+          }
+          if (buyerId !== myId) {
+               return conv.user_image || null;
+          }
+          return null;
       }
 
-      // 3. Default (Supplier/Admin) -> Show Client Image
-      // Do NOT fallback to supplier_image, because that would be my own image
+      // 2. Am I the Client? -> Show Supplier Image
+      if (myId === buyerId || user.role === 'client') {
+          return conv.supplier_image || null;
+      }
+
       return conv.user_image || null;
   };
 

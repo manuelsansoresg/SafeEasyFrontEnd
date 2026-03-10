@@ -46,53 +46,66 @@ export function MessagesDropdown() {
 
   // Helper to get name
   const getOtherPartyName = (conv: Conversation) => {
-     // 1. Explicit Client Role -> Show Supplier
-     if (user?.role === 'client') {
-        return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
-     }
-     
-     // 2. ID Match: If I am the buyer (and NOT supplier/admin), show Supplier
-     // But be careful: if I am BOTH (self-chat), I want to see Client Name (myself as client?)
-     // The user says "no debo salir yo mismo" (I shouldn't see myself).
-     // If I am Admin/Supplier, I want to see Client Name.
-     
-     if (user) {
-         const userIdStr = String(user.id);
-         const buyerIdStr = String(conv.user_id || conv.buyer_id);
-         // If I am the buyer AND NOT admin/supplier role (double check to be safe)
-         if (buyerIdStr === userIdStr && user.role !== 'supplier' && user.role !== 'admin') {
-             return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
+     // Safety check
+     if (!user) return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
+
+     const myId = String(user.id);
+     const supplierId = String(conv.supplier_id);
+     const buyerId = String(conv.user_id || conv.buyer_id);
+
+     // 1. Am I the Supplier? (Or Admin acting as Supplier)
+     // If my ID matches the supplier_id, I MUST see the Client's Name.
+     if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+         // Check structured user object first
+         if (conv.user) {
+             const convUserId = String(conv.user.id);
+             // CRITICAL: Only use conv.user if it is NOT me.
+             if (convUserId !== myId) {
+                 const name = conv.user.name || `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim();
+                 if (name) return name;
+             }
          }
+         // Fallback to flat fields
+         return conv.buyer_name || conv.user_name || `Cliente #${buyerId}`;
      }
 
-     // 3. Default (Supplier/Admin/Other) -> Show Client Name
-      // We intentionally exclude conv.other_party_name here because it might be the Supplier Name
-      
-      // Fix: Prioritize structured user object over flat strings to avoid backend mapping errors
-      if (conv.user && (conv.user.name || conv.user.first_name)) {
-          return conv.user.name || `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim();
-      }
+     // 2. Am I the Client?
+     // If my ID matches the buyer_id, I MUST see the Supplier's Name.
+     if (myId === buyerId || user.role === 'client') {
+         return conv.supplier_name || conv.other_party_name || `Proveedor #${supplierId}`;
+     }
 
-      return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
+     // 3. Fallback / Default
+     // If I am neither (or data is weird), default to showing the Client Name (safest for Admin/Supplier view)
+     return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
    };
 
    const getOtherPartyImage = (conv: Conversation) => {
-       // 1. Explicit Client Role -> Show Supplier Image
-       if (user?.role === 'client') {
+       if (!user) return conv.user_image || null;
+
+       const myId = String(user.id);
+       const supplierId = String(conv.supplier_id);
+       const buyerId = String(conv.user_id || conv.buyer_id);
+
+       // 1. Am I the Supplier? -> Show Client Image
+        if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+            // Use 'any' cast to check properties not in strict interface
+            const userObj = conv.user as any;
+            if (userObj && String(userObj.id) !== myId) {
+                return userObj.image || userObj.avatar || conv.user_image || null;
+            }
+            // If user object matches me, or is missing, fall back to user_image ONLY if buyerId is not me
+            if (buyerId !== myId) {
+                 return conv.user_image || null;
+            }
+            return null; 
+        }
+
+       // 2. Am I the Client? -> Show Supplier Image
+       if (myId === buyerId || user.role === 'client') {
            return conv.supplier_image || null;
        }
-       
-       // 2. ID Match Check
-       if (user) {
-          const userIdStr = String(user.id);
-          const buyerIdStr = String(conv.user_id || conv.buyer_id);
-          // If I am explicitly the buyer AND NOT admin/supplier
-          if (buyerIdStr === userIdStr && user.role !== 'supplier' && user.role !== 'admin') {
-              return conv.supplier_image || null;
-          }
-       }
 
-       // 3. Default (Supplier/Admin) -> Show Client Image
        return conv.user_image || null;
    };
 

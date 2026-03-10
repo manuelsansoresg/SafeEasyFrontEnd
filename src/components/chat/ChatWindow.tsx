@@ -1028,11 +1028,19 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                           >
                               <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold shrink-0">
                                   {/* Avatar placeholder */}
-                            {((isVendorMode ? (conv.user_name || `C${conv.user_id}`) : (conv.supplier_name || conv.other_party_name || supplierName || 'P')) || '?').charAt(0)}
+                            {((isVendorMode ? 
+                                (conv.user && String(conv.user.id) !== String(user?.id) 
+                                    ? (conv.user.name || `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim())
+                                    : (conv.user_name || conv.buyer_name || 'C')) 
+                                : (conv.supplier_name || conv.other_party_name || supplierName || 'P')) || '?').charAt(0)}
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="font-medium text-sm text-gray-800 truncate">
-                                {(isVendorMode ? (conv.user_name || (conv.user ? `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim() : `Cliente #${conv.user_id}`)) : (conv.supplier_name || conv.other_party_name || supplierName || 'Proveedor'))}
+                                {(isVendorMode ? 
+                                    (conv.user && String(conv.user.id) !== String(user?.id)
+                                        ? (conv.user.name || `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim())
+                                        : (conv.user_name || conv.buyer_name || `Cliente #${conv.user_id}`)) 
+                                    : (conv.supplier_name || conv.other_party_name || supplierName || 'Proveedor'))}
                             </div>
                             <div className="text-xs text-gray-500 truncate">
                                       {conv.last_message || 'Ver conversación...'}

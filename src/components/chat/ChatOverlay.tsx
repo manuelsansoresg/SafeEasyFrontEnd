@@ -10,28 +10,32 @@ export function ChatOverlay() {
   const { user } = useAuthStore();
 
   const getDisplayName = (chat: any) => {
-     // 1. Explicit Client Role -> Show Supplier Name
-     if (user?.role === 'client') {
-         return chat.supplier_name || chat.other_party_name || `Proveedor #${chat.supplier_id}`;
-     }
+     // Safety check
+     if (!user) return chat.user_name || chat.buyer_name || `Usuario #${chat.user_id}`;
 
-     // 2. ID Match Check
-     if (user) {
-         const userIdStr = String(user.id);
-         const buyerIdStr = String(chat.user_id || chat.buyer_id);
-         if (buyerIdStr === userIdStr && user.role !== 'supplier' && user.role !== 'admin') {
-             return chat.supplier_name || chat.other_party_name || `Proveedor #${chat.supplier_id}`;
+     const myId = String(user.id);
+     const supplierId = String(chat.supplier_id);
+     const buyerId = String(chat.user_id || chat.buyer_id);
+
+     // 1. Am I the Supplier? (Or Admin acting as Supplier)
+     if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+         if (chat.user) {
+             const chatUserId = String(chat.user.id);
+             if (chatUserId !== myId) {
+                 const name = chat.user.name || `${chat.user.first_name || ''} ${chat.user.last_name || ''}`.trim();
+                 if (name) return name;
+             }
          }
+         return chat.buyer_name || chat.user_name || `Cliente #${buyerId}`;
      }
 
-     // 3. Default (Supplier/Admin) -> Show Client Name
-      
-      // Fix: Prioritize structured user object over flat strings to avoid backend mapping errors
-      if (chat.user && (chat.user.name || chat.user.first_name)) {
-          return chat.user.name || `${chat.user.first_name || ''} ${chat.user.last_name || ''}`.trim();
-      }
+     // 2. Am I the Client?
+     if (myId === buyerId || user.role === 'client') {
+         return chat.supplier_name || chat.other_party_name || `Proveedor #${supplierId}`;
+     }
 
-      return chat.user_name || chat.buyer_name || `Usuario #${chat.user_id}`;
+     // 3. Fallback
+     return chat.user_name || chat.buyer_name || `Usuario #${chat.user_id}`;
    };
 
   if (openChats.length === 0) return null;
