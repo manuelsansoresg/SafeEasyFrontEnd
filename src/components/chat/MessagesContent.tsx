@@ -415,6 +415,31 @@ export function MessagesContent() {
 
   // UI Helpers
   const getOtherPartyName = (conv: Conversation) => {
+     // 1. Try to use backend-provided role if available
+     if (conv.my_role === 'supplier') {
+         return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
+     }
+     if (conv.my_role === 'client') {
+         return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
+     }
+
+     // 2. Fallback: Check IDs against current user
+     if (user) {
+         const userIdStr = String(user.id);
+         const supplierIdStr = String(conv.supplier_id);
+         const buyerIdStr = String(conv.user_id || conv.buyer_id);
+         
+         // If I am the supplier, show buyer
+         if (supplierIdStr === userIdStr) {
+             return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
+         }
+         // If I am the buyer, show supplier
+         if (buyerIdStr === userIdStr) {
+             return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
+         }
+     }
+
+     // 3. Last resort: Global role (legacy behavior)
      if (user?.role === 'supplier') {
         return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
      }
@@ -494,7 +519,13 @@ export function MessagesContent() {
                 <p className="font-medium text-gray-600">No hay mensajes</p>
              </div>
           ) : (
-            conversations.map((conv) => (
+            conversations
+            .filter(conv => {
+                // Filter out self-chats or invalid chats
+                if (conv.supplier_id === conv.user_id) return false;
+                return true;
+            })
+            .map((conv) => (
               <button
                 key={conv.id}
                 onClick={() => setActiveConversation(conv)}
@@ -519,7 +550,8 @@ export function MessagesContent() {
                 <div className="flex-1 min-w-0 text-left">
                   <h3 className={`font-medium text-[15px] truncate mb-0.5 flex flex-col ${activeConversation?.id === conv.id ? 'text-gray-900' : 'text-gray-900'}`}>
                       <span>{getOtherPartyName(conv)}</span>
-                      {conv.product_title && user?.role !== 'supplier' && user?.role !== 'vendor' && (
+                      {/* Only show product title if I am NOT the supplier of this conversation */}
+                      {conv.product_title && String(conv.supplier_id) !== String(user?.id) && user?.role !== 'supplier' && user?.role !== 'vendor' && (
                           <span className="text-[11px] text-gray-500 font-normal truncate">
                               {conv.product_title}
                           </span>
