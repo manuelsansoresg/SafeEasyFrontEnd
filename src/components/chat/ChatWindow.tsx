@@ -1400,8 +1400,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                     isCreatingOrderAsSupplier
                                       ? "bg-gray-200 text-gray-400 cursor-not-allowed"
                                       : supplierOrderByProductId[String(msg.product.id)]
-                                        ? "bg-green-600 text-white cursor-not-allowed"
-                                        : "bg-primary hover:bg-primary/90 text-white"
+                                        ? "bg-[#168e00] text-white cursor-not-allowed opacity-90"
+                                        : "bg-[#168e00] hover:bg-[#137500] text-white"
                                   }`}
                                 >
                                   {isCreatingOrderAsSupplier ? (
