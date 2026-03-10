@@ -424,6 +424,38 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     }
   };
 
+  const sendClientProductContext = async () => {
+    if (isVendorMode) return;
+    if (loading || contextSentRef.current) return;
+
+    try {
+      let targetConvId = activeConversation?.id;
+      if (!targetConvId && supplierId) {
+        const newConv = await chatService.createConversation({
+          supplier_id: Number(supplierId),
+          product_id: String(productId),
+        });
+        setActiveConversation(newConv);
+        targetConvId = newConv.id;
+        setConversations((prev) => [newConv, ...prev]);
+      }
+
+      if (targetConvId && !String(targetConvId).startsWith("temp-")) {
+        contextSentRef.current = true;
+        await chatService.sendMessage(
+          targetConvId,
+          " ",
+          "text",
+          undefined,
+          productId ?? undefined
+        );
+        loadMessages(targetConvId);
+      }
+    } catch (err) {
+      console.error("[ChatWindow] Failed to send context message", err);
+    }
+  };
+
   const handleCreateOrderAsSupplier = async (product: Message["product"]) => {
     if (!product || !activeConversation) return;
 
@@ -1222,37 +1254,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
           <div
             className={productSlug ? "px-4 py-2 bg-white border-b border-gray-100 flex items-start gap-3 shrink-0 cursor-pointer hover:bg-gray-50" : "px-4 py-2 bg-white border-b border-gray-100 flex items-start gap-3 shrink-0"}
             onClick={async () => {
-              if (isVendorMode) return; // Should not be clickable if hidden, but safety first
-
-              // Client behavior: Send context message
-              if (!loading && !contextSentRef.current) {
-                  try {
-                    let targetConvId = activeConversation?.id;
-                    if (!targetConvId && supplierId) {
-                        const newConv = await chatService.createConversation({
-                            supplier_id: Number(supplierId),
-                            product_id: String(productId)
-                        });
-                        setActiveConversation(newConv);
-                        targetConvId = newConv.id;
-                        setConversations(prev => [newConv, ...prev]);
-                    }
-
-                    if (targetConvId && !String(targetConvId).startsWith('temp-')) {
-                        contextSentRef.current = true;
-                        await chatService.sendMessage(
-                            targetConvId,
-                            " ", 
-                            "text",
-                            undefined,
-                            productId ?? undefined
-                        );
-                        loadMessages(targetConvId);
-                    }
-                  } catch (err) {
-                      console.error("[ChatWindow] Failed to send context message", err);
-                  }
-              }
+              await sendClientProductContext();
             }}
           >
                 {!isVendorMode && (
@@ -1279,9 +1281,9 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handlePaymentClick();
+                          sendClientProductContext();
                         }}
-                        disabled={isCreatingOrder}
+                        disabled={loading || isCreatingOrder}
                         className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
                           isCreatingOrder
                             ? "bg-gray-200 text-gray-400 cursor-not-allowed"
@@ -1565,7 +1567,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                         <div className="flex items-center gap-2">
 
                              {/* Payment Button (Cliente con datos de transferencia completos) */}
-                             {user?.role === 'client' && !productId && canPay && localTransferData?.transfer_accepted && (localTransferData.transfer_clabe || localTransferData.transfer_bank) && (
+                             {user?.role === 'client' && canPay && localTransferData?.transfer_accepted && (localTransferData.transfer_clabe || localTransferData.transfer_bank) && (
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); handlePaymentClick(); }}
                                     className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
