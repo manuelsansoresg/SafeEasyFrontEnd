@@ -17,22 +17,46 @@ export function ChatOverlay() {
      const supplierId = String(chat.supplier_id);
      const buyerId = String(chat.user_id || chat.buyer_id);
      
-     const myName = user.name || '';
+     // Construct my name for comparison
+      const myName = (user.name || '').trim();
 
      // 1. Am I the Supplier? (Or Admin acting as Supplier)
+     // If my ID matches the supplier_id, I MUST see the Client's Name.
      if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+         // Check structured user object first
          if (chat.user) {
              const chatUserId = String(chat.user.id);
+             // CRITICAL: Only use chat.user if it is NOT me.
              if (chatUserId !== myId) {
                  const name = chat.user.name || `${chat.user.first_name || ''} ${chat.user.last_name || ''}`.trim();
                  if (name && name.toLowerCase() !== myName.toLowerCase()) return name;
              }
          }
          
-         if (chat.buyer_name && chat.buyer_name.toLowerCase() !== myName.toLowerCase()) return chat.buyer_name;
-         if (chat.other_party_name && chat.other_party_name.toLowerCase() !== myName.toLowerCase()) return chat.other_party_name;
-         if (chat.user_name && chat.user_name.toLowerCase() !== myName.toLowerCase()) return chat.user_name;
+         // Fallback to flat fields
+         // PRIORITIZE buyer_name, as that is explicitly the client.
+         if (chat.buyer_name && chat.buyer_name.trim().toLowerCase() !== myName.toLowerCase()) {
+             return chat.buyer_name;
+         }
 
+         // Use user_name if different from me
+         if (chat.user_name && chat.user_name.trim().toLowerCase() !== myName.toLowerCase()) {
+             return chat.user_name;
+         }
+         
+         // IGNORE supplier_name completely for suppliers.
+         // CHECK other_party_name carefully.
+         if (chat.other_party_name) {
+             const opName = chat.other_party_name.trim().toLowerCase();
+             // If other_party_name is NOT me, and NOT the supplier name (which is likely me)
+             const sName = (chat.supplier_name || '').trim().toLowerCase();
+             
+             if (opName !== myName.toLowerCase() && opName !== sName) {
+                 return chat.other_party_name;
+             }
+         }
+         
+         // Absolute last resort
          return `Cliente #${buyerId}`;
      }
 

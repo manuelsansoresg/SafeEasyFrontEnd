@@ -422,22 +422,46 @@ export function MessagesContent() {
      const supplierId = String(conv.supplier_id);
      const buyerId = String(conv.user_id || conv.buyer_id);
      
-     const myName = user.name || '';
+     // Construct my name for comparison
+      const myName = (user.name || '').trim();
 
      // 1. Am I the Supplier? (Or Admin acting as Supplier)
+     // If my ID matches the supplier_id, I MUST see the Client's Name.
      if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+         // Check structured user object first
          if (conv.user) {
              const convUserId = String(conv.user.id);
+             // CRITICAL: Only use conv.user if it is NOT me.
              if (convUserId !== myId) {
                  const name = (conv.user as any).name || `${(conv.user as any).first_name || ''} ${(conv.user as any).last_name || ''}`.trim();
                  if (name && name.toLowerCase() !== myName.toLowerCase()) return name;
              }
          }
          
-         if (conv.buyer_name && conv.buyer_name.toLowerCase() !== myName.toLowerCase()) return conv.buyer_name;
-         if (conv.other_party_name && conv.other_party_name.toLowerCase() !== myName.toLowerCase()) return conv.other_party_name;
-         if (conv.user_name && conv.user_name.toLowerCase() !== myName.toLowerCase()) return conv.user_name;
+         // Fallback to flat fields
+         // PRIORITIZE buyer_name, as that is explicitly the client.
+         if (conv.buyer_name && conv.buyer_name.trim().toLowerCase() !== myName.toLowerCase()) {
+             return conv.buyer_name;
+         }
 
+         // Use user_name if different from me
+         if (conv.user_name && conv.user_name.trim().toLowerCase() !== myName.toLowerCase()) {
+             return conv.user_name;
+         }
+         
+         // IGNORE supplier_name completely for suppliers.
+         // CHECK other_party_name carefully.
+         if (conv.other_party_name) {
+             const opName = conv.other_party_name.trim().toLowerCase();
+             // If other_party_name is NOT me, and NOT the supplier name (which is likely me)
+             const sName = (conv.supplier_name || '').trim().toLowerCase();
+             
+             if (opName !== myName.toLowerCase() && opName !== sName) {
+                 return conv.other_party_name;
+             }
+         }
+         
+         // Absolute last resort
          return `Cliente #${buyerId}`;
      }
 
@@ -568,10 +592,10 @@ export function MessagesContent() {
                 // This handles cases where database has bad data or test data
                 if (otherId === myId) return false;
                 
-                // 3. Deduplicate by (OtherID + ProductID)
-                // We want only ONE conversation per OtherUser+Product combo in the list.
+                // 3. Deduplicate by OtherID ONLY (Merge multiple product chats from same person)
+                // We want only ONE conversation per OtherUser in the list.
                 // If there are duplicates, we keep the first one (which is sorted by recent activity)
-                const key = `${otherId}-${conv.product_id || 'general'}`;
+                const key = otherId;
                 
                 const firstIndex = self.findIndex(c => {
                     const cSupplierId = String(c.supplier_id);
@@ -580,10 +604,10 @@ export function MessagesContent() {
                     
                     if (cSupplierId === myId) cOtherId = cBuyerId;
                     else if (cBuyerId === myId) cOtherId = cSupplierId;
-                    else return false; // Should not match if not involved
+                    else return false;
                     
-                    const cKey = `${cOtherId}-${c.product_id || 'general'}`;
-                    return cKey === key;
+                    // Compare only the other party ID
+                    return cOtherId === key;
                 });
                 
                 return firstIndex === index;

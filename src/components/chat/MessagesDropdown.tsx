@@ -54,7 +54,7 @@ export function MessagesDropdown() {
      const buyerId = String(conv.user_id || conv.buyer_id);
      
      // Construct my name for comparison
-      const myName = user.name || '';
+      const myName = (user.name || '').trim();
 
      // 1. Am I the Supplier? (Or Admin acting as Supplier)
      // If my ID matches the supplier_id, I MUST see the Client's Name.
@@ -71,18 +71,25 @@ export function MessagesDropdown() {
          
          // Fallback to flat fields
          // PRIORITIZE buyer_name, as that is explicitly the client.
-         if (conv.buyer_name && conv.buyer_name.toLowerCase() !== myName.toLowerCase()) {
+         if (conv.buyer_name && conv.buyer_name.trim().toLowerCase() !== myName.toLowerCase()) {
              return conv.buyer_name;
          }
-         
-         // If buyer_name fails, try other_party_name (sometimes contains the client name)
-         if (conv.other_party_name && conv.other_party_name.toLowerCase() !== myName.toLowerCase()) {
-             return conv.other_party_name;
-         }
 
-         // If user_name is different from my name, use it.
-         if (conv.user_name && conv.user_name.toLowerCase() !== myName.toLowerCase()) {
+         // Use user_name if different from me
+         if (conv.user_name && conv.user_name.trim().toLowerCase() !== myName.toLowerCase()) {
              return conv.user_name;
+         }
+         
+         // IGNORE supplier_name completely for suppliers.
+         // CHECK other_party_name carefully.
+         if (conv.other_party_name) {
+             const opName = conv.other_party_name.trim().toLowerCase();
+             // If other_party_name is NOT me, and NOT the supplier name (which is likely me)
+             const sName = (conv.supplier_name || '').trim().toLowerCase();
+             
+             if (opName !== myName.toLowerCase() && opName !== sName) {
+                 return conv.other_party_name;
+             }
          }
          
          // Absolute last resort
@@ -171,8 +178,8 @@ export function MessagesDropdown() {
             // 2. Filter out Self-Chats
             if (otherId === myId) return false;
 
-            // 3. Deduplicate by (OtherID + ProductID)
-            const key = `${otherId}-${conv.product_id || 'general'}`;
+            // 3. Deduplicate by OtherID ONLY (Merge multiple product chats from same person)
+            const key = otherId;
             const firstIndex = self.findIndex(c => {
                 const cSupplierId = String(c.supplier_id);
                 const cBuyerId = String(c.user_id || c.buyer_id);
@@ -182,8 +189,8 @@ export function MessagesDropdown() {
                 else if (cBuyerId === myId) cOtherId = cSupplierId;
                 else return false;
                 
-                const cKey = `${cOtherId}-${c.product_id || 'general'}`;
-                return cKey === key;
+                // Compare only the other party ID
+                return cOtherId === key;
             });
             
             return firstIndex === index;

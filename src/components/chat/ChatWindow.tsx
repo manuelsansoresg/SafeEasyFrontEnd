@@ -119,8 +119,20 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
            
            // Try flat fields, avoiding my name
            if (conv.buyer_name && conv.buyer_name.trim().toLowerCase() !== myName.toLowerCase()) return conv.buyer_name;
-           if (conv.other_party_name && conv.other_party_name.trim().toLowerCase() !== myName.toLowerCase()) return conv.other_party_name;
+           
            if (conv.user_name && conv.user_name.trim().toLowerCase() !== myName.toLowerCase()) return conv.user_name;
+           
+           // IGNORE supplier_name completely for suppliers.
+           // CHECK other_party_name carefully.
+           if (conv.other_party_name) {
+               const opName = conv.other_party_name.trim().toLowerCase();
+               // If other_party_name is NOT me, and NOT the supplier name (which is likely me)
+               const sName = (conv.supplier_name || '').trim().toLowerCase();
+               
+               if (opName !== myName.toLowerCase() && opName !== sName) {
+                   return conv.other_party_name;
+               }
+           }
            
            return `Cliente #${conv.user_id || conv.buyer_id}`;
       }
@@ -1165,17 +1177,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
               </div>
           )}
 
-          {/* Product Context Bar (Sub-header) */}
-          {( !isVendorMode || (isVendorMode && productData?.title) ) && (
+          {/* Product Context Bar (Sub-header) - HIDDEN for Vendors as requested */}
+          {(!isVendorMode && productData?.title) && (
           <div
             className={productSlug ? "px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0 cursor-pointer hover:bg-gray-50" : "px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3 shrink-0"}
             onClick={async () => {
-              if (isVendorMode) {
-                  const slug = productSlug || productData.slug;
-                  if (!slug) return;
-                  router.push(`/product/${slug}`);
-                  return;
-              }
+              if (isVendorMode) return; // Should not be clickable if hidden, but safety first
 
               // Client behavior: Send context message
               if (!loading && !contextSentRef.current) {
