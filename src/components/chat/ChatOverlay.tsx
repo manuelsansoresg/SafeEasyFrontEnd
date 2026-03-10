@@ -24,9 +24,9 @@ export function ChatOverlay() {
     }
 
     // Fallback for Admin/Supplier role mismatch
-    if (user?.role === 'supplier' || user?.role === 'admin') {
-         return chat.user_name || chat.buyer_name || chat.other_party_name || `Usuario #${chat.user_id}`;
-    }
+     if (user?.role === 'supplier' || user?.role === 'admin') {
+          return chat.user_name || chat.buyer_name || `Usuario #${chat.user_id}`;
+     }
     if (user?.role === 'client') {
          return chat.supplier_name || chat.other_party_name || `Proveedor #${chat.supplier_id}`;
     }

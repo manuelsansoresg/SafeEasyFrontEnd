@@ -441,7 +441,7 @@ export function MessagesContent() {
 
      // 3. Last resort: Global role (legacy behavior)
      if (user?.role === 'supplier' || user?.role === 'admin') {
-        return conv.user_name || conv.buyer_name || conv.other_party_name || `Usuario #${conv.user_id}`;
+        return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
      }
      if (user?.role === 'client') {
         return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;

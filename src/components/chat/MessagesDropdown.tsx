@@ -63,7 +63,7 @@ export function MessagesDropdown() {
 
      // Role-based fallback (Admin treated as Supplier)
      if (user?.role === 'supplier' || user?.role === 'admin') {
-        return conv.user_name || conv.buyer_name || conv.other_party_name || `Usuario #${conv.user_id}`;
+        return conv.user_name || conv.buyer_name || `Usuario #${conv.user_id}`;
      }
      if (user?.role === 'client') {
         return conv.supplier_name || conv.other_party_name || `Proveedor #${conv.supplier_id}`;
