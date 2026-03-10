@@ -36,13 +36,13 @@ function SearchBar() {
   };
 
   return (
-    <form onSubmit={handleSearch} className="relative w-full sm:w-64 md:w-96 flex items-center">
+    <form onSubmit={handleSearch} className="relative w-[280px] md:w-[400px] flex items-center">
       <input
         type="text"
         placeholder="Buscar"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="w-full h-9 pl-5 pr-10 rounded-full border-2 border-white bg-transparent text-white placeholder:text-white/80 focus:outline-none focus:ring-1 focus:ring-white transition-all text-sm font-medium"
+        className="w-full h-10 pl-5 pr-10 rounded-full border-2 border-white bg-transparent text-white placeholder:text-white/80 focus:outline-none focus:ring-1 focus:ring-white transition-all text-sm font-medium"
       />
       <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-white hover:text-[#7ed957] transition-colors">
         <Search size={20} strokeWidth={2.5} />

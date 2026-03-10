@@ -38,9 +38,17 @@ export function MessagesDropdown() {
 
   // Derived state for unread count
   const unreadCount = useMemo(() => {
-    if (!chatEnabled) return 0;
-    return conversations.reduce((acc, curr) => acc + (curr.unread_count || 0), 0);
-  }, [conversations, chatEnabled]);
+    if (!chatEnabled || !user) return 0;
+    return conversations
+      .filter(c => {
+        // Filter out self-chats from unread count
+        const myId = String(user.id);
+        const supplierId = String(c.supplier_id);
+        const buyerId = String(c.user_id || c.buyer_id);
+        return !(supplierId === myId && buyerId === myId);
+      })
+      .reduce((acc, curr) => acc + (curr.unread_count || 0), 0);
+  }, [conversations, chatEnabled, user]);
 
   const toggleOpen = () => setIsOpen(!isOpen);
 
