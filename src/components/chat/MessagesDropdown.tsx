@@ -64,7 +64,7 @@ export function MessagesDropdown() {
              const convUserId = String(conv.user.id);
              // CRITICAL: Only use conv.user if it is NOT me.
              if (convUserId !== myId) {
-                 const name = conv.user.name || `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim();
+                 const name = (conv.user as any).name || `${(conv.user as any).first_name || ''} ${(conv.user as any).last_name || ''}`.trim();
                  if (name && name.toLowerCase() !== myName.toLowerCase()) return name;
              }
          }

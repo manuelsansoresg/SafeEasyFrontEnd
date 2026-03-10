@@ -706,7 +706,8 @@ export function MessagesContent() {
             </div>
             
             {/* Product Context Bar (Only if sidebar is hidden, to save space) */}
-            {!showRightSidebar && (activeConversation.product_title || productData) && (
+            {/* HIDDEN for suppliers as requested ("solo el nombre") */}
+            {!showRightSidebar && (activeConversation.product_title || productData) && !(user?.role === 'supplier' || user?.role === 'admin' || (user?.id && String(user.id) === String(activeConversation.supplier_id))) && (
                 <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3">
                     {/* Hide image for suppliers (User request: "solo el nombre") */}
                     {!(user?.id && String(user.id) === String(activeConversation.supplier_id)) && (
