@@ -525,20 +525,52 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         conversation_id: conversationIdToSend,
       };
 
-      const res = await fetchWithAuth("/api/orders/", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      const supplierCandidates = [
+        Number((msg as any).supplier_id),
+        Number((activeConversation as any).supplier_id),
+        Number(supplierId),
+        Number((msg.product as any).supplier_id),
+      ].filter((n) => Number.isFinite(n) && n > 0);
 
-      const data = await res.json().catch(() => ({}));
+      const uniqSupplierCandidates = Array.from(new Set(supplierCandidates));
 
-      if (!res.ok) {
-        setError((data as any)?.detail || (data as any)?.message || (data as any)?.error || "No se pudo crear la orden.");
+      let lastError: unknown = null;
+      for (const candidate of (uniqSupplierCandidates.length ? uniqSupplierCandidates : [supplierIdToSend])) {
+        const res = await fetchWithAuth("/api/orders/", {
+          method: "POST",
+          body: JSON.stringify({ ...payload, supplier_id: candidate }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          const orderId = (data as any)?.id || (data as any)?.order_id || Date.now();
+          setSupplierOrderByProductId((prev) => ({ ...prev, [productKey]: orderId }));
+          return;
+        }
+
+        const detail = (data as any)?.detail || (data as any)?.message || (data as any)?.error || "";
+        lastError = detail || data;
+
+        if (
+          res.status === 400 &&
+          typeof detail === "string" &&
+          detail.toLowerCase().includes("conversation does not match supplier or product")
+        ) {
+          continue;
+        }
+
+        setError(detail || "No se pudo crear la orden.");
         return;
       }
 
-      const orderId = (data as any)?.id || (data as any)?.order_id || Date.now();
-      setSupplierOrderByProductId((prev) => ({ ...prev, [productKey]: orderId }));
+      const suffix = uniqSupplierCandidates.length
+        ? ` (supplier_id probados: ${uniqSupplierCandidates.join(", ")})`
+        : "";
+      setError(
+        (typeof lastError === "string" && lastError ? lastError : "Conversation does not match supplier or product") +
+          suffix
+      );
     } catch (err) {
       setError("No se pudo crear la orden. Verifica tu conexión.");
     } finally {

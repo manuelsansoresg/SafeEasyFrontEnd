@@ -7,24 +7,10 @@ import {
   Loader2, 
   MessageSquare, 
   ChevronLeft, 
-  ChevronRight,
-  Search,
-  Filter
+  ChevronRight
 } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
-
-const STATUS_MAP: Record<string, string> = {
-  pending: "Pendiente",
-  completed: "Completado",
-  cancelled: "Cancelado",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  completed: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
-};
+import { fetchWithAuth } from "@/lib/api";
 
 export default function AdminOrdersPage() {
   const { user } = useAuthStore();
@@ -32,16 +18,49 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
-  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [supplierId, setSupplierId] = useState<number | null>(null);
 
   useEffect(() => {
+    const isSupplier = user?.role === "supplier" || user?.role === "provider";
+    if (!isSupplier) {
+      setSupplierId(null);
+      return;
+    }
+
+    if (!user?.id) return;
+
+    const loadSupplierId = async () => {
+      try {
+        const res = await fetchWithAuth(`/api/suppliers?user_id=${user.id}&limit=100`);
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        const items = Array.isArray(data) ? data : (data as any)?.items || [];
+        const found = items.find((s: any) => Number(s.user_id) === Number(user.id));
+        if (found?.id) {
+          setSupplierId(Number(found.id));
+          setPage(1);
+        }
+      } catch {
+      }
+    };
+
+    loadSupplierId();
+  }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    const isSupplier = user?.role === "supplier" || user?.role === "provider";
+    if (isSupplier && !supplierId) return;
     fetchOrders();
-  }, [page]);
+  }, [page, supplierId, user?.role]);
 
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const data = await orderService.getOrders(page, limit);
+      const data = await orderService.getOrders(
+        page,
+        limit,
+        supplierId && Number.isFinite(supplierId) ? supplierId : undefined
+      );
       setOrders(data);
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -50,27 +69,36 @@ export default function AdminOrdersPage() {
     }
   };
 
-  const handleStatusChange = async (orderId: number, newStatus: string) => {
-    setUpdatingId(orderId);
-    try {
-      await orderService.updateOrderStatus(orderId, newStatus);
-      // Update local state
-      setOrders(prev => prev.map(o => 
-        o.id === orderId ? { ...o, status: newStatus as any } : o
-      ));
-    } catch (error) {
-      console.error("Error updating status:", error);
-      alert("Error al actualizar el estado");
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-MX', {
       style: 'currency',
       currency: 'MXN'
     }).format(amount);
+  };
+
+  const formatDate = (value: string | undefined) => {
+    if (!value) return "-";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return new Intl.DateTimeFormat("es-MX", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(d);
+  };
+
+  const getOrderAmount = (order: Order) => {
+    const raw = (order as any).total_amount ?? order.product?.price;
+    const n = typeof raw === "string" ? Number(raw) : Number(raw);
+    if (!Number.isFinite(n)) return "-";
+    return formatCurrency(n);
+  };
+
+  const getOrderPaymentStatus = (order: Order) => {
+    const s = (order as any).payment_status || (order as any).status;
+    return typeof s === "string" && s.trim() ? s : "-";
   };
 
   return (
@@ -84,17 +112,20 @@ export default function AdminOrdersPage() {
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Producto</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Monto</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Pago</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Proveedor</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Creado</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center">
+                  <td colSpan={8} className="px-6 py-8 text-center">
                     <div className="flex justify-center items-center">
                       <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
                     </div>
@@ -102,7 +133,7 @@ export default function AdminOrdersPage() {
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                     No hay órdenes encontradas.
                   </td>
                 </tr>
@@ -110,32 +141,35 @@ export default function AdminOrdersPage() {
                 orders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 text-sm text-gray-900">
+                      #{order.id}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
                       {order.product?.title || "Producto desconocido"}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {order.product ? formatCurrency(order.product.price) : "-"}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {order.supplier?.name || "Proveedor desconocido"}
+                      {getOrderAmount(order)}
                     </td>
                     <td className="px-6 py-4 text-sm">
-                      <select
-                        value={order.status}
-                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                        disabled={updatingId === order.id}
-                        className={cn(
-                          "px-2 py-1 rounded-full text-xs font-semibold border-0 cursor-pointer focus:ring-2 focus:ring-indigo-500",
-                          STATUS_COLORS[order.status] || "bg-gray-100 text-gray-800",
-                          updatingId === order.id && "opacity-50 cursor-not-allowed"
-                        )}
-                      >
-                        <option value="pending">Pendiente</option>
-                        <option value="completed">Completado</option>
-                        <option value="cancelled">Cancelado</option>
-                      </select>
-                      {updatingId === order.id && (
-                        <Loader2 className="w-3 h-3 animate-spin inline ml-2 text-gray-500" />
-                      )}
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                        {getOrderPaymentStatus(order)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      <div className="flex flex-col">
+                        <span className="text-gray-900">
+                          {order.supplier?.name || "Proveedor desconocido"}
+                        </span>
+                        <span className="text-xs text-gray-400">ID: {order.supplier_id}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex flex-col">
+                        <span className="text-gray-900">{order.buyer?.name || `Usuario #${order.buyer_id}`}</span>
+                        <span className="text-xs text-gray-400">{order.buyer?.email || "-"}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {formatDate(order.created_at)}
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <Link 
