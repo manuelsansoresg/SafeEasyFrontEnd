@@ -465,13 +465,56 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     setIsCreatingOrderAsSupplier(true);
     setError(null);
     try {
+      const isUuid = (value: string) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          value
+        );
+
+      const conversationIdToSend = String(
+        (activeConversation as any).conversation_id ||
+          (activeConversation as any).conversation_uuid ||
+          (activeConversation as any).uuid ||
+          activeConversation.id
+      );
+
+      const productFromConversation = (activeConversation as any).product_id;
+      const productFromMessage = (product as any).id;
+      const productIdCandidate = String(productFromConversation || productFromMessage || "");
+      const productIdToSend = isUuid(productIdCandidate)
+        ? productIdCandidate
+        : isUuid(String(productFromConversation || ""))
+          ? String(productFromConversation)
+          : isUuid(String(productFromMessage || ""))
+            ? String(productFromMessage)
+            : "";
+
+      if (!productIdToSend) {
+        setError("No se pudo identificar el producto para crear la orden.");
+        return;
+      }
+
+      if (!productFromConversation || String(productFromConversation) !== String(productIdToSend)) {
+        try {
+          await chatService.sendMessage(
+            activeConversation.id,
+            " ",
+            "text",
+            undefined,
+            productIdToSend
+          );
+        } catch {
+        }
+      }
+
       const payload = {
-        supplier_id: Number(activeConversation.supplier_id || supplierId),
-        product_id: String(product.id),
+        supplier_id: Number(
+          activeConversation.supplier_id || supplierId || (user as any)?.id
+        ),
+        product_id: productIdToSend,
         total_amount: Number(product.price || 0),
         payment_status: "pending",
         receipt_url: "",
-        conversation_id: String(activeConversation.id),
+        conversation_id: conversationIdToSend,
       };
 
       const res = await fetchWithAuth("/api/orders/", {
