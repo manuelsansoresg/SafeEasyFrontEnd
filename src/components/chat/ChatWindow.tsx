@@ -505,10 +505,10 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
       }
 
       const supplierIdToSend = Number(
-        (msg.product as any).supplier_id ||
+        (msg as any).supplier_id ||
           (activeConversation as any).supplier_id ||
           supplierId ||
-          (user as any)?.id
+          (msg.product as any).supplier_id
       );
 
       if (!supplierIdToSend) {

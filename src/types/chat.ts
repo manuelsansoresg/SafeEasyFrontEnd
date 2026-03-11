@@ -2,6 +2,8 @@ export interface Message {
   id: string | number;
   conversation_id: string | number;
   sender_id: number;
+  buyer_id?: number;
+  supplier_id?: number;
   content: string;
   created_at: string;
   is_read: boolean;
