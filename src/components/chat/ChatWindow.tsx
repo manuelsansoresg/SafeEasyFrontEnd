@@ -456,10 +456,10 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     }
   };
 
-  const handleCreateOrderAsSupplier = async (product: Message["product"]) => {
-    if (!product || !activeConversation) return;
+  const handleCreateOrderAsSupplier = async (msg: Message) => {
+    if (!msg?.product || !activeConversation) return;
 
-    const productKey = String(product.id);
+    const productKey = String(msg.product.id);
     if (supplierOrderByProductId[productKey]) return;
 
     setIsCreatingOrderAsSupplier(true);
@@ -470,48 +470,56 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
           value
         );
 
-      const conversationIdToSend = String(
-        (activeConversation as any).conversation_id ||
-          (activeConversation as any).conversation_uuid ||
-          (activeConversation as any).uuid ||
-          activeConversation.id
+      const pickUuid = (...values: unknown[]) => {
+        for (const v of values) {
+          if (v && isUuid(String(v))) return String(v);
+        }
+        return "";
+      };
+
+      let conversationIdToSend = pickUuid(
+        (msg as any).conversation_id,
+        (activeConversation as any).conversation_id,
+        (activeConversation as any).conversation_uuid,
+        (activeConversation as any).uuid
+      );
+      let productIdToSend = pickUuid(
+        (msg as any).product_id,
+        (msg.product as any).id,
+        (activeConversation as any).product_id
       );
 
-      const productFromConversation = (activeConversation as any).product_id;
-      const productFromMessage = (product as any).id;
-      const productIdCandidate = String(productFromConversation || productFromMessage || "");
-      const productIdToSend = isUuid(productIdCandidate)
-        ? productIdCandidate
-        : isUuid(String(productFromConversation || ""))
-          ? String(productFromConversation)
-          : isUuid(String(productFromMessage || ""))
-            ? String(productFromMessage)
-            : "";
-
       if (!productIdToSend) {
-        setError("No se pudo identificar el producto para crear la orden.");
+        setError("No se pudo identificar el product_id (UUID) para crear la orden.");
         return;
       }
 
-      if (!productFromConversation || String(productFromConversation) !== String(productIdToSend)) {
-        try {
-          await chatService.sendMessage(
-            activeConversation.id,
-            " ",
-            "text",
-            undefined,
-            productIdToSend
-          );
-        } catch {
+      if (!conversationIdToSend) {
+        const history = await chatService.getMessages(activeConversation.id);
+        const msgWithConv = history.find((m) => !!(m as any).conversation_id) || history[0];
+        conversationIdToSend = pickUuid((msgWithConv as any)?.conversation_id);
+        if (!conversationIdToSend) {
+          setError("No se pudo identificar el conversation_id (UUID) para crear la orden.");
+          return;
         }
       }
 
+      const supplierIdToSend = Number(
+        (msg.product as any).supplier_id ||
+          (activeConversation as any).supplier_id ||
+          supplierId ||
+          (user as any)?.id
+      );
+
+      if (!supplierIdToSend) {
+        setError("No se pudo identificar el supplier_id para crear la orden.");
+        return;
+      }
+
       const payload = {
-        supplier_id: Number(
-          activeConversation.supplier_id || supplierId || (user as any)?.id
-        ),
+        supplier_id: supplierIdToSend,
         product_id: productIdToSend,
-        total_amount: Number(product.price || 0),
+        total_amount: Number((msg.product as any).price || 0),
         payment_status: "pending",
         receipt_url: "",
         conversation_id: conversationIdToSend,
@@ -1436,7 +1444,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleCreateOrderAsSupplier(msg.product);
+                                    handleCreateOrderAsSupplier(msg);
                                   }}
                                   disabled={
                                     isCreatingOrderAsSupplier ||
