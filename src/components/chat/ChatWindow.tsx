@@ -55,7 +55,35 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<string | number | null>(null);
   const [isCreatingOrderAsSupplier, setIsCreatingOrderAsSupplier] = useState(false);
+  const getSupplierOrdersStorageKey = (uid?: number | string) =>
+    `safeeasy:supplier_orders_by_product_v1:${uid ?? "anon"}`;
+
+  const readSupplierOrdersFromStorage = (uid?: number | string) => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = window.localStorage.getItem(getSupplierOrdersStorageKey(uid));
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+      return parsed as Record<string, string | number>;
+    } catch {
+      return {};
+    }
+  };
+
+  const writeSupplierOrdersToStorage = (
+    uid: number | string | undefined,
+    map: Record<string, string | number>
+  ) => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(getSupplierOrdersStorageKey(uid), JSON.stringify(map));
+    } catch {
+    }
+  };
+
   const [supplierOrderByProductId, setSupplierOrderByProductId] = useState<Record<string, string | number>>({});
+  const checkedOrderProductsRef = useRef<Set<string>>(new Set());
 
   // Rating State
   const [isRatingOpen, setIsRatingOpen] = useState(false);
@@ -166,6 +194,95 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         // });
     }
   }, [isOpen, user, supplierId, isVendorMode, productId, activeConversation]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setSupplierOrderByProductId({});
+      return;
+    }
+    setSupplierOrderByProductId(readSupplierOrdersFromStorage(user.id));
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (user) return;
+    setIsPaymentModalOpen(false);
+    setError(null);
+    setMessages([]);
+    setConversations([]);
+    setActiveConversation(null);
+    setInputValue("");
+    setSelectedFile(null);
+    setCreatedOrderId(null);
+    setIsCreatingOrder(false);
+    setIsCreatingOrderAsSupplier(false);
+    setSupplierOrderByProductId({});
+    onClose?.();
+  }, [isOpen, user, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!isVendorMode) return;
+    if (!user?.id) return;
+
+    const isUuid = (value: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value
+      );
+
+    const productUuidCandidates: string[] = [];
+    if (productId && isUuid(String(productId))) productUuidCandidates.push(String(productId));
+    for (const m of messages) {
+      const pid = (m as any).product_id || (m as any).product?.id;
+      if (pid && isUuid(String(pid))) productUuidCandidates.push(String(pid));
+    }
+    const uniqProductIds = Array.from(new Set(productUuidCandidates));
+    if (uniqProductIds.length === 0) return;
+
+    const supplierIdCandidate =
+      Number((messages.find((m) => Number((m as any).supplier_id) > 0) as any)?.supplier_id) ||
+      Number((activeConversation as any)?.supplier_id) ||
+      Number(supplierId);
+
+    if (!supplierIdCandidate || !Number.isFinite(supplierIdCandidate)) return;
+
+    const checkOne = async (pid: string) => {
+      if (supplierOrderByProductId[pid]) return;
+      if (checkedOrderProductsRef.current.has(pid)) return;
+      checkedOrderProductsRef.current.add(pid);
+
+      const params = new URLSearchParams();
+      params.set("skip", "0");
+      params.set("limit", "1");
+      params.set("supplier_id", String(supplierIdCandidate));
+      params.set("product_id", pid);
+
+      const res = await fetchWithAuth(`/api/orders?${params.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      const items = Array.isArray(data) ? data : (data as any)?.items || (data as any)?.results || [];
+      if (!Array.isArray(items) || items.length === 0) return;
+
+      const found = items[0];
+      const orderId = found?.id || found?.order_id || true;
+      setSupplierOrderByProductId((prev) => {
+        const next = { ...prev, [pid]: orderId };
+        writeSupplierOrdersToStorage(user.id, next);
+        return next;
+      });
+    };
+
+    Promise.allSettled(uniqProductIds.map((pid) => checkOne(pid)));
+  }, [
+    isOpen,
+    isVendorMode,
+    user?.id,
+    productId,
+    messages,
+    activeConversation,
+    supplierId,
+    supplierOrderByProductId,
+  ]);
 
   // Initialize WebSocket with active conversation
   const [chatEnabled, setChatEnabled] = useState(() => {
@@ -459,7 +576,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   const handleCreateOrderAsSupplier = async (msg: Message) => {
     if (!msg?.product || !activeConversation) return;
 
-    const productKey = String(msg.product.id);
+    const productKey = String((msg as any).product_id || (msg.product as any).id);
     if (supplierOrderByProductId[productKey]) return;
 
     setIsCreatingOrderAsSupplier(true);
@@ -550,7 +667,11 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
       }
 
       const orderId = (data as any)?.id || (data as any)?.order_id || Date.now();
-      setSupplierOrderByProductId((prev) => ({ ...prev, [productKey]: orderId }));
+      setSupplierOrderByProductId((prev) => {
+        const next = { ...prev, [productKey]: orderId };
+        writeSupplierOrdersToStorage(user?.id, next);
+        return next;
+      });
     } catch (err) {
       setError("No se pudo crear la orden. Verifica tu conexión.");
     } finally {
@@ -1460,12 +1581,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                   }}
                                   disabled={
                                     isCreatingOrderAsSupplier ||
-                                    !!supplierOrderByProductId[String(msg.product.id)]
+                                    !!supplierOrderByProductId[String((msg as any).product_id || msg.product.id)]
                                   }
                                   className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
                                     isCreatingOrderAsSupplier
                                       ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                                      : supplierOrderByProductId[String(msg.product.id)]
+                                      : supplierOrderByProductId[String((msg as any).product_id || msg.product.id)]
                                         ? "bg-[#168e00] text-white cursor-not-allowed opacity-90"
                                         : "bg-[#168e00] hover:bg-[#137500] text-white"
                                   }`}
@@ -1476,7 +1597,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                     <PlusCircle size={14} />
                                   )}
                                   <span>
-                                    {supplierOrderByProductId[String(msg.product.id)]
+                                    {supplierOrderByProductId[String((msg as any).product_id || msg.product.id)]
                                       ? "Orden creada"
                                       : "Crear nueva orden"}
                                   </span>

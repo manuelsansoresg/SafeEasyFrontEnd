@@ -38,7 +38,8 @@ export const orderService = {
   getOrders: async (
     page = 1,
     limit = 10,
-    supplierId?: number
+    supplierId?: number,
+    productId?: string
   ): Promise<Order[]> => {
     const skip = (page - 1) * limit;
     const params = new URLSearchParams();
@@ -46,6 +47,9 @@ export const orderService = {
     params.set("limit", String(limit));
     if (supplierId && Number.isFinite(supplierId)) {
       params.set("supplier_id", String(supplierId));
+    }
+    if (productId) {
+      params.set("product_id", String(productId));
     }
 
     const response = await fetchWithAuth(`/api/orders?${params.toString()}`);
