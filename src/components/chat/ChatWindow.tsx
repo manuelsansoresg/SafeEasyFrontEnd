@@ -477,100 +477,80 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         return "";
       };
 
-      let conversationIdToSend = pickUuid(
-        (msg as any).conversation_id,
-        (activeConversation as any).conversation_id,
-        (activeConversation as any).conversation_uuid,
-        (activeConversation as any).uuid
+      const history =
+        pickUuid((msg as any).conversation_id) && pickUuid((msg as any).product_id)
+          ? null
+          : await chatService.getMessages(activeConversation.id);
+
+      const msgForIds =
+        history?.find((m) => pickUuid((m as any).conversation_id) && (m as any).supplier_id) ||
+        history?.[0] ||
+        msg;
+
+      const conversationIdToSend = pickUuid(
+        (msgForIds as any).conversation_id,
+        (msg as any).conversation_id
       );
-      let productIdToSend = pickUuid(
+      const productIdToSend = pickUuid(
         (msg as any).product_id,
         (msg.product as any).id,
-        (activeConversation as any).product_id
+        (msgForIds as any).product_id
       );
 
+      const supplierIdToSend = Number((msgForIds as any).supplier_id || (msg as any).supplier_id);
+
+      if (!conversationIdToSend) {
+        setError("No se pudo identificar el conversation_id (UUID) para crear la orden.");
+        return;
+      }
       if (!productIdToSend) {
         setError("No se pudo identificar el product_id (UUID) para crear la orden.");
         return;
       }
-
-      if (!conversationIdToSend) {
-        const history = await chatService.getMessages(activeConversation.id);
-        const msgWithConv = history.find((m) => !!(m as any).conversation_id) || history[0];
-        conversationIdToSend = pickUuid((msgWithConv as any)?.conversation_id);
-        if (!conversationIdToSend) {
-          setError("No se pudo identificar el conversation_id (UUID) para crear la orden.");
-          return;
-        }
-      }
-
-      const supplierIdToSend = Number(
-        (msg as any).supplier_id ||
-          (activeConversation as any).supplier_id ||
-          supplierId ||
-          (msg.product as any).supplier_id
-      );
-
-      if (!supplierIdToSend) {
+      if (!supplierIdToSend || !Number.isFinite(supplierIdToSend)) {
         setError("No se pudo identificar el supplier_id para crear la orden.");
         return;
       }
 
+      const rawPrice = (msg.product as any).price;
+      const amountNumber =
+        typeof rawPrice === "number"
+          ? rawPrice
+          : typeof rawPrice === "string"
+            ? Number(rawPrice.replace(/[^0-9.]/g, ""))
+            : 0;
+      const totalAmountToSend = Number.isFinite(amountNumber)
+        ? amountNumber.toFixed(2)
+        : "0.00";
+
       const payload = {
         supplier_id: supplierIdToSend,
         product_id: productIdToSend,
-        total_amount: Number((msg.product as any).price || 0),
+        total_amount: totalAmountToSend,
         payment_status: "pending",
         receipt_url: "",
         conversation_id: conversationIdToSend,
       };
 
-      const supplierCandidates = [
-        Number((msg as any).supplier_id),
-        Number((activeConversation as any).supplier_id),
-        Number(supplierId),
-        Number((msg.product as any).supplier_id),
-      ].filter((n) => Number.isFinite(n) && n > 0);
+      const res = await fetchWithAuth("/api/orders/", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
 
-      const uniqSupplierCandidates = Array.from(new Set(supplierCandidates));
+      const data = await res.json().catch(() => ({}));
 
-      let lastError: unknown = null;
-      for (const candidate of (uniqSupplierCandidates.length ? uniqSupplierCandidates : [supplierIdToSend])) {
-        const res = await fetchWithAuth("/api/orders/", {
-          method: "POST",
-          body: JSON.stringify({ ...payload, supplier_id: candidate }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-
-        if (res.ok) {
-          const orderId = (data as any)?.id || (data as any)?.order_id || Date.now();
-          setSupplierOrderByProductId((prev) => ({ ...prev, [productKey]: orderId }));
-          return;
-        }
-
-        const detail = (data as any)?.detail || (data as any)?.message || (data as any)?.error || "";
-        lastError = detail || data;
-
-        if (
-          res.status === 400 &&
-          typeof detail === "string" &&
-          detail.toLowerCase().includes("conversation does not match supplier or product")
-        ) {
-          continue;
-        }
-
-        setError(detail || "No se pudo crear la orden.");
+      if (!res.ok) {
+        setError(
+          (data as any)?.detail ||
+            (data as any)?.message ||
+            (data as any)?.error ||
+            "No se pudo crear la orden."
+        );
         return;
       }
 
-      const suffix = uniqSupplierCandidates.length
-        ? ` (supplier_id probados: ${uniqSupplierCandidates.join(", ")})`
-        : "";
-      setError(
-        (typeof lastError === "string" && lastError ? lastError : "Conversation does not match supplier or product") +
-          suffix
-      );
+      const orderId = (data as any)?.id || (data as any)?.order_id || Date.now();
+      setSupplierOrderByProductId((prev) => ({ ...prev, [productKey]: orderId }));
     } catch (err) {
       setError("No se pudo crear la orden. Verifica tu conexión.");
     } finally {
