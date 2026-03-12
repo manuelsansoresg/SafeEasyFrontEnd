@@ -34,6 +34,19 @@ export interface Order {
   };
 }
 
+export interface OrderHistoryItem {
+  created_at?: string;
+  timestamp?: string;
+  date?: string;
+  status?: string;
+  event?: string;
+  action?: string;
+  description?: string;
+  message?: string;
+  actor?: string;
+  user?: { id?: number; name?: string; role?: string };
+}
+
 export const orderService = {
   getOrders: async (
     page = 1,
@@ -57,6 +70,29 @@ export const orderService = {
       throw new Error("Failed to fetch orders");
     }
     return response.json();
+  },
+
+  getOrderHistory: async (orderId: number): Promise<OrderHistoryItem[]> => {
+    let url = `/api/orders/${orderId}/history`;
+    let response = await fetchWithAuth(url);
+
+    if (response.status === 404 || response.status === 405) {
+      url = `/api/orders/${orderId}/history/`;
+      response = await fetchWithAuth(url);
+    }
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch order history");
+    }
+
+    const data: unknown = await response.json().catch(() => null);
+    if (Array.isArray(data)) return data as OrderHistoryItem[];
+    if (data && typeof data === "object") {
+      const record = data as Record<string, unknown>;
+      const items = record.items ?? record.results;
+      if (Array.isArray(items)) return items as OrderHistoryItem[];
+    }
+    return [];
   },
 
   updateOrderStatus: async (orderId: number, status: string) => {
