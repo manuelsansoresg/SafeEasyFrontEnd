@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { orderService, Order, OrderHistoryItem } from "@/services/orderService";
 import { chatService } from "@/services/chatService";
@@ -15,21 +15,55 @@ import {
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 
+function normalizeStatusKey(value: string) {
+  const raw = String(value || "").trim();
+  const v = raw.toLowerCase().trim().replace(/\s+/g, "_");
+
+  if (v === "pending" || v === "pendiente") return "pending";
+  if (v === "paid" || v === "pagado" || v === "pago_verificado" || v === "validado" || v === "validated")
+    return "paid";
+  if (v === "verified" || v === "verificado") return "verified";
+  if (v === "completed" || v === "completado" || v === "delivered" || v === "entregado") return "completed";
+  if (v === "shipped" || v === "enviado") return "shipped";
+  if (v === "rejected" || v === "rechazado" || v === "payment_rejected" || v === "pago_rechazado")
+    return "payment_rejected";
+  if (v === "cancelled" || v === "cancelado") return "cancelled";
+  if (v === "receipt_uploaded" || v === "comprobante_subido") return "receipt_uploaded";
+  if (v === "created" || v === "creado") return "created";
+
+  return v;
+}
+
+function toSpanishStatusLabel(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const key = normalizeStatusKey(raw);
+  const map: Record<string, string> = {
+    pending: "Pendiente",
+    paid: "Pago verificado",
+    verified: "Verificado",
+    completed: "Completado",
+    shipped: "Enviado",
+    receipt_uploaded: "Comprobante subido",
+    payment_rejected: "Pago rechazado",
+    rejected: "Pago rechazado",
+    cancelled: "Cancelado",
+    created: "Creado",
+  };
+  return map[key] || raw;
+}
+
 function StatusBadge({ value }: { value: string }) {
   const raw = (value || "").trim();
-  const normalized = raw.toLowerCase();
+  const normalized = normalizeStatusKey(raw);
 
-  const isPaid =
-    normalized === "paid" ||
-    normalized === "pagado" ||
-    normalized === "validado" ||
-    normalized === "validated";
-  const isCompleted = normalized === "completed" || normalized === "completado" || normalized === "delivered";
+  const isPaid = normalized === "paid";
+  const isCompleted = normalized === "completed" || normalized === "verified";
 
   const bg = isCompleted ? "#004e28" : isPaid ? "#168e00" : "#f2f3f4";
   const fg = isCompleted || isPaid ? "#ffffff" : "#000000";
 
-  const label = raw || "—";
+  const label = toSpanishStatusLabel(raw) || "—";
 
   return (
     <span
@@ -43,18 +77,15 @@ function StatusBadge({ value }: { value: string }) {
 
 function MinimalStatusPill({ value }: { value: string }) {
   const raw = (value || "").trim();
-  const normalized = raw.toLowerCase();
+  const normalized = normalizeStatusKey(raw);
 
-  const isPaid =
-    normalized === "paid" ||
-    normalized === "pagado" ||
-    normalized === "validado" ||
-    normalized === "validated";
-  const isCompleted = normalized === "completed" || normalized === "completado" || normalized === "delivered";
-  const isReceipt = normalized === "receipt_uploaded" || normalized === "comprobante_subido";
-  const isRejected = normalized === "rejected" || normalized === "rechazado";
-  const isCancelled = normalized === "cancelled" || normalized === "cancelado";
-  const isShipped = normalized === "shipped" || normalized === "enviado";
+  const isPaid = normalized === "paid";
+  const isCompleted = normalized === "completed" || normalized === "verified";
+  const isReceipt = normalized === "receipt_uploaded";
+  const isRejected = normalized === "payment_rejected";
+  const isCancelled = normalized === "cancelled";
+  const isShipped = normalized === "shipped";
+  const isPending = normalized === "pending";
 
   const base = isCompleted
     ? "#004e28"
@@ -68,9 +99,11 @@ function MinimalStatusPill({ value }: { value: string }) {
             ? "#6b7280"
             : isShipped
               ? "#fbbf24"
-              : "#6b7280";
+              : isPending
+                ? "#6b7280"
+                : "#6b7280";
 
-  const label = raw || "—";
+  const label = toSpanishStatusLabel(raw) || "—";
   const bg = base === "#fbbf24" ? "#fff7ed" : `${base}14`;
 
   return (
@@ -86,6 +119,8 @@ function MinimalStatusPill({ value }: { value: string }) {
 export default function AdminOrdersPage() {
   const { user } = useAuthStore();
   const { openChat } = useChat();
+  const roleKey = String(user?.role || "").toLowerCase();
+  const isAdminUser = roleKey === "admin" || roleKey === "superuser";
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,10 +131,13 @@ export default function AdminOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [history, setHistory] = useState<OrderHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState<
-    "paid" | "shipped" | "completed" | "rejected" | "cancelled" | null
-  >(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState<string>("");
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [rejectSpinnerVisible, setRejectSpinnerVisible] = useState(false);
+  const rejectSpinnerTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const role = (user?.role || "").toLowerCase();
@@ -173,6 +211,18 @@ export default function AdminOrdersPage() {
     fetchOrders();
   }, [page, supplierId, supplierReady, user?.role]);
 
+  useEffect(() => {
+    if (!toastMessage) return;
+    const t = window.setTimeout(() => setToastMessage(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [toastMessage]);
+
+  useEffect(() => {
+    return () => {
+      if (rejectSpinnerTimerRef.current) window.clearTimeout(rejectSpinnerTimerRef.current);
+    };
+  }, []);
+
   const fetchOrders = async () => {
     setLoading(true);
     setError(null);
@@ -219,18 +269,22 @@ export default function AdminOrdersPage() {
   };
 
   const getOrderPaymentStatus = (order: Order) => {
-    const s = order.payment_status || order.status;
+    const s = order.visual_status || order.payment_status || order.status;
     return typeof s === "string" && s.trim() ? s : "-";
   };
 
   const isReceiptPending = (order: Order) => {
     const status = String(order.status || "").toLowerCase();
     const payment = String(order.payment_status || "").toLowerCase();
+    const visual = String(order.visual_status || "").toLowerCase();
     return (
       status === "comprobante_subido" ||
       status === "receipt_uploaded" ||
       payment === "comprobante_subido" ||
-      payment === "receipt_uploaded"
+      payment === "receipt_uploaded" ||
+      visual === "comprobante_subido" ||
+      visual === "comprobante subido" ||
+      visual === "receipt_uploaded"
     );
   };
 
@@ -309,16 +363,17 @@ export default function AdminOrdersPage() {
       );
     }
 
-    const statusMeta = (value: string) => {
-      const v = (value || "").trim().toLowerCase();
+    const statusMeta = (statusKey: string) => {
+      const v = normalizeStatusKey(statusKey);
       if (v === "paid") return { label: "Pago verificado", bg: "#168e00", fg: "#ffffff" };
+      if (v === "verified") return { label: "Verificado", bg: "#004e28", fg: "#ffffff" };
       if (v === "completed") return { label: "Completado", bg: "#004e28", fg: "#ffffff" };
-      if (v === "shipped") return { label: "Enviado / En ruta", bg: "#fbbf24", fg: "#000000" };
-      if (v === "rejected") return { label: "Pago rechazado", bg: "#ef4444", fg: "#ffffff" };
+      if (v === "shipped") return { label: "Enviado", bg: "#fbbf24", fg: "#000000" };
+      if (v === "payment_rejected") return { label: "Pago rechazado", bg: "#ef4444", fg: "#ffffff" };
       if (v === "cancelled") return { label: "Cancelado", bg: "#6b7280", fg: "#ffffff" };
-      if (v === "receipt_uploaded" || v === "comprobante_subido")
-        return { label: "Comprobante subido", bg: "#3b82f6", fg: "#ffffff" };
-      if (v === "pending") return { label: "Pendiente de pago", bg: "#f2f3f4", fg: "#000000" };
+      if (v === "receipt_uploaded") return { label: "Comprobante subido", bg: "#3b82f6", fg: "#ffffff" };
+      if (v === "created") return { label: "Creado", bg: "#f2f3f4", fg: "#000000" };
+      if (v === "pending") return { label: "Pendiente", bg: "#f2f3f4", fg: "#000000" };
       return { label: "", bg: "#f2f3f4", fg: "#000000" };
     };
 
@@ -337,8 +392,9 @@ export default function AdminOrdersPage() {
         "";
 
       const meta = statusMeta(statusRaw);
-      const fallbackText = normalizeHistoryRow(h).text;
-      const title = meta.label || fallbackText;
+      const fallbackTextRaw = normalizeHistoryRow(h).text;
+      const fallbackText = toSpanishStatusLabel(fallbackTextRaw);
+      const title = meta.label || fallbackText || "Actualización";
 
       const detail =
         meta.label && fallbackText && fallbackText !== meta.label ? fallbackText : "";
@@ -415,21 +471,41 @@ export default function AdminOrdersPage() {
     setHistoryLoading(false);
     setModalError(null);
     setActionLoading(null);
+    setIsRejectModalOpen(false);
+    setRejectNote("");
+    setRejectSpinnerVisible(false);
+    if (rejectSpinnerTimerRef.current) {
+      window.clearTimeout(rejectSpinnerTimerRef.current);
+      rejectSpinnerTimerRef.current = null;
+    }
   };
 
   const applyStatus = async (
-    newStatus: "paid" | "shipped" | "completed" | "rejected" | "cancelled"
+    newStatus: "paid" | "shipped" | "completed" | "rejected" | "cancelled",
+    note?: string
   ) => {
     if (!selectedOrder) return;
     setActionLoading(newStatus);
     setModalError(null);
     try {
-      await orderService.updateOrderStatus(selectedOrder.id, newStatus);
+      const updated = await orderService.updateOrderStatus(selectedOrder.id, newStatus, note).catch(() => null);
+      const nextStatus =
+        updated && typeof (updated as any).status === "string" ? String((updated as any).status) : newStatus;
+      const nextVisualStatus =
+        updated && typeof (updated as any).visual_status === "string"
+          ? String((updated as any).visual_status)
+          : updated && typeof (updated as any).status === "string"
+            ? String((updated as any).status)
+            : newStatus;
 
       setOrders((prev) =>
-        prev.map((o) => (o.id === selectedOrder.id ? { ...o, status: newStatus } : o))
+        prev.map((o) => (o.id === selectedOrder.id ? { ...o, status: nextStatus, visual_status: nextVisualStatus } : o))
       );
-      setSelectedOrder((prev) => (prev ? { ...prev, status: newStatus } : prev));
+      setSelectedOrder((prev) => (prev ? { ...prev, status: nextStatus, visual_status: nextVisualStatus } : prev));
+      if (newStatus === "rejected") {
+        setIsRejectModalOpen(false);
+        setRejectNote("");
+      }
 
       try {
         const items = await orderService.getOrderHistory(selectedOrder.id);
@@ -446,6 +522,50 @@ export default function AdminOrdersPage() {
     } catch (e) {
       setModalError("No se pudo actualizar el estatus.");
     } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openRejectModal = () => {
+    setModalError(null);
+    setRejectNote("");
+    setIsRejectModalOpen(true);
+  };
+
+  const closeRejectModal = () => {
+    if (actionLoading) return;
+    setIsRejectModalOpen(false);
+    setRejectNote("");
+  };
+
+  const submitRejection = async () => {
+    if (!selectedOrder) return;
+    const note = rejectNote.trim();
+    if (note.length < 10) return;
+
+    const orderId = selectedOrder.id;
+    setModalError(null);
+    setActionLoading("reject");
+    setRejectSpinnerVisible(false);
+    if (rejectSpinnerTimerRef.current) window.clearTimeout(rejectSpinnerTimerRef.current);
+    rejectSpinnerTimerRef.current = window.setTimeout(() => setRejectSpinnerVisible(true), 500);
+
+    try {
+      await orderService.updateOrderStatus(orderId, "pending", note);
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId ? { ...o, status: "pending", visual_status: "pending", receipt_url: "" } : o
+        )
+      );
+      setToastMessage("Rechazo procesado exitosamente");
+      closeManageModal();
+      fetchOrders();
+    } catch {
+      setModalError("No se pudo procesar el rechazo.");
+    } finally {
+      if (rejectSpinnerTimerRef.current) window.clearTimeout(rejectSpinnerTimerRef.current);
+      rejectSpinnerTimerRef.current = null;
+      setRejectSpinnerVisible(false);
       setActionLoading(null);
     }
   };
@@ -472,6 +592,13 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="p-6">
+      {toastMessage ? (
+        <div className="fixed right-4 top-4 z-[80]">
+          <div className="rounded-xl bg-[#004e28] px-4 py-3 text-sm font-semibold text-white shadow-xl font-[family-name:var(--font-poppins)]">
+            {toastMessage}
+          </div>
+        </div>
+      ) : null}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Órdenes</h1>
       </div>
@@ -491,7 +618,9 @@ export default function AdminOrdersPage() {
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Producto</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Monto</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Pago</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Proveedor</th>
+                {isAdminUser ? (
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Proveedor</th>
+                ) : null}
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Creado</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
@@ -500,7 +629,7 @@ export default function AdminOrdersPage() {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center">
+                  <td colSpan={isAdminUser ? 8 : 7} className="px-6 py-8 text-center">
                     <div className="flex justify-center items-center">
                       <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
                     </div>
@@ -508,7 +637,7 @@ export default function AdminOrdersPage() {
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={isAdminUser ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
                     No hay órdenes encontradas.
                   </td>
                 </tr>
@@ -537,14 +666,16 @@ export default function AdminOrdersPage() {
                     <td className="px-6 py-4 text-sm">
                       <StatusBadge value={getOrderPaymentStatus(order)} />
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 font-[family-name:var(--font-poppins)]">
-                      <div className="flex flex-col">
-                        <span className="text-gray-900">
-                          {order.supplier?.name || "Proveedor desconocido"}
-                        </span>
-                        <span className="text-xs text-gray-400">ID: {order.supplier_id}</span>
-                      </div>
-                    </td>
+                    {isAdminUser ? (
+                      <td className="px-6 py-4 text-sm text-gray-500 font-[family-name:var(--font-poppins)]">
+                        <div className="flex flex-col">
+                          <span className="text-gray-900">
+                            {order.supplier?.name || "Proveedor desconocido"}
+                          </span>
+                          <span className="text-xs text-gray-400">ID: {order.supplier_id}</span>
+                        </div>
+                      </td>
+                    ) : null}
                     <td className="px-6 py-4 text-sm font-[family-name:var(--font-poppins)]">
                       <div className="flex flex-col">
                         <span className="text-gray-900">{order.buyer?.name || `Usuario #${order.buyer_id}`}</span>
@@ -672,64 +803,77 @@ export default function AdminOrdersPage() {
                     Acciones
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => applyStatus("paid")}
-                      disabled={actionLoading !== null || !getReceiptUrl(selectedOrder)}
-                      className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
-                      style={{
-                        backgroundColor: "#004e2814",
-                        color: "#004e28",
-                        border: "1px solid #004e2833",
-                      }}
-                      title={!getReceiptUrl(selectedOrder) ? "Se requiere receipt_url para confirmar el pago" : undefined}
-                    >
-                      {actionLoading === "paid" ? "Actualizando..." : "Confirmar Pago"}
-                    </button>
+                  {(() => {
+                    const statusKey = String(
+                      selectedOrder.visual_status || selectedOrder.status || selectedOrder.payment_status || ""
+                    )
+                      .trim()
+                      .toLowerCase();
 
-                    <button
-                      onClick={() => applyStatus("completed")}
-                      disabled={actionLoading !== null}
-                      className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
-                      style={{
-                        backgroundColor: "#004e2814",
-                        color: "#004e28",
-                        border: "1px solid #004e2833",
-                      }}
-                    >
-                      {actionLoading === "completed" ? "Actualizando..." : "Completar"}
-                    </button>
+                    const isPending = statusKey === "pending" || statusKey === "pendiente";
+                    const isPaid = statusKey === "paid" || statusKey === "pagado";
+                    const isFinal =
+                      statusKey === "verified" ||
+                      statusKey === "verificado" ||
+                      statusKey === "completed" ||
+                      statusKey === "completado";
+                    const canReject = isPending || isPaid;
 
-                    <button
-                      onClick={() => applyStatus("shipped")}
-                      disabled={actionLoading !== null}
-                      className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
-                      style={{
-                        backgroundColor: "#f2f3f4",
-                        color: "#111827",
-                        border: "1px solid #e5e7eb",
-                      }}
-                    >
-                      {actionLoading === "shipped" ? "Actualizando..." : "Enviado"}
-                    </button>
-                  </div>
+                    return (
+                      <>
+                        <div className="flex flex-wrap gap-2">
+                          {isPending ? (
+                            <button
+                              onClick={() => applyStatus("paid")}
+                              disabled={actionLoading !== null || !getReceiptUrl(selectedOrder)}
+                              className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
+                              style={{
+                                backgroundColor: "#004e2814",
+                                color: "#004e28",
+                                border: "1px solid #004e2833",
+                              }}
+                              title={
+                                !getReceiptUrl(selectedOrder)
+                                  ? "Se requiere receipt_url para confirmar el pago"
+                                  : undefined
+                              }
+                            >
+                              {actionLoading === "paid" ? "Actualizando..." : "Confirmar Pago"}
+                            </button>
+                          ) : null}
 
-                  <div className="mt-4 flex items-center justify-end gap-3">
-                    <button
-                      onClick={() => applyStatus("rejected")}
-                      disabled={actionLoading !== null}
-                      className="text-sm font-semibold font-[family-name:var(--font-poppins)] text-red-600 hover:text-red-700 disabled:opacity-60"
-                    >
-                      {actionLoading === "rejected" ? "Actualizando..." : "Rechazar"}
-                    </button>
-                    <button
-                      onClick={() => applyStatus("cancelled")}
-                      disabled={actionLoading !== null}
-                      className="text-sm font-semibold font-[family-name:var(--font-poppins)] text-gray-500 hover:text-gray-700 disabled:opacity-60"
-                    >
-                      {actionLoading === "cancelled" ? "Actualizando..." : "Cancelar"}
-                    </button>
-                  </div>
+                          {isPaid ? (
+                            <button
+                              onClick={() => applyStatus("completed")}
+                              disabled={actionLoading !== null}
+                              className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
+                              style={{
+                                backgroundColor: "#004e2814",
+                                color: "#004e28",
+                                border: "1px solid #004e2833",
+                              }}
+                            >
+                              {actionLoading === "completed" ? "Actualizando..." : "Completar"}
+                            </button>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-end gap-3">
+                          <button
+                            onClick={openRejectModal}
+                            disabled={actionLoading !== null || isFinal || !canReject}
+                            className={`text-sm font-semibold font-[family-name:var(--font-poppins)] ${
+                              isFinal || !canReject
+                                ? "text-gray-300 cursor-not-allowed"
+                                : "text-red-600 hover:text-red-700"
+                            } disabled:opacity-60`}
+                          >
+                            {actionLoading === "rejected" ? "Actualizando..." : "Rechazar"}
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()}
 
                   {modalError ? (
                     <div className="mt-4 text-sm text-red-600 font-[family-name:var(--font-poppins)]">
@@ -749,6 +893,80 @@ export default function AdminOrdersPage() {
               </div>
             </div>
           </div>
+
+          {isRejectModalOpen ? (
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4"
+              onClick={closeRejectModal}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div
+                className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden border border-gray-100"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                  <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                    Rechazar pedido
+                  </div>
+                  <button
+                    onClick={closeRejectModal}
+                    disabled={actionLoading !== null}
+                    className="inline-flex items-center justify-center rounded-full p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                    aria-label="Cerrar"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="px-6 py-5">
+                  <label className="block text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)] mb-2">
+                    Motivo del rechazo
+                  </label>
+                  <textarea
+                    value={rejectNote}
+                    onChange={(e) => setRejectNote(e.target.value)}
+                    rows={4}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-[family-name:var(--font-poppins)] outline-none focus:ring-2 focus:ring-[#004e28]/20 focus:border-[#004e28]/40"
+                    placeholder="Describe el motivo..."
+                    disabled={actionLoading !== null}
+                  />
+                  <div className="mt-2 text-xs text-gray-500 font-[family-name:var(--font-poppins)]">
+                    Mínimo 10 caracteres.
+                  </div>
+
+                  <div className="mt-5 flex items-center justify-end gap-3">
+                    <button
+                      onClick={closeRejectModal}
+                      disabled={actionLoading !== null}
+                      className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] text-gray-700 hover:bg-gray-50 border border-gray-200 disabled:opacity-60"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={submitRejection}
+                      disabled={actionLoading !== null || rejectNote.trim().length < 10}
+                      className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] text-white disabled:opacity-60"
+                      style={{ backgroundColor: "#ef4444" }}
+                    >
+                      {actionLoading === "reject" ? (
+                        rejectSpinnerVisible ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            Confirmando...
+                          </>
+                        ) : (
+                          "Confirmando..."
+                        )
+                      ) : (
+                        "Confirmar Rechazo"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

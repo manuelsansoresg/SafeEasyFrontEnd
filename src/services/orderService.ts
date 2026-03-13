@@ -8,6 +8,7 @@ export interface Order {
   buyer_id: number;
   total_amount?: string | number;
   payment_status?: string;
+  visual_status?: string;
   receipt_url?: string;
   status?: 'pending' | 'completed' | 'cancelled' | string;
   created_at: string;
@@ -17,6 +18,9 @@ export interface Order {
     // ... other supplier fields if needed
     id?: number;
     slug?: string;
+    transfer_clabe?: string | null;
+    transfer_bank?: string | null;
+    transfer_name?: string | null;
   };
   buyer: {
     id: number;
@@ -31,6 +35,8 @@ export interface Order {
     // ... other product fields
     supplier_id?: number;
     slug?: string;
+    thumbnail_url?: string | null;
+    image?: string | null;
   };
 }
 
@@ -95,8 +101,12 @@ export const orderService = {
     return [];
   },
 
-  updateOrderStatus: async (orderId: number, status: string) => {
-    const body = JSON.stringify({ status });
+  updateOrderStatus: async (orderId: number, status: string, note?: string) => {
+    const payload: Record<string, unknown> = { status };
+    if (typeof note === "string" && note.trim().length > 0) {
+      payload.note = note;
+    }
+    const body = JSON.stringify(payload);
     const options = {
       method: 'PUT',
       body,
@@ -129,5 +139,68 @@ export const orderService = {
       throw new Error(`Failed to update order status: ${response.status} ${errorText}`);
     }
     return response.json();
-  }
+  },
+
+  getMyOrders: async (): Promise<Order[]> => {
+    const tryUrls = [
+      `/api/users/me/orders`,
+      `/api/users/me/orders/`,
+    ];
+
+    let response: Response | null = null;
+    for (const url of tryUrls) {
+      response = await fetchWithAuth(url);
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+
+    if (!response || !response.ok) {
+      throw new Error("Failed to fetch my orders");
+    }
+
+    const data: unknown = await response.json().catch(() => null);
+    if (Array.isArray(data)) return data as Order[];
+    if (data && typeof data === "object") {
+      const record = data as Record<string, unknown>;
+      const items = record.items ?? record.results ?? record.data ?? record.orders;
+      if (Array.isArray(items)) return items as Order[];
+    }
+    return [];
+  },
+
+  uploadOrderReceipt: async (orderId: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+
+    const options = {
+      method: "POST",
+      body: form,
+    };
+
+    const tryUrls = [
+      `/api/orders/${orderId}/receipt`,
+      `/api/orders/${orderId}/receipt/`,
+      `/api/api/v1/orders/${orderId}/receipt`,
+    ];
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url, options);
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to upload receipt: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      return response.json();
+    }
+    return null;
+  },
 };
