@@ -203,4 +203,45 @@ export const orderService = {
     }
     return null;
   },
+
+  requestOrderRefund: async (orderId: number, reason: string, file?: File | null) => {
+    const form = new FormData();
+    form.append("reason", reason);
+    if (file) {
+      form.append("file", file);
+    }
+
+    const options = {
+      method: "POST",
+      body: form,
+    };
+
+    const tryUrls = [
+      `/api/orders/${orderId}/refunds`,
+      `/api/orders/${orderId}/refunds/`,
+      `/api/api/v1/orders/${orderId}/refunds`,
+    ];
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url, options);
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = await response?.text().catch(() => "") ?? "";
+      throw new Error(
+        `Failed to request refund: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim()
+      );
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      return response.json();
+    }
+    return null;
+  },
 };

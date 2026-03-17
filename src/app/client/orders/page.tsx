@@ -221,8 +221,16 @@ export default function ClientOrdersPage() {
   const [uploading, setUploading] = useState(false);
   const [selectingReceipt, setSelectingReceipt] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [refundReason, setRefundReason] = useState("");
+  const [refundEvidence, setRefundEvidence] = useState<File | null>(null);
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [refundSelectingEvidence, setRefundSelectingEvidence] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [refundSuccess, setRefundSuccess] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const refundFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -262,6 +270,13 @@ export default function ClientOrdersPage() {
     setUploading(false);
     setSelectingReceipt(false);
     setPreviewUrl(null);
+    setIsRefundModalOpen(false);
+    setRefundReason("");
+    setRefundEvidence(null);
+    setRefundSubmitting(false);
+    setRefundSelectingEvidence(false);
+    setRefundError(null);
+    setRefundSuccess(null);
   };
 
   useEffect(() => {
@@ -329,6 +344,88 @@ export default function ClientOrdersPage() {
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const canRequestRefund = useMemo(() => {
+    if (!selectedOrder) return false;
+    return normalizeStatusKey(getOrderStatusRaw(selectedOrder)) === "verified";
+  }, [selectedOrder]);
+
+  const openRefundModal = () => {
+    if (!selectedOrder) return;
+    setRefundReason("");
+    setRefundEvidence(null);
+    setRefundError(null);
+    setRefundSuccess(null);
+    setRefundSubmitting(false);
+    setRefundSelectingEvidence(false);
+    setIsRefundModalOpen(true);
+  };
+
+  const closeRefundModal = () => {
+    if (refundSubmitting) return;
+    setIsRefundModalOpen(false);
+    setRefundReason("");
+    setRefundEvidence(null);
+    setRefundError(null);
+    setRefundSuccess(null);
+    setRefundSelectingEvidence(false);
+    if (refundFileInputRef.current) refundFileInputRef.current.value = "";
+  };
+
+  const handleSelectRefundEvidence = () => {
+    setRefundError(null);
+    setRefundSuccess(null);
+    if (refundSubmitting || refundSelectingEvidence) return;
+    setRefundSelectingEvidence(true);
+    const onFocus = () => {
+      window.removeEventListener("focus", onFocus);
+      setTimeout(() => setRefundSelectingEvidence(false), 200);
+    };
+    window.addEventListener("focus", onFocus);
+    refundFileInputRef.current?.click();
+  };
+
+  const handleRefundEvidenceChange = (file: File | null) => {
+    setRefundSelectingEvidence(false);
+    setRefundError(null);
+    setRefundSuccess(null);
+    setRefundEvidence(file);
+  };
+
+  const submitRefund = async () => {
+    if (!selectedOrder) return;
+    const reason = refundReason.trim();
+    if (!reason) {
+      setRefundError("Por favor escribe el motivo del reembolso.");
+      return;
+    }
+
+    setRefundSubmitting(true);
+    setRefundError(null);
+    setRefundSuccess(null);
+    try {
+      await orderService.requestOrderRefund(selectedOrder.id, reason, refundEvidence);
+      setRefundSuccess("Solicitud de reembolso enviada.");
+      setModalSuccess("Solicitud de reembolso enviada.");
+
+      const updatedOrders = await orderService.getMyOrders();
+      setOrders(updatedOrders);
+      const updatedOrder = updatedOrders.find((o) => o.id === selectedOrder.id) || null;
+      if (updatedOrder) setSelectedOrder(updatedOrder);
+
+      try {
+        const items = await orderService.getOrderHistory(selectedOrder.id);
+        setHistory(items);
+      } catch {}
+
+      setTimeout(() => setModalSuccess(null), 3500);
+      setTimeout(() => closeRefundModal(), 600);
+    } catch (e: any) {
+      setRefundError(e?.message || "No se pudo solicitar el reembolso.");
+    } finally {
+      setRefundSubmitting(false);
     }
   };
 
@@ -620,6 +717,156 @@ export default function ClientOrdersPage() {
                 </div>
                 <Timeline items={history} loading={historyLoading} />
               </div>
+
+              {canRequestRefund ? (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={openRefundModal}
+                    className="w-full md:w-auto inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold font-[family-name:var(--font-poppins)] text-white disabled:opacity-60"
+                    style={{ backgroundColor: "#ef4444" }}
+                  >
+                    Solicitar Reembolso
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {selectedOrder && isRefundModalOpen ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
+          onClick={closeRefundModal}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative px-6 pt-6 pb-4 border-b border-gray-100">
+              <button
+                onClick={closeRefundModal}
+                className="absolute right-3 top-3 inline-flex items-center justify-center rounded-full p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                aria-label="Cerrar"
+                disabled={refundSubmitting}
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <h3 className="text-lg font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                Solicitar Reembolso
+              </h3>
+              <div className="mt-1 text-sm text-gray-500 font-[family-name:var(--font-poppins)]">
+                Pedido #{selectedOrder.id}
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {refundSuccess ? (
+                <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-green-700 flex items-center gap-2 font-[family-name:var(--font-poppins)]">
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="text-sm">{refundSuccess}</span>
+                </div>
+              ) : null}
+              {refundError ? (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-red-700 flex items-center gap-2 font-[family-name:var(--font-poppins)]">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="text-sm">{refundError}</span>
+                </div>
+              ) : null}
+
+              <div>
+                <div className="text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)] mb-2">
+                  Motivo
+                </div>
+                <textarea
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  className="w-full min-h-[120px] rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 font-[family-name:var(--font-poppins)] focus:outline-none focus:ring-2 focus:ring-[#004e28]/30"
+                  placeholder="Describe el motivo del reembolso..."
+                  disabled={refundSubmitting}
+                />
+              </div>
+
+              <div>
+                <div className="text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)] mb-2">
+                  Evidencia (imagen)
+                </div>
+                <input
+                  ref={refundFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleRefundEvidenceChange(e.target.files?.[0] || null)}
+                />
+                <button
+                  type="button"
+                  onClick={handleSelectRefundEvidence}
+                  disabled={refundSubmitting || refundSelectingEvidence}
+                  className="w-full inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
+                  style={{
+                    backgroundColor: "#004e2814",
+                    color: "#004e28",
+                    border: "1px solid #004e2833",
+                  }}
+                >
+                  {refundSelectingEvidence ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Selecciona tu imagen...
+                    </>
+                  ) : refundEvidence ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Evidencia seleccionada
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Subir imagen
+                    </>
+                  )}
+                </button>
+                {refundEvidence ? (
+                  <div className="mt-2 text-xs text-gray-500 font-[family-name:var(--font-poppins)]">
+                    {refundEvidence.name}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+              <button
+                type="button"
+                onClick={closeRefundModal}
+                disabled={refundSubmitting}
+                className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
+                style={{
+                  backgroundColor: "#ffffff",
+                  color: "#111827",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={submitRefund}
+                disabled={refundSubmitting}
+                className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] text-white disabled:opacity-60"
+                style={{ backgroundColor: "#ef4444" }}
+              >
+                {refundSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Enviando...
+                  </>
+                ) : (
+                  "Confirmar"
+                )}
+              </button>
             </div>
           </div>
         </div>
