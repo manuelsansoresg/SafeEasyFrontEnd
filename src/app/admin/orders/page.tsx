@@ -117,7 +117,7 @@ function MinimalStatusPill({ value }: { value: string }) {
 }
 
 export default function AdminOrdersPage() {
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const { openChat } = useChat();
   const roleKey = String(user?.role || "").toLowerCase();
   const isAdminUser = roleKey === "admin" || roleKey === "superuser";
@@ -148,7 +148,7 @@ export default function AdminOrdersPage() {
       return;
     }
 
-    if (!user?.id) {
+    if (!user?.id || !token) {
       setSupplierReady(true);
       return;
     }
@@ -156,39 +156,79 @@ export default function AdminOrdersPage() {
     const loadSupplierId = async () => {
       setSupplierReady(false);
       try {
-        let url = `/api/suppliers?user_id=${user.id}&limit=200`;
-        let res = await fetchWithAuth(url);
-        if (!res.ok) {
-          url = `/api/suppliers/?user_id=${user.id}&limit=200`;
-          res = await fetchWithAuth(url);
+        const candidateUrls = [
+          `/api/suppliers/me`,
+          `/api/suppliers/me/`,
+          `/api/users/me/supplier`,
+          `/api/users/me/supplier/`,
+          `/api/suppliers?user_id=${user.id}&skip=0&limit=200`,
+          `/api/suppliers/?user_id=${user.id}&skip=0&limit=200`,
+          `/api/suppliers?skip=0&limit=200`,
+          `/api/suppliers/?skip=0&limit=200`,
+        ];
+
+        let response: Response | null = null;
+        let usedUrl = "";
+        for (const url of candidateUrls) {
+          usedUrl = url;
+          response = await fetchWithAuth(url);
+          if (response.ok) break;
+          if (response.status !== 404 && response.status !== 405) break;
         }
-        if (!res.ok) {
+
+        if (!response || !response.ok) {
+          const bodyText = await response?.text().catch(() => "") ?? "";
+          const status = response?.status ?? "unknown";
           setSupplierId(null);
-          setSupplierReady(true);
-          setError("No se pudo resolver el supplier_id del proveedor.");
+          setError(
+            `No se pudo resolver el supplier_id del proveedor. (${status}) ${usedUrl} ${bodyText}`.trim()
+          );
           return;
         }
-        const data: unknown = await res.json().catch(() => null);
-        const items: unknown[] = Array.isArray(data)
-          ? data
-          : data && typeof data === "object"
-            ? (((data as Record<string, unknown>).items as unknown[]) ||
-                ((data as Record<string, unknown>).results as unknown[]) ||
-                [])
-            : [];
-        const found = items.find((s) => {
-          if (!s || typeof s !== "object") return false;
-          const record = s as Record<string, unknown>;
-          return Number(record.user_id) === Number(user.id);
-        });
-        if (found && typeof found === "object" && "id" in found && (found as Record<string, unknown>).id) {
-          setSupplierId(Number((found as Record<string, unknown>).id));
+
+        const data: unknown = await response.json().catch(() => null);
+
+        const pickSupplierFrom = (value: unknown): { id: number; user_id?: number } | null => {
+          if (!value) return null;
+          if (typeof value === "object" && !Array.isArray(value)) {
+            const record = value as Record<string, unknown>;
+            if (record.id && Number.isFinite(Number(record.id))) {
+              return { id: Number(record.id), user_id: record.user_id ? Number(record.user_id) : undefined };
+            }
+          }
+          const items: unknown[] = Array.isArray(value)
+            ? value
+            : value && typeof value === "object"
+              ? (((value as Record<string, unknown>).items as unknown[]) ||
+                  ((value as Record<string, unknown>).results as unknown[]) ||
+                  [])
+              : [];
+          const found = items.find((s) => {
+            if (!s || typeof s !== "object") return false;
+            const record = s as Record<string, unknown>;
+            if (!record.id) return false;
+            if (!record.user_id) return false;
+            return Number(record.user_id) === Number(user.id);
+          });
+          if (found && typeof found === "object") {
+            const record = found as Record<string, unknown>;
+            if (record.id && Number.isFinite(Number(record.id))) {
+              return { id: Number(record.id), user_id: Number(record.user_id) };
+            }
+          }
+          return null;
+        };
+
+        const supplier = pickSupplierFrom(data);
+        if (supplier?.id) {
+          setSupplierId(supplier.id);
           setPage(1);
           setError(null);
-        } else {
-          setSupplierId(null);
-          setError("No se encontró un supplier asociado a este usuario.");
+          return;
         }
+
+        setSupplierId(null);
+        setError("No se encontró un supplier asociado a este usuario.");
       } catch {
         setSupplierId(null);
         setError("No se pudo resolver el supplier_id del proveedor.");
@@ -197,7 +237,7 @@ export default function AdminOrdersPage() {
     };
 
     loadSupplierId();
-  }, [user?.id, user?.role]);
+  }, [user?.id, user?.role, token]);
 
   useEffect(() => {
     const role = (user?.role || "").toLowerCase();
