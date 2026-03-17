@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Heart, Star } from "lucide-react";
+import { CheckCircle, Heart, Star } from "lucide-react";
 import slugify from "slugify";
 import { Supplier } from "@/lib/products";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -45,6 +45,7 @@ export function ProductCard({
       : (supplier.name ? slugify(supplier.name, { lower: true, strict: true }) : ""));
 
   const supplierHref = supplierSlug ? `/empresas/${supplierSlug}` : null;
+  const showSupplierVerified = supplier && supplier.is_verified === true;
 
   const getImageUrl = (path: string) => {
     if (!path) return "";
@@ -132,11 +133,32 @@ export function ProductCard({
       <div className="p-6 flex flex-col flex-grow relative z-10 bg-white">
         <div className="flex flex-col gap-2 mb-3">
            <div className="flex items-center justify-between">
-                {supplier && (
-                    <div className="text-xs font-bold text-[#168e00] uppercase tracking-wider font-[family-name:var(--font-varela-round)]">
+                {supplier ? (
+                  <div className="flex items-center gap-2 min-w-0">
+                    {supplierHref ? (
+                      <Link
+                        href={supplierHref}
+                        className="text-xs font-bold text-[#168e00] uppercase tracking-wider font-[family-name:var(--font-varela-round)] truncate hover:underline"
+                        title={supplier.name || "Proveedor"}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {supplier.name || "Proveedor"}
-                    </div>
-                )}
+                      </Link>
+                    ) : (
+                      <div
+                        className="text-xs font-bold text-[#168e00] uppercase tracking-wider font-[family-name:var(--font-varela-round)] truncate"
+                        title={supplier.name || "Proveedor"}
+                      >
+                        {supplier.name || "Proveedor"}
+                      </div>
+                    )}
+                    {showSupplierVerified ? (
+                      <span className="inline-flex items-center" title="Empresa verificada">
+                        <CheckCircle size={14} className="text-[#168e00]" />
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="flex items-center gap-1 bg-[#f2f3f4] px-2 py-1 rounded-md">
                     <Star size={10} className="fill-amber-400 text-amber-400" />
                     <span className="font-bold text-xs text-gray-700">{rating}</span>

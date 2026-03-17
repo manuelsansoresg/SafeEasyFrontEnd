@@ -686,14 +686,16 @@ export default function SupplierPage() {
                         <span className="text-[#168e00]">Personalizada</span>
                      </div>
                  </div>
-                 <div className="hidden md:flex items-center justify-end">
-                      <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
-                          <div className="w-8 h-8 rounded-full bg-[#168e00] flex items-center justify-center text-white">
-                              <Check size={18} strokeWidth={4} />
-                          </div>
-                          <span className="text-white font-bold text-sm uppercase tracking-wider">Empresa Verificada</span>
+                {supplier.is_verified ? (
+                  <div className="hidden md:flex items-center justify-end">
+                    <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
+                      <div className="w-8 h-8 rounded-full bg-[#168e00] flex items-center justify-center text-white">
+                        <Check size={18} strokeWidth={4} />
                       </div>
-                 </div>
+                      <span className="text-white font-bold text-sm uppercase tracking-wider">Empresa Verificada</span>
+                    </div>
+                  </div>
+                ) : null}
              </div>
          </div>
 

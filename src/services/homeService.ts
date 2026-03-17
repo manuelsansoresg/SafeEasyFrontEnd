@@ -8,6 +8,7 @@ export interface FeaturedSupplier {
   views: number;
   average_rating: number;
   is_featured: boolean;
+  is_verified?: boolean;
 }
 
 export interface FeaturedProduct {

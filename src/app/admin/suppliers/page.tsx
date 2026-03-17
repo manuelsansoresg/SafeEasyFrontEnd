@@ -30,15 +30,19 @@ interface Supplier {
   state?: string;
   country: string;
   is_active: boolean;
+  is_verified?: boolean;
   user_id: number;
 }
 
 export default function AdminSuppliersPage() {
   const { token, user } = useAuthStore();
+  const roleKey = String(user?.role || "").toLowerCase();
+  const isAdminUser = roleKey === "admin" || roleKey === "superuser";
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [verifyingId, setVerifyingId] = useState<number | null>(null);
   
   // Pagination
   const [skip, setSkip] = useState(0);
@@ -60,8 +64,16 @@ export default function AdminSuppliersPage() {
       
       if (response.ok) {
         const data = await response.json();
-        // Ensure data is an array
-        setSuppliers(Array.isArray(data) ? data : []);
+        const next = Array.isArray(data) ? (data as Supplier[]) : [];
+        setSuppliers((prev) => {
+          const prevById = new Map(prev.map((s) => [Number(s.id), s]));
+          return next.map((s) => {
+            const prevRow = prevById.get(Number(s.id));
+            const hasIncomingVerified = typeof (s as any).is_verified === "boolean";
+            const preserved = hasIncomingVerified ? (s as any).is_verified : prevRow?.is_verified;
+            return typeof preserved === "boolean" ? { ...(s as any), is_verified: preserved } : s;
+          });
+        });
       } else {
         console.error("Failed to fetch suppliers:", response.status, response.statusText);
         try {
@@ -75,6 +87,55 @@ export default function AdminSuppliersPage() {
       console.error("Error fetching suppliers:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateSupplierVerified = async (supplierId: number, isVerified: boolean) => {
+    const tryUrls = [`/api/suppliers/${supplierId}`, `/api/suppliers/${supplierId}/`];
+    const form = new FormData();
+    form.append("is_verified", isVerified ? "true" : "false");
+    const formOptions = { method: "PUT", body: form };
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url, formOptions);
+      if (response.ok) break;
+    }
+
+    if (!response || !response.ok) {
+      const text = await response?.text().catch(() => "") ?? "";
+      throw new Error(`No se pudo actualizar verificación (${response?.status ?? "unknown"}): ${usedUrl} ${text}`.trim());
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) return response.json();
+    return null;
+  };
+
+  const toggleVerified = async (supplier: Supplier) => {
+    if (!token) return;
+    if (!isAdminUser) return;
+    const next = !Boolean(supplier.is_verified);
+    const actionLabel = next ? "verificar" : "desverificar";
+    const ok = window.confirm(
+      `Vas a ${actionLabel} al proveedor "${supplier.name}". ¿Deseas continuar?`
+    );
+    if (!ok) return;
+    setVerifyingId(supplier.id);
+    try {
+      const updated = await updateSupplierVerified(supplier.id, next);
+      const nextValue =
+        updated && typeof updated === "object" && typeof (updated as any).is_verified === "boolean"
+          ? Boolean((updated as any).is_verified)
+          : next;
+      setSuppliers((prev) => prev.map((s) => (s.id === supplier.id ? { ...s, is_verified: nextValue } : s)));
+      fetchSuppliers();
+    } catch (e: any) {
+      alert(e?.message || "No se pudo actualizar la verificación del proveedor.");
+    } finally {
+      setVerifyingId(null);
     }
   };
 
@@ -296,13 +357,14 @@ export default function AdminSuppliersPage() {
                   <th className="p-4 font-semibold text-gray-600 text-sm hidden md:table-cell">Teléfono</th>
                   <th className="p-4 font-semibold text-gray-600 text-sm hidden lg:table-cell">Email</th>
                   <th className="p-4 font-semibold text-gray-600 text-sm text-center">Estado</th>
+                  <th className="p-4 font-semibold text-gray-600 text-sm text-center">Verificado</th>
                   <th className="p-4 font-semibold text-gray-600 text-sm text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {suppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-gray-500">
+                    <td colSpan={8} className="p-8 text-center text-gray-500">
                       No hay proveedores registrados.
                     </td>
                   </tr>
@@ -341,15 +403,50 @@ export default function AdminSuppliersPage() {
                             {supplier.is_active ? "Activo" : "Inactivo"}
                           </span>
                         </td>
+                        <td className="p-4 text-center">
+                          {supplier.is_verified ? (
+                            <span className="inline-flex items-center" title="Empresa verificada">
+                              <CheckCircle size={16} className="text-[#168e00]" />
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button 
+                            <button
+                              type="button"
                               onClick={() => toggleRow(supplier.id)}
                               className="cursor-pointer p-2 text-gray-400 hover:text-primary transition-colors"
                               title="Ver más detalles"
                             >
                               {expandedRows.has(supplier.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                             </button>
+                            {isAdminUser ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  toggleVerified(supplier);
+                                }}
+                                disabled={verifyingId === supplier.id}
+                                className={cn(
+                                  "cursor-pointer p-2 rounded-lg transition-colors",
+                                  supplier.is_verified
+                                    ? "text-gray-600 hover:bg-gray-50"
+                                    : "text-green-600 hover:bg-green-50",
+                                  verifyingId === supplier.id ? "opacity-60 cursor-default" : ""
+                                )}
+                                title={supplier.is_verified ? "Desverificar" : "Verificar"}
+                              >
+                                {verifyingId === supplier.id ? (
+                                  <Loader2 size={18} className="animate-spin" />
+                                ) : supplier.is_verified ? (
+                                  <XCircle size={18} />
+                                ) : (
+                                  <CheckCircle size={18} />
+                                )}
+                              </button>
+                            ) : null}
                             <Link 
                               href={`/admin/suppliers/${supplier.id}`}
                               className="cursor-pointer p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
@@ -357,7 +454,8 @@ export default function AdminSuppliersPage() {
                             >
                               <Edit2 size={18} />
                             </Link>
-                            <button 
+                            <button
+                              type="button"
                               onClick={() => handleDelete(supplier.id)}
                               className="cursor-pointer p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                               title="Eliminar"
@@ -369,7 +467,7 @@ export default function AdminSuppliersPage() {
                       </tr>
                       {expandedRows.has(supplier.id) && (
                         <tr className="bg-gray-50/50">
-                          <td colSpan={6} className="p-4">
+                          <td colSpan={8} className="p-4">
                             <div className="flex flex-wrap gap-6 text-sm text-gray-600 pl-4 border-l-2 border-primary/20">
                               <div className="flex items-center gap-2">
                                 <MapPin size={16} className="text-gray-400" />

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { CheckCircle, ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { getFeaturedSuppliers, FeaturedSupplier } from "@/services/homeService";
 
 export function HomeFeaturedSuppliers() {
@@ -121,9 +121,16 @@ export function HomeFeaturedSuppliers() {
                         )}
                     </div>
                     <div className="min-w-0 flex-1">
-                        <h3 className="font-bold text-gray-900 text-sm md:text-lg group-hover:text-[#004e28] transition-colors uppercase leading-tight truncate">
-                          {supplier.name}
-                        </h3>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <h3 className="font-bold text-gray-900 text-sm md:text-lg group-hover:text-[#004e28] transition-colors uppercase leading-tight truncate">
+                            {supplier.name}
+                          </h3>
+                          {supplier.is_verified ? (
+                            <span className="inline-flex items-center" title="Empresa verificada">
+                              <CheckCircle size={14} className="text-[#168e00]" />
+                            </span>
+                          ) : null}
+                        </div>
                         <p className="text-[10px] md:text-sm text-gray-500 font-medium mt-0.5 md:mt-1 truncate">
                           +{supplier.views || 0} visitas
                         </p>

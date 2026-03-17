@@ -12,6 +12,7 @@ import {
   MessageCircle, 
   Truck, 
   Check, 
+  CheckCircle,
   ShieldCheck, 
   Play, 
   ZoomIn, 
@@ -77,6 +78,7 @@ interface ProductDetail {
     email?: string;
     slug?: string;
     logo?: string | null;
+    is_verified?: boolean;
     transfer_clabe?: string | null;
     transfer_bank?: string | null;
     transfer_name?: string | null;
@@ -886,8 +888,13 @@ export default function ProductDetailPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-500 mb-0.5">Vendido por</p>
-                        <h3 className="font-bold text-gray-900 group-hover:text-primary transition-colors truncate pr-2 flex items-center gap-1">
-                          {product.supplier.name || "Proveedor Verificado"}
+                        <h3 className="font-bold text-gray-900 group-hover:text-primary transition-colors truncate pr-2 flex items-center gap-2">
+                          <span className="truncate">{product.supplier.name || "Proveedor"}</span>
+                          {product.supplier.is_verified ? (
+                            <span className="inline-flex items-center" title="Empresa verificada">
+                              <CheckCircle size={14} className="text-[#168e00]" />
+                            </span>
+                          ) : null}
                           <ChevronRight size={14} className="opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all text-primary" />
                         </h3>
                       </div>

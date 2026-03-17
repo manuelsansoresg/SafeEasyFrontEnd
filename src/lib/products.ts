@@ -36,6 +36,7 @@ export interface Supplier {
   state: string | null;
   country: string | null;
   is_active: boolean;
+  is_verified?: boolean;
   about: string | null;
   short_description: string | null;
   description: string | null;
