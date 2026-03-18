@@ -62,14 +62,18 @@ export const orderService = {
   ): Promise<Order[]> => {
     const tryUrls = [`/api/orders`, `/api/orders/`];
     let response: Response | null = null;
+    let usedUrl = "";
     for (const url of tryUrls) {
+      usedUrl = url;
       response = await fetchWithAuth(url);
       if (response.ok) break;
       if (response.status !== 404 && response.status !== 405) break;
     }
 
     if (!response || !response.ok) {
-      throw new Error("Failed to fetch orders");
+      const status = response?.status ?? "unknown";
+      const bodyText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to fetch orders (${status}) ${usedUrl} ${bodyText}`.trim());
     }
 
     const data: unknown = await response.json().catch(() => null);

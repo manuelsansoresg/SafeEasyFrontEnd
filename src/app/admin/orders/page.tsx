@@ -165,7 +165,11 @@ export default function AdminOrdersPage() {
       setOrders(data);
     } catch (error) {
       console.error("Error fetching orders:", error);
-      setError("No se pudieron cargar las órdenes.");
+      const msg =
+        error && typeof error === "object" && "message" in error
+          ? String((error as any).message)
+          : "No se pudieron cargar las órdenes.";
+      setError(msg || "No se pudieron cargar las órdenes.");
     } finally {
       setLoading(false);
     }
