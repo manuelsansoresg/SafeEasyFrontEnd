@@ -16,12 +16,23 @@ import {
 
 function normalizeStatusKey(value: string) {
   const raw = String(value || "").trim();
-  const v = raw.toLowerCase().trim().replace(/\s+/g, "_");
+  const ascii = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const v = ascii.toLowerCase().trim().replace(/\s+/g, "_");
 
   if (v === "pending" || v === "pendiente") return "pending";
   if (v === "paid" || v === "pagado" || v === "pago_verificado" || v === "validado" || v === "validated")
     return "paid";
   if (v === "verified" || v === "verificado") return "verified";
+  if (
+    v === "esperando_validacion" ||
+    v === "esperando_validacion_de_pago" ||
+    v === "waiting_validation" ||
+    v === "awaiting_validation" ||
+    v === "pending_validation" ||
+    v === "payment_pending_validation" ||
+    v === "pending_payment_validation"
+  )
+    return "receipt_uploaded";
   if (v === "completed" || v === "completado" || v === "delivered" || v === "entregado") return "completed";
   if (v === "shipped" || v === "enviado") return "shipped";
   if (v === "rejected" || v === "rechazado" || v === "payment_rejected" || v === "pago_rechazado")
@@ -66,7 +77,7 @@ function StatusBadge({ value }: { value: string }) {
 
   return (
     <span
-      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold font-[family-name:var(--font-poppins)]"
+      className="inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold font-[family-name:var(--font-poppins)]"
       style={{ backgroundColor: bg, color: fg }}
     >
       {label}
@@ -107,7 +118,7 @@ function MinimalStatusPill({ value }: { value: string }) {
 
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold font-[family-name:var(--font-poppins)]"
+      className="inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold font-[family-name:var(--font-poppins)]"
       style={{ backgroundColor: bg, color: base }}
     >
       {label}
@@ -203,7 +214,7 @@ export default function AdminOrdersPage() {
   };
 
   const getOrderPaymentStatus = (order: Order) => {
-    const s = order.visual_status || order.payment_status || order.status;
+    const s = order.fulfillment_status || order.visual_status || order.payment_status || order.status;
     return typeof s === "string" && s.trim() ? s : "-";
   };
 
@@ -211,6 +222,7 @@ export default function AdminOrdersPage() {
     const status = String(order.status || "").toLowerCase();
     const payment = String(order.payment_status || "").toLowerCase();
     const visual = String(order.visual_status || "").toLowerCase();
+    const fulfillment = String(order.fulfillment_status || "").toLowerCase();
     return (
       status === "comprobante_subido" ||
       status === "receipt_uploaded" ||
@@ -218,7 +230,10 @@ export default function AdminOrdersPage() {
       payment === "receipt_uploaded" ||
       visual === "comprobante_subido" ||
       visual === "comprobante subido" ||
-      visual === "receipt_uploaded"
+      visual === "receipt_uploaded" ||
+      fulfillment === "comprobante_subido" ||
+      fulfillment === "receipt_uploaded" ||
+      fulfillment === "comprobante subido"
     );
   };
 
@@ -454,7 +469,9 @@ export default function AdminOrdersPage() {
       } catch {
       }
     } catch (e) {
-      setModalError("No se pudo actualizar el estatus.");
+      const msg =
+        e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo actualizar el estatus.";
+      setModalError(msg || "No se pudo actualizar el estatus.");
     } finally {
       setActionLoading(null);
     }
@@ -739,27 +756,35 @@ export default function AdminOrdersPage() {
 
                   {(() => {
                     const statusKey = String(
-                      selectedOrder.visual_status || selectedOrder.status || selectedOrder.payment_status || ""
+                      selectedOrder.fulfillment_status ||
+                        selectedOrder.visual_status ||
+                        selectedOrder.status ||
+                        selectedOrder.payment_status ||
+                        ""
                     )
                       .trim()
                       .toLowerCase();
 
-                    const isPending = statusKey === "pending" || statusKey === "pendiente";
-                    const isPaid = statusKey === "paid" || statusKey === "pagado";
+                    const normalized = normalizeStatusKey(statusKey);
+                    const hasReceipt = Boolean(getReceiptUrl(selectedOrder));
+                    const isPendingLike =
+                      normalized === "pending" || normalized === "receipt_uploaded" || normalized === "created";
+                    const isPaid = normalized === "paid";
                     const isFinal =
-                      statusKey === "verified" ||
-                      statusKey === "verificado" ||
-                      statusKey === "completed" ||
-                      statusKey === "completado";
-                    const canReject = isPending || isPaid;
+                      normalized === "verified" ||
+                      normalized === "completed" ||
+                      normalized === "cancelled" ||
+                      normalized === "payment_rejected";
+                    const canConfirmPayment = hasReceipt && isPendingLike && !isPaid && !isFinal;
+                    const canReject = (isPendingLike || isPaid) && !isFinal;
 
                     return (
                       <>
                         <div className="flex flex-wrap gap-2">
-                          {isPending ? (
+                          {canConfirmPayment ? (
                             <button
                               onClick={() => applyStatus("paid")}
-                              disabled={actionLoading !== null || !getReceiptUrl(selectedOrder)}
+                              disabled={actionLoading !== null || !hasReceipt}
                               className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
                               style={{
                                 backgroundColor: "#004e2814",
@@ -767,7 +792,7 @@ export default function AdminOrdersPage() {
                                 border: "1px solid #004e2833",
                               }}
                               title={
-                                !getReceiptUrl(selectedOrder)
+                                !hasReceipt
                                   ? "Se requiere receipt_url para confirmar el pago"
                                   : undefined
                               }

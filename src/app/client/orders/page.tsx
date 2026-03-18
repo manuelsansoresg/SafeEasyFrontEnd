@@ -29,7 +29,9 @@ function formatMoney(value: string | number | undefined) {
 }
 
 function getOrderStatusRaw(order: Order) {
-  return (order.visual_status || order.payment_status || order.status || "pending").toString().trim();
+  return (order.fulfillment_status || order.visual_status || order.payment_status || order.status || "pending")
+    .toString()
+    .trim();
 }
 
 function getOrderStatusKey(order: Order) {
@@ -43,12 +45,23 @@ function isPendingStatus(value: string) {
 
 function normalizeStatusKey(value: string) {
   const raw = String(value || "").trim();
-  const v = raw.toLowerCase().trim().replace(/\s+/g, "_");
+  const ascii = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const v = ascii.toLowerCase().trim().replace(/\s+/g, "_");
 
   if (v === "pending" || v === "pendiente") return "pending";
   if (v === "paid" || v === "pagado" || v === "pago_verificado" || v === "validado" || v === "validated")
     return "paid";
   if (v === "verified" || v === "verificado") return "verified";
+  if (
+    v === "esperando_validacion" ||
+    v === "esperando_validacion_de_pago" ||
+    v === "waiting_validation" ||
+    v === "awaiting_validation" ||
+    v === "pending_validation" ||
+    v === "payment_pending_validation" ||
+    v === "pending_payment_validation"
+  )
+    return "receipt_uploaded";
   if (v === "completed" || v === "completado" || v === "delivered" || v === "entregado") return "completed";
   if (v === "shipped" || v === "enviado") return "shipped";
   if (v === "rejected" || v === "rechazado" || v === "payment_rejected" || v === "pago_rechazado")
@@ -109,7 +122,7 @@ function StatusBadge({ value }: { value: string }) {
   const meta = map[normalized] || { bg: "#f2f3f4", fg: "#111827", label: value || "—" };
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold font-[family-name:var(--font-poppins)]"
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap font-[family-name:var(--font-poppins)]"
       style={{ backgroundColor: meta.bg, color: meta.fg }}
       title={toSpanishStatusLabel(value)}
     >
