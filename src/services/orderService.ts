@@ -60,22 +60,42 @@ export const orderService = {
     supplierId?: number,
     productId?: string
   ): Promise<Order[]> => {
-    const skip = (page - 1) * limit;
-    const params = new URLSearchParams();
-    params.set("skip", String(skip));
-    params.set("limit", String(limit));
-    if (supplierId && Number.isFinite(supplierId)) {
-      params.set("supplier_id", String(supplierId));
-    }
-    if (productId) {
-      params.set("product_id", String(productId));
+    const tryUrls = [`/api/orders`, `/api/orders/`];
+    let response: Response | null = null;
+    for (const url of tryUrls) {
+      response = await fetchWithAuth(url);
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
     }
 
-    const response = await fetchWithAuth(`/api/orders?${params.toString()}`);
-    if (!response.ok) {
+    if (!response || !response.ok) {
       throw new Error("Failed to fetch orders");
     }
-    return response.json();
+
+    const data: unknown = await response.json().catch(() => null);
+    const all: Order[] = Array.isArray(data)
+      ? (data as Order[])
+      : data && typeof data === "object"
+        ? (((data as Record<string, unknown>).items as Order[]) ||
+            ((data as Record<string, unknown>).results as Order[]) ||
+            ((data as Record<string, unknown>).data as Order[]) ||
+            ((data as Record<string, unknown>).orders as Order[]) ||
+            [])
+        : [];
+
+    let filtered = all;
+    if (supplierId && Number.isFinite(supplierId)) {
+      filtered = filtered.filter((o) => Number((o as any)?.supplier_id) === Number(supplierId));
+    }
+    if (productId) {
+      filtered = filtered.filter((o) => String((o as any)?.product_id) === String(productId));
+    }
+
+    const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : filtered.length;
+    const safePage = Number.isFinite(page) && page > 0 ? page : 1;
+    const start = (safePage - 1) * safeLimit;
+    const end = start + safeLimit;
+    return filtered.slice(start, end);
   },
 
   getOrderHistory: async (orderId: number): Promise<OrderHistoryItem[]> => {

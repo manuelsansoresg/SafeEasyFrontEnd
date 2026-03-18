@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { chatService } from "@/services/chatService";
+import { orderService } from "@/services/orderService";
 import { useChatWebSocket } from "@/hooks/useChatWebSocket";
 import { Conversation, Message } from "@/types/chat";
 import { Send, Image as ImageIcon, X, MoreVertical, Phone, Paperclip, Loader2, CreditCard, Smile, PlusCircle, Star } from "lucide-react";
@@ -251,19 +252,10 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
       if (checkedOrderProductsRef.current.has(pid)) return;
       checkedOrderProductsRef.current.add(pid);
 
-      const params = new URLSearchParams();
-      params.set("skip", "0");
-      params.set("limit", "1");
-      params.set("supplier_id", String(supplierIdCandidate));
-      params.set("product_id", pid);
-
-      const res = await fetchWithAuth(`/api/orders?${params.toString()}`);
-      if (!res.ok) return;
-      const data = await res.json().catch(() => null);
-      const items = Array.isArray(data) ? data : (data as any)?.items || (data as any)?.results || [];
+      const items = await orderService.getOrders(1, 1, supplierIdCandidate, pid).catch(() => []);
       if (!Array.isArray(items) || items.length === 0) return;
 
-      const found = items[0];
+      const found = items[0] as any;
       const orderId = found?.id || found?.order_id || true;
       setSupplierOrderByProductId((prev) => {
         const next = { ...prev, [pid]: orderId };
