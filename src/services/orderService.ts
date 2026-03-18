@@ -60,7 +60,7 @@ export const orderService = {
     supplierId?: number,
     productId?: string
   ): Promise<Order[]> => {
-    const tryUrls = [`/api/orders`, `/api/orders/`];
+    const tryUrls = [`/api/orders/`, `/api/orders`];
     let response: Response | null = null;
     let usedUrl = "";
     for (const url of tryUrls) {
