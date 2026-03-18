@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const sanitizeBaseUrl = (value: string | undefined) => {
+  const trimmed = String(value || "").trim();
+  const unwrapped = trimmed.replace(/^['"`]+/, "").replace(/['"`]+$/, "").trim();
+  return unwrapped.replace(/\/+$/, "");
+};
+
 const getBaseUrl = () => {
-  const internal = process.env.API_INTERNAL_URL;
+  const internal = sanitizeBaseUrl(process.env.API_INTERNAL_URL);
   if (internal) return internal;
   
-  const publicUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const publicUrl = sanitizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
   if (publicUrl && !publicUrl.includes('localhost') && !publicUrl.startsWith('/')) {
       return publicUrl;
   }
   
-  return 'https://drooopy.com/api/';
+  return 'https://drooopy.com/api';
 };
 
 const BASE_URL = getBaseUrl();

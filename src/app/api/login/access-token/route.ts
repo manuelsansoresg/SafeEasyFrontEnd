@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const sanitizeBaseUrl = (value: string | undefined) => {
+  const trimmed = String(value || "").trim();
+  const unwrapped = trimmed.replace(/^['"`]+/, "").replace(/['"`]+$/, "").trim();
+  return unwrapped.replace(/\/+$/, "");
+};
+
 export async function POST(request: NextRequest) {
   try {
-    const envBase = process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
-    const baseUrl = envBase.replace(/\/$/, '');
+    const baseUrl =
+      sanitizeBaseUrl(process.env.API_INTERNAL_URL) ||
+      sanitizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL) ||
+      'https://drooopy.com/api';
     const targetUrl = `${baseUrl}/login/access-token`;
 
     // Leer el cuerpo de la petición

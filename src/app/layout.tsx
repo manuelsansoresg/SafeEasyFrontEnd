@@ -37,6 +37,11 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${poppins.variable} ${varelaRound.variable} font-sans antialiased bg-background text-foreground`}
       >
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(typeof window==="undefined")return;var nav=window.navigator;if(!nav||!nav.serviceWorker||!nav.serviceWorker.getRegistrations)return;nav.serviceWorker.getRegistrations().then(function(regs){if(!regs||!regs.length)return;return Promise.all(regs.map(function(r){try{return r.unregister()}catch(e){return false}})).then(function(){if(window.caches&&window.caches.keys){return window.caches.keys().then(function(keys){return Promise.all((keys||[]).map(function(k){try{return window.caches.delete(k)}catch(e){return false}}))})}}).then(function(){try{var key="safeeasy:sw_killed_v1";if(!window.sessionStorage)return;var done=window.sessionStorage.getItem(key);if(done)return;window.sessionStorage.setItem(key,"1");window.location.reload()}catch(e){}})}).catch(function(){})}catch(e){}})();`,
+          }}
+        />
         <ChatProvider>
           <LocationProvider />
           <Header />

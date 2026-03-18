@@ -89,10 +89,10 @@ export const orderService = {
 
     let filtered = all;
     if (supplierId && Number.isFinite(supplierId)) {
-      filtered = filtered.filter((o) => Number((o as any)?.supplier_id) === Number(supplierId));
+      filtered = filtered.filter((o) => Number(o.supplier_id) === Number(supplierId));
     }
     if (productId) {
-      filtered = filtered.filter((o) => String((o as any)?.product_id) === String(productId));
+      filtered = filtered.filter((o) => String(o.product_id) === String(productId));
     }
 
     const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : filtered.length;
