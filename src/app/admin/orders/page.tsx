@@ -42,6 +42,16 @@ function normalizeStatusKey(value: string) {
   if (v === "receipt_uploaded" || v === "comprobante_subido") return "receipt_uploaded";
   if (v === "created" || v === "creado") return "created";
   if (v === "refund_requested" || v === "reembolso_solicitado") return "refund_requested";
+  if (
+    v === "refund_refunded" ||
+    v === "refunded" ||
+    v === "reembolsado" ||
+    v === "refund_completed" ||
+    v === "refund_complete"
+  )
+    return "refund_refunded";
+  if (v === "refund_approved" || v === "reembolso_aprobado") return "refund_approved";
+  if (v === "refund_rejected" || v === "reembolso_rechazado") return "refund_rejected";
 
   return v;
 }
@@ -62,6 +72,9 @@ function toSpanishStatusLabel(value: string) {
     cancelled: "Cancelado",
     created: "Creado",
     refund_requested: "Reembolso solicitado",
+    refund_approved: "Reembolso aprobado",
+    refund_rejected: "Reembolso rechazado",
+    refund_refunded: "Reembolsado",
   };
   return map[key] || raw;
 }
@@ -75,6 +88,10 @@ function toSpanishHistoryText(value: string) {
 
   const replacements: Array<[RegExp, string]> = [
     [/(^|[^a-z0-9_])refund_requested([^a-z0-9_]|$)/gi, "$1Reembolso solicitado$2"],
+    [/(^|[^a-z0-9_])refund_approved([^a-z0-9_]|$)/gi, "$1Reembolso aprobado$2"],
+    [/(^|[^a-z0-9_])refund_rejected([^a-z0-9_]|$)/gi, "$1Reembolso rechazado$2"],
+    [/(^|[^a-z0-9_])refund_refunded([^a-z0-9_]|$)/gi, "$1Reembolsado$2"],
+    [/(^|[^a-z0-9_])refund_completed([^a-z0-9_]|$)/gi, "$1Reembolsado$2"],
     [/(^|[^a-z0-9_])payment_rejected([^a-z0-9_]|$)/gi, "$1Pago rechazado$2"],
     [/(^|[^a-z0-9_])receipt_uploaded([^a-z0-9_]|$)/gi, "$1Comprobante subido$2"],
     [/(^|[^a-z0-9_])verified([^a-z0-9_]|$)/gi, "$1Verificado$2"],
@@ -98,9 +115,18 @@ function StatusBadge({ value }: { value: string }) {
   const isPaid = normalized === "paid";
   const isCompleted = normalized === "completed" || normalized === "verified";
   const isRefundRequested = normalized === "refund_requested";
+  const isRefunded = normalized === "refund_refunded";
 
-  const bg = isCompleted ? "#004e28" : isPaid ? "#168e00" : isRefundRequested ? "#f59e0b" : "#f2f3f4";
-  const fg = isCompleted || isPaid ? "#ffffff" : isRefundRequested ? "#000000" : "#000000";
+  const bg = isRefunded
+    ? "#6b7280"
+    : isCompleted
+      ? "#004e28"
+      : isPaid
+        ? "#168e00"
+        : isRefundRequested
+          ? "#f59e0b"
+          : "#f2f3f4";
+  const fg = isRefunded || isCompleted || isPaid ? "#ffffff" : isRefundRequested ? "#000000" : "#000000";
 
   const label = toSpanishStatusLabel(raw) || "—";
 
@@ -126,8 +152,11 @@ function MinimalStatusPill({ value }: { value: string }) {
   const isShipped = normalized === "shipped";
   const isPending = normalized === "pending";
   const isRefundRequested = normalized === "refund_requested";
+  const isRefunded = normalized === "refund_refunded";
 
-  const base = isCompleted
+  const base = isRefunded
+    ? "#6b7280"
+    : isCompleted
     ? "#004e28"
     : isPaid
       ? "#168e00"
@@ -353,9 +382,11 @@ export default function AdminOrdersPage() {
   function Timeline({
     items,
     loading,
+    refundProofUrl,
   }: {
     items: OrderHistoryItem[];
     loading: boolean;
+    refundProofUrl?: string;
   }) {
     if (loading) {
       return (
@@ -381,6 +412,7 @@ export default function AdminOrdersPage() {
       if (v === "completed") return { label: "Completado", bg: "#004e28", fg: "#ffffff" };
       if (v === "shipped") return { label: "Enviado", bg: "#fbbf24", fg: "#000000" };
       if (v === "refund_requested") return { label: "Reembolso solicitado", bg: "#f59e0b", fg: "#000000" };
+      if (v === "refund_refunded") return { label: "Reembolsado", bg: "#6b7280", fg: "#ffffff" };
       if (v === "payment_rejected") return { label: "Pago rechazado", bg: "#ef4444", fg: "#ffffff" };
       if (v === "cancelled") return { label: "Cancelado", bg: "#6b7280", fg: "#ffffff" };
       if (v === "receipt_uploaded") return { label: "Comprobante subido", bg: "#3b82f6", fg: "#ffffff" };
@@ -418,7 +450,8 @@ export default function AdminOrdersPage() {
           : "") ||
         "";
 
-      return { timeLabel, title, detail, statusRaw, meta, actor };
+      const isRefunded = normalizeStatusKey(statusRaw) === "refund_refunded";
+      return { timeLabel, title, detail, statusRaw, meta, actor, isRefunded };
     });
 
     return (
@@ -444,6 +477,22 @@ export default function AdminOrdersPage() {
                   {row.detail ? (
                     <div className="mt-0.5 text-sm text-gray-700 font-[family-name:var(--font-poppins)]">
                       {row.detail}
+                    </div>
+                  ) : null}
+                  {row.isRefunded && refundProofUrl ? (
+                    <div className="mt-1">
+                      <button
+                        type="button"
+                        onClick={() => window.open(refundProofUrl, "_blank", "noopener,noreferrer")}
+                        className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-semibold font-[family-name:var(--font-poppins)]"
+                        style={{
+                          backgroundColor: "#004e2814",
+                          color: "#004e28",
+                          border: "1px solid #004e2833",
+                        }}
+                      >
+                        Ver comprobante
+                      </button>
                     </div>
                   ) : null}
                 </div>
@@ -803,6 +852,21 @@ export default function AdminOrdersPage() {
     return { timeLabel, text };
   };
 
+  const getLatestHistoryStatusKey = (items: OrderHistoryItem[]) => {
+    if (!items.length) return "";
+    const h = items[0];
+    const candidates = [
+      h.status,
+      h.event,
+      h.action,
+      h.description,
+      h.message,
+      normalizeHistoryRow(h).text,
+    ];
+    const first = candidates.find((c) => typeof c === "string" && c.trim());
+    return normalizeStatusKey(typeof first === "string" ? first : "");
+  };
+
   const hasRefundRequestedSignal = (items: OrderHistoryItem[]) => {
     return items.some((h) => {
       const candidates = [
@@ -987,7 +1051,13 @@ export default function AdminOrdersPage() {
                 <h2 className="text-xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
                   Gestión de Pedido
                 </h2>
-                <MinimalStatusPill value={getOrderPaymentStatus(selectedOrder)} />
+                <MinimalStatusPill
+                  value={
+                    getLatestHistoryStatusKey(history) === "refund_refunded"
+                      ? "refund_refunded"
+                      : getOrderPaymentStatus(selectedOrder)
+                  }
+                />
               </div>
               <div className="mt-1 text-sm text-gray-500 font-[family-name:var(--font-poppins)]">
                 #{selectedOrder.id} • {selectedOrder.product?.title || "Producto"}
@@ -1093,6 +1163,11 @@ export default function AdminOrdersPage() {
                       .toLowerCase();
 
                     const normalized = normalizeStatusKey(statusKey);
+                    const latestHistoryKey = getLatestHistoryStatusKey(history);
+                    const isRefundFinalizedInHistory = latestHistoryKey === "refund_refunded";
+                    const refundProofUrl = getMediaUrl(
+                      activeRefund?.file_url || activeRefund?.evidence_url || activeRefund?.file
+                    );
                     const hasReceipt = Boolean(getReceiptUrl(selectedOrder));
                     const isPendingLike =
                       normalized === "pending" || normalized === "receipt_uploaded" || normalized === "created";
@@ -1106,7 +1181,32 @@ export default function AdminOrdersPage() {
                     const canReject = (isPendingLike || isPaid) && !isFinal;
 
                     const showRefundActions =
-                      normalized === "refund_requested" || Boolean(activeRefund) || hasRefundRequestedSignal(history);
+                      !isRefundFinalizedInHistory &&
+                      (normalized === "refund_requested" || Boolean(activeRefund) || hasRefundRequestedSignal(history));
+
+                    if (isRefundFinalizedInHistory) {
+                      return (
+                        <div className="space-y-3">
+                          <div className="text-sm font-semibold text-gray-700 font-[family-name:var(--font-poppins)]">
+                            Reembolso finalizado.
+                          </div>
+                          {refundProofUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => window.open(refundProofUrl, "_blank", "noopener,noreferrer")}
+                              className="w-full inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)]"
+                              style={{
+                                backgroundColor: "#004e2814",
+                                color: "#004e28",
+                                border: "1px solid #004e2833",
+                              }}
+                            >
+                              Ver Comprobante de Pago
+                            </button>
+                          ) : null}
+                        </div>
+                      );
+                    }
 
                     if (showRefundActions) {
                       if (refundLoading) {
@@ -1259,7 +1359,15 @@ export default function AdminOrdersPage() {
                 <div className="text-sm font-bold text-gray-900 font-[family-name:var(--font-varela-round)] mb-3">
                   Historial
                 </div>
-                <Timeline items={history} loading={historyLoading} />
+                <Timeline
+                  items={history}
+                  loading={historyLoading}
+                  refundProofUrl={
+                    getLatestHistoryStatusKey(history) === "refund_refunded"
+                      ? getMediaUrl(activeRefund?.file_url || activeRefund?.evidence_url || activeRefund?.file)
+                      : undefined
+                  }
+                />
               </div>
             </div>
           </div>

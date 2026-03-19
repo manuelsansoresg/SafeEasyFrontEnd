@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { orderService, Order, OrderHistoryItem } from "@/services/orderService";
+import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
 import FileUpload from "@/components/ui/FileUpload";
 import {
   Loader2,
@@ -69,6 +69,10 @@ function normalizeStatusKey(value: string) {
   if (v === "cancelled" || v === "cancelado") return "cancelled";
   if (v === "receipt_uploaded" || v === "comprobante_subido") return "receipt_uploaded";
   if (v === "created" || v === "creado") return "created";
+  if (v === "refund_requested" || v === "reembolso_solicitado") return "refund_requested";
+  if (v === "refund_refunded" || v === "refunded" || v === "reembolsado") return "refund_refunded";
+  if (v === "refund_approved" || v === "reembolso_aprobado") return "refund_approved";
+  if (v === "refund_rejected" || v === "reembolso_rechazado") return "refund_rejected";
 
   return v;
 }
@@ -88,8 +92,39 @@ function toSpanishStatusLabel(value: string) {
     cancelled: "Cancelado",
     created: "Creado",
     refund_requested: "Reembolso solicitado",
+    refund_approved: "Reembolso aprobado",
+    refund_rejected: "Reembolso rechazado",
+    refund_refunded: "Reembolsado",
   };
   return map[key] || raw;
+}
+
+function toSpanishHistoryText(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const exact = toSpanishStatusLabel(raw);
+  if (exact && exact !== raw) return exact;
+
+  const replacements: Array<[RegExp, string]> = [
+    [/(^|[^a-z0-9_])refund_requested([^a-z0-9_]|$)/gi, "$1Reembolso solicitado$2"],
+    [/(^|[^a-z0-9_])refund_approved([^a-z0-9_]|$)/gi, "$1Reembolso aprobado$2"],
+    [/(^|[^a-z0-9_])refund_rejected([^a-z0-9_]|$)/gi, "$1Reembolso rechazado$2"],
+    [/(^|[^a-z0-9_])refund_refunded([^a-z0-9_]|$)/gi, "$1Reembolsado$2"],
+    [/(^|[^a-z0-9_])payment_rejected([^a-z0-9_]|$)/gi, "$1Pago rechazado$2"],
+    [/(^|[^a-z0-9_])receipt_uploaded([^a-z0-9_]|$)/gi, "$1Comprobante subido$2"],
+    [/(^|[^a-z0-9_])verified([^a-z0-9_]|$)/gi, "$1Verificado$2"],
+    [/(^|[^a-z0-9_])paid([^a-z0-9_]|$)/gi, "$1Pago verificado$2"],
+    [/(^|[^a-z0-9_])pending([^a-z0-9_]|$)/gi, "$1Pendiente$2"],
+    [/(^|[^a-z0-9_])created([^a-z0-9_]|$)/gi, "$1Creado$2"],
+    [/(^|[^a-z0-9_])completed([^a-z0-9_]|$)/gi, "$1Completado$2"],
+    [/(^|[^a-z0-9_])shipped([^a-z0-9_]|$)/gi, "$1Enviado$2"],
+    [/(^|[^a-z0-9_])cancelled([^a-z0-9_]|$)/gi, "$1Cancelado$2"],
+  ];
+
+  let out = raw;
+  for (const [re, rep] of replacements) out = out.replace(re, rep);
+  return out;
 }
 
 function StatusBadge({ value }: { value: string }) {
@@ -118,6 +153,10 @@ function StatusBadge({ value }: { value: string }) {
     cancelado: { bg: "#6b7280", fg: "#ffffff", label: "Cancelado" },
     created: { bg: "#f2f3f4", fg: "#111827", label: "Creado" },
     creado: { bg: "#f2f3f4", fg: "#111827", label: "Creado" },
+    refund_requested: { bg: "#f59e0b", fg: "#000000", label: "Reembolso solicitado" },
+    refund_approved: { bg: "#004e28", fg: "#ffffff", label: "Reembolso aprobado" },
+    refund_rejected: { bg: "#ef4444", fg: "#ffffff", label: "Reembolso rechazado" },
+    refund_refunded: { bg: "#3b82f6", fg: "#ffffff", label: "Reembolsado" },
   };
 
   const meta = map[normalized] || { bg: "#f2f3f4", fg: "#111827", label: value || "—" };
@@ -163,15 +202,15 @@ function Timeline({ items, loading }: { items: OrderHistoryItem[]; loading: bool
           : "") ||
         "";
 
-      const title = rawEvent ? toSpanishStatusLabel(rawEvent) : description ? "Actualización" : "Evento";
-      const detail = description ? toSpanishStatusLabel(description) : "";
+      const title = rawEvent ? toSpanishHistoryText(rawEvent) : description ? "Actualización" : "Evento";
+      const detail = description ? toSpanishHistoryText(description) : "";
       return { timeLabel, title, detail, actor, ts };
     };
 
     return [...items]
       .map((i) => normalize(i))
       .sort((a, b) => {
-        return a.ts - b.ts;
+        return b.ts - a.ts;
       });
   }, [items]);
 
@@ -230,6 +269,8 @@ export default function ClientOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [history, setHistory] = useState<OrderHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [refundLoading, setRefundLoading] = useState(false);
+  const [activeRefund, setActiveRefund] = useState<OrderRefund | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSuccess, setModalSuccess] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -269,19 +310,73 @@ export default function ClientOrdersPage() {
     }
   };
 
+  const pickLatestRefund = (items: OrderRefund[]) => {
+    if (!items.length) return null;
+    const scored = [...items]
+      .map((r) => {
+        const rawAt = r.updated_at || r.created_at || "";
+        const at = rawAt ? new Date(rawAt) : null;
+        const ts = at && !Number.isNaN(at.getTime()) ? at.getTime() : 0;
+        const hasFile = Boolean(r.file_url || r.evidence_url || r.file);
+        return { r, ts, hasFile };
+      })
+      .sort((a, b) => {
+        if (a.hasFile !== b.hasFile) return a.hasFile ? -1 : 1;
+        return b.ts - a.ts;
+      });
+    return scored[0]?.r ?? null;
+  };
+
+  const getLatestHistoryStatusKey = (items: OrderHistoryItem[]) => {
+    if (!items.length) return "";
+    const scored = items
+      .map((h) => {
+        const rawAt = h.created_at || h.timestamp || h.date || "";
+        const at = rawAt ? new Date(rawAt) : null;
+        const ts = at && !Number.isNaN(at.getTime()) ? at.getTime() : 0;
+        const rawEvent =
+          (typeof h.status === "string" && h.status) ||
+          (typeof h.event === "string" && h.event) ||
+          (typeof h.action === "string" && h.action) ||
+          "";
+        const description = (h.description || h.message || "").toString().trim();
+        const candidate = rawEvent || description;
+        return { ts, key: normalizeStatusKey(candidate), rawEvent, description };
+      })
+      .sort((a, b) => b.ts - a.ts);
+    return scored[0]?.key || "";
+  };
+
   const openModal = async (order: Order) => {
     setSelectedOrder(order);
     setModalError(null);
     setModalSuccess(null);
     setHistory([]);
     setHistoryLoading(true);
+    setRefundLoading(true);
+    setActiveRefund(null);
     try {
-      const items = await orderService.getOrderHistory(order.id);
-      setHistory(items);
+      const [historyResult, refundsResult] = await Promise.allSettled([
+        orderService.getOrderHistory(order.id),
+        orderService.getOrderRefunds(order.id),
+      ]);
+
+      if (historyResult.status === "fulfilled") {
+        setHistory(historyResult.value);
+      } else {
+        setHistory([]);
+      }
+
+      if (refundsResult.status === "fulfilled") {
+        setActiveRefund(pickLatestRefund(refundsResult.value));
+      } else {
+        setActiveRefund(null);
+      }
     } catch (e: any) {
       setModalError(e?.message || "No se pudo cargar el historial.");
     } finally {
       setHistoryLoading(false);
+      setRefundLoading(false);
     }
   };
 
@@ -289,6 +384,8 @@ export default function ClientOrdersPage() {
     setSelectedOrder(null);
     setHistory([]);
     setHistoryLoading(false);
+    setRefundLoading(false);
+    setActiveRefund(null);
     setModalError(null);
     setModalSuccess(null);
     setUploading(false);
@@ -367,6 +464,24 @@ export default function ClientOrdersPage() {
     if (!selectedOrder) return false;
     return Boolean(refundRequestedByOrderId[String(selectedOrder.id)]);
   }, [selectedOrder, refundRequestedByOrderId]);
+
+  const latestHistoryKey = useMemo(() => getLatestHistoryStatusKey(history), [history]);
+
+  const isRefundRequestedInHistory = latestHistoryKey === "refund_requested";
+  const isRefundFinalizedInHistory = latestHistoryKey === "refund_refunded";
+
+  const refundProofUrl = useMemo(() => {
+    const raw = activeRefund?.file_url || activeRefund?.evidence_url || activeRefund?.file || null;
+    if (!raw) return null;
+    return getImageUrl(raw);
+  }, [activeRefund]);
+
+  const footerMessage = useMemo(() => {
+    if (isRefundRequestedInHistory) return "Reembolso en revisión por el proveedor.";
+    if (isRefundFinalizedInHistory) return "Tu reembolso ha sido finalizado con éxito.";
+    if (refundAlreadyRequested) return "Reembolso en revisión por el proveedor.";
+    return null;
+  }, [isRefundRequestedInHistory, isRefundFinalizedInHistory, refundAlreadyRequested]);
 
   const openRefundModal = () => {
     if (!selectedOrder) return;
@@ -563,7 +678,7 @@ export default function ClientOrdersPage() {
                 <h2 className="text-xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
                   Pedido #{selectedOrder.id}
                 </h2>
-                <StatusBadge value={getOrderStatusRaw(selectedOrder)} />
+                <StatusBadge value={isRefundFinalizedInHistory ? "refund_refunded" : getOrderStatusRaw(selectedOrder)} />
               </div>
               <div className="mt-1 text-sm text-gray-500 font-[family-name:var(--font-poppins)]">
                 {selectedOrder.product?.title || "Producto"} • {formatMoney(selectedOrder.total_amount ?? 0)}
@@ -720,9 +835,25 @@ export default function ClientOrdersPage() {
                     Solicitar Reembolso
                   </button>
                 </div>
-              ) : refundAlreadyRequested ? (
-                <div className="text-sm font-semibold text-gray-600 font-[family-name:var(--font-poppins)]">
-                  Reembolso en revisión por el proveedor.
+              ) : footerMessage ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-gray-600 font-[family-name:var(--font-poppins)]">
+                    {footerMessage}
+                  </div>
+                  {isRefundFinalizedInHistory && !refundLoading && refundProofUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => window.open(refundProofUrl, "_blank", "noopener,noreferrer")}
+                      className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)]"
+                      style={{
+                        backgroundColor: "#004e2814",
+                        color: "#004e28",
+                        border: "1px solid #004e2833",
+                      }}
+                    >
+                      Ver Comprobante de Pago
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
             </div>

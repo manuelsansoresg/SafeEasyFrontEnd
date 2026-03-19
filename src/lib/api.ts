@@ -52,17 +52,10 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
     headers: getHeaders(token) 
   });
 
-  const isLikelyAuthError = async (resp: Response) => {
-    if (resp.status === 401) return true;
-    if (resp.status !== 403) return false;
-    const text = await resp
-      .clone()
-      .text()
-      .catch(() => "");
-    return /could not validate credentials|not authenticated|not authorized/i.test(text);
-  };
+  const shouldAttemptRefresh = response.status === 401 || response.status === 403;
+  const initialStatus = response.status;
 
-  if (await isLikelyAuthError(response)) {
+  if (shouldAttemptRefresh) {
     // Try to refresh
     try {
       // Use the raw fetch here to avoid infinite recursion
@@ -94,13 +87,13 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
               headers: getHeaders(newToken) 
             });
 
-            // If the retry also fails with auth error, the new token is bad/expired too.
-            if (await isLikelyAuthError(response)) {
-                console.warn("Retried request failed with auth error. Logging out.");
-                logout();
-                if (typeof window !== 'undefined') {
-                    window.location.href = '/login';
-                }
+            const retryIsAuthError = response.status === 401 || response.status === 403;
+            if (retryIsAuthError && initialStatus === 401) {
+              console.warn("Retried request failed with auth error after 401. Logging out.");
+              logout();
+              if (typeof window !== "undefined") {
+                window.location.href = "/login";
+              }
             }
         } else {
             // Refresh succeeded but no token? Weird.
@@ -109,9 +102,11 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
       } else {
         // Refresh failed (token too old, invalid, or route not found)
         console.warn("Token refresh failed with status:", refreshResponse.status);
-        logout();
-        if (typeof window !== 'undefined') {
-            window.location.href = '/login';
+        if (initialStatus === 401) {
+          logout();
+          if (typeof window !== "undefined") {
+            window.location.href = "/login";
+          }
         }
       }
     } catch (e) {
