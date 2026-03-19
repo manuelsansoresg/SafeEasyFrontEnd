@@ -47,6 +47,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   const [inputValue, setInputValue] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isFileDragging, setIsFileDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showProductCard, setShowProductCard] = useState(true);
@@ -1698,7 +1699,30 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                     )}
                     
                     {/* Text Input - Taller */}
-                    <div className="flex-1 bg-[#F0F2F5] rounded-xl px-4 py-2 focus-within:ring-1 focus-within:ring-gray-300 transition-all flex items-start">
+                    <div
+                      className={`flex-1 bg-[#F0F2F5] rounded-xl px-4 py-2 focus-within:ring-1 focus-within:ring-gray-300 transition-all flex items-start ${
+                        isFileDragging ? "ring-2 ring-primary/40 bg-primary/5" : ""
+                      }`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsFileDragging(true);
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsFileDragging(false);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsFileDragging(false);
+                        const f = e.dataTransfer?.files?.[0] || null;
+                        if (!f) return;
+                        if (f.type && !f.type.startsWith("image/")) return;
+                        setSelectedFile(f);
+                      }}
+                    >
                             <textarea
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
@@ -1729,6 +1753,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                             </button>
                             <input 
                                 type="file" 
+                                accept="image/*"
                                 ref={fileInputRef} 
                                 className="hidden" 
                                 onChange={(e) => {

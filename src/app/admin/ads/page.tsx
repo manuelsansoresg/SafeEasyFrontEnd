@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { adsService, AdItem } from "@/services/adsService";
 import { Loader2, Plus, Trash2, EyeOff, Eye, Pencil } from "lucide-react";
+import FileUpload from "@/components/ui/FileUpload";
 
 const PAGE_LIMIT = 10;
 
@@ -14,10 +15,8 @@ export default function AdminAdsPage() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editItem, setEditItem] = useState<AdItem | null>(null);
   const [editLinkUrl, setEditLinkUrl] = useState("");
@@ -25,7 +24,6 @@ export default function AdminAdsPage() {
   const [editState, setEditState] = useState("Yucatán");
   const [editActive, setEditActive] = useState(true);
   const [editFile, setEditFile] = useState<File | null>(null);
-  const [editPreview, setEditPreview] = useState<string | null>(null);
 
   const skip = (page - 1) * PAGE_LIMIT;
 
@@ -60,14 +58,6 @@ export default function AdminAdsPage() {
 
   const handleFileChange = (f: File | null) => {
     setFile(f);
-    if (preview) {
-      URL.revokeObjectURL(preview);
-      setPreview(null);
-    }
-    if (f) {
-      const url = URL.createObjectURL(f);
-      setPreview(url);
-    }
   };
 
   const handleCreate = async () => {
@@ -89,7 +79,7 @@ export default function AdminAdsPage() {
         setError("No se pudo crear el anuncio.");
       } else {
         setLinkUrl("");
-        handleFileChange(null);
+        setFile(null);
         await load();
       }
     } catch {
@@ -189,48 +179,13 @@ export default function AdminAdsPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-700">Imagen del banner *</p>
-            <label
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors text-center text-sm text-gray-500 ${
-                isDragging ? "border-primary bg-primary/5" : "border-gray-300 hover:border-primary hover:bg-primary/5"
-              }`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsDragging(true);
-              }}
-              onDragLeave={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsDragging(false);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsDragging(false);
-                const dropped = e.dataTransfer?.files && e.dataTransfer.files[0];
-                if (dropped && dropped.type?.startsWith("image/")) {
-                  handleFileChange(dropped);
-                }
-              }}
-            >
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) =>
-                  handleFileChange(e.target.files && e.target.files[0] ? e.target.files[0] : null)
-                }
-              />
-              {preview ? (
-                <img
-                  src={preview}
-                  alt="Preview"
-                  className="w-full max-w-xs h-32 object-cover rounded-lg border border-gray-200 mb-2"
-                />
-              ) : (
-                <span>Haz click o arrastra una imagen aquí</span>
-              )}
-            </label>
+            <FileUpload
+              accept="image/*"
+              value={file}
+              onChange={handleFileChange}
+              disabled={creating}
+              helperText="Arrastra y suelta o haz clic para seleccionar"
+            />
           </div>
 
           <div className="space-y-4">
@@ -368,10 +323,8 @@ export default function AdminAdsPage() {
                             setEditCity(ad.city || "Mérida");
                             setEditState(ad.state || "Yucatán");
                             setEditActive(!!ad.is_active);
-                          const url = computeImageUrl(ad);
-                          setEditPreview(url);
-                          setEditFile(null);
-                          setIsEditOpen(true);
+                            setEditFile(null);
+                            setIsEditOpen(true);
                           }}
                           className="p-2 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100"
                           title="Editar"
@@ -448,48 +401,15 @@ export default function AdminAdsPage() {
             <div className="space-y-3">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-gray-700">Imagen del banner (opcional)</p>
-                <label
-                  className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-4 cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors text-center text-sm text-gray-500"
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const f = e.dataTransfer?.files && e.dataTransfer.files[0];
-                    if (f && f.type?.startsWith("image/")) {
-                      setEditFile(f);
-                      if (editPreview) URL.revokeObjectURL(editPreview);
-                      const u = URL.createObjectURL(f);
-                      setEditPreview(u);
-                    }
-                  }}
-                >
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
-                      setEditFile(f);
-                      if (editPreview) {
-                        URL.revokeObjectURL(editPreview);
-                      }
-                      if (f) {
-                        const u = URL.createObjectURL(f);
-                        setEditPreview(u);
-                      } else {
-                        setEditPreview(computeImageUrl(editItem));
-                      }
-                    }}
-                  />
-                  {editPreview ? (
-                    <img src={editPreview} alt="Preview" className="w-full max-w-xs h-32 object-cover rounded-lg border border-gray-200" />
-                  ) : (
-                    <span>Haz click para seleccionar una imagen</span>
-                  )}
-                </label>
+                <FileUpload
+                  accept="image/*"
+                  value={editFile}
+                  currentImageUrl={computeImageUrl(editItem)}
+                  removeBehavior="clear_selection"
+                  onChange={setEditFile}
+                  disabled={updatingId === editItem.id}
+                  helperText="Arrastra y suelta o haz clic para seleccionar"
+                />
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">

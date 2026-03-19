@@ -10,13 +10,35 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
   const setAuthToken = (token: string) => useAuthStore.getState().setToken(token);
   const logout = () => useAuthStore.getState().logout();
 
-  const token = getAuthToken();
+  const stripBearer = (value: string | null) => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    return raw.replace(/^bearer\s+/i, "").trim();
+  };
+
+  const readPersistedAuth = (): { token: string | null; refreshToken: string | null } | null => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem("auth-storage");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as any;
+      const state = parsed?.state ?? parsed;
+      const token = typeof state?.token === "string" ? state.token : null;
+      const refreshToken = typeof state?.refreshToken === "string" ? state.refreshToken : null;
+      return { token, refreshToken };
+    } catch {
+      return null;
+    }
+  };
+
+  const persisted = readPersistedAuth();
+  const token = getAuthToken() || persisted?.token || null;
   
   const getHeaders = (t: string | null) => {
     const headers: Record<string, string> = { ...options.headers };
-    if (t) {
-      headers['Authorization'] = `Bearer ${t}`;
-    }
+    const hasAuthHeader = Object.keys(headers).some((k) => k.toLowerCase() === "authorization");
+    const cleaned = stripBearer(t);
+    if (cleaned && !hasAuthHeader) headers["Authorization"] = `Bearer ${cleaned}`;
     // Only set Content-Type to json if body is string and it's not set
     // If body is FormData, browser sets Content-Type with boundary automatically
     if (!headers['Content-Type'] && typeof options.body === 'string') {
@@ -30,19 +52,30 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
     headers: getHeaders(token) 
   });
 
-  if (response.status === 401 || response.status === 403) {
+  const isLikelyAuthError = async (resp: Response) => {
+    if (resp.status === 401) return true;
+    if (resp.status !== 403) return false;
+    const text = await resp
+      .clone()
+      .text()
+      .catch(() => "");
+    return /could not validate credentials|not authenticated|not authorized/i.test(text);
+  };
+
+  if (await isLikelyAuthError(response)) {
     // Try to refresh
     try {
       // Use the raw fetch here to avoid infinite recursion
-      const refreshToken = getRefreshToken();
+      const refreshToken = getRefreshToken() || persisted?.refreshToken || null;
       const tokenToUse = refreshToken || token;
+      const cleanedTokenToUse = stripBearer(tokenToUse);
 
       console.log(`[fetchWithAuth] Refreshing token. Has RefreshToken: ${!!refreshToken}`);
 
       const refreshResponse = await fetch('/api/login/refresh-token', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${tokenToUse}`, 
+          'Authorization': `Bearer ${cleanedTokenToUse}`, 
           'Content-Type': 'application/json'
         }
       });
@@ -61,9 +94,9 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
               headers: getHeaders(newToken) 
             });
 
-            // If the retry also fails with 401 or 403, the new token is bad/expired too.
-            if (response.status === 401 || response.status === 403) {
-                console.warn("Retried request failed with 401/403. Logging out.");
+            // If the retry also fails with auth error, the new token is bad/expired too.
+            if (await isLikelyAuthError(response)) {
+                console.warn("Retried request failed with auth error. Logging out.");
                 logout();
                 if (typeof window !== 'undefined') {
                     window.location.href = '/login';

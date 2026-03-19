@@ -11,6 +11,8 @@ interface FileUploadProps {
   accept?: string;
   className?: string;
   helperText?: string;
+  disabled?: boolean;
+  removeBehavior?: "clear_all" | "clear_selection";
 }
 
 export default function FileUpload({
@@ -20,7 +22,9 @@ export default function FileUpload({
   currentImageUrl,
   accept = "image/*",
   className = "",
-  helperText = "Arrastra y suelta o haz clic para seleccionar"
+  helperText = "Arrastra y suelta o haz clic para seleccionar",
+  disabled = false,
+  removeBehavior = "clear_all"
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -87,16 +91,19 @@ export default function FileUpload({
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    if (disabled) return;
     setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
+    if (disabled) return;
     setIsDragging(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    if (disabled) return;
     setIsDragging(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -139,9 +146,12 @@ export default function FileUpload({
 
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (disabled) return;
     onChange(null);
     setPreview(null);
-    setHasClearedExisting(true);
+    if (removeBehavior === "clear_all") {
+      setHasClearedExisting(true);
+    }
     if (inputRef.current) {
       inputRef.current.value = '';
     }
@@ -183,12 +193,16 @@ export default function FileUpload({
             : 'border-gray-300 hover:border-primary/50 hover:bg-gray-50'
           }
           ${displayImage ? 'p-4' : 'p-8'}
-          cursor-pointer flex flex-col items-center justify-center min-h-[160px] group
+          ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+          flex flex-col items-center justify-center min-h-[160px] group
         `}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          if (disabled) return;
+          inputRef.current?.click();
+        }}
       >
         <input
           ref={inputRef}
@@ -196,6 +210,7 @@ export default function FileUpload({
           className="hidden"
           accept={accept}
           onChange={handleChange}
+          disabled={disabled}
         />
 
         {displayImage ? (
@@ -273,7 +288,7 @@ export default function FileUpload({
               </>
             ) : null}
             
-            {(value || effectiveCurrentUrl) && (
+            {(value || effectiveCurrentUrl) && !disabled && (
               <button
                 onClick={handleRemove}
                 className="absolute -top-2 -right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 shadow-md transition-colors z-10"

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { orderService, Order, OrderHistoryItem } from "@/services/orderService";
+import FileUpload from "@/components/ui/FileUpload";
 import {
   Loader2,
   Package,
@@ -10,7 +11,6 @@ import {
   Copy,
   CheckCircle,
   AlertTriangle,
-  Upload,
 } from "lucide-react";
 
 function getImageUrl(path: string | null | undefined) {
@@ -87,6 +87,7 @@ function toSpanishStatusLabel(value: string) {
     payment_rejected: "Pago rechazado",
     cancelled: "Cancelado",
     created: "Creado",
+    refund_requested: "Reembolso solicitado",
   };
   return map[key] || raw;
 }
@@ -232,18 +233,28 @@ export default function ClientOrdersPage() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSuccess, setModalSuccess] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [selectingReceipt, setSelectingReceipt] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
   const [refundReason, setRefundReason] = useState("");
   const [refundEvidence, setRefundEvidence] = useState<File | null>(null);
   const [refundSubmitting, setRefundSubmitting] = useState(false);
-  const [refundSelectingEvidence, setRefundSelectingEvidence] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
   const [refundSuccess, setRefundSuccess] = useState<string | null>(null);
+  const [refundRequestedByOrderId, setRefundRequestedByOrderId] = useState<Record<string, true>>({});
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const refundFileInputRef = useRef<HTMLInputElement | null>(null);
+  const refundRequestedStorageKey = "safeeasy:refund_requested_v1";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(refundRequestedStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+      setRefundRequestedByOrderId(parsed as Record<string, true>);
+    } catch {}
+  }, []);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -281,13 +292,12 @@ export default function ClientOrdersPage() {
     setModalError(null);
     setModalSuccess(null);
     setUploading(false);
-    setSelectingReceipt(false);
     setPreviewUrl(null);
+    setReceiptFile(null);
     setIsRefundModalOpen(false);
     setRefundReason("");
     setRefundEvidence(null);
     setRefundSubmitting(false);
-    setRefundSelectingEvidence(false);
     setRefundError(null);
     setRefundSuccess(null);
   };
@@ -308,22 +318,8 @@ export default function ClientOrdersPage() {
     }
   };
 
-  const handleSelectFile = () => {
-    setModalError(null);
-    setModalSuccess(null);
-    if (uploading || selectingReceipt || !!selectedOrder?.receipt_url) return;
-    setSelectingReceipt(true);
-    const onFocus = () => {
-      window.removeEventListener("focus", onFocus);
-      setTimeout(() => setSelectingReceipt(false), 200);
-    };
-    window.addEventListener("focus", onFocus);
-    fileInputRef.current?.click();
-  };
-
   const handleFileChange = async (file: File | null) => {
     if (!file || !selectedOrder) return;
-    setSelectingReceipt(false);
     setUploading(true);
     setModalError(null);
     setModalSuccess(null);
@@ -335,6 +331,7 @@ export default function ClientOrdersPage() {
       setOrders(updatedOrders);
       const updatedOrder = updatedOrders.find((o) => o.id === selectedOrder.id) || null;
       if (updatedOrder) setSelectedOrder(updatedOrder);
+      setReceiptFile(null);
 
       const hasReceiptEvent = (items: OrderHistoryItem[]) => {
         return items.some((h) => {
@@ -356,14 +353,20 @@ export default function ClientOrdersPage() {
       setModalError(e?.message || "No se pudo subir el comprobante.");
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   const canRequestRefund = useMemo(() => {
     if (!selectedOrder) return false;
-    return normalizeStatusKey(getOrderStatusRaw(selectedOrder)) === "verified";
-  }, [selectedOrder]);
+    const isCompleted = normalizeStatusKey(getOrderStatusRaw(selectedOrder)) === "completed";
+    const alreadyRequested = Boolean(refundRequestedByOrderId[String(selectedOrder.id)]);
+    return isCompleted && !alreadyRequested;
+  }, [selectedOrder, refundRequestedByOrderId]);
+
+  const refundAlreadyRequested = useMemo(() => {
+    if (!selectedOrder) return false;
+    return Boolean(refundRequestedByOrderId[String(selectedOrder.id)]);
+  }, [selectedOrder, refundRequestedByOrderId]);
 
   const openRefundModal = () => {
     if (!selectedOrder) return;
@@ -372,7 +375,6 @@ export default function ClientOrdersPage() {
     setRefundError(null);
     setRefundSuccess(null);
     setRefundSubmitting(false);
-    setRefundSelectingEvidence(false);
     setIsRefundModalOpen(true);
   };
 
@@ -383,25 +385,9 @@ export default function ClientOrdersPage() {
     setRefundEvidence(null);
     setRefundError(null);
     setRefundSuccess(null);
-    setRefundSelectingEvidence(false);
-    if (refundFileInputRef.current) refundFileInputRef.current.value = "";
-  };
-
-  const handleSelectRefundEvidence = () => {
-    setRefundError(null);
-    setRefundSuccess(null);
-    if (refundSubmitting || refundSelectingEvidence) return;
-    setRefundSelectingEvidence(true);
-    const onFocus = () => {
-      window.removeEventListener("focus", onFocus);
-      setTimeout(() => setRefundSelectingEvidence(false), 200);
-    };
-    window.addEventListener("focus", onFocus);
-    refundFileInputRef.current?.click();
   };
 
   const handleRefundEvidenceChange = (file: File | null) => {
-    setRefundSelectingEvidence(false);
     setRefundError(null);
     setRefundSuccess(null);
     setRefundEvidence(file);
@@ -422,6 +408,15 @@ export default function ClientOrdersPage() {
       await orderService.requestOrderRefund(selectedOrder.id, reason, refundEvidence);
       setRefundSuccess("Solicitud de reembolso enviada.");
       setModalSuccess("Solicitud de reembolso enviada.");
+      setRefundRequestedByOrderId((prev) => {
+        const next = { ...prev, [String(selectedOrder.id)]: true as const };
+        try {
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(refundRequestedStorageKey, JSON.stringify(next));
+          }
+        } catch {}
+        return next;
+      });
 
       const updatedOrders = await orderService.getMyOrders();
       setOrders(updatedOrders);
@@ -674,44 +669,27 @@ export default function ClientOrdersPage() {
                       </div>
 
                       <div>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
+                        <FileUpload
+                          label="Comprobante (imagen)"
                           accept="image/*"
-                          className="hidden"
-                          onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+                          value={receiptFile}
+                          currentImageUrl={selectedOrder.receipt_url || null}
+                          disabled={uploading || !!selectedOrder.receipt_url}
+                          onChange={(f) => {
+                            setReceiptFile(f);
+                            if (f) handleFileChange(f);
+                          }}
+                          helperText="Arrastra y suelta o haz clic para seleccionar"
                         />
-                        <button
-                          onClick={handleSelectFile}
-                          disabled={uploading || selectingReceipt || !!selectedOrder.receipt_url}
-                          className="w-full inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold font-[family-name:var(--font-poppins)] text-white disabled:opacity-60"
-                          style={{ backgroundColor: "#168e00" }}
-                        >
-                          {uploading ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                              Subiendo...
-                            </>
-                          ) : selectingReceipt ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                              Selecciona tu imagen...
-                            </>
-                          ) : selectedOrder.receipt_url ? (
-                            <>
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Comprobante enviado
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="w-4 h-4 mr-2" />
-                              Subir Comprobante
-                            </>
-                          )}
-                        </button>
                         <div className="mt-2 text-xs text-gray-500 font-[family-name:var(--font-poppins)]">
                           Sube una foto clara del comprobante para que el proveedor valide tu pago.
                         </div>
+                        {uploading ? (
+                          <div className="mt-2 text-xs text-gray-500 font-[family-name:var(--font-poppins)] flex items-center gap-2">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Subiendo...
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   ) : (
@@ -741,6 +719,10 @@ export default function ClientOrdersPage() {
                   >
                     Solicitar Reembolso
                   </button>
+                </div>
+              ) : refundAlreadyRequested ? (
+                <div className="text-sm font-semibold text-gray-600 font-[family-name:var(--font-poppins)]">
+                  Reembolso en revisión por el proveedor.
                 </div>
               ) : null}
             </div>
@@ -807,46 +789,13 @@ export default function ClientOrdersPage() {
                 <div className="text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)] mb-2">
                   Evidencia (imagen)
                 </div>
-                <input
-                  ref={refundFileInputRef}
-                  type="file"
+                <FileUpload
                   accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleRefundEvidenceChange(e.target.files?.[0] || null)}
+                  value={refundEvidence}
+                  disabled={refundSubmitting}
+                  onChange={handleRefundEvidenceChange}
+                  helperText="Arrastra y suelta o haz clic para seleccionar"
                 />
-                <button
-                  type="button"
-                  onClick={handleSelectRefundEvidence}
-                  disabled={refundSubmitting || refundSelectingEvidence}
-                  className="w-full inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
-                  style={{
-                    backgroundColor: "#004e2814",
-                    color: "#004e28",
-                    border: "1px solid #004e2833",
-                  }}
-                >
-                  {refundSelectingEvidence ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      Selecciona tu imagen...
-                    </>
-                  ) : refundEvidence ? (
-                    <>
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Evidencia seleccionada
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Subir imagen
-                    </>
-                  )}
-                </button>
-                {refundEvidence ? (
-                  <div className="mt-2 text-xs text-gray-500 font-[family-name:var(--font-poppins)]">
-                    {refundEvidence.name}
-                  </div>
-                ) : null}
               </div>
             </div>
 

@@ -54,6 +54,18 @@ export interface OrderHistoryItem {
   user?: { id?: number; name?: string; role?: string };
 }
 
+export interface OrderRefund {
+  id?: number;
+  order_id?: number;
+  reason?: string;
+  file?: string | null;
+  file_url?: string | null;
+  evidence_url?: string | null;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export const orderService = {
   getOrders: async (
     page = 1,
@@ -266,6 +278,159 @@ export const orderService = {
     if (contentType.includes("application/json")) {
       return response.json();
     }
+    return null;
+  },
+
+  getOrderRefunds: async (orderId: number): Promise<OrderRefund[]> => {
+    const tryUrls = [
+      `/api/orders/${orderId}/refunds`,
+      `/api/orders/${orderId}/refunds/`,
+      `/api/api/v1/orders/${orderId}/refunds`,
+      `/api/v1/orders/${orderId}/refunds`,
+    ];
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url);
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to fetch refunds: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+    }
+
+    const data: unknown = await response.json().catch(() => null);
+    if (Array.isArray(data)) return data as OrderRefund[];
+    if (data && typeof data === "object") {
+      const record = data as Record<string, unknown>;
+      const items = record.items ?? record.results ?? record.data ?? record.refunds;
+      if (Array.isArray(items)) return items as OrderRefund[];
+      if (
+        "id" in record ||
+        "reason" in record ||
+        "file" in record ||
+        "file_url" in record ||
+        "evidence_url" in record
+      ) {
+        return [record as unknown as OrderRefund];
+      }
+    }
+    return [];
+  },
+
+  approveOrderRefund: async (orderId: number, refundId: number, note?: string) => {
+    const payload: Record<string, unknown> = {};
+    if (typeof note === "string" && note.trim().length > 0) {
+      payload.note = note.trim();
+    }
+    const options = { method: "POST" as const, body: JSON.stringify(payload) };
+    const tryUrls = [
+      `/api/orders/${orderId}/refunds/${refundId}/approve`,
+      `/api/orders/${orderId}/refunds/${refundId}/approve/`,
+      `/api/v1/orders/${orderId}/refunds/${refundId}/approve`,
+      `/api/v1/orders/${orderId}/refunds/${refundId}/approve/`,
+    ];
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url, options);
+      if ([301, 302, 307, 308].includes(response.status)) {
+        const redirectUrl = response.headers.get("Location");
+        if (redirectUrl && (redirectUrl.startsWith("/") || redirectUrl.startsWith(window.location.origin))) {
+          response = await fetchWithAuth(redirectUrl, options);
+        }
+      }
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to approve refund: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+    }
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) return response.json();
+    return null;
+  },
+
+  rejectOrderRefund: async (orderId: number, refundId: number, reason: string) => {
+    const payload: Record<string, unknown> = { reason };
+    const options = { method: "POST" as const, body: JSON.stringify(payload) };
+    const tryUrls = [
+      `/api/orders/${orderId}/refunds/${refundId}/reject`,
+      `/api/orders/${orderId}/refunds/${refundId}/reject/`,
+      `/api/v1/orders/${orderId}/refunds/${refundId}/reject`,
+      `/api/v1/orders/${orderId}/refunds/${refundId}/reject/`,
+    ];
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url, options);
+      if ([301, 302, 307, 308].includes(response.status)) {
+        const redirectUrl = response.headers.get("Location");
+        if (redirectUrl && (redirectUrl.startsWith("/") || redirectUrl.startsWith(window.location.origin))) {
+          response = await fetchWithAuth(redirectUrl, options);
+        }
+      }
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to reject refund: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+    }
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) return response.json();
+    return null;
+  },
+
+  markOrderRefunded: async (orderId: number, refundId: number, note?: string, file?: File | null) => {
+    const form = new FormData();
+    if (typeof note === "string" && note.trim().length > 0) {
+      form.append("note", note.trim());
+    }
+    if (file) {
+      form.append("file", file);
+    }
+
+    const options = { method: "POST" as const, body: form };
+    const tryUrls = [
+      `/api/orders/${orderId}/refunds/${refundId}/mark-refunded`,
+      `/api/orders/${orderId}/refunds/${refundId}/mark-refunded/`,
+      `/api/v1/orders/${orderId}/refunds/${refundId}/mark-refunded`,
+      `/api/v1/orders/${orderId}/refunds/${refundId}/mark-refunded/`,
+    ];
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url, options);
+      if ([301, 302, 307, 308].includes(response.status)) {
+        const redirectUrl = response.headers.get("Location");
+        if (redirectUrl && (redirectUrl.startsWith("/") || redirectUrl.startsWith(window.location.origin))) {
+          response = await fetchWithAuth(redirectUrl, options);
+        }
+      }
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to mark refunded: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+    }
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) return response.json();
     return null;
   },
 };

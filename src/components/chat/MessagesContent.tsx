@@ -72,6 +72,7 @@ export function MessagesContent() {
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isFileDragging, setIsFileDragging] = useState(false);
 
   // WebSocket hook
   const { lastMessage, sendMessage: wsSendMessage } = useChatWebSocket(activeConversation?.id, !!activeConversation);
@@ -863,7 +864,30 @@ export function MessagesContent() {
             </div>
 
             {/* Footer Input Area */}
-            <div className="p-3 bg-white border-t border-gray-200 flex items-end gap-2">
+            <div
+              className={`p-3 bg-white border-t border-gray-200 flex items-end gap-2 ${
+                isFileDragging ? "bg-primary/5" : ""
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsFileDragging(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsFileDragging(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsFileDragging(false);
+                const f = e.dataTransfer?.files?.[0] || null;
+                if (!f) return;
+                if (f.type && !f.type.startsWith("image/")) return;
+                setSelectedFile(f);
+              }}
+            >
                {error && (
                    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 p-2 bg-red-50 text-red-600 text-xs rounded-lg flex items-center gap-2 shadow-md">
                        <span>{error}</span>
@@ -879,7 +903,17 @@ export function MessagesContent() {
                    >
                        <ImageIcon size={20} />
                    </button>
-                   <input type="file" ref={fileInputRef} className="hidden" />
+                   <input
+                     type="file"
+                     accept="image/*"
+                     ref={fileInputRef}
+                     className="hidden"
+                     onChange={(e) => {
+                       const f = e.target.files?.[0] || null;
+                       setSelectedFile(f);
+                       e.target.value = "";
+                     }}
+                   />
                </div>
 
                <div className="flex-1 bg-[#F0F2F5] rounded-3xl px-4 py-2.5 focus-within:ring-1 focus-within:ring-gray-300 transition-all flex items-center">

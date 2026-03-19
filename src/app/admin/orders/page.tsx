@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { orderService, Order, OrderHistoryItem } from "@/services/orderService";
+import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
 import { chatService } from "@/services/chatService";
 import { useChat } from "@/context/ChatContext";
+import FileUpload from "@/components/ui/FileUpload";
 import { 
   Loader2, 
   MessageSquare,
@@ -40,6 +41,7 @@ function normalizeStatusKey(value: string) {
   if (v === "cancelled" || v === "cancelado") return "cancelled";
   if (v === "receipt_uploaded" || v === "comprobante_subido") return "receipt_uploaded";
   if (v === "created" || v === "creado") return "created";
+  if (v === "refund_requested" || v === "reembolso_solicitado") return "refund_requested";
 
   return v;
 }
@@ -59,8 +61,34 @@ function toSpanishStatusLabel(value: string) {
     rejected: "Pago rechazado",
     cancelled: "Cancelado",
     created: "Creado",
+    refund_requested: "Reembolso solicitado",
   };
   return map[key] || raw;
+}
+
+function toSpanishHistoryText(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const exact = toSpanishStatusLabel(raw);
+  if (exact && exact !== raw) return exact;
+
+  const replacements: Array<[RegExp, string]> = [
+    [/(^|[^a-z0-9_])refund_requested([^a-z0-9_]|$)/gi, "$1Reembolso solicitado$2"],
+    [/(^|[^a-z0-9_])payment_rejected([^a-z0-9_]|$)/gi, "$1Pago rechazado$2"],
+    [/(^|[^a-z0-9_])receipt_uploaded([^a-z0-9_]|$)/gi, "$1Comprobante subido$2"],
+    [/(^|[^a-z0-9_])verified([^a-z0-9_]|$)/gi, "$1Verificado$2"],
+    [/(^|[^a-z0-9_])paid([^a-z0-9_]|$)/gi, "$1Pago verificado$2"],
+    [/(^|[^a-z0-9_])pending([^a-z0-9_]|$)/gi, "$1Pendiente$2"],
+    [/(^|[^a-z0-9_])created([^a-z0-9_]|$)/gi, "$1Creado$2"],
+    [/(^|[^a-z0-9_])completed([^a-z0-9_]|$)/gi, "$1Completado$2"],
+    [/(^|[^a-z0-9_])shipped([^a-z0-9_]|$)/gi, "$1Enviado$2"],
+    [/(^|[^a-z0-9_])cancelled([^a-z0-9_]|$)/gi, "$1Cancelado$2"],
+  ];
+
+  let out = raw;
+  for (const [re, rep] of replacements) out = out.replace(re, rep);
+  return out;
 }
 
 function StatusBadge({ value }: { value: string }) {
@@ -69,9 +97,10 @@ function StatusBadge({ value }: { value: string }) {
 
   const isPaid = normalized === "paid";
   const isCompleted = normalized === "completed" || normalized === "verified";
+  const isRefundRequested = normalized === "refund_requested";
 
-  const bg = isCompleted ? "#004e28" : isPaid ? "#168e00" : "#f2f3f4";
-  const fg = isCompleted || isPaid ? "#ffffff" : "#000000";
+  const bg = isCompleted ? "#004e28" : isPaid ? "#168e00" : isRefundRequested ? "#f59e0b" : "#f2f3f4";
+  const fg = isCompleted || isPaid ? "#ffffff" : isRefundRequested ? "#000000" : "#000000";
 
   const label = toSpanishStatusLabel(raw) || "—";
 
@@ -96,11 +125,14 @@ function MinimalStatusPill({ value }: { value: string }) {
   const isCancelled = normalized === "cancelled";
   const isShipped = normalized === "shipped";
   const isPending = normalized === "pending";
+  const isRefundRequested = normalized === "refund_requested";
 
   const base = isCompleted
     ? "#004e28"
     : isPaid
       ? "#168e00"
+      : isRefundRequested
+        ? "#f59e0b"
       : isReceipt
         ? "#3b82f6"
         : isRejected
@@ -114,7 +146,7 @@ function MinimalStatusPill({ value }: { value: string }) {
                 : "#6b7280";
 
   const label = toSpanishStatusLabel(raw) || "—";
-  const bg = base === "#fbbf24" ? "#fff7ed" : `${base}14`;
+  const bg = base === "#fbbf24" || base === "#f59e0b" ? "#fff7ed" : `${base}14`;
 
   return (
     <span
@@ -146,6 +178,15 @@ export default function AdminOrdersPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [rejectSpinnerVisible, setRejectSpinnerVisible] = useState(false);
   const rejectSpinnerTimerRef = useRef<number | null>(null);
+  const [activeRefund, setActiveRefund] = useState<OrderRefund | null>(null);
+  const [refundLoading, setRefundLoading] = useState(false);
+  const [isRefundApproveModalOpen, setIsRefundApproveModalOpen] = useState(false);
+  const [refundApproveNote, setRefundApproveNote] = useState("");
+  const [isRefundRejectModalOpen, setIsRefundRejectModalOpen] = useState(false);
+  const [refundRejectReason, setRefundRejectReason] = useState("");
+  const [isRefundFinalizeModalOpen, setIsRefundFinalizeModalOpen] = useState(false);
+  const [refundFinalizeNote, setRefundFinalizeNote] = useState("");
+  const [refundFinalizeFile, setRefundFinalizeFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -242,6 +283,27 @@ export default function AdminOrdersPage() {
     return typeof url === "string" && url.trim() ? url : "";
   };
 
+  const getMediaUrl = (maybeUrl: string | null | undefined) => {
+    const raw = typeof maybeUrl === "string" ? maybeUrl.trim() : "";
+    if (!raw) return "";
+    if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+    const base = (process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/$/, "");
+    if (base && raw.startsWith("/")) return `${base}${raw}`;
+    return raw;
+  };
+
+  const pickActiveRefund = (items: OrderRefund[]) => {
+    const sorted = [...items].sort((a, b) => {
+      const ad = new Date(a.created_at || "").getTime();
+      const bd = new Date(b.created_at || "").getTime();
+      const at = Number.isFinite(ad) ? ad : 0;
+      const bt = Number.isFinite(bd) ? bd : 0;
+      if (at !== bt) return bt - at;
+      return Number(b.id || 0) - Number(a.id || 0);
+    });
+    return sorted[0] ?? null;
+  };
+
   const openCustomerChat = async (order: Order) => {
     setError(null);
     try {
@@ -318,6 +380,7 @@ export default function AdminOrdersPage() {
       if (v === "verified") return { label: "Verificado", bg: "#004e28", fg: "#ffffff" };
       if (v === "completed") return { label: "Completado", bg: "#004e28", fg: "#ffffff" };
       if (v === "shipped") return { label: "Enviado", bg: "#fbbf24", fg: "#000000" };
+      if (v === "refund_requested") return { label: "Reembolso solicitado", bg: "#f59e0b", fg: "#000000" };
       if (v === "payment_rejected") return { label: "Pago rechazado", bg: "#ef4444", fg: "#ffffff" };
       if (v === "cancelled") return { label: "Cancelado", bg: "#6b7280", fg: "#ffffff" };
       if (v === "receipt_uploaded") return { label: "Comprobante subido", bg: "#3b82f6", fg: "#ffffff" };
@@ -342,7 +405,7 @@ export default function AdminOrdersPage() {
 
       const meta = statusMeta(statusRaw);
       const fallbackTextRaw = normalizeHistoryRow(h).text;
-      const fallbackText = toSpanishStatusLabel(fallbackTextRaw);
+      const fallbackText = toSpanishHistoryText(fallbackTextRaw);
       const title = meta.label || fallbackText || "Actualización";
 
       const detail =
@@ -359,15 +422,15 @@ export default function AdminOrdersPage() {
     });
 
     return (
-      <div className="max-h-[520px] overflow-y-auto pr-2">
-        <div className="space-y-4">
+      <div className="max-h-[200px] overflow-y-auto pr-2">
+        <div className="space-y-2">
           {rows.map((row, idx) => {
             const isLast = idx === rows.length - 1;
             return (
-              <div key={idx} className="flex gap-3">
+              <div key={idx} className="flex gap-2">
                 <div className="flex flex-col items-center">
                   <div className="h-2 w-2 rounded-full bg-[#004e28]" />
-                  {!isLast && <div className="w-px flex-1 bg-gray-200 mt-1" />}
+                  {!isLast && <div className="w-px flex-1 bg-gray-200 mt-0.5" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-gray-500 font-[family-name:var(--font-poppins)]">
@@ -375,11 +438,11 @@ export default function AdminOrdersPage() {
                     {row.actor ? <span className="text-gray-300"> • </span> : null}
                     {row.actor ? <span className="text-gray-500">{row.actor}</span> : null}
                   </div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)] truncate">
+                  <div className="mt-0.5 text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)] truncate">
                     {row.title}
                   </div>
                   {row.detail ? (
-                    <div className="mt-1 text-sm text-gray-700 font-[family-name:var(--font-poppins)]">
+                    <div className="mt-0.5 text-sm text-gray-700 font-[family-name:var(--font-poppins)]">
                       {row.detail}
                     </div>
                   ) : null}
@@ -397,8 +460,83 @@ export default function AdminOrdersPage() {
     setModalError(null);
     setHistory([]);
     setHistoryLoading(true);
+    setActiveRefund(null);
+    setRefundLoading(true);
     try {
-      const items = await orderService.getOrderHistory(order.id);
+      const [historyResult, refundsResult] = await Promise.allSettled([
+        orderService.getOrderHistory(order.id),
+        orderService.getOrderRefunds(order.id),
+      ]);
+
+      if (historyResult.status === "fulfilled") {
+        const sorted = [...historyResult.value].sort((a, b) => {
+          const ad = new Date(a.created_at || a.timestamp || a.date || "");
+          const bd = new Date(b.created_at || b.timestamp || b.date || "");
+          const at = Number.isNaN(ad.getTime()) ? 0 : ad.getTime();
+          const bt = Number.isNaN(bd.getTime()) ? 0 : bd.getTime();
+          return bt - at;
+        });
+        setHistory(sorted);
+      } else {
+        setHistory([]);
+      }
+
+      if (refundsResult.status === "fulfilled") {
+        setActiveRefund(pickActiveRefund(refundsResult.value));
+      } else {
+        setActiveRefund(null);
+      }
+    } catch {
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+      setRefundLoading(false);
+    }
+  };
+
+  const closeManageModal = () => {
+    setSelectedOrder(null);
+    setHistory([]);
+    setHistoryLoading(false);
+    setModalError(null);
+    setActionLoading(null);
+    setIsRejectModalOpen(false);
+    setRejectNote("");
+    setActiveRefund(null);
+    setRefundLoading(false);
+    setIsRefundApproveModalOpen(false);
+    setRefundApproveNote("");
+    setIsRefundRejectModalOpen(false);
+    setRefundRejectReason("");
+    setIsRefundFinalizeModalOpen(false);
+    setRefundFinalizeNote("");
+    setRefundFinalizeFile(null);
+    setRejectSpinnerVisible(false);
+    if (rejectSpinnerTimerRef.current) {
+      window.clearTimeout(rejectSpinnerTimerRef.current);
+      rejectSpinnerTimerRef.current = null;
+    }
+  };
+
+  const refreshRefundData = async (orderId: number): Promise<number | null> => {
+    setRefundLoading(true);
+    try {
+      const list = await orderService.getOrderRefunds(orderId);
+      const picked = pickActiveRefund(list);
+      setActiveRefund(picked);
+      return picked?.id != null ? Number(picked.id) : null;
+    } catch {
+      setActiveRefund(null);
+      return null;
+    } finally {
+      setRefundLoading(false);
+    }
+  };
+
+  const refreshHistory = async (orderId: number) => {
+    setHistoryLoading(true);
+    try {
+      const items = await orderService.getOrderHistory(orderId);
       const sorted = [...items].sort((a, b) => {
         const ad = new Date(a.created_at || a.timestamp || a.date || "");
         const bd = new Date(b.created_at || b.timestamp || b.date || "");
@@ -414,18 +552,142 @@ export default function AdminOrdersPage() {
     }
   };
 
-  const closeManageModal = () => {
-    setSelectedOrder(null);
-    setHistory([]);
-    setHistoryLoading(false);
+  const openRefundApproveModal = async () => {
+    if (!selectedOrder) return;
     setModalError(null);
-    setActionLoading(null);
-    setIsRejectModalOpen(false);
-    setRejectNote("");
-    setRejectSpinnerVisible(false);
-    if (rejectSpinnerTimerRef.current) {
-      window.clearTimeout(rejectSpinnerTimerRef.current);
-      rejectSpinnerTimerRef.current = null;
+    if (activeRefund?.id == null) {
+      await refreshRefundData(selectedOrder.id);
+    }
+    setRefundApproveNote("");
+    setIsRefundApproveModalOpen(true);
+  };
+
+  const closeRefundApproveModal = () => {
+    if (actionLoading) return;
+    setIsRefundApproveModalOpen(false);
+    setRefundApproveNote("");
+  };
+
+  const submitRefundApprove = async () => {
+    if (!selectedOrder) return;
+    const orderId = selectedOrder.id;
+    setActionLoading("refund_approve");
+    setModalError(null);
+    try {
+      let refundId: number | null = activeRefund?.id != null ? Number(activeRefund.id) : null;
+      if (!refundId) {
+        refundId = await refreshRefundData(orderId);
+      }
+      if (!refundId) {
+        throw new Error("No se encontró el refund_id para esta orden.");
+      }
+      const note = refundApproveNote.trim();
+      await orderService.approveOrderRefund(orderId, refundId, note || undefined);
+      setToastMessage("Reembolso aprobado");
+      await Promise.allSettled([fetchOrders(), refreshHistory(orderId), refreshRefundData(orderId)]);
+      setIsRefundApproveModalOpen(false);
+      setRefundApproveNote("");
+    } catch (e) {
+      const msg =
+        e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo aprobar el reembolso.";
+      setModalError(msg || "No se pudo aprobar el reembolso.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openRefundRejectModal = async () => {
+    if (!selectedOrder) return;
+    setModalError(null);
+    if (activeRefund?.id == null) {
+      await refreshRefundData(selectedOrder.id);
+    }
+    setRefundRejectReason("");
+    setIsRefundRejectModalOpen(true);
+  };
+
+  const closeRefundRejectModal = () => {
+    if (actionLoading) return;
+    setIsRefundRejectModalOpen(false);
+    setRefundRejectReason("");
+  };
+
+  const submitRefundReject = async () => {
+    if (!selectedOrder) return;
+    const orderId = selectedOrder.id;
+    const reason = refundRejectReason.trim();
+    if (!reason) return;
+    setActionLoading("refund_reject");
+    setModalError(null);
+    try {
+      let refundId: number | null = activeRefund?.id != null ? Number(activeRefund.id) : null;
+      if (!refundId) {
+        refundId = await refreshRefundData(orderId);
+      }
+      if (!refundId) {
+        throw new Error("No se encontró el refund_id para esta orden.");
+      }
+      await orderService.rejectOrderRefund(orderId, refundId, reason);
+      setToastMessage("Reembolso rechazado");
+      await Promise.allSettled([fetchOrders(), refreshHistory(orderId), refreshRefundData(orderId)]);
+      setIsRefundRejectModalOpen(false);
+      setRefundRejectReason("");
+    } catch (e) {
+      const msg =
+        e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo rechazar el reembolso.";
+      setModalError(msg || "No se pudo rechazar el reembolso.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openRefundFinalizeModal = async () => {
+    if (!selectedOrder) return;
+    setModalError(null);
+    if (activeRefund?.id == null) {
+      await refreshRefundData(selectedOrder.id);
+    }
+    setRefundFinalizeNote("");
+    setRefundFinalizeFile(null);
+    setIsRefundFinalizeModalOpen(true);
+  };
+
+  const closeRefundFinalizeModal = () => {
+    if (actionLoading) return;
+    setIsRefundFinalizeModalOpen(false);
+    setRefundFinalizeNote("");
+    setRefundFinalizeFile(null);
+  };
+
+  const submitRefundFinalize = async () => {
+    if (!selectedOrder) return;
+    const orderId = selectedOrder.id;
+    setActionLoading("refund_mark_refunded");
+    setModalError(null);
+    try {
+      let refundId: number | null = activeRefund?.id != null ? Number(activeRefund.id) : null;
+      if (!refundId) {
+        refundId = await refreshRefundData(orderId);
+      }
+      if (!refundId) {
+        throw new Error("No se encontró el refund_id para esta orden.");
+      }
+      if (!refundFinalizeFile) {
+        throw new Error("Adjunta el comprobante del reembolso.");
+      }
+      const note = refundFinalizeNote.trim();
+      await orderService.markOrderRefunded(orderId, refundId, note || undefined, refundFinalizeFile);
+      setToastMessage("Pago de reembolso confirmado");
+      await Promise.allSettled([fetchOrders(), refreshHistory(orderId), refreshRefundData(orderId)]);
+      setIsRefundFinalizeModalOpen(false);
+      setRefundFinalizeNote("");
+      setRefundFinalizeFile(null);
+    } catch (e) {
+      const msg =
+        e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo confirmar el pago.";
+      setModalError(msg || "No se pudo confirmar el pago.");
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -463,7 +725,7 @@ export default function AdminOrdersPage() {
           const bd = new Date(b.created_at || b.timestamp || b.date || "");
           const at = Number.isNaN(ad.getTime()) ? 0 : ad.getTime();
           const bt = Number.isNaN(bd.getTime()) ? 0 : bd.getTime();
-          return at - bt;
+        return bt - at;
         });
         setHistory(sorted);
       } catch {
@@ -539,6 +801,20 @@ export default function AdminOrdersPage() {
 
     const text = rawText ? String(rawText) : "Actualización";
     return { timeLabel, text };
+  };
+
+  const hasRefundRequestedSignal = (items: OrderHistoryItem[]) => {
+    return items.some((h) => {
+      const candidates = [
+        h.status,
+        h.event,
+        h.action,
+        h.description,
+        h.message,
+        normalizeHistoryRow(h).text,
+      ];
+      return candidates.some((c) => typeof c === "string" && normalizeStatusKey(c) === "refund_requested");
+    });
   };
 
   return (
@@ -747,6 +1023,57 @@ export default function AdminOrdersPage() {
                       </div>
                     </div>
                   )}
+
+                  {normalizeStatusKey(getOrderPaymentStatus(selectedOrder)) === "refund_requested" ||
+                  Boolean(activeRefund) ||
+                  hasRefundRequestedSignal(history) ? (
+                    <div className="mt-6">
+                      <div className="text-sm font-bold text-gray-900 font-[family-name:var(--font-varela-round)] mb-3">
+                        Detalle del Reclamo
+                      </div>
+
+                      {refundLoading ? (
+                        <div className="rounded-xl border border-yellow-100 bg-yellow-50 p-6">
+                          <div className="flex items-center gap-2 text-sm text-gray-500 font-[family-name:var(--font-poppins)]">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Cargando reclamo...
+                          </div>
+                        </div>
+                      ) : activeRefund ? (
+                        <div className="rounded-xl border border-yellow-100 bg-yellow-50 p-5 space-y-4">
+                          <div>
+                            <div className="text-xs font-semibold text-gray-500 font-[family-name:var(--font-poppins)]">
+                              Motivo
+                            </div>
+                            <div className="mt-1 text-sm text-gray-900 font-[family-name:var(--font-poppins)] whitespace-pre-wrap">
+                              {activeRefund.reason?.trim() ? activeRefund.reason : "—"}
+                            </div>
+                          </div>
+
+                          {getMediaUrl(activeRefund.file_url || activeRefund.evidence_url || activeRefund.file) ? (
+                            <div>
+                              <div className="text-xs font-semibold text-gray-500 font-[family-name:var(--font-poppins)] mb-2">
+                                Foto
+                              </div>
+                              <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-[#f2f3f4] border border-gray-100">
+                                <img
+                                  src={getMediaUrl(activeRefund.file_url || activeRefund.evidence_url || activeRefund.file)}
+                                  alt="Evidencia del reclamo"
+                                  className="h-full w-full object-contain"
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-yellow-100 bg-yellow-50 p-6">
+                          <div className="text-sm text-gray-400 font-[family-name:var(--font-poppins)]">
+                            No hay información del reclamo.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="rounded-xl border border-gray-100 bg-white p-5">
@@ -777,6 +1104,90 @@ export default function AdminOrdersPage() {
                       normalized === "payment_rejected";
                     const canConfirmPayment = hasReceipt && isPendingLike && !isPaid && !isFinal;
                     const canReject = (isPendingLike || isPaid) && !isFinal;
+
+                    const showRefundActions =
+                      normalized === "refund_requested" || Boolean(activeRefund) || hasRefundRequestedSignal(history);
+
+                    if (showRefundActions) {
+                      if (refundLoading) {
+                        return (
+                          <div className="flex items-center gap-2 text-sm text-gray-500 font-[family-name:var(--font-poppins)]">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Cargando reembolso...
+                          </div>
+                        );
+                      }
+
+                      const hasRefundId = activeRefund?.id != null;
+                      if (!hasRefundId) {
+                        return (
+                          <div className="text-sm text-gray-500 font-[family-name:var(--font-poppins)]">
+                            No hay reembolso activo para esta orden.
+                          </div>
+                        );
+                      }
+
+                      const evidenceUrl = getMediaUrl(activeRefund?.file_url || activeRefund?.evidence_url || activeRefund?.file);
+                      return (
+                        <>
+                          {evidenceUrl ? (
+                            <div className="mb-4 flex items-center gap-3">
+                              <div className="h-14 w-14 overflow-hidden rounded-xl border border-gray-100 bg-[#f2f3f4]">
+                                <img src={evidenceUrl} alt="Evidencia del reembolso" className="h-full w-full object-cover" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-xs font-semibold text-gray-500 font-[family-name:var(--font-poppins)]">
+                                  Evidencia
+                                </div>
+                                <div className="text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)] truncate">
+                                  Reembolso solicitado
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={openRefundApproveModal}
+                              disabled={actionLoading !== null}
+                              className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
+                              style={{
+                                backgroundColor: "#004e2814",
+                                color: "#004e28",
+                                border: "1px solid #004e2833",
+                              }}
+                            >
+                              {actionLoading === "refund_approve" ? "Actualizando..." : "Aprobar Reembolso"}
+                            </button>
+
+                            <button
+                              onClick={openRefundRejectModal}
+                              disabled={actionLoading !== null}
+                              className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
+                              style={{
+                                backgroundColor: "#ef444414",
+                                color: "#ef4444",
+                                border: "1px solid #ef444433",
+                              }}
+                            >
+                              {actionLoading === "refund_reject" ? "Actualizando..." : "Rechazar Reembolso"}
+                            </button>
+
+                            <button
+                              onClick={openRefundFinalizeModal}
+                              disabled={actionLoading !== null}
+                              className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] disabled:opacity-60"
+                              style={{
+                                backgroundColor: "#3b82f614",
+                                color: "#3b82f6",
+                                border: "1px solid #3b82f633",
+                              }}
+                            >
+                              {actionLoading === "refund_mark_refunded" ? "Actualizando..." : "Finalizar Reembolso"}
+                            </button>
+                          </div>
+                        </>
+                      );
+                    }
 
                     return (
                       <>
@@ -919,6 +1330,238 @@ export default function AdminOrdersPage() {
                         )
                       ) : (
                         "Confirmar Rechazo"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {isRefundApproveModalOpen ? (
+            <div
+              className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
+              onClick={closeRefundApproveModal}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div
+                className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden border border-gray-100"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                  <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                    Aprobar Reembolso
+                  </div>
+                  <button
+                    onClick={closeRefundApproveModal}
+                    disabled={actionLoading !== null}
+                    className="inline-flex items-center justify-center rounded-full p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                    aria-label="Cerrar"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="px-6 py-5">
+                  <label className="block text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)] mb-2">
+                    Nota (opcional)
+                  </label>
+                  <textarea
+                    value={refundApproveNote}
+                    onChange={(e) => setRefundApproveNote(e.target.value)}
+                    rows={4}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-[family-name:var(--font-poppins)] outline-none focus:ring-2 focus:ring-[#004e28]/20 focus:border-[#004e28]/40"
+                    placeholder="Agrega una nota si aplica..."
+                    disabled={actionLoading !== null}
+                  />
+
+                  {modalError ? (
+                    <div className="mt-3 text-sm text-red-600 font-[family-name:var(--font-poppins)]">
+                      {modalError}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-5 flex items-center justify-end gap-3">
+                    <button
+                      onClick={closeRefundApproveModal}
+                      disabled={actionLoading !== null}
+                      className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] text-gray-700 hover:bg-gray-50 border border-gray-200 disabled:opacity-60"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={submitRefundApprove}
+                      disabled={actionLoading !== null}
+                      className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] text-white disabled:opacity-60"
+                      style={{ backgroundColor: "#004e28" }}
+                    >
+                      {actionLoading === "refund_approve" ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Procesando...
+                        </>
+                      ) : (
+                        "Aprobar Reembolso"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {isRefundRejectModalOpen ? (
+            <div
+              className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
+              onClick={closeRefundRejectModal}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div
+                className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden border border-gray-100"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                  <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                    Rechazar Reembolso
+                  </div>
+                  <button
+                    onClick={closeRefundRejectModal}
+                    disabled={actionLoading !== null}
+                    className="inline-flex items-center justify-center rounded-full p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                    aria-label="Cerrar"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="px-6 py-5">
+                  <label className="block text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)] mb-2">
+                    Motivo (obligatorio)
+                  </label>
+                  <textarea
+                    value={refundRejectReason}
+                    onChange={(e) => setRefundRejectReason(e.target.value)}
+                    rows={4}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-[family-name:var(--font-poppins)] outline-none focus:ring-2 focus:ring-[#004e28]/20 focus:border-[#004e28]/40"
+                    placeholder="Escribe el motivo..."
+                    disabled={actionLoading !== null}
+                  />
+
+                  {modalError ? (
+                    <div className="mt-3 text-sm text-red-600 font-[family-name:var(--font-poppins)]">
+                      {modalError}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-5 flex items-center justify-end gap-3">
+                    <button
+                      onClick={closeRefundRejectModal}
+                      disabled={actionLoading !== null}
+                      className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] text-gray-700 hover:bg-gray-50 border border-gray-200 disabled:opacity-60"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={submitRefundReject}
+                      disabled={actionLoading !== null || !refundRejectReason.trim()}
+                      className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] text-white disabled:opacity-60"
+                      style={{ backgroundColor: "#ef4444" }}
+                    >
+                      {actionLoading === "refund_reject" ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Procesando...
+                        </>
+                      ) : (
+                        "Rechazar Reembolso"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {isRefundFinalizeModalOpen ? (
+            <div
+              className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
+              onClick={closeRefundFinalizeModal}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div
+                className="w-full max-w-xl rounded-2xl bg-white shadow-xl overflow-hidden border border-gray-100"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                  <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                    Finalizar Reembolso
+                  </div>
+                  <button
+                    onClick={closeRefundFinalizeModal}
+                    disabled={actionLoading !== null}
+                    className="inline-flex items-center justify-center rounded-full p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                    aria-label="Cerrar"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="px-6 py-5 space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)] mb-2">
+                      Nota (opcional)
+                    </label>
+                    <textarea
+                      value={refundFinalizeNote}
+                      onChange={(e) => setRefundFinalizeNote(e.target.value)}
+                      rows={3}
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-[family-name:var(--font-poppins)] outline-none focus:ring-2 focus:ring-[#004e28]/20 focus:border-[#004e28]/40"
+                      placeholder="Agrega una nota si aplica..."
+                      disabled={actionLoading !== null}
+                    />
+                  </div>
+
+                  <div>
+                    <FileUpload
+                      label="Comprobante del reembolso"
+                      value={refundFinalizeFile}
+                      onChange={setRefundFinalizeFile}
+                      accept="image/*,application/pdf"
+                      disabled={actionLoading !== null}
+                      helperText="Arrastra y suelta o haz clic para adjuntar (imagen o PDF)"
+                    />
+                  </div>
+
+                  {modalError ? (
+                    <div className="text-sm text-red-600 font-[family-name:var(--font-poppins)]">
+                      {modalError}
+                    </div>
+                  ) : null}
+
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      onClick={closeRefundFinalizeModal}
+                      disabled={actionLoading !== null}
+                      className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] text-gray-700 hover:bg-gray-50 border border-gray-200 disabled:opacity-60"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={submitRefundFinalize}
+                      disabled={actionLoading !== null || !refundFinalizeFile}
+                      className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)] text-white disabled:opacity-60"
+                      style={{ backgroundColor: "#3b82f6" }}
+                    >
+                      {actionLoading === "refund_mark_refunded" ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Procesando...
+                        </>
+                      ) : (
+                        "Finalizar Reembolso"
                       )}
                     </button>
                   </div>
