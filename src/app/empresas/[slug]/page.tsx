@@ -239,6 +239,7 @@ export default function SupplierPage() {
   const [activeTab, setActiveTab] = useState<'main' | 'products'>('main');
   const [loading, setLoading] = useState(true);
   const headerVideoRef = useRef<HTMLVideoElement>(null);
+  const supplierViewSentRef = useRef<Set<string>>(new Set());
   const [isHeaderVideoPlaying, setIsHeaderVideoPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
 
@@ -343,6 +344,37 @@ export default function SupplierPage() {
       fetchRatings(identifier, 0, false);
     }
   }, [supplier?.id, supplier?.slug, slug, token]);
+
+  useEffect(() => {
+    const id = supplier?.id;
+    if (!id) return;
+    const key = String(id);
+    if (supplierViewSentRef.current.has(key)) return;
+    supplierViewSentRef.current.add(key);
+
+    const encodedId = encodeURIComponent(key);
+    const tryUrls = [
+      `/api/suppliers/${encodedId}/views`,
+      `/api/suppliers/${encodedId}/views/`,
+      `/api/v1/suppliers/${encodedId}/views`,
+      `/api/v1/suppliers/${encodedId}/views/`,
+      `/api/api/v1/suppliers/${encodedId}/views`,
+      `/api/api/v1/suppliers/${encodedId}/views/`,
+    ];
+
+    (async () => {
+      for (const url of tryUrls) {
+        try {
+          const res = await fetch(url, { method: "POST" });
+          if (res.ok) break;
+          if (res.status === 404 || res.status === 405) continue;
+          break;
+        } catch {
+          break;
+        }
+      }
+    })();
+  }, [supplier?.id]);
 
   const fetchSupplier = async (slug: string) => {
     try {

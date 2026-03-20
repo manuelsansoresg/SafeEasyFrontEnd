@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
@@ -134,6 +134,7 @@ export default function ProductDetailPage() {
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);
+  const productViewSentRef = useRef<Set<string>>(new Set());
 
   // Update open chat context when viewing a product
   useEffect(() => {
@@ -167,6 +168,37 @@ export default function ProductDetailPage() {
             interaction_type: 'view'
         });
     }
+  }, [product?.id]);
+
+  useEffect(() => {
+    const id = product?.id;
+    if (!id) return;
+    const key = String(id);
+    if (productViewSentRef.current.has(key)) return;
+    productViewSentRef.current.add(key);
+
+    const encodedId = encodeURIComponent(key);
+    const tryUrls = [
+      `/api/products/${encodedId}/views`,
+      `/api/products/${encodedId}/views/`,
+      `/api/v1/products/${encodedId}/views`,
+      `/api/v1/products/${encodedId}/views/`,
+      `/api/api/v1/products/${encodedId}/views`,
+      `/api/api/v1/products/${encodedId}/views/`,
+    ];
+
+    (async () => {
+      for (const url of tryUrls) {
+        try {
+          const res = await fetch(url, { method: "POST" });
+          if (res.ok) break;
+          if (res.status === 404 || res.status === 405) continue;
+          break;
+        } catch {
+          break;
+        }
+      }
+    })();
   }, [product?.id]);
 
   useEffect(() => {
