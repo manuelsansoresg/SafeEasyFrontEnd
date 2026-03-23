@@ -356,12 +356,10 @@ export default function SupplierPage() {
 
     const encodedId = encodeURIComponent(key);
     const tryUrls = [
-      `/api/suppliers/${encodedId}/views`,
-      `/api/suppliers/${encodedId}/views/`,
-      `/api/v1/suppliers/${encodedId}/views`,
-      `/api/v1/suppliers/${encodedId}/views/`,
-      `/api/api/v1/suppliers/${encodedId}/views`,
-      `/api/api/v1/suppliers/${encodedId}/views/`,
+      `/proxy/suppliers/${encodedId}/views`,
+      `/proxy/suppliers/${encodedId}/views/`,
+      `/proxy/v1/suppliers/${encodedId}/views`,
+      `/proxy/v1/suppliers/${encodedId}/views/`,
     ];
 
     (async () => {
@@ -402,16 +400,16 @@ export default function SupplierPage() {
 
       let data: unknown = null;
 
-      const primary = await tryFetchJson(`/api/suppliers/${encoded}/`);
+      const primary = await tryFetchJson(`/proxy/suppliers/${encoded}/`);
       if (primary) {
         data = primary;
       } else {
-        const secondary = await tryFetchJson(`/api/suppliers/${encoded}`);
+        const secondary = await tryFetchJson(`/proxy/suppliers/${encoded}`);
         if (secondary) data = secondary;
       }
 
       if (!data && isNaN(Number(slug))) {
-        const listResult = await tryFetchJson(`/api/suppliers/?slug=${encoded}`);
+        const listResult = await tryFetchJson(`/proxy/suppliers/?slug=${encoded}`);
         if (listResult) data = listResult;
       }
 
@@ -457,7 +455,7 @@ export default function SupplierPage() {
       params.set("skip", String(skip));
       params.set("limit", String(limit));
 
-      const res = await fetchWithAuth(`/api/products/by-supplier/${supplierSlug}?${params.toString()}`, {
+      const res = await fetch(`/proxy/products/by-supplier/${supplierSlug}?${params.toString()}`, {
         cache: "no-store",
       });
 
@@ -465,7 +463,7 @@ export default function SupplierPage() {
         // Fallback: Try with ID if slug failed, or vice versa (basic retry logic could go here)
         console.error("Error fetching supplier products by slug, trying ID", res.status);
         if (supplier?.id) {
-             const resId = await fetchWithAuth(`/api/products/by-supplier/${supplier.id}?${params.toString()}`, {
+             const resId = await fetch(`/proxy/products/by-supplier/${supplier.id}?${params.toString()}`, {
                 cache: "no-store",
               });
              if (resId.ok) {
@@ -517,7 +515,7 @@ export default function SupplierPage() {
       params.set("skip", String(skip));
       params.set("limit", String(ratingsLimit));
 
-      const res = await fetch(`/api/suppliers/${supplierSlug}/ratings?${params.toString()}`, {
+      const res = await fetch(`/proxy/suppliers/${supplierSlug}/ratings?${params.toString()}`, {
         cache: "no-store",
       });
 
