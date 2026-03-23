@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins, Varela_Round } from "next/font/google";
 import "@fortawesome/fontawesome-free/css/all.min.css";
+import "react-quill-new/dist/quill.snow.css";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";

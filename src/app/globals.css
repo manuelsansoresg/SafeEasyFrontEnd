@@ -55,6 +55,16 @@ body {
   font-family: var(--font-sans);
 }
 
+.ql-editor {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  height: auto !important;
+  max-width: 100%;
+  font-family: var(--font-poppins);
+  line-height: 1.6;
+}
+
 /* Cursor de mano para todos los botones globalmente */
 button,
 [type="button"],

@@ -128,75 +128,74 @@ export function Header() {
 
             {/* Actions */}
             <div className="flex items-center gap-4">
-              {/* Messages */}
-              {isAuthenticated && <MessagesDropdown />}
+              <div className="hidden md:flex items-center gap-4">
+                {isAuthenticated && <MessagesDropdown />}
 
-              {/* User Menu */}
-              <div
-                className="relative"
-                onMouseEnter={() => setIsUserMenuOpen(true)}
-                onMouseLeave={() => setIsUserMenuOpen(false)}
-              >
-                {isAuthenticated ? (
-                  <button className="flex items-center justify-center w-10 h-10 rounded-full text-white hover:text-[#7ed957] transition-all">
-                    {user?.name ? (
+                <div
+                  className="relative"
+                  onMouseEnter={() => setIsUserMenuOpen(true)}
+                  onMouseLeave={() => setIsUserMenuOpen(false)}
+                >
+                  {isAuthenticated ? (
+                    <button className="flex items-center justify-center w-10 h-10 rounded-full text-white hover:text-[#7ed957] transition-all">
+                      {user?.name ? (
                         <span className="font-bold text-lg">{user.name.charAt(0).toUpperCase()}</span>
-                    ) : (
+                      ) : (
                         <i className="fa-solid fa-circle-user text-[28px]" />
-                    )}
-                  </button>
-                ) : (
-                  <Link href="/login" className="flex items-center justify-center w-10 h-10 rounded-full text-white hover:text-[#7ed957] transition-all">
-                    <i className="fa-solid fa-circle-user text-[28px]" />
-                  </Link>
-                )}
-
-                {/* Dropdown Menu */}
-                <AnimatePresence>
-                  {isUserMenuOpen && isAuthenticated && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      transition={{ duration: 0.2 }}
-                      className="absolute right-0 top-full mt-2 w-64 bg-white text-black rounded-xl shadow-xl border border-gray-100 overflow-hidden py-2"
-                    >
-                      <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-                        <p className="font-semibold text-sm text-primary">Hola, {user?.name}</p>
-                      </div>
-                      <nav className="flex flex-col">
-                        {(user?.role === 'admin' || user?.role === 'supplier') && (
-                          <Link href="/admin/dashboard" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
-                            <span>🛡️</span> {user.role === 'admin' ? 'Panel Admin' : 'Mi Empresa'}
-                          </Link>
-                        )}
-                        {user?.role === 'client' && (
-                          <>
-                            <Link href="/client/profile" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
-                              <span>👤</span> Mi Perfil
-                            </Link>
-                            <Link href="/client/orders" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
-                              <span>📦</span> Mis Pedidos
-                            </Link>
-                          </>
-                        )}
-                        <Link href="/client/favorites" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 text-gray-700 hover:text-primary">
-                          <span>❤️</span> Favoritos
-                        </Link>
-                        <div className="h-px bg-gray-100 my-1" />
-                        <button
-                          onClick={() => {
-                            logout();
-                            router.push("/login");
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 flex items-center gap-3 text-red-500"
-                        >
-                          <LogOut size={16} /> Cerrar Sesión
-                        </button>
-                      </nav>
-                    </motion.div>
+                      )}
+                    </button>
+                  ) : (
+                    <Link href="/login" className="flex items-center justify-center w-10 h-10 rounded-full text-white hover:text-[#7ed957] transition-all">
+                      <i className="fa-solid fa-circle-user text-[28px]" />
+                    </Link>
                   )}
-                </AnimatePresence>
+
+                  <AnimatePresence>
+                    {isUserMenuOpen && isAuthenticated && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute right-0 top-full mt-2 w-64 bg-white text-black rounded-xl shadow-xl border border-gray-100 overflow-hidden py-2"
+                      >
+                        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                          <p className="font-semibold text-sm text-primary">Hola, {user?.name}</p>
+                        </div>
+                        <nav className="flex flex-col">
+                          {(user?.role === "admin" || user?.role === "supplier") && (
+                            <Link href="/admin/dashboard" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
+                              <span>🛡️</span> {user.role === "admin" ? "Panel Admin" : "Mi Empresa"}
+                            </Link>
+                          )}
+                          {user?.role === "client" && (
+                            <>
+                              <Link href="/client/profile" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
+                                <span>👤</span> Mi Perfil
+                              </Link>
+                              <Link href="/client/orders" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
+                                <span>📦</span> Mis Pedidos
+                              </Link>
+                            </>
+                          )}
+                          <Link href="/client/favorites" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 text-gray-700 hover:text-primary">
+                            <span>❤️</span> Favoritos
+                          </Link>
+                          <div className="h-px bg-gray-100 my-1" />
+                          <button
+                            onClick={() => {
+                              logout();
+                              router.push("/login");
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 flex items-center gap-3 text-red-500"
+                          >
+                            <LogOut size={16} /> Cerrar Sesión
+                          </button>
+                        </nav>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               {/* Mobile Menu Toggle */}
@@ -230,6 +229,18 @@ export function Header() {
                             <Link href="/nosotros" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Nosotros</Link>
                             <Link href="/contacto" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Contacto</Link>
                             <Link href="/sell" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Vender en Drooopy</Link>
+                            {isAuthenticated ? (
+                              <Link
+                                href={user?.role === "client" ? "/client/profile" : "/admin/dashboard"}
+                                className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors"
+                              >
+                                Mi cuenta
+                              </Link>
+                            ) : (
+                              <Link href="/login" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">
+                                Iniciar sesión
+                              </Link>
+                            )}
                         </nav>
                     </div>
                 </motion.div>

@@ -986,20 +986,14 @@ export default function ProductDetailPage() {
               <Package size={20} className="text-primary" />
               Descripción del Producto
             </h3>
-            <div 
-              className="prose prose-sm sm:prose !max-w-none w-full whitespace-normal text-gray-600 bg-white p-6 rounded-xl border border-gray-200 shadow-sm"
-            >
-              <div
-                className="whitespace-normal max-w-full description-html"
-                style={{ 
-                  textAlign: "left", 
-                  wordBreak: "normal", 
-                  overflowWrap: "normal",
-                  hyphens: "none",
-                  WebkitHyphens: "none"
-                }}
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }}
-              />
+            <div className="text-gray-600 w-full">
+              <div className="ql-snow w-full">
+                <div
+                  className="ql-editor"
+                  style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }}
+                />
+              </div>
             </div>
           </div>
 

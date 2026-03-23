@@ -327,6 +327,8 @@ export default function SupplierPage() {
 
   useEffect(() => {
     if (slug) {
+      setLoading(true);
+      setSupplier(null);
       fetchSupplier(slug as string);
       setPage(1);
       setSelectedCategorySlug(null);
@@ -378,20 +380,66 @@ export default function SupplierPage() {
 
   const fetchSupplier = async (slug: string) => {
     try {
-      let url = `/api/suppliers/${slug}`;
-      if (isNaN(Number(slug))) {
-        url = `/api/suppliers/?slug=${slug}`;
+      const encoded = encodeURIComponent(slug);
+
+      const isSupplierValue = (v: unknown): v is Supplier => {
+        if (!v || typeof v !== "object") return false;
+        const o = v as Record<string, unknown>;
+        return typeof o.id === "number" && typeof o.name === "string";
+      };
+
+      const getSlugValue = (v: unknown) => {
+        if (!v || typeof v !== "object") return null;
+        const o = v as Record<string, unknown>;
+        return typeof o.slug === "string" ? o.slug : null;
+      };
+
+      const tryFetchJson = async (url: string) => {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) return null;
+        return res.json();
+      };
+
+      let data: unknown = null;
+
+      const primary = await tryFetchJson(`/api/suppliers/${encoded}/`);
+      if (primary) {
+        data = primary;
+      } else {
+        const secondary = await tryFetchJson(`/api/suppliers/${encoded}`);
+        if (secondary) data = secondary;
       }
 
-      const res = await fetch(url, { cache: "no-store" });
+      if (!data && isNaN(Number(slug))) {
+        const listResult = await tryFetchJson(`/api/suppliers/?slug=${encoded}`);
+        if (listResult) data = listResult;
+      }
 
-      if (res.ok) {
-        let data = await res.json();
-        if (Array.isArray(data)) {
-           data = data[0] || null;
+      let resolved: Supplier | null = null;
+
+      if (Array.isArray(data)) {
+        const exact = data.find((s) => {
+          const sSlug = getSlugValue(s);
+          return sSlug ? sSlug.toLowerCase() === String(slug).toLowerCase() : false;
+        });
+        const candidate = exact ?? data[0] ?? null;
+        resolved = isSupplierValue(candidate) ? candidate : null;
+      } else if (isSupplierValue(data)) {
+        resolved = data;
+      } else if (data && typeof data === "object") {
+        const obj = data as Record<string, unknown>;
+        const items = obj.items || obj.results || obj.data;
+        if (Array.isArray(items)) {
+          const exact = items.find((s) => {
+            const sSlug = getSlugValue(s);
+            return sSlug ? sSlug.toLowerCase() === String(slug).toLowerCase() : false;
+          });
+          const candidate = exact ?? items[0] ?? null;
+          resolved = isSupplierValue(candidate) ? candidate : null;
         }
-        setSupplier(data);
       }
+
+      setSupplier(resolved);
     } catch (error) {
       console.error("Error fetching supplier", error);
     } finally {
@@ -674,27 +722,27 @@ export default function SupplierPage() {
          <div className="absolute inset-0 bg-gradient-to-r from-[#004e28]/80 to-transparent z-10" />
 
          {/* Content */}
-         <div className="absolute inset-0 z-20 flex flex-col justify-center px-6 md:px-20 lg:px-32">
-             <div className="animate-in fade-in slide-in-from-left-10 duration-1000">
+         <div className="absolute inset-0 z-20 flex flex-col justify-center px-6 md:px-20 lg:px-32 items-center md:items-start text-center md:text-left pb-28 md:pb-0">
+             <div className="animate-in fade-in slide-in-from-left-10 duration-1000 w-full max-w-4xl">
                 {supplier.logo && (
-                    <div className="mb-8 w-24 h-24 md:w-32 md:h-32 bg-white/10 backdrop-blur-md rounded-3xl p-4 border border-white/20 shadow-2xl">
+                    <div className="mb-8 w-24 h-24 md:w-32 md:h-32 bg-white/10 backdrop-blur-md rounded-3xl p-4 border border-white/20 shadow-2xl mx-auto md:mx-0">
                         <img src={supplier.logo} alt={supplier.name} className="w-full h-full object-contain drop-shadow-md" />
                     </div>
                 )}
                 
-                <h1 className="text-5xl md:text-7xl lg:text-9xl font-black text-white mb-6 tracking-tighter drop-shadow-2xl font-[family-name:var(--font-varela-round)] uppercase leading-[0.9]">
+                <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-9xl font-black text-white mb-6 tracking-tighter drop-shadow-2xl font-[family-name:var(--font-varela-round)] uppercase leading-[0.9]">
                    {supplier.name}
                 </h1>
                 
-                <p className="text-xl md:text-2xl text-gray-100 max-w-2xl font-light leading-relaxed drop-shadow-lg font-[family-name:var(--font-poppins)] border-l-4 border-[#168e00] pl-6 mb-10">
+                <p className="text-base sm:text-xl md:text-2xl text-gray-100 max-w-2xl font-light leading-relaxed drop-shadow-lg font-[family-name:var(--font-poppins)] border-l-0 md:border-l-4 border-[#168e00] pl-0 md:pl-6 mb-10 mx-auto md:mx-0">
                    {supplier.short_description || "Innovación y calidad en cada producto. Tu socio estratégico de confianza."}
                 </p>
 
-                <div className="flex flex-wrap gap-4">
-                    <a href="#productos" className="px-8 py-4 bg-[#168e00] hover:bg-[#137a00] text-white rounded-full font-bold text-lg transition-all shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] hover:-translate-y-1 flex items-center gap-2 font-[family-name:var(--font-varela-round)]">
+                <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-stretch sm:items-center justify-center md:justify-start w-full mb-8">
+                    <a href="#productos" className="w-full sm:w-auto px-8 py-4 bg-[#168e00] hover:bg-[#137a00] text-white rounded-full font-bold text-lg transition-all shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] hover:-translate-y-1 inline-flex items-center justify-center gap-2 font-[family-name:var(--font-varela-round)]">
                         Ver Catálogo <ArrowDown size={20} />
                     </a>
-                    <a href="#contacto" className="px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full font-bold text-lg transition-all hover:-translate-y-1 font-[family-name:var(--font-varela-round)]">
+                    <a href="#contacto" className="w-full sm:w-auto px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full font-bold text-lg transition-all hover:-translate-y-1 inline-flex items-center justify-center font-[family-name:var(--font-varela-round)]">
                         Contactar Ahora
                     </a>
                 </div>
@@ -890,10 +938,17 @@ export default function SupplierPage() {
                             Más que un proveedor,<br/>
                             <span className="text-[#168e00]">tu aliado estratégico.</span>
                         </h2>
-                        <div 
-                            className="prose prose-lg text-gray-600 font-[family-name:var(--font-poppins)]"
-                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(supplier.about || "Comprometidos con la excelencia y el servicio al cliente.") }}
-                        />
+                        <div className="text-gray-600 w-full">
+                          <div className="ql-snow w-full">
+                            <div
+                              className="ql-editor"
+                              style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
+                              dangerouslySetInnerHTML={{
+                                __html: sanitizeHtml(supplier.about || "Comprometidos con la excelencia y el servicio al cliente."),
+                              }}
+                            />
+                          </div>
+                        </div>
                          
                          <div className="mt-10 flex items-center gap-4">
                              <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-[#168e00] shadow-md">
