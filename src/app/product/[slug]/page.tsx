@@ -127,6 +127,7 @@ export default function ProductDetailPage() {
   const { openChat, openChats } = useChat();
   const { conversations, fetchConversations } = useChatStore();
   const { toggleFavorite, isFavorite, syncFavorites } = useFavoritesStore();
+  const { user, token } = useAuthStore();
   
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -135,6 +136,11 @@ export default function ProductDetailPage() {
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);
   const productViewSentRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!token) return;
+    fetchConversations();
+  }, [token, fetchConversations]);
 
   // Update open chat context when viewing a product
   useEffect(() => {
@@ -213,7 +219,6 @@ export default function ProductDetailPage() {
   }, [slug, syncFavorites]);
 
   // Rating State
-  const { user, token } = useAuthStore();
   const [userRating, setUserRating] = useState<any>(null);
   const [ratingValue, setRatingValue] = useState(0);
   const [comment, setComment] = useState("");
@@ -637,10 +642,23 @@ export default function ProductDetailPage() {
 
     if (!product || !user) return;
 
+    if (!conversations || conversations.length === 0) {
+        try {
+            await fetchConversations();
+        } catch {}
+    }
+
+    const getConversationProductId = (c: any) => c?.product_id || c?.product?.id;
+
     // 1. Search for existing conversation with this supplier
-    const existingConv = conversations.find(c => 
+    const exactMatch = conversations.find(c =>
+        String(c.supplier_id) === String(product.supplier_id) &&
+        String(getConversationProductId(c) || "") === String(product.id)
+    );
+    const supplierMatch = conversations.find(c =>
         String(c.supplier_id) === String(product.supplier_id)
     );
+    const existingConv = exactMatch || supplierMatch;
 
     if (existingConv) {
         console.log("Found existing conversation:", existingConv);

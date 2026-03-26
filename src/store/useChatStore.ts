@@ -95,14 +95,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     set({ isConnecting: true });
 
-    // Determine WS URL from API Base URL
-    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
-    const wsBase = apiBase.replace(/^http/, 'ws');
-    // Ensure no double slashes if apiBase ends with /
-    const cleanWsBase = wsBase.replace(/\/$/, '');
-    
-    // IMPORTANT: Backend expects /ws/chat/{conversation_id}
-    const wsUrl = `${cleanWsBase}/ws/chat/${conversationId}?token=${token}`;
+    const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+    const apiBase =
+      rawApiBase.startsWith("/")
+        ? typeof window !== "undefined"
+          ? `${window.location.origin}${rawApiBase}`
+          : "https://drooopy.com/api"
+        : rawApiBase;
+    let wsUrl = "";
+    try {
+        const base = new URL(apiBase);
+        const secure = base.protocol === "https:" || base.protocol === "wss:";
+        base.protocol = secure ? "wss:" : "ws:";
+        const basePath = base.pathname.replace(/\/+$/, "").replace(/\/api$/, "");
+        const pathPrefix = basePath && basePath !== "/" ? basePath : "";
+        const encodedConversationId = encodeURIComponent(String(conversationId));
+        wsUrl = `${base.protocol}//${base.host}${pathPrefix}/ws/chat/${encodedConversationId}?token=${encodeURIComponent(token)}`;
+    } catch {
+        const encodedConversationId = encodeURIComponent(String(conversationId));
+        const fallbackBase =
+          typeof window !== "undefined" ? window.location.origin : "https://drooopy.com";
+        const fallbackProtocol = fallbackBase.startsWith("https://") ? "wss://" : "ws://";
+        const fallbackHost = fallbackBase.replace(/^https?:\/\//, "");
+        wsUrl = `${fallbackProtocol}${fallbackHost}/ws/chat/${encodedConversationId}?token=${encodeURIComponent(token)}`;
+    }
     
     // console.log(`[ChatStore] Connecting to WebSocket for Conversation ${conversationId}: ${wsUrl.split('?')[0]}...`); 
     
