@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { chatService } from "@/services/chatService";
 import { orderService } from "@/services/orderService";
-import { useChatWebSocket } from "@/hooks/useChatWebSocket";
+import { useChatInboxWebSocket, useChatWebSocket } from "@/hooks/useChatWebSocket";
 import { Conversation, Message } from "@/types/chat";
 import { Send, Image as ImageIcon, X, MoreVertical, Phone, Paperclip, Loader2, CreditCard, Smile, PlusCircle, Star } from "lucide-react";
 import Image from "next/image";
@@ -289,12 +289,25 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     isOpen && chatEnabled
   );
 
+  const {
+    status: inboxStatus,
+    lastEvent: inboxEvent,
+    error: inboxError,
+    url: inboxWsUrl,
+  } = useChatInboxWebSocket(isOpen && chatEnabled);
+
   // Sync WebSocket error to local error state (solo errores reales, no desconexiones normales)
   useEffect(() => {
     if (wsError && status === 'error') {
         setError(wsError);
     }
   }, [wsError, status]);
+
+  useEffect(() => {
+    if (inboxError && inboxStatus === "error") {
+      setError(inboxError);
+    }
+  }, [inboxError, inboxStatus]);
 
   // Send pending messages when WebSocket connects
   useEffect(() => {
@@ -731,6 +744,17 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     }
   };
 
+  useEffect(() => {
+    if (!isOpen || !activeConversation) return;
+    if (!inboxEvent || typeof inboxEvent !== "object") return;
+    const type = (inboxEvent as any).type;
+    if (type !== "new_message" && type !== "conversation_updated") return;
+    const convId = (inboxEvent as any).conversation_id;
+    if (!convId) return;
+    if (String(convId) !== String(activeConversation.id)) return;
+    loadMessages(activeConversation.id);
+  }, [inboxEvent, activeConversation, isOpen]);
+
   // 1. Initialize Chat (Vendor vs Buyer Logic)
   useEffect(() => {
     if (isOpen && user) {
@@ -1106,122 +1130,53 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     setMessages(prev => [...prev, optimisticMessage]);
     setTimeout(scrollToBottom, 50);
 
-    // Check if we need to update conversation product context
-    if (targetProductId && String(targetProductId) !== String(activeConversation.product_id)) {
-        console.log(`[ChatWindow] Updating conversation context to product: ${targetProductId}`);
-        // We update the backend context before/while sending
-        // Note: chatService.sendMessage also takes product_id which can handle this, 
-        // but explicit update ensures consistency even for WS.
-        try {
-            await chatService.updateConversation(activeConversation.id, { product_id: targetProductId });
-            // Update local state
-            setActiveConversation(prev => prev ? ({ ...prev, product_id: targetProductId }) : null);
-        } catch (err) {
-            console.error("Failed to update conversation context", err);
-        }
+    let conversationId: string | number = activeConversation.id;
+    let resolvedConversation = activeConversation;
+
+    if (String(conversationId).startsWith("temp-") || conversationId === 0) {
+      try {
+        const newConv = await chatService.createConversation({
+          supplier_id: activeConversation.supplier_id,
+          product_id: targetProductId || undefined,
+        });
+        resolvedConversation = { ...activeConversation, ...newConv, product_id: targetProductId };
+        conversationId = newConv.id;
+        setActiveConversation(resolvedConversation);
+        setMessages((prev) => prev.map((m) => ({ ...m, conversation_id: conversationId })));
+      } catch (err) {
+        console.error("Failed to create conversation:", err);
+        setError("Error al iniciar la conversación.");
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setInputValue(messageContent);
+        setSelectedFile(currentFile);
+        return;
+      }
     }
 
-    // Case 1: File Upload (Must use REST)
-    if (currentFile) {
-         try {
-             // Determine type
-             const type = currentFile.type.startsWith('image/') ? 'image' : 'file';
-             
-             const sentMessage = await chatService.sendMessage(
-                activeConversation.id, 
-                messageContent, 
-                type as any, 
-                currentFile,
-                targetProductId
-             );
-             
-             // Replace optimistic message with real message
-             setMessages(prev => prev.map(m => m.id === tempId ? sentMessage : m));
-             return;
-         } catch (err) {
-             console.error("File upload failed", err);
-             setError("Error al enviar archivo.");
-             setMessages(prev => prev.filter(m => m.id !== tempId));
-             setInputValue(messageContent);
-             setSelectedFile(currentFile);
-             return;
-         }
-    }
+    try {
+      const type = currentFile
+        ? currentFile.type.startsWith("image/")
+          ? "image"
+          : "file"
+        : "text";
 
-    // Case 2: New Conversation (No ID or Temporary ID)
-    if (String(activeConversation.id).startsWith('temp-') || activeConversation.id === 0) {
-        try {
-            console.log("Creating conversation before sending message...");
-            const newConv = await chatService.createConversation({
-                supplier_id: activeConversation.supplier_id,
-                product_id: targetProductId || undefined
-            });
-            
-            // Update active conversation with real ID immediately
-            const realConv = { ...activeConversation, ...newConv, product_id: targetProductId };
-            setActiveConversation(realConv);
-            
-            // Update messages list to point to new conversation ID
-            setMessages(prev => prev.map(m => ({ ...m, conversation_id: newConv.id })));
-            
-            // Send message with REAL ID via WebSocket
-            if (status === 'connected') {
-                wsSendMessage(messageContent, newConv.id);
-            } else {
-                // If not connected, fallback to REST or Queue
-                // Ideally queue, but for now try REST as fallback for reliability on creation
-                 try {
-                    await chatService.sendMessage(newConv.id, messageContent, 'text', undefined, targetProductId);
-                 } catch (e) {
-                     console.warn("Failed to send initial message via REST, queueing for WS", e);
-                     setPendingMessages(prev => [...prev, messageContent]);
-                 }
-            }
-            return;
-        } catch (err) {
-            console.error("Failed to create conversation:", err);
-            setError("Error al iniciar la conversación.");
-            setMessages(prev => prev.filter(m => m.id !== tempId));
-            setInputValue(messageContent);
-            return;
-        }
-    }
+      const sentMessage = await chatService.sendMessage(
+        conversationId,
+        messageContent,
+        type as any,
+        currentFile || undefined,
+        targetProductId,
+      );
 
-    // Attempt 2: WebSocket (Preferred and ONLY supported method as per chat.md)
-    if (status === 'connected') {
-        try {
-            // WS currently doesn't support product_id in payload usually, 
-            // but we already updated context via updateConversation above.
-            wsSendMessage(messageContent, activeConversation.id);
-            // We rely on WS echo to confirm message.
-            return;
-        } catch (wsErr) {
-            console.error("WebSocket send failed", wsErr);
-            // Queue the message if immediate send fails
-            setPendingMessages(prev => [...prev, messageContent]);
-            return;
-        }
-    } else {
-        console.warn("WebSocket is not connected. Status:", status);
-        // Fallback to REST if WS disconnected? Or queue?
-        // Let's try REST as fallback with product_id
-        try {
-             await chatService.sendMessage(activeConversation.id, messageContent, 'text', undefined, targetProductId);
-             // Remove optimistic message as REST returns the real one? 
-             // Actually sendMessage returns the message. 
-             // But we already added optimistic. 
-             // Ideally we replace it. But for now let's just let it be.
-             return;
-        } catch (restErr) {
-             console.error("REST fallback failed", restErr);
-             setPendingMessages(prev => [...prev, messageContent]);
-             return;
-        }
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? sentMessage : m)));
+      await loadMessages(conversationId);
+    } catch (err) {
+      console.error("Send failed", err);
+      setError(currentFile ? "Error al enviar archivo." : "Error al enviar mensaje.");
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setInputValue(messageContent);
+      setSelectedFile(currentFile);
     }
-
-    // Restore input and remove optimistic message on failure
-    setInputValue(messageContent);
-    setMessages(prev => prev.filter(m => m.id !== tempId));
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -1369,9 +1324,9 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                   </div>
                   <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-white rounded-full ${
                     activeConversation
-                      ? (status === 'connected'
+                      ? (inboxStatus === 'connected'
                           ? 'bg-green-500'
-                          : status === 'connecting'
+                          : inboxStatus === 'connecting'
                             ? 'bg-yellow-500'
                             : 'bg-red-500')
                       : 'bg-gray-300'
@@ -1387,19 +1342,19 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                 <p className={`text-[12px] leading-none mt-0.5 ${
                     !activeConversation
                       ? 'text-gray-400'
-                      : status === 'connected'
+                      : inboxStatus === 'connected'
                         ? 'text-gray-500'
-                        : status === 'connecting'
+                        : inboxStatus === 'connecting'
                           ? 'text-yellow-600'
                           : 'text-red-500'
                 }`}>
                     {!activeConversation
                       ? 'Preparando chat...'
-                      : status === 'connected'
+                      : inboxStatus === 'connected'
                         ? 'Activo ahora'
-                        : status === 'connecting'
+                        : inboxStatus === 'connecting'
                           ? 'Conectando...'
-                          : status === 'error'
+                          : inboxStatus === 'error'
                             ? 'Chat no disponible'
                             : 'Sin conexión, reintentando...'}
                 </p>
@@ -1727,13 +1682,11 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 onKeyDown={handleKeyPress}
-                                disabled={!activeConversation || status !== 'connected'}
+                                disabled={!activeConversation}
                                 placeholder={
                                   !activeConversation
                                     ? "Selecciona una conversación..."
-                                    : status !== 'connected'
-                                      ? "Conectando… espera para enviar"
-                                      : "Escribe un mensaje..."
+                                    : "Escribe un mensaje..."
                                 }
                                 className="w-full bg-transparent border-none focus:ring-0 outline-none resize-none min-h-[60px] max-h-40 text-gray-900 placeholder-gray-500 leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed py-1"
                                 rows={3}
@@ -1787,8 +1740,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                             {inputValue.trim() || selectedFile ? (
                                 <button 
                                     onClick={handleSend}
-                                    disabled={(!inputValue.trim() && !selectedFile) || !activeConversation || status !== 'connected'}
-                                    title={status !== 'connected' ? "Esperando conexión con el chat..." : undefined}
+                                    disabled={(!inputValue.trim() && !selectedFile) || !activeConversation}
                                     className="p-2 bg-primary text-white rounded-full hover:bg-primary/90 transition-colors shadow-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
                                 >
                                     <Send size={18} />

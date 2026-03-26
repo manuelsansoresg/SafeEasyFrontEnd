@@ -6,13 +6,21 @@ const sanitizeBaseUrl = (value: string | undefined) => {
   return unwrapped.replace(/\/+$/, "");
 };
 
+const ensureApiRootPath = (baseUrl: string) => {
+  const normalized = sanitizeBaseUrl(baseUrl);
+  if (!normalized) return normalized;
+  if (normalized.endsWith("/api")) return normalized;
+  return `${normalized}/api`;
+};
+
 const getBaseUrl = () => {
   const internal = sanitizeBaseUrl(process.env.API_INTERNAL_URL);
-  if (internal) return internal;
+  if (internal) return ensureApiRootPath(internal);
 
   const publicUrl = sanitizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
-  if (publicUrl && !publicUrl.includes("localhost") && !publicUrl.startsWith("/")) {
-    return publicUrl;
+  const isProd = process.env.NODE_ENV === "production";
+  if (publicUrl && !publicUrl.startsWith("/") && (!isProd || !publicUrl.includes("localhost"))) {
+    return ensureApiRootPath(publicUrl);
   }
 
   return "https://drooopy.com/api";
@@ -180,4 +188,3 @@ async function handler(request: NextRequest) {
 }
 
 export { handler as GET, handler as POST, handler as PUT, handler as DELETE, handler as PATCH };
-

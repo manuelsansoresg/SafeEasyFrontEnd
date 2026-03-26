@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Conversation, Message } from '@/types/chat';
+import { Conversation, Message, ChatInboxEvent } from '@/types/chat';
 import { chatService, cleanMessageContent } from '@/services/chatService';
 import { useAuthStore } from './useAuthStore';
 
@@ -7,32 +7,50 @@ interface ChatState {
   conversations: Conversation[];
   loading: boolean;
   error: string | null;
+  totalUnread: number;
   socket: WebSocket | null;
   isConnected: boolean;
   isConnecting: boolean;
   activeSocketConversationId?: string | number; // Added
+  inboxSocket: WebSocket | null;
+  isInboxConnected: boolean;
+  isInboxConnecting: boolean;
+  messageSubscribers: Set<MessageCallback>;
+  inboxSubscribers: Set<InboxEventCallback>;
   
   // Actions
   fetchConversations: () => Promise<void>;
   connectSocket: (conversationId: string | number) => void;
   disconnectSocket: () => void;
+  connectInboxSocket: () => void;
+  disconnectInboxSocket: () => void;
   markAsRead: (conversationId: string | number) => Promise<void>;
   addMessageToConversation: (conversationId: string | number, message: Message) => void;
   updateConversationList: (conversation: Conversation) => void;
   subscribeToMessages: (callback: (message: Message) => void) => () => void;
+  subscribeToInboxEvents: (callback: (event: ChatInboxEvent) => void) => () => void;
   sendMessage: (conversationId: string | number, content: string, type?: 'text' | 'image' | 'file') => void;
 }
 
 type MessageCallback = (message: Message) => void;
+type InboxEventCallback = (event: ChatInboxEvent) => void;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === "object";
 
 export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
   loading: false,
   error: null,
+  totalUnread: 0,
   socket: null,
   isConnected: false,
   isConnecting: false,
+  inboxSocket: null,
+  isInboxConnected: false,
+  isInboxConnecting: false,
   messageSubscribers: new Set<MessageCallback>(),
+  inboxSubscribers: new Set<InboxEventCallback>(),
 
   fetchConversations: async () => {
     set({ loading: true, error: null });
@@ -45,9 +63,171 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return dateB - dateA;
       });
       set({ conversations: sorted, loading: false });
-    } catch (err: any) {
-      console.error('Failed to fetch conversations:', err);
-      set({ error: err.message || 'Failed to fetch conversations', loading: false });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : typeof err === "string" ? err : "Failed to fetch conversations";
+      console.error("Failed to fetch conversations:", err);
+      set({ error: message, loading: false });
+    }
+  },
+
+  connectInboxSocket: () => {
+    const { inboxSocket, isInboxConnecting, isInboxConnected } = get();
+
+    if (
+      inboxSocket &&
+      (inboxSocket.readyState === WebSocket.OPEN ||
+        inboxSocket.readyState === WebSocket.CONNECTING)
+    ) {
+      if (isInboxConnected) return;
+    }
+
+    if (isInboxConnecting) return;
+
+    if (inboxSocket) {
+      inboxSocket.close();
+    }
+
+    const token = useAuthStore.getState().token;
+    const cleanedWsToken = String(token || "")
+      .trim()
+      .replace(/^bearer\s+/i, "")
+      .trim();
+    if (!cleanedWsToken) return;
+
+    set({ isInboxConnecting: true });
+
+    const rawApiBase =
+      process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+    const apiBase = rawApiBase.startsWith("/")
+      ? typeof window !== "undefined"
+        ? `${window.location.origin}${rawApiBase}`
+        : "https://drooopy.com/api"
+      : rawApiBase;
+
+    let wsUrl = "";
+    try {
+      const base = new URL(apiBase);
+      const secure = base.protocol === "https:" || base.protocol === "wss:";
+      base.protocol = secure ? "wss:" : "ws:";
+      const basePath = base.pathname.replace(/\/+$/, "");
+      const apiPath = !basePath || basePath === "/" ? "/api" : basePath;
+      wsUrl = `${base.protocol}//${base.host}${apiPath}/ws/chat/inbox?token=${encodeURIComponent(cleanedWsToken)}`;
+    } catch {
+      const fallbackBase =
+        typeof window !== "undefined" ? window.location.origin : "https://drooopy.com";
+      const fallbackProtocol = fallbackBase.startsWith("https://") ? "wss://" : "ws://";
+      const fallbackHost = fallbackBase.replace(/^https?:\/\//, "");
+      wsUrl = `${fallbackProtocol}${fallbackHost}/api/ws/chat/inbox?token=${encodeURIComponent(cleanedWsToken)}`;
+    }
+
+    try {
+      const newSocket = new WebSocket(wsUrl);
+
+      newSocket.onopen = () => {
+        set({
+          isInboxConnected: true,
+          isInboxConnecting: false,
+          inboxSocket: newSocket,
+        });
+      };
+
+      newSocket.onmessage = (event) => {
+        let parsed: unknown = null;
+        try {
+          parsed = JSON.parse(event.data);
+        } catch {
+          parsed = { type: "unknown", raw: event.data };
+        }
+
+        if (!isRecord(parsed) || typeof parsed.type !== "string") return;
+        const payload = parsed as ChatInboxEvent;
+        get().inboxSubscribers.forEach((cb) => cb(payload));
+
+        const type = parsed.type;
+        if (type === "unread_aggregate") {
+          const rawTotal = (parsed as Record<string, unknown>).total_unread;
+          const total = typeof rawTotal === "number" ? rawTotal : Number(rawTotal || 0);
+          set({ totalUnread: Number.isFinite(total) ? total : 0 });
+          return;
+        }
+
+        const rawConversationId = (parsed as Record<string, unknown>).conversation_id;
+        if (rawConversationId === undefined || rawConversationId === null) return;
+        const conversationId = String(rawConversationId);
+
+        const state = get();
+        const idx = state.conversations.findIndex((c) => String(c.id) === conversationId);
+
+        if (type === "conversation_updated" || type === "new_message") {
+          const record = parsed as Record<string, unknown>;
+          const createdAt =
+            typeof record.created_at === "string"
+              ? record.created_at
+              : typeof record.updated_at === "string"
+                ? record.updated_at
+                : new Date().toISOString();
+          const lastMessage =
+            typeof record.last_message === "string"
+              ? record.last_message
+              : typeof record.content_preview === "string"
+                ? record.content_preview
+                : "Nuevo mensaje";
+          const unreadFromEvent =
+            typeof record.unread_count === "number" ? record.unread_count : undefined;
+
+          if (idx === -1) {
+            state.fetchConversations();
+            return;
+          }
+
+          const conv = state.conversations[idx];
+          const currentUnread = Number(conv.unread_count || 0);
+          const nextUnread =
+            unreadFromEvent !== undefined
+              ? unreadFromEvent
+              : type === "new_message"
+                ? currentUnread + 1
+                : currentUnread;
+
+          const updatedConv: Conversation = {
+            ...conv,
+            last_message: String(lastMessage || ""),
+            last_message_at: String(createdAt || conv.last_message_at || conv.updated_at),
+            updated_at: String(createdAt || conv.updated_at),
+            unread_count: nextUnread,
+          };
+
+          const updated = [...state.conversations];
+          updated.splice(idx, 1);
+          updated.unshift(updatedConv);
+          set({ conversations: updated });
+        }
+      };
+
+      newSocket.onclose = (closeEvent) => {
+        set({ isInboxConnected: false, inboxSocket: null, isInboxConnecting: false });
+
+        if (closeEvent.code !== 1000 && closeEvent.code !== 4001 && closeEvent.code !== 4003) {
+          setTimeout(() => {
+            get().connectInboxSocket();
+          }, 5000);
+        }
+      };
+
+      newSocket.onerror = () => {
+        set({ isInboxConnecting: false });
+      };
+    } catch {
+      set({ isInboxConnecting: false });
+    }
+  },
+
+  disconnectInboxSocket: () => {
+    const { inboxSocket } = get();
+    if (inboxSocket) {
+      inboxSocket.close();
+      set({ inboxSocket: null, isInboxConnected: false });
     }
   },
 
@@ -69,7 +249,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Simpler approach: The caller (ChatWindow) should handle "if activeConversation changed, connect".
       // But if we call connectSocket(A) then connectSocket(A) again, we should no-op.
       // Let's add `activeSocketConversationId` to state to track this.
-       const state = get() as any;
+       const state = get();
        if (state.activeSocketConversationId === conversationId && isConnected) {
            return;
        }
@@ -131,7 +311,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         newSocket.onopen = () => {
           // console.log('[ChatStore] WebSocket Connected');
-          set({ isConnected: true, error: null, isConnecting: false, activeSocketConversationId: conversationId } as any);
+          set({ isConnected: true, error: null, isConnecting: false, activeSocketConversationId: conversationId });
         };
 
         newSocket.onmessage = (event) => {
@@ -190,11 +370,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     product: data.product
                 };
     
-                // @ts-ignore - Dynamic property not in interface but used internally
-                const subscribers = get().messageSubscribers as Set<MessageCallback>;
-                if (subscribers) {
-                    subscribers.forEach(callback => callback(msg));
-                }
+                get().messageSubscribers.forEach((callback) => callback(msg));
                 
                 if (conversationId) {
                     // Update conversation list (move to top, update last message, increment unread)
@@ -242,7 +418,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           if (event.code !== 1000 && event.code !== 4001 && event.code !== 4003) {
             // console.log('[ChatStore] Attempting to reconnect in 5s...');
             setTimeout(() => {
-                const currentConversationId = (get() as any).activeSocketConversationId;
+                const currentConversationId = get().activeSocketConversationId;
                 if (currentConversationId) {
                     get().connectSocket(currentConversationId);
                 }
@@ -272,16 +448,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   subscribeToMessages: (callback: MessageCallback) => {
-      // @ts-ignore
-      const subscribers = get().messageSubscribers || new Set<MessageCallback>();
-      subscribers.add(callback);
-      // @ts-ignore
-      set({ messageSubscribers: subscribers });
+      const next = new Set(get().messageSubscribers);
+      next.add(callback);
+      set({ messageSubscribers: next });
       
       return () => {
-          subscribers.delete(callback);
-          // @ts-ignore
-          set({ messageSubscribers: subscribers });
+          const after = new Set(get().messageSubscribers);
+          after.delete(callback);
+          set({ messageSubscribers: after });
+      };
+  },
+
+  subscribeToInboxEvents: (callback: InboxEventCallback) => {
+      const next = new Set(get().inboxSubscribers);
+      next.add(callback);
+      set({ inboxSubscribers: next });
+
+      return () => {
+          const after = new Set(get().inboxSubscribers);
+          after.delete(callback);
+          set({ inboxSubscribers: after });
       };
   },
 

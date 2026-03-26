@@ -130,8 +130,15 @@ export const chatService = {
   },
 
   // Get messages for a specific conversation
-  getMessages: async (conversationId: number | string): Promise<Message[]> => {
-    const res = await fetchWithAuth(`/api/chat/conversations/${conversationId}/messages`);
+  getMessages: async (
+    conversationId: number | string,
+    params?: { skip?: number; limit?: number }
+  ): Promise<Message[]> => {
+    const skip = params?.skip ?? 0;
+    const limit = params?.limit ?? 50;
+    const res = await fetchWithAuth(
+      `/api/chat/conversations/${conversationId}/messages?skip=${encodeURIComponent(String(skip))}&limit=${encodeURIComponent(String(limit))}`,
+    );
     if (!res.ok) throw new Error('Failed to fetch messages');
     const data = await res.json();
     // Map backend fields (handle 'message' vs 'content', 'timestamp' vs 'created_at')
@@ -197,16 +204,27 @@ export const chatService = {
      });
   },
 
-  // Send a message via REST API
-  // NOTE: The provided documentation (chat.md) ONLY lists WebSocket for sending messages.
-  // There is NO documented REST endpoint for sending messages.
-  // We will keep this method but it might fail if the backend strictly follows chat.md.
-  sendMessage: async (conversationId: number | string, content: string, message_type: 'text' | 'image' | 'file' = 'text', file?: File, product_id?: string | number): Promise<Message> => {
+  sendMessage: async (
+    conversationId: number | string,
+    content: string,
+    message_type: 'text' | 'image' | 'file' = 'text',
+    file?: File,
+    product_id?: string | number,
+  ): Promise<Message> => {
      try {
          const formData = new FormData();
-         // Backend requires 'message' field. Using a space fallback if empty to avoid "Field required" validation error.
-         const msgContent = content && content.trim() !== '' ? content : ' ';
-         formData.append('message', msgContent);
+         const trimmed = String(content || '').trim();
+         const hasMessage = trimmed.length > 0;
+         const hasFile = !!file;
+         const hasProduct = !!product_id;
+
+         if (!hasMessage && !hasFile && !hasProduct) {
+            throw new Error('Message, file, or product_id is required');
+         }
+
+         if (hasMessage) {
+           formData.append('message', trimmed);
+         }
          
          if (file) {
              formData.append('file', file);
@@ -229,7 +247,7 @@ export const chatService = {
                  ...data,
                  content: data.message || data.content || '',
                  created_at: data.timestamp || data.created_at || new Date().toISOString(),
-                 message_type: (data.message_type || 'text') as 'text' | 'image' | 'file'
+                 message_type: (data.message_type || message_type || 'text') as 'text' | 'image' | 'file'
              } as Message;
          } else {
              throw new Error(`Failed to send message: ${res.status}`);

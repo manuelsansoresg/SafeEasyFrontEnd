@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { chatService } from "@/services/chatService";
 import { Conversation, Message } from "@/types/chat";
-import { useChatWebSocket } from "@/hooks/useChatWebSocket";
+import { useChatInboxWebSocket, useChatWebSocket } from "@/hooks/useChatWebSocket";
 import { fetchWithAuth } from "@/lib/api";
 import { 
   Send, Search, MessageSquare, Info, Package, CheckCheck, 
@@ -43,7 +43,7 @@ interface ProductCardPayload {
 }
 
 export function MessagesContent() {
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -76,6 +76,7 @@ export function MessagesContent() {
 
   // WebSocket hook
   const { lastMessage, sendMessage: wsSendMessage } = useChatWebSocket(activeConversation?.id, !!activeConversation);
+  const { lastEvent: inboxEvent } = useChatInboxWebSocket(!!activeConversation && !!token);
 
   // Helper to get absolute URL (for images/files)
   const getAbsoluteUrl = (url?: string) => {
@@ -159,6 +160,11 @@ export function MessagesContent() {
         const history = await chatService.getMessages(activeConversation.id);
         setMessages(history);
         scrollToBottom();
+        try {
+          await chatService.markAsRead(activeConversation.id);
+        } catch (error) {
+          console.error("Error marking as read:", error);
+        }
       } catch (error) {
         console.error("Error loading messages:", error);
       }
@@ -252,6 +258,25 @@ export function MessagesContent() {
     }
   }, [lastMessage, activeConversation]);
 
+  useEffect(() => {
+    if (!activeConversation) return;
+    if (!inboxEvent || typeof inboxEvent !== "object") return;
+    const type = (inboxEvent as any).type;
+    if (type !== "new_message" && type !== "conversation_updated") return;
+    const conversationId = (inboxEvent as any).conversation_id;
+    if (!conversationId) return;
+    if (String(conversationId) !== String(activeConversation.id)) return;
+    chatService
+      .getMessages(activeConversation.id)
+      .then((history) => {
+        setMessages(history);
+        scrollToBottom();
+      })
+      .catch((error) => {
+        console.error("Error loading messages:", error);
+      });
+  }, [inboxEvent, activeConversation]);
+
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
         setTimeout(() => {
@@ -268,12 +293,22 @@ export function MessagesContent() {
 
     setSending(true);
     try {
-        // Handle file upload if present
-        // Note: We use the basic sendMessage for now.
-        
-        wsSendMessage(inputValue, activeConversation.id);
+        const file = selectedFile;
+        const type = file ? (file.type.startsWith("image/") ? "image" : "file") : "text";
+        const productId = paramProductId || activeConversation.product_id;
+
+        await chatService.sendMessage(
+          activeConversation.id,
+          inputValue,
+          type as any,
+          file || undefined,
+          productId || undefined,
+        );
+
         setInputValue("");
         setSelectedFile(null);
+        const history = await chatService.getMessages(activeConversation.id);
+        setMessages(history);
         scrollToBottom();
     } catch (error) {
         console.error("Error sending message:", error);
@@ -288,39 +323,9 @@ export function MessagesContent() {
       
       setSending(true);
       try {
-          // Construct a rich payload
-          // Since backend might not support structured JSON in 'content' field natively for rendering,
-          // we use a convention: JSON string starting with { "type": "product_card" ... }
-          const payload: ProductCardPayload = {
-              type: 'product_card',
-              product_id: product.id,
-              title: product.title,
-              price: product.price,
-              image: product.image,
-              min_order: product.min_order_quantity
-          };
-          
-          // We use the REST endpoint we modified to support product_id
-          await chatService.sendMessage(
-              activeConversation.id, 
-              JSON.stringify(payload), // Send JSON as content
-              'text', 
-              undefined, 
-              product.id // Also pass product_id for backend context
-          );
-          
-          // Optimistic update? No, let WS handle it or reload
-          // But to be responsive:
-          const tempMsg: Message = {
-              id: Date.now(),
-              conversation_id: activeConversation.id,
-              sender_id: user?.id || 0,
-              content: JSON.stringify(payload),
-              created_at: new Date().toISOString(),
-              message_type: 'text',
-              is_read: false
-          };
-          setMessages(prev => [...prev, tempMsg]);
+          await chatService.sendMessage(activeConversation.id, "", "text", undefined, product.id);
+          const history = await chatService.getMessages(activeConversation.id);
+          setMessages(history);
           scrollToBottom();
           
       } catch (err) {

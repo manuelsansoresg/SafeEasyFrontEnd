@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useChatStore } from '@/store/useChatStore';
-import { Message } from '@/types/chat';
+import { Message, ChatInboxEvent } from '@/types/chat';
 
 type WebSocketStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -16,25 +16,18 @@ interface UseChatWebSocketReturn {
 
 export const useChatWebSocket = (activeConversationId?: string | number, shouldConnect: boolean = true): UseChatWebSocketReturn => {
   const { user } = useAuthStore();
-  const { isConnected, socket, subscribeToMessages, sendMessage: sendStoreMessage, connectSocket } = useChatStore();
+  const { isConnected, isConnecting, socket, subscribeToMessages, sendMessage: sendStoreMessage, connectSocket } = useChatStore();
   
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesByConversationId, setMessagesByConversationId] = useState<Record<string, Message[]>>({});
   const [lastMessage, setLastMessage] = useState<Message | null>(null);
-  const [status, setStatus] = useState<WebSocketStatus>('disconnected');
   const [error, setError] = useState<string | null>(null);
 
-  // Sync status with global store
-  useEffect(() => {
-      if (isConnected) {
-          setStatus('connected');
-          setError(null);
-      } else {
-          // If we should be connected but aren't, it might be connecting or disconnected
-          // For now, we rely on the store's state. 
-          // If store doesn't expose 'connecting', we might just say disconnected
-          setStatus('disconnected');
-      }
-  }, [isConnected]);
+  const status: WebSocketStatus = isConnecting ? "connecting" : isConnected ? "connected" : "disconnected";
+
+  const messages = useMemo(() => {
+    if (!activeConversationId) return [];
+    return messagesByConversationId[String(activeConversationId)] || [];
+  }, [activeConversationId, messagesByConversationId]);
 
   // Ensure connection is active if we need it
   useEffect(() => {
@@ -60,21 +53,16 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
   useEffect(() => {
       if (!activeConversationId) return;
 
-      // Clear messages when switching conversations? 
-      // Usually we want to keep them or fetch from history. 
-      // This hook seems to manage *real-time* messages mainly, 
-      // but ChatWindow likely fetches history separately.
-      // We'll clear here to avoid mixing.
-      setMessages([]); 
-
       const unsubscribe = subscribeToMessages((msg: Message) => {
           // Filter for current conversation
           if (String(msg.conversation_id) === String(activeConversationId)) {
               // console.log('[useChatWebSocket] Received message for active chat:', msg);
               setLastMessage(msg);
-              setMessages(prev => {
-                  if (prev.some(m => m.id === msg.id)) return prev;
-                  return [...prev, msg];
+              setMessagesByConversationId((prev) => {
+                const key = String(activeConversationId);
+                const current = prev[key] || [];
+                if (current.some((m) => m.id === msg.id)) return prev;
+                return { ...prev, [key]: [...current, msg] };
               });
           }
       });
@@ -107,7 +95,11 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
       };
       
       setLastMessage(optimisticMsg);
-      setMessages((prev) => [...prev, optimisticMsg]);
+      setMessagesByConversationId((prev) => {
+        const key = String(conversationId);
+        const current = prev[key] || [];
+        return { ...prev, [key]: [...current, optimisticMsg] };
+      });
 
   }, [isConnected, user, sendStoreMessage]);
 
@@ -118,5 +110,58 @@ export const useChatWebSocket = (activeConversationId?: string | number, shouldC
       lastMessage,
       error,
       url: socket?.url || null
+  };
+};
+
+interface UseChatInboxWebSocketReturn {
+  status: WebSocketStatus;
+  lastEvent: ChatInboxEvent | null;
+  error: string | null;
+  url: string | null;
+}
+
+export const useChatInboxWebSocket = (shouldConnect: boolean = true): UseChatInboxWebSocketReturn => {
+  const { token } = useAuthStore();
+  const {
+    inboxSocket,
+    isInboxConnected,
+    isInboxConnecting,
+    connectInboxSocket,
+    subscribeToInboxEvents,
+  } = useChatStore();
+
+  const [lastEvent, setLastEvent] = useState<ChatInboxEvent | null>(null);
+  const status: WebSocketStatus = isInboxConnecting
+    ? "connecting"
+    : isInboxConnected
+      ? "connected"
+      : "disconnected";
+  const error =
+    status === "disconnected" && shouldConnect && !!token ? "Sin conexión con el chat" : null;
+
+  useEffect(() => {
+    if (!shouldConnect) return;
+    if (!token) return;
+    connectInboxSocket();
+  }, [shouldConnect, token, connectInboxSocket]);
+
+  useEffect(() => {
+    if (!shouldConnect) return;
+    if (!token) return;
+
+    const unsubscribe = subscribeToInboxEvents((evt: ChatInboxEvent) => {
+      setLastEvent(evt);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [shouldConnect, token, subscribeToInboxEvents]);
+
+  return {
+    status,
+    lastEvent,
+    error,
+    url: inboxSocket?.url || null,
   };
 };

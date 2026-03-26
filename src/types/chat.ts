@@ -69,3 +69,23 @@ export interface SendMessageParams {
   content: string;
   message_type?: 'text' | 'image' | 'file';
 }
+
+export type ChatInboxEvent =
+  | { type: "presence_ack"; status: "online" | "away" | "offline" | string }
+  | { type: "unread_aggregate"; total_unread: number }
+  | {
+      type: "conversation_updated";
+      conversation_id: string | number;
+      last_message?: string;
+      unread_count?: number;
+      created_at?: string;
+      updated_at?: string;
+    }
+  | {
+      type: "new_message";
+      conversation_id: string | number;
+      message_id?: string | number;
+      content_preview?: string;
+      created_at?: string;
+    }
+  | Record<string, unknown>;

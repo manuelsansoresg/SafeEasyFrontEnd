@@ -3,19 +3,20 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { MessageSquare, Search } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { chatService } from "@/services/chatService";
 import { useChat } from "@/context/ChatContext";
 import { useChatStore } from "@/store/useChatStore";
+import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { Conversation } from "@/types/chat";
 import { cn } from "@/lib/utils";
 
 export function MessagesDropdown() {
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const { openChat } = useChat();
-  const { conversations, loading, markAsRead } = useChatStore();
+  const { conversations, loading, markAsRead, fetchConversations } = useChatStore();
   const [isOpen, setIsOpen] = useState(false);
   const [chatEnabled, setChatEnabled] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  useChatInboxWebSocket(chatEnabled && !!token);
 
   // Close when clicking outside
   useEffect(() => {
@@ -35,6 +36,11 @@ export function MessagesDropdown() {
       setChatEnabled(stored !== "0");
     }
   }, []);
+
+  useEffect(() => {
+    if (!chatEnabled || !token) return;
+    fetchConversations();
+  }, [chatEnabled, token, fetchConversations]);
 
   // Derived state for unread count
   const unreadCount = useMemo(() => {
