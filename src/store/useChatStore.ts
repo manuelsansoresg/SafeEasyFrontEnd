@@ -88,7 +88,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     const token = useAuthStore.getState().token;
-    if (!token) {
+    const cleanedWsToken = String(token || "")
+      .trim()
+      .replace(/^bearer\s+/i, "")
+      .trim();
+    if (!cleanedWsToken) {
         // console.warn('[ChatStore] Cannot connect: No token available');
         return;
     }
@@ -107,17 +111,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const base = new URL(apiBase);
         const secure = base.protocol === "https:" || base.protocol === "wss:";
         base.protocol = secure ? "wss:" : "ws:";
-        const basePath = base.pathname.replace(/\/+$/, "").replace(/\/api$/, "");
-        const pathPrefix = basePath && basePath !== "/" ? basePath : "";
+        const basePath = base.pathname.replace(/\/+$/, "");
+        const apiPath = !basePath || basePath === "/" ? "/api" : basePath;
         const encodedConversationId = encodeURIComponent(String(conversationId));
-        wsUrl = `${base.protocol}//${base.host}${pathPrefix}/ws/chat/${encodedConversationId}?token=${encodeURIComponent(token)}`;
+        wsUrl = `${base.protocol}//${base.host}${apiPath}/ws/chat/${encodedConversationId}?token=${encodeURIComponent(cleanedWsToken)}`;
     } catch {
         const encodedConversationId = encodeURIComponent(String(conversationId));
         const fallbackBase =
           typeof window !== "undefined" ? window.location.origin : "https://drooopy.com";
         const fallbackProtocol = fallbackBase.startsWith("https://") ? "wss://" : "ws://";
         const fallbackHost = fallbackBase.replace(/^https?:\/\//, "");
-        wsUrl = `${fallbackProtocol}${fallbackHost}/ws/chat/${encodedConversationId}?token=${encodeURIComponent(token)}`;
+        wsUrl = `${fallbackProtocol}${fallbackHost}/api/ws/chat/${encodedConversationId}?token=${encodeURIComponent(cleanedWsToken)}`;
     }
     
     // console.log(`[ChatStore] Connecting to WebSocket for Conversation ${conversationId}: ${wsUrl.split('?')[0]}...`); 
