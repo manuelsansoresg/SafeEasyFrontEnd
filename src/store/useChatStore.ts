@@ -97,29 +97,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     set({ isInboxConnecting: true });
 
-    const rawApiBase =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-    const apiBase = rawApiBase.startsWith("/")
-      ? typeof window !== "undefined"
-        ? `${window.location.origin}${rawApiBase}`
-        : "https://drooopy.com/api"
-      : rawApiBase;
+    const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+    const explicitWsUrl = process.env.NEXT_PUBLIC_WS_URL;
 
     let wsUrl = "";
-    try {
-      const base = new URL(apiBase);
-      const secure = base.protocol === "https:" || base.protocol === "wss:";
-      base.protocol = secure ? "wss:" : "ws:";
-      const basePath = base.pathname.replace(/\/+$/, "");
-      const apiPath = !basePath || basePath === "/" ? "/api" : basePath;
-      wsUrl = `${base.protocol}//${base.host}${apiPath}/ws/chat/inbox?token=${encodeURIComponent(cleanedWsToken)}`;
-    } catch {
-      const fallbackBase =
-        typeof window !== "undefined" ? window.location.origin : "https://drooopy.com";
-      const fallbackProtocol = fallbackBase.startsWith("https://") ? "wss://" : "ws://";
-      const fallbackHost = fallbackBase.replace(/^https?:\/\//, "");
-      wsUrl = `${fallbackProtocol}${fallbackHost}/api/ws/chat/inbox?token=${encodeURIComponent(cleanedWsToken)}`;
+    if (explicitWsUrl) {
+      // Si se definió explícitamente la URL base del WS, la usamos. Ej: wss://drooopy.com/api
+      const baseWs = explicitWsUrl.replace(/\/+$/, "");
+      wsUrl = `${baseWs}/ws/chat/inbox?token=${encodeURIComponent(cleanedWsToken)}`;
+    } else {
+      const apiBase = rawApiBase.startsWith("/")
+        ? typeof window !== "undefined"
+          ? `${window.location.origin}${rawApiBase}`
+          : "https://drooopy.com/api"
+        : rawApiBase;
+
+      try {
+        const base = new URL(apiBase);
+        const secure = base.protocol === "https:" || base.protocol === "wss:";
+        base.protocol = secure ? "wss:" : "ws:";
+        const basePath = base.pathname.replace(/\/+$/, "");
+        const apiPath = !basePath || basePath === "/" ? "/api" : basePath;
+        wsUrl = `${base.protocol}//${base.host}${apiPath}/ws/chat/inbox?token=${encodeURIComponent(cleanedWsToken)}`;
+      } catch {
+        const fallbackBase =
+          typeof window !== "undefined" ? window.location.origin : "https://drooopy.com";
+        const fallbackProtocol = fallbackBase.startsWith("https://") ? "wss://" : "ws://";
+        const fallbackHost = fallbackBase.replace(/^https?:\/\//, "");
+        wsUrl = `${fallbackProtocol}${fallbackHost}/api/ws/chat/inbox?token=${encodeURIComponent(cleanedWsToken)}`;
+      }
     }
+
+    console.log(`[ChatStore] Intentando conectar Inbox WS a: ${wsUrl.split('?')[0]}?token=${cleanedWsToken ? '[OCULTO]' : 'FALTA_TOKEN'}`);
 
     try {
       const newSocket = new WebSocket(wsUrl);
@@ -206,6 +215,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
 
       newSocket.onclose = (closeEvent) => {
+        console.log('[ChatStore] Inbox WS cerrado:', closeEvent.code, closeEvent.reason);
         set({ isInboxConnected: false, inboxSocket: null, isInboxConnecting: false });
 
         if (closeEvent.code !== 1000 && closeEvent.code !== 4001 && closeEvent.code !== 4003) {
@@ -215,7 +225,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       };
 
-      newSocket.onerror = () => {
+      newSocket.onerror = (error) => {
+        console.error('[ChatStore] Error en Inbox WS:', error);
         set({ isInboxConnecting: false });
       };
     } catch {
@@ -280,31 +291,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isConnecting: true });
 
     const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-    const apiBase =
-      rawApiBase.startsWith("/")
-        ? typeof window !== "undefined"
-          ? `${window.location.origin}${rawApiBase}`
-          : "https://drooopy.com/api"
-        : rawApiBase;
+    const explicitWsUrl = process.env.NEXT_PUBLIC_WS_URL;
+    
     let wsUrl = "";
-    try {
-        const base = new URL(apiBase);
-        const secure = base.protocol === "https:" || base.protocol === "wss:";
-        base.protocol = secure ? "wss:" : "ws:";
-        const basePath = base.pathname.replace(/\/+$/, "");
-        const apiPath = !basePath || basePath === "/" ? "/api" : basePath;
-        const encodedConversationId = encodeURIComponent(String(conversationId));
-        wsUrl = `${base.protocol}//${base.host}${apiPath}/ws/chat/${encodedConversationId}?token=${encodeURIComponent(cleanedWsToken)}`;
-    } catch {
-        const encodedConversationId = encodeURIComponent(String(conversationId));
-        const fallbackBase =
-          typeof window !== "undefined" ? window.location.origin : "https://drooopy.com";
-        const fallbackProtocol = fallbackBase.startsWith("https://") ? "wss://" : "ws://";
-        const fallbackHost = fallbackBase.replace(/^https?:\/\//, "");
-        wsUrl = `${fallbackProtocol}${fallbackHost}/api/ws/chat/${encodedConversationId}?token=${encodeURIComponent(cleanedWsToken)}`;
+    const encodedConversationId = encodeURIComponent(String(conversationId));
+
+    if (explicitWsUrl) {
+      const baseWs = explicitWsUrl.replace(/\/+$/, "");
+      wsUrl = `${baseWs}/ws/chat/${encodedConversationId}?token=${encodeURIComponent(cleanedWsToken)}`;
+    } else {
+      const apiBase =
+        rawApiBase.startsWith("/")
+          ? typeof window !== "undefined"
+            ? `${window.location.origin}${rawApiBase}`
+            : "https://drooopy.com/api"
+          : rawApiBase;
+      try {
+          const base = new URL(apiBase);
+          const secure = base.protocol === "https:" || base.protocol === "wss:";
+          base.protocol = secure ? "wss:" : "ws:";
+          const basePath = base.pathname.replace(/\/+$/, "");
+          const apiPath = !basePath || basePath === "/" ? "/api" : basePath;
+          wsUrl = `${base.protocol}//${base.host}${apiPath}/ws/chat/${encodedConversationId}?token=${encodeURIComponent(cleanedWsToken)}`;
+      } catch {
+          const fallbackBase =
+            typeof window !== "undefined" ? window.location.origin : "https://drooopy.com";
+          const fallbackProtocol = fallbackBase.startsWith("https://") ? "wss://" : "ws://";
+          const fallbackHost = fallbackBase.replace(/^https?:\/\//, "");
+          wsUrl = `${fallbackProtocol}${fallbackHost}/api/ws/chat/${encodedConversationId}?token=${encodeURIComponent(cleanedWsToken)}`;
+      }
     }
     
-    // console.log(`[ChatStore] Connecting to WebSocket for Conversation ${conversationId}: ${wsUrl.split('?')[0]}...`); 
+    console.log(`[ChatStore] Intentando conectar WS de Conversacion ${conversationId} a: ${wsUrl.split('?')[0]}?token=${cleanedWsToken ? '[OCULTO]' : 'FALTA_TOKEN'}`); 
     
     try {
         const newSocket = new WebSocket(wsUrl);

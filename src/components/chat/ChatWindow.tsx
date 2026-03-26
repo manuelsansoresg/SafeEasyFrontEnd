@@ -1495,7 +1495,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                             }`}>
                             
                             {/* Product Context Card */}
-                            {msg.product && (
+                            {msg.product && (!msg.content || msg.content.trim() === "") && msg.message_type === 'text' && (
                                 <div 
                                     className={`mb-2 p-2 rounded-lg border flex items-center gap-2 max-w-[220px] cursor-pointer transition-colors ${isMe ? 'bg-white/10 border-white/20 hover:bg-white/20' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
                                     onClick={(e) => {
@@ -1520,7 +1520,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                     </div>
                                 </div>
                             )}
-                            {isVendorMode && msg.product && (
+                            {isVendorMode && msg.product && (!msg.content || msg.content.trim() === "") && msg.message_type === 'text' && (
                               <div className="mb-2">
                                 <button
                                   onClick={(e) => {
@@ -1584,9 +1584,9 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                         <span className={`text-[10px] ${isMe ? 'text-primary-100' : 'text-gray-400'}`}>Clic para descargar</span>
                                     </div>
                                 </a>
-                            ) : (
+                            ) : msg.content && msg.content.trim() !== "" ? (
                                 <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</p>
-                            )}
+                            ) : null}
                             <span className={`text-[10px] mt-1 block text-right ${isMe ? 'text-primary-100' : 'text-gray-400'}`}>
                                 {formatDate(msg.created_at)}
                             </span>
