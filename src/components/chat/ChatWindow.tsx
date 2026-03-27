@@ -1417,10 +1417,10 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                           sendClientProductContext();
                         }}
                         disabled={loading || isCreatingOrder}
-                        className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
+                        className={`px-3 py-1.5 rounded-full font-semibold text-sm font-[family-name:var(--font-poppins)] transition-colors flex items-center gap-1 shadow-sm ${
                           isCreatingOrder
                             ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                            : "bg-[#168e00] hover:bg-[#137500] text-white"
+                            : "bg-[#0B5D00] hover:bg-[#084900] text-white border border-white/20 drop-shadow-sm"
                         }`}
                       >
                         {isCreatingOrder ? (
@@ -1497,7 +1497,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                             {/* Product Context Card */}
                             {msg.product && (!msg.content || msg.content.trim() === "") && msg.message_type === 'text' && (
                                 <div 
-                                    className={`mb-2 p-2 rounded-lg border flex items-center gap-2 max-w-[220px] cursor-pointer transition-colors ${isMe ? 'bg-white/10 border-white/20 hover:bg-white/20' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+                                    className={`mb-2 p-2 rounded-lg border flex items-center gap-2 max-w-[220px] cursor-pointer transition-colors ${isMe ? 'bg-white/70 border-[#CFE9B7] hover:bg-white/80' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         if (msg.product?.slug) router.push(`/product/${msg.product.slug}`);
@@ -1515,8 +1515,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                         )}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                         <p className={`text-xs font-bold truncate ${isMe ? 'text-white' : 'text-gray-800'}`}>{msg.product.title}</p>
-                                         <p className={`text-xs font-bold ${isMe ? 'text-white/90' : 'text-primary'}`}>${Number(msg.product.price).toLocaleString()}</p>
+                                         <p className={`text-xs font-bold truncate ${isMe ? 'text-[#212121]' : 'text-gray-800'}`}>{msg.product.title}</p>
+                                         <p className={`text-xs font-bold ${isMe ? 'text-[#0B5D00]' : 'text-primary'}`}>${Number(msg.product.price).toLocaleString()}</p>
                                     </div>
                                 </div>
                             )}
