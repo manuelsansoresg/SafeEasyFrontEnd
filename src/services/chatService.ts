@@ -228,6 +228,9 @@ export const chatService = {
          
          if (file) {
              formData.append('file', file);
+             if (message_type !== 'text') {
+               formData.append('message_type', message_type);
+             }
          }
          
          // Optional product_id for context cards
@@ -250,7 +253,20 @@ export const chatService = {
                  message_type: (data.message_type || message_type || 'text') as 'text' | 'image' | 'file'
              } as Message;
          } else {
-             throw new Error(`Failed to send message: ${res.status}`);
+             const text = await res.text().catch(() => "");
+             let detail = "";
+             try {
+               const parsed = text ? (JSON.parse(text) as any) : null;
+               detail =
+                 (parsed?.detail && String(parsed.detail)) ||
+                 (parsed?.message && String(parsed.message)) ||
+                 (parsed?.error && String(parsed.error)) ||
+                 "";
+             } catch {
+               detail = "";
+             }
+             const suffix = detail ? ` - ${detail}` : text ? ` - ${text}` : "";
+             throw new Error(`Failed to send message: ${res.status}${suffix}`);
          }
      } catch (err) {
          console.error("Error sending message via REST:", err);

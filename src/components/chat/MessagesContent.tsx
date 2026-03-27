@@ -295,15 +295,14 @@ export function MessagesContent() {
     try {
         const file = selectedFile;
         const type = file ? (file.type.startsWith("image/") ? "image" : "file") : "text";
-        const productId = paramProductId || activeConversation.product_id;
-
         await chatService.sendMessage(
           activeConversation.id,
           inputValue,
           type as any,
           file || undefined,
-          productId || undefined,
+          undefined,
         );
+
 
         setInputValue("");
         setSelectedFile(null);
@@ -312,6 +311,8 @@ export function MessagesContent() {
         scrollToBottom();
     } catch (error) {
         console.error("Error sending message:", error);
+        const msg = error instanceof Error && error.message ? error.message : "Error al enviar mensaje.";
+        setError(msg);
     } finally {
         setSending(false);
     }

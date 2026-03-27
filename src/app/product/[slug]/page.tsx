@@ -662,11 +662,6 @@ export default function ProductDetailPage() {
 
     if (existingConv) {
         console.log("Found existing conversation:", existingConv);
-        
-        // Send empty message with product_id to link context in backend
-        chatService.sendMessage(existingConv.id, '', 'text', undefined, product.id)
-            .then(() => console.log("Sent product context message"))
-            .catch(e => console.error("Failed to send product context message", e));
 
         openChat({
             ...existingConv,
@@ -687,9 +682,6 @@ export default function ProductDetailPage() {
             supplier_id: product.supplier_id,
             product_id: product.id
         });
-        
-        // Send empty message with product_id to link context
-        await chatService.sendMessage(newConv.id, '', 'text', undefined, product.id);
         
         // Refresh global list
         fetchConversations();

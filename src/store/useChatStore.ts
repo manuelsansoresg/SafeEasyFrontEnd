@@ -218,7 +218,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         console.log('[ChatStore] Inbox WS cerrado:', closeEvent.code, closeEvent.reason);
         set({ isInboxConnected: false, inboxSocket: null, isInboxConnecting: false });
 
-        if (closeEvent.code !== 1000 && closeEvent.code !== 4001 && closeEvent.code !== 4003) {
+        const noRetryCodes = new Set([1000, 1008, 4000, 4001, 4003, 4004]);
+        if (!noRetryCodes.has(closeEvent.code)) {
           setTimeout(() => {
             get().connectInboxSocket();
           }, 5000);
@@ -433,7 +434,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           // 1006: Abnormal Closure (e.g. server died or network lost) - Retry
           // 4001/4003: Auth errors (custom) - Do NOT retry loop
           
-          if (event.code !== 1000 && event.code !== 4001 && event.code !== 4003) {
+          const noRetryCodes = new Set([1000, 1008, 4000, 4001, 4003, 4004]);
+          if (!noRetryCodes.has(event.code)) {
             // console.log('[ChatStore] Attempting to reconnect in 5s...');
             setTimeout(() => {
                 const currentConversationId = get().activeSocketConversationId;

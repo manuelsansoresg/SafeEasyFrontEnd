@@ -57,6 +57,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<string | number | null>(null);
   const [isCreatingOrderAsSupplier, setIsCreatingOrderAsSupplier] = useState(false);
+  const requestOrderInFlightRef = useRef(false);
+  const lastRequestOrderKeyRef = useRef<{ key: string; ts: number }>({ key: "", ts: 0 });
   const getSupplierOrdersStorageKey = (uid?: number | string) =>
     `safeeasy:supplier_orders_by_product_v1:${uid ?? "anon"}`;
 
@@ -120,16 +122,6 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     }
   }, [user, supplierId, isOwner]);
 
-  // Track if we sent the initial context message for this session
-  const contextSentRef = useRef(false);
-
-  // Reset ref when closed or productId changes
-  useEffect(() => {
-    if (!isOpen) {
-        contextSentRef.current = false;
-    }
-  }, [isOpen]);
-
   // Helper to get consistent chat name (avoiding self-name)
   const getChatName = (conv: Conversation | null) => {
       if (!conv) return supplierName || 'Chat';
@@ -173,9 +165,93 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
       return conv.supplier_name || conv.other_party_name || supplierName || 'Proveedor';
   };
 
+  const handleRequestOrder = async () => {
+    if (isVendorMode) return;
+    if (user?.role !== "client") return;
+    if (loading || isCreatingOrder) return;
+
+    const targetSupplierId = supplierId;
+    const targetProductId = productId;
+
+    if (!targetSupplierId || !targetProductId) {
+      setError("Error: Información del proveedor o producto incompleta.");
+      return;
+    }
+
+    const key = `${String(targetSupplierId)}:${String(targetProductId)}:${String(activeConversation?.id || "")}`;
+    const now = Date.now();
+    if (requestOrderInFlightRef.current) return;
+    if (lastRequestOrderKeyRef.current.key === key && now - lastRequestOrderKeyRef.current.ts < 1500) return;
+    requestOrderInFlightRef.current = true;
+    lastRequestOrderKeyRef.current = { key, ts: now };
+
+    setIsCreatingOrder(true);
+    setError(null);
+
+    try {
+      let targetConversationId = activeConversation?.id;
+
+      if (!targetConversationId) {
+        const newConv = await chatService.createConversation({
+          supplier_id: Number(targetSupplierId),
+          product_id: String(targetProductId),
+        });
+        targetConversationId = newConv.id;
+        setActiveConversation(newConv);
+        setConversations((prev) => [newConv, ...prev]);
+      }
+
+      const orderPayload = {
+        supplier_id: Number(targetSupplierId),
+        product_id: String(targetProductId),
+        conversation_id: String(targetConversationId),
+        status: "pending",
+      };
+
+      const res = await fetchWithAuth("/api/orders/", {
+        method: "POST",
+        body: JSON.stringify(orderPayload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(
+          (data as any)?.detail ||
+            (data as any)?.message ||
+            (data as any)?.error ||
+            "No se pudo crear la orden."
+        );
+        return;
+      }
+
+      const orderId = (data as any)?.id || (data as any)?.order_id;
+      setCreatedOrderId(orderId ?? null);
+
+      await chatService.sendMessage(
+        targetConversationId,
+        orderId ? `Solicitud de orden #${orderId}` : "Solicitud de orden",
+        "text",
+        undefined,
+        String(targetProductId)
+      );
+
+      await loadMessages(targetConversationId);
+    } catch (err) {
+      console.error("[ChatWindow] Failed to request order", err);
+      setError("Error al solicitar la orden. Verifica tu conexión.");
+    } finally {
+      setIsCreatingOrder(false);
+      requestOrderInFlightRef.current = false;
+    }
+  };
+
   useEffect(() => {
-    contextSentRef.current = false;
-  }, [productId]);
+    if (!isOpen) {
+      requestOrderInFlightRef.current = false;
+      lastRequestOrderKeyRef.current = { key: "", ts: 0 };
+    }
+  }, [isOpen, productId]);
 
   // Auto-initiate chat removed. Logic moved to onClick of context bar.
   /*
@@ -547,42 +623,10 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     }
   };
 
-  const sendClientProductContext = async () => {
-    if (isVendorMode) return;
-    if (loading || contextSentRef.current) return;
-
-    try {
-      let targetConvId = activeConversation?.id;
-      if (!targetConvId && supplierId) {
-        const newConv = await chatService.createConversation({
-          supplier_id: Number(supplierId),
-          product_id: String(productId),
-        });
-        setActiveConversation(newConv);
-        targetConvId = newConv.id;
-        setConversations((prev) => [newConv, ...prev]);
-      }
-
-      if (targetConvId && !String(targetConvId).startsWith("temp-")) {
-        contextSentRef.current = true;
-        await chatService.sendMessage(
-          targetConvId,
-          " ",
-          "text",
-          undefined,
-          productId ?? undefined
-        );
-        loadMessages(targetConvId);
-      }
-    } catch (err) {
-      console.error("[ChatWindow] Failed to send context message", err);
-    }
-  };
-
   const handleCreateOrderAsSupplier = async (msg: Message) => {
-    if (!msg?.product || !activeConversation) return;
+    if (!activeConversation) return;
 
-    const productKey = String((msg as any).product_id || (msg.product as any).id);
+    const productKey = String((msg as any).product_id || (msg.product as any)?.id || productId || "");
     if (supplierOrderByProductId[productKey]) return;
 
     setIsCreatingOrderAsSupplier(true);
@@ -635,7 +679,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         return;
       }
 
-      const rawPrice = (msg.product as any).price;
+      const rawPrice =
+        (msg.product as any)?.price ?? (productData as any)?.price ?? productPrice ?? 0;
       const amountNumber =
         typeof rawPrice === "number"
           ? rawPrice
@@ -1105,12 +1150,6 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     const tempId = Date.now(); // Temporary ID for optimistic update
     const currentFile = selectedFile; // Capture current file
     
-    // Determine target product context
-    // If productId prop is present (we are on a product page), it takes precedence over the conversation's historic product
-    const targetProductId = productId 
-        ? String(productId) 
-        : (activeConversation.product_id || (activeConversation as any).product?.id);
-
     // Create optimistic message
     const optimisticMessage: Message & { file?: File } = {
         id: tempId,
@@ -1135,11 +1174,14 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
 
     if (String(conversationId).startsWith("temp-") || conversationId === 0) {
       try {
+        const productIdForConversation = productId
+          ? String(productId)
+          : activeConversation.product_id || (activeConversation as any).product?.id;
         const newConv = await chatService.createConversation({
           supplier_id: activeConversation.supplier_id,
-          product_id: targetProductId || undefined,
+          product_id: productIdForConversation || undefined,
         });
-        resolvedConversation = { ...activeConversation, ...newConv, product_id: targetProductId };
+        resolvedConversation = { ...activeConversation, ...newConv, product_id: productIdForConversation };
         conversationId = newConv.id;
         setActiveConversation(resolvedConversation);
         setMessages((prev) => prev.map((m) => ({ ...m, conversation_id: conversationId })));
@@ -1165,14 +1207,20 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         messageContent,
         type as any,
         currentFile || undefined,
-        targetProductId,
+        undefined,
       );
 
       setMessages((prev) => prev.map((m) => (m.id === tempId ? sentMessage : m)));
       await loadMessages(conversationId);
     } catch (err) {
       console.error("Send failed", err);
-      setError(currentFile ? "Error al enviar archivo." : "Error al enviar mensaje.");
+      const msg =
+        err instanceof Error && err.message
+          ? err.message
+          : currentFile
+            ? "Error al enviar archivo."
+            : "Error al enviar mensaje.";
+      setError(msg);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setInputValue(messageContent);
       setSelectedFile(currentFile);
@@ -1385,10 +1433,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
           {/* Product Context Bar (Sub-header) - HIDDEN for Vendors as requested */}
           {(!isVendorMode && productData?.title) && (
           <div
-            className={productSlug ? "px-4 py-2 bg-white border-b border-gray-100 flex items-start gap-3 shrink-0 cursor-pointer hover:bg-gray-50" : "px-4 py-2 bg-white border-b border-gray-100 flex items-start gap-3 shrink-0"}
-            onClick={async () => {
-              await sendClientProductContext();
-            }}
+            className="px-4 py-2 bg-white border-b border-gray-100 flex items-start gap-3 shrink-0"
           >
                 {!isVendorMode && (
                 <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 shrink-0 overflow-hidden flex items-center justify-center">
@@ -1414,7 +1459,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          sendClientProductContext();
+                          handleRequestOrder();
                         }}
                         disabled={loading || isCreatingOrder}
                         className={`px-3 py-1.5 rounded-full font-semibold text-sm font-[family-name:var(--font-poppins)] transition-colors flex items-center gap-1 shadow-sm ${
@@ -1494,20 +1539,35 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                 : 'bg-white border border-[#E0E0E0] text-[#4A4A4A] rounded-2xl'
                             }`}>
                             
-                            {/* Product Context Card */}
-                            {msg.product && (!msg.content || msg.content.trim() === "") && msg.message_type === 'text' && (
+                            {(() => {
+                              const raw = typeof msg.content === "string" ? msg.content : "";
+                              const trimmed = raw.trim();
+                              const isOrderRequest = trimmed.toLowerCase().startsWith("solicitud de orden");
+                              const shouldShowCard = msg.message_type === "text" && (!trimmed || isOrderRequest);
+                              if (!shouldShowCard) return null;
+
+                              const product =
+                                msg.product || ({
+                                  id: (msg as any).product_id || productId,
+                                  title: productData.title,
+                                  price: productData.price,
+                                  image: productData.image,
+                                  slug: productData.slug,
+                                } as any);
+
+                              return (
                                 <div 
                                     className={`mb-2 p-2 rounded-lg border flex items-center gap-2 max-w-[220px] cursor-pointer transition-colors ${isMe ? 'bg-white/70 border-[#CFE9B7] hover:bg-white/80' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        if (msg.product?.slug) router.push(`/product/${msg.product.slug}`);
+                                        if (product?.slug) router.push(`/product/${product.slug}`);
                                     }}
                                 >
                                     <div className="w-10 h-10 shrink-0 relative rounded overflow-hidden bg-gray-100">
-                                        {msg.product.image ? (
+                                        {product?.image ? (
                                             <img 
-                                                src={getAbsoluteUrl(msg.product.image)} 
-                                                alt={msg.product.title} 
+                                                src={getAbsoluteUrl(product.image)} 
+                                                alt={product?.title || productData.title} 
                                                 className="w-full h-full object-cover" 
                                             />
                                         ) : (
@@ -1515,12 +1575,25 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                         )}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                         <p className={`text-xs font-bold truncate ${isMe ? 'text-[#212121]' : 'text-gray-800'}`}>{msg.product.title}</p>
-                                         <p className={`text-xs font-bold ${isMe ? 'text-[#0B5D00]' : 'text-primary'}`}>${Number(msg.product.price).toLocaleString()}</p>
+                                         <p className={`text-xs font-bold truncate ${isMe ? 'text-[#212121]' : 'text-gray-800'}`}>{product?.title || productData.title}</p>
+                                         <p className={`text-xs font-bold ${isMe ? 'text-[#0B5D00]' : 'text-primary'}`}>${Number(product?.price ?? productData.price).toLocaleString()}</p>
                                     </div>
                                 </div>
-                            )}
-                            {isVendorMode && msg.product && (!msg.content || msg.content.trim() === "") && msg.message_type === 'text' && (
+                              );
+                            })()}
+                            {(() => {
+                              const raw = typeof msg.content === "string" ? msg.content : "";
+                              const trimmed = raw.trim();
+                              const isOrderRequest = trimmed.toLowerCase().startsWith("solicitud de orden");
+                              const showVendorOrderButton =
+                                isVendorMode && msg.message_type === "text" && (!trimmed || isOrderRequest);
+                              if (!showVendorOrderButton) return null;
+
+                              const productKeyForButton = String(
+                                (msg as any).product_id || (msg.product as any)?.id || productId || ""
+                              );
+
+                              return (
                               <div className="mb-2">
                                 <button
                                   onClick={(e) => {
@@ -1529,12 +1602,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                   }}
                                   disabled={
                                     isCreatingOrderAsSupplier ||
-                                    !!supplierOrderByProductId[String((msg as any).product_id || msg.product.id)]
+                                    !!supplierOrderByProductId[productKeyForButton]
                                   }
                                   className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
                                     isCreatingOrderAsSupplier
                                       ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                                      : supplierOrderByProductId[String((msg as any).product_id || msg.product.id)]
+                                      : supplierOrderByProductId[productKeyForButton]
                                         ? "bg-[#168e00] text-white cursor-not-allowed opacity-90"
                                         : "bg-[#168e00] hover:bg-[#137500] text-white"
                                   }`}
@@ -1545,13 +1618,14 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                     <PlusCircle size={14} />
                                   )}
                                   <span>
-                                    {supplierOrderByProductId[String((msg as any).product_id || msg.product.id)]
+                                    {supplierOrderByProductId[productKeyForButton]
                                       ? "Orden creada"
                                       : "Crear nueva orden"}
                                   </span>
                                 </button>
                               </div>
-                            )}
+                              );
+                            })()}
 
                             {msg.message_type === 'image' ? (
                                 <a 
