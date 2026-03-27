@@ -7,9 +7,10 @@ import { chatService } from "@/services/chatService";
 import { orderService } from "@/services/orderService";
 import { useChatInboxWebSocket, useChatWebSocket } from "@/hooks/useChatWebSocket";
 import { Conversation, Message } from "@/types/chat";
-import { Send, Image as ImageIcon, X, MoreVertical, Phone, Paperclip, Loader2, CreditCard, Smile, PlusCircle, Star } from "lucide-react";
+import { Send, Image as ImageIcon, X, MoreVertical, Phone, Paperclip, Loader2, CreditCard, Smile, PlusCircle, Star, Package, Ticket } from "lucide-react";
 import Image from "next/image";
 import StarRating from "../StarRating";
+import ExistingOrderModal from "../modals/ExistingOrderModal";
 
 import { fetchWithAuth } from "@/lib/api";
 
@@ -57,6 +58,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<string | number | null>(null);
   const [isCreatingOrderAsSupplier, setIsCreatingOrderAsSupplier] = useState(false);
+  const [showOrderConflict, setShowOrderConflict] = useState(false);
   const getSupplierOrdersStorageKey = (uid?: number | string) =>
     `safeeasy:supplier_orders_by_product_v1:${uid ?? "anon"}`;
 
@@ -547,35 +549,77 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     }
   };
 
-  const sendClientProductContext = async () => {
+  const handleRequestOrder = async () => {
     if (isVendorMode) return;
-    if (loading || contextSentRef.current) return;
+    if (user?.role !== "client") return;
+    if (loading || isCreatingOrder) return;
+
+    if (!supplierId || !productId) {
+      setError("Error: Información del proveedor o producto incompleta.");
+      return;
+    }
+
+    setIsCreatingOrder(true);
+    setError(null);
 
     try {
-      let targetConvId = activeConversation?.id;
-      if (!targetConvId && supplierId) {
+      let targetConversationId = activeConversation?.id;
+
+      if (!targetConversationId) {
         const newConv = await chatService.createConversation({
           supplier_id: Number(supplierId),
           product_id: String(productId),
         });
+        targetConversationId = newConv.id;
         setActiveConversation(newConv);
-        targetConvId = newConv.id;
         setConversations((prev) => [newConv, ...prev]);
       }
 
-      if (targetConvId && !String(targetConvId).startsWith("temp-")) {
-        contextSentRef.current = true;
+      const orderPayload = {
+        supplier_id: Number(supplierId),
+        product_id: String(productId),
+        conversation_id: String(targetConversationId),
+        status: "pending",
+      };
+
+      const res = await fetchWithAuth("/api/orders/", {
+        method: "POST",
+        body: JSON.stringify(orderPayload),
+      });
+
+      if (res.status === 409) {
+        setShowOrderConflict(true);
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          (data as any)?.detail ||
+            (data as any)?.message ||
+            (data as any)?.error ||
+            "No se pudo crear la orden."
+        );
+        return;
+      }
+
+      const newOrderId = (data as any)?.id || (data as any)?.order_id || null;
+      setCreatedOrderId(newOrderId);
+
+      if (targetConversationId) {
         await chatService.sendMessage(
-          targetConvId,
-          " ",
+          targetConversationId,
+          newOrderId ? `Orden generada #${newOrderId}` : "Orden generada",
           "text",
           undefined,
-          productId ?? undefined
+          String(productId)
         );
-        loadMessages(targetConvId);
+        await loadMessages(targetConversationId);
       }
     } catch (err) {
-      console.error("[ChatWindow] Failed to send context message", err);
+      setError("Error al solicitar la orden. Verifica tu conexión.");
+    } finally {
+      setIsCreatingOrder(false);
     }
   };
 
@@ -1385,10 +1429,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
           {/* Product Context Bar (Sub-header) - HIDDEN for Vendors as requested */}
           {(!isVendorMode && productData?.title) && (
           <div
-            className={productSlug ? "px-4 py-2 bg-white border-b border-gray-100 flex items-start gap-3 shrink-0 cursor-pointer hover:bg-gray-50" : "px-4 py-2 bg-white border-b border-gray-100 flex items-start gap-3 shrink-0"}
-            onClick={async () => {
-              await sendClientProductContext();
-            }}
+            className="px-4 py-2 bg-white border-b border-gray-100 flex items-start gap-3 shrink-0"
           >
                 {!isVendorMode && (
                 <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 shrink-0 overflow-hidden flex items-center justify-center">
@@ -1414,7 +1455,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          sendClientProductContext();
+                          handleRequestOrder();
                         }}
                         disabled={loading || isCreatingOrder}
                         className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
@@ -1478,6 +1519,13 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                     messages.map((msg, idx) => {
                         // Loose comparison for ID safety
                         const isMe = String(user?.id) === String(msg.sender_id);
+                        const trimmedContent = String(msg.content || "").trim();
+                        const orderMatch = /Orden generada\s*#(\d+)/i.exec(trimmedContent);
+                        const product = msg.product;
+                        const shouldShowProductCard =
+                          !!product &&
+                          msg.message_type === "text" &&
+                          (!!orderMatch || trimmedContent === "");
                         
                         return (
                         <div key={idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
@@ -1495,19 +1543,19 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                             }`}>
                             
                             {/* Product Context Card */}
-                            {msg.product && (!msg.content || msg.content.trim() === "") && msg.message_type === 'text' && (
+                            {shouldShowProductCard && (
                                 <div 
                                     className={`mb-2 p-2 rounded-lg border flex items-center gap-2 max-w-[220px] cursor-pointer transition-colors ${isMe ? 'bg-white/10 border-white/20 hover:bg-white/20' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        if (msg.product?.slug) router.push(`/product/${msg.product.slug}`);
+                                        if (product?.slug) router.push(`/product/${product.slug}`);
                                     }}
                                 >
                                     <div className="w-10 h-10 shrink-0 relative rounded overflow-hidden bg-gray-100">
-                                        {msg.product.image ? (
+                                        {product?.image ? (
                                             <img 
-                                                src={getAbsoluteUrl(msg.product.image)} 
-                                                alt={msg.product.title} 
+                                                src={getAbsoluteUrl(product.image)} 
+                                                alt={product?.title || ""} 
                                                 className="w-full h-full object-cover" 
                                             />
                                         ) : (
@@ -1515,41 +1563,44 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                         )}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                         <p className={`text-xs font-bold truncate ${isMe ? 'text-white' : 'text-gray-800'}`}>{msg.product.title}</p>
-                                         <p className={`text-xs font-bold ${isMe ? 'text-white/90' : 'text-primary'}`}>${Number(msg.product.price).toLocaleString()}</p>
+                                         <p className="text-xs font-bold truncate text-[#212121]">{product?.title || ""}</p>
+                                         <p className="text-xs font-bold text-[#0B5D00]">${Number((product as any)?.price ?? 0).toLocaleString()}</p>
                                     </div>
                                 </div>
                             )}
-                            {isVendorMode && msg.product && (!msg.content || msg.content.trim() === "") && msg.message_type === 'text' && (
+                            {orderMatch && (
+                              <div className="mt-2 flex items-center justify-between gap-2 text-[13px] font-[family-name:var(--font-poppins)] text-[#212121]">
+                                <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                                  <Ticket size={16} className="text-[#168E00]" />
+                                  Orden generada
+                                </span>
+                                <span className="font-bold text-[#168E00] whitespace-nowrap">#{orderMatch[1]}</span>
+                              </div>
+                            )}
+                            {isVendorMode && product && (!msg.content || msg.content.trim() === "") && msg.message_type === 'text' && (
                               <div className="mb-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCreateOrderAsSupplier(msg);
-                                  }}
-                                  disabled={
-                                    isCreatingOrderAsSupplier ||
-                                    !!supplierOrderByProductId[String((msg as any).product_id || msg.product.id)]
-                                  }
-                                  className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
-                                    isCreatingOrderAsSupplier
-                                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                                      : supplierOrderByProductId[String((msg as any).product_id || msg.product.id)]
-                                        ? "bg-[#168e00] text-white cursor-not-allowed opacity-90"
-                                        : "bg-[#168e00] hover:bg-[#137500] text-white"
-                                  }`}
-                                >
-                                  {isCreatingOrderAsSupplier ? (
-                                    <Loader2 size={14} className="animate-spin" />
-                                  ) : (
-                                    <PlusCircle size={14} />
-                                  )}
-                                  <span>
-                                    {supplierOrderByProductId[String((msg as any).product_id || msg.product.id)]
-                                      ? "Orden creada"
-                                      : "Crear nueva orden"}
+                                {supplierOrderByProductId[String((msg as any).product_id || (product as any).id)] ? (
+                                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-[#E8F5E9] text-[#168E00] border border-[#C8E6C9] gap-1">
+                                    <Package size={14} />
+                                    Orden creada
                                   </span>
-                                </button>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCreateOrderAsSupplier(msg);
+                                    }}
+                                    disabled={isCreatingOrderAsSupplier}
+                                    className="px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm bg-[#168e00] hover:bg-[#137500] text-white"
+                                  >
+                                    {isCreatingOrderAsSupplier ? (
+                                      <Loader2 size={14} className="animate-spin" />
+                                    ) : (
+                                      <PlusCircle size={14} />
+                                    )}
+                                    <span>Crear nueva orden</span>
+                                  </button>
+                                )}
                               </div>
                             )}
 
@@ -1584,7 +1635,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                                         <span className={`text-[10px] ${isMe ? 'text-primary-100' : 'text-gray-400'}`}>Clic para descargar</span>
                                     </div>
                                 </a>
-                            ) : msg.content && msg.content.trim() !== "" ? (
+                            ) : msg.content && trimmedContent !== "" && !orderMatch ? (
                                 <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</p>
                             ) : null}
                             <span className={`text-[10px] mt-1 block text-right ${isMe ? 'text-[#212121]/60' : 'text-[#4A4A4A]/60'}`}>
@@ -1758,6 +1809,14 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         </div>
 
       </div>
+      <ExistingOrderModal
+        open={showOrderConflict}
+        onClose={() => setShowOrderConflict(false)}
+        onGo={() => {
+          setShowOrderConflict(false);
+          router.push("/client/orders");
+        }}
+      />
       
       {/* Payment Modal */}
       {isPaymentModalOpen && localTransferData && (
