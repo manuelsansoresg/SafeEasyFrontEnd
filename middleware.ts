@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  if (pathname === '/api/mercadopago/callback' || pathname.startsWith('/api/mercadopago/callback/')) {
+    return NextResponse.next();
+  }
   const response = NextResponse.next();
   
   // 1. Intentar obtener la ciudad de los headers de Cloudflare

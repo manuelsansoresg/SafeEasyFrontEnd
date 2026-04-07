@@ -1,5 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const getSetCookieHeaders = (response: Response) => {
+  const headersAny = response.headers as unknown as { getSetCookie?: () => string[] };
+  if (headersAny && typeof headersAny.getSetCookie === "function") return headersAny.getSetCookie();
+  const raw = response.headers.get("set-cookie");
+  return raw ? [raw] : [];
+};
+
+const rewriteSetCookieHeader = (cookie: string, requestHost: string) => {
+  const isProd = process.env.NODE_ENV === "production";
+  if (!isProd) return cookie;
+
+  const sessionDomain = String(process.env.SESSION_DOMAIN || "").trim();
+  const desiredDomain = sessionDomain || (requestHost.endsWith("drooopy.com") ? ".drooopy.com" : "");
+
+  const parts = cookie.split(";").map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return cookie;
+
+  const [nameValue, ...attrs] = parts;
+  const kept: string[] = [];
+  for (const attr of attrs) {
+    const [kRaw] = attr.split("=", 1);
+    const k = String(kRaw || "").trim().toLowerCase();
+    if (k === "path" || k === "domain" || k === "samesite" || k === "secure") continue;
+    kept.push(attr);
+  }
+
+  const enforced: string[] = [...kept, "Path=/", "SameSite=Lax", "Secure"];
+  if (desiredDomain) enforced.push(`Domain=${desiredDomain}`);
+
+  return [nameValue, ...enforced].join("; ");
+};
+
+const applyRewrittenSetCookies = (headers: Headers, upstream: Response, requestHost: string) => {
+  const setCookies = getSetCookieHeaders(upstream);
+  if (setCookies.length === 0) return;
+  headers.delete("set-cookie");
+  for (const c of setCookies) {
+    headers.append("set-cookie", rewriteSetCookieHeader(c, requestHost));
+  }
+};
+
 const sanitizeBaseUrl = (value: string | undefined) => {
   const trimmed = String(value || "").trim();
   const unwrapped = trimmed.replace(/^['"`]+/, "").replace(/['"`]+$/, "").trim();
@@ -191,7 +232,17 @@ async function handler(request: NextRequest) {
                if (wantsJson) {
                  return NextResponse.json({ redirect_url: newUrlString }, { status: 200 });
                }
-               return NextResponse.redirect(newUrlString, { status: response.status });
+               const headers = new Headers();
+               response.headers.forEach((v, k) => {
+                 const lowerKey = k.toLowerCase();
+                 if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(lowerKey)) {
+                   headers.set(k, v);
+                 }
+               });
+               if (pathname.startsWith("/api/mercadopago/")) {
+                 applyRewrittenSetCookies(headers, response, request.nextUrl.hostname);
+               }
+               return NextResponse.redirect(newUrlString, { status: response.status, headers });
              }
              
              console.log(`[Generic Proxy] Following redirect manually to: ${newUrlString}`);
@@ -220,6 +271,9 @@ async function handler(request: NextRequest) {
             headers.set(k, v);
         }
       });
+      if (pathname.startsWith("/api/mercadopago/")) {
+        applyRewrittenSetCookies(headers, response, request.nextUrl.hostname);
+      }
       return new NextResponse(response.body, {
         status: response.status,
         headers
@@ -247,6 +301,9 @@ async function handler(request: NextRequest) {
             headers.set(k, v);
         }
     });
+    if (pathname.startsWith("/api/mercadopago/")) {
+      applyRewrittenSetCookies(headers, response, request.nextUrl.hostname);
+    }
     
     // Ensure Content-Type is set if missing (e.g. for empty 204)
     // But if it's JSON, ensure it says so.
