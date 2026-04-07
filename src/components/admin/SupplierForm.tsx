@@ -301,8 +301,9 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     if (!showMercadoPagoSection) return;
     setMpConnectLoading(true);
     try {
-      window.location.href =
-        "https://www.drooopy.com/api/mercadopago/connect?account_type=supplier&redirect=true";
+      const base =
+        typeof window !== "undefined" && window.location?.origin ? window.location.origin : "https://www.drooopy.com";
+      window.location.href = `${base}/api/mercadopago/connect?account_type=supplier&redirect=true`;
     } catch (e: unknown) {
       const msg =
         e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
