@@ -301,8 +301,45 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     if (!showMercadoPagoSection) return;
     setMpConnectLoading(true);
     try {
-      window.location.href =
-        "https://drooopy.com/api/mercadopago/connect?account_type=supplier&redirect=true";
+      const connectUrl = "/api/mercadopago/connect?account_type=supplier&redirect=true";
+      const cleanedToken = String(token || "").replace(/^bearer\s+/i, "").trim();
+      const res = await fetch(connectUrl, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...(cleanedToken ? { Authorization: `Bearer ${cleanedToken}` } : {}),
+        },
+        credentials: "include",
+      });
+
+      const text = await res.text().catch(() => "");
+      const data = text ? (JSON.parse(text) as unknown) : null;
+      const rec = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+      const redirectUrl =
+        (rec && typeof rec.redirect_url === "string" && rec.redirect_url) ||
+        (rec && typeof rec.url === "string" && rec.url) ||
+        (rec && typeof rec.auth_url === "string" && rec.auth_url) ||
+        null;
+
+      if (!res.ok) {
+        const msgFromBody =
+          rec && typeof rec.message === "string"
+            ? rec.message
+            : rec && typeof rec.detail === "string"
+              ? rec.detail
+              : text || `Error ${res.status}`;
+        throw new Error(msgFromBody);
+      }
+
+      if (!redirectUrl) {
+        throw new Error("No se recibió la URL de autorización de Mercado Pago.");
+      }
+
+      if (redirectUrl.includes("/login")) {
+        throw new Error("Tu sesión no está llegando al backend al iniciar el flujo. Requiere ajuste en backend/cookies.");
+      }
+
+      window.location.href = redirectUrl;
     } catch (e: unknown) {
       const msg =
         e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
