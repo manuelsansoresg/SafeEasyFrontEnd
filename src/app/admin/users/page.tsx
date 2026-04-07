@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import Link from "next/link";
+import { Toast } from "@/components/ui/Toast";
 import { 
   Plus, 
   Search, 
@@ -34,6 +35,13 @@ export default function UsersPage() {
   const [skip, setSkip] = useState(0);
   const [limit] = useState(50);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
 
   useEffect(() => {
     fetchUsers();
@@ -113,7 +121,7 @@ export default function UsersPage() {
       if (response.ok) {
         setUsers(prev => prev.filter(u => u.id !== id));
       } else {
-        alert("Error al eliminar usuario");
+        setToast({ type: "error", message: "Error al eliminar usuario." });
       }
     } catch (error) {
       console.error("Error deleting user:", error);
@@ -128,6 +136,7 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Usuarios</h1>

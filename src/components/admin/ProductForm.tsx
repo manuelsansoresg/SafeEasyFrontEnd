@@ -15,6 +15,7 @@ import slugify from "slugify";
 import 'react-quill-new/dist/quill.snow.css';
 import FileUpload from "@/components/ui/FileUpload";
 import MultiFileUpload from "@/components/ui/MultiFileUpload";
+import { Toast } from "@/components/ui/Toast";
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
@@ -122,6 +123,13 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
   
   // Media Upload
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -269,11 +277,11 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       if (response.ok) {
         setMediaList(prev => prev.filter(m => m.id !== mediaId));
       } else {
-        alert("Error al eliminar la imagen");
+        setToast({ type: "error", message: "Error al eliminar la imagen." });
       }
     } catch (error) {
       console.error("Error deleting media:", error);
-      alert("Error al eliminar la imagen");
+      setToast({ type: "error", message: "Error al eliminar la imagen." });
     }
   };
 
@@ -374,11 +382,31 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         try {
             const text = await response.text();
             try {
-                const errorData = JSON.parse(text);
-                if (errorData.detail && Array.isArray(errorData.detail)) {
-                    errorMessage = errorData.detail.map((d: any) => `${d.loc.join('.')} - ${d.msg}`).join(', ');
+                const errorDataUnknown: unknown = JSON.parse(text);
+                const errorData =
+                  errorDataUnknown && typeof errorDataUnknown === "object"
+                    ? (errorDataUnknown as Record<string, unknown>)
+                    : null;
+
+                if (errorData?.detail && Array.isArray(errorData.detail)) {
+                    errorMessage = errorData.detail
+                      .map((d: unknown) => {
+                        const row = d && typeof d === "object" ? (d as Record<string, unknown>) : {};
+                        const loc = Array.isArray(row.loc) ? row.loc.map((v) => String(v)).join(".") : "";
+                        const msg = typeof row.msg === "string" ? row.msg : "";
+                        return [loc, msg].filter(Boolean).join(" - ");
+                      })
+                      .filter(Boolean)
+                      .join(", ");
                 } else {
-                    errorMessage = errorData.detail || errorData.message || errorMessage;
+                    const detail =
+                      typeof errorData?.detail === "string"
+                        ? errorData.detail
+                        : errorData?.detail
+                          ? JSON.stringify(errorData.detail)
+                          : null;
+                    const message = typeof errorData?.message === "string" ? errorData.message : null;
+                    errorMessage = detail || message || errorMessage;
                 }
             } catch {
                 errorMessage = `Error ${response.status}: ${text || response.statusText}`;
@@ -413,8 +441,8 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
       router.push('/admin/products');
       router.refresh();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsSubmitting(false);
       setUploadProgress(null);
@@ -423,6 +451,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
   return (
     <>
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         {error && (
           <div className="p-4 bg-red-50 text-red-600 text-sm rounded-xl">

@@ -250,8 +250,8 @@ export function MessagesDropdown() {
       <button 
         onClick={toggleOpen}
         className={cn(
-            "flex items-center justify-center w-10 h-10 rounded-full border border-white transition-all relative",
-            isOpen ? "bg-white text-primary" : "text-white hover:bg-white hover:text-primary"
+            "flex items-center justify-center h-10 px-2 transition-all relative",
+            isOpen ? "text-[#7ed957]" : "text-white hover:text-[#7ed957]"
         )}
       >
         <div className="relative">
@@ -268,7 +268,7 @@ export function MessagesDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-[360px] bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+        <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] md:w-96 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
           <div className="p-4 flex items-center justify-between border-b border-gray-50">
             <div>
               <h3 className="font-bold text-xl text-gray-900">Chats</h3>
@@ -289,7 +289,12 @@ export function MessagesDropdown() {
                   return next;
                 });
               }}
-              className="inline-flex items-center px-3 py-1 text-xs rounded-full border border-gray-200 hover:bg-gray-100"
+              className={cn(
+                "inline-flex items-center px-3 py-1 text-xs rounded-full border transition-colors",
+                chatEnabled
+                  ? "border-[#168E00] text-[#168E00] hover:bg-[#168E00]/10"
+                  : "bg-[#168E00] border-[#168E00] text-white hover:bg-[#137500]"
+              )}
             >
               {chatEnabled ? "Pausar chat" : "Activar chat"}
             </button>

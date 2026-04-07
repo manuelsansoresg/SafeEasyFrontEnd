@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { Toast } from "@/components/ui/Toast";
 
 interface Product {
   id: string;
@@ -43,6 +44,13 @@ export default function AdminProductsPage() {
   // Pagination
   const [skip, setSkip] = useState(0);
   const [limit] = useState(50);
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
   
   // -- Effects --
 
@@ -105,7 +113,7 @@ export default function AdminProductsPage() {
       if (response.ok) {
         fetchProducts();
       } else {
-        alert("Error al eliminar producto");
+        setToast({ type: "error", message: "Error al eliminar producto." });
       }
     } catch (error) {
       console.error("Error deleting product:", error);
@@ -114,6 +122,7 @@ export default function AdminProductsPage() {
 
   return (
     <div className="space-y-6">
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>

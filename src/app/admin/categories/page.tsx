@@ -11,11 +11,12 @@ import {
   Grid,
   Search,
   CheckCircle,
-  XCircle
+  XCircle,
+  type LucideIcon
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
 import * as Icons from "lucide-react";
+import { Toast } from "@/components/ui/Toast";
 
 interface Category {
   id: number;
@@ -37,6 +38,13 @@ export default function AdminCategoriesPage() {
   // Pagination
   const [skip, setSkip] = useState(0);
   const [limit] = useState(100);
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
   
   // -- Effects --
 
@@ -72,7 +80,7 @@ export default function AdminCategoriesPage() {
       if (response.ok) {
         fetchCategories();
       } else {
-        alert("Error al eliminar categoría");
+        setToast({ type: "error", message: "Error al eliminar categoría." });
       }
     } catch (error) {
       console.error("Error deleting category:", error);
@@ -89,12 +97,13 @@ export default function AdminCategoriesPage() {
   const renderIcon = (iconName: string | null) => {
     if (!iconName) return <Grid size={20} />;
     
-    const IconComponent = Icons[iconName as keyof typeof Icons] as any;
+    const IconComponent = (Icons as unknown as Record<string, LucideIcon>)[iconName];
     return IconComponent ? <IconComponent size={20} /> : <Grid size={20} />;
   };
 
   return (
     <div className="space-y-6">
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Categorías</h1>

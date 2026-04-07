@@ -12,6 +12,8 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { registerInteraction } from "@/lib/interactions";
 import { MessagesDropdown } from "@/components/chat/MessagesDropdown";
 import { useChatStore } from "@/store/useChatStore";
+import NotificationsBadge from "@/components/notifications/NotificationsBadge";
+import { CartBadge } from "@/components/cart/CartBadge";
 
 function SearchBar() {
   const router = useRouter();
@@ -130,6 +132,8 @@ export function Header() {
             <div className="flex items-center gap-4">
               <div className="hidden md:flex items-center gap-4">
                 {isAuthenticated && <MessagesDropdown />}
+                  {isAuthenticated && <NotificationsBadge />}
+                  {isAuthenticated && <CartBadge />}
 
                 <div
                   className="relative"

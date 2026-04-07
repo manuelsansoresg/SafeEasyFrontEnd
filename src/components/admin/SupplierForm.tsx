@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Loader2, CheckCircle, UserPlus, Users, Search } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import FileUpload from "@/components/ui/FileUpload";
 import MapPicker from "@/components/ui/MapPicker";
+import { Toast } from "@/components/ui/Toast";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
 
@@ -57,9 +58,11 @@ interface SupplierFormProps {
 export default function SupplierForm({ initialData, isEditMode = false }: SupplierFormProps) {
   const { token, user } = useAuthStore();
   const router = useRouter();
+  const pathname = usePathname();
   
   // User Management for Admin
-  const [users, setUsers] = useState<{id: number, email: string, full_name?: string, name?: string}[]>([]);
+  type UserOption = { id: number; email: string; full_name?: string; name?: string };
+  const [users, setUsers] = useState<UserOption[]>([]);
   const [userMode, setUserMode] = useState<'existing' | 'new' | 'current'>('current');
   const [selectedUserId, setSelectedUserId] = useState<number | string>("");
   const [userSearchTerm, setUserSearchTerm] = useState("");
@@ -69,6 +72,45 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     email: "",
     password: ""
   });
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+
+  const isMyCompanyPage = String(pathname || "").startsWith("/admin/my-company");
+  const roleKeyFromStore = String(user?.role || "").toLowerCase();
+  const roleKeyFromStorage = (() => {
+    if (typeof window === "undefined") return "";
+    try {
+      const raw = window.localStorage.getItem("auth-storage");
+      if (!raw) return "";
+      const parsed = JSON.parse(raw) as unknown;
+      const rec = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
+      const state = rec && typeof rec.state === "object" && rec.state ? (rec.state as Record<string, unknown>) : rec;
+      const storedUser =
+        state && typeof state.user === "object" && state.user ? (state.user as Record<string, unknown>) : null;
+      const role = storedUser && typeof storedUser.role === "string" ? storedUser.role : null;
+      return String(role || "").toLowerCase();
+    } catch {
+      return "";
+    }
+  })();
+  const effectiveRoleKey = roleKeyFromStore || roleKeyFromStorage;
+  const isSupplierRole = ["supplier", "proveedor", "provider", "vendor", "seller"].includes(effectiveRoleKey);
+
+  const showMercadoPagoSection = isMyCompanyPage && isSupplierRole;
+  const canLoadMercadoPagoStatus = showMercadoPagoSection && !!token;
+
+  const [mpAccount, setMpAccount] = useState<{ connected: boolean; email: string | null }>({
+    connected: false,
+    email: null,
+  });
+  const [mpStatusLoading, setMpStatusLoading] = useState(false);
+  const [mpConnectLoading, setMpConnectLoading] = useState(false);
+  const [mpDisconnectLoading, setMpDisconnectLoading] = useState(false);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
 
   // Load initial user if exists
   useEffect(() => {
@@ -79,12 +121,21 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
                 // Try to get specific user. Note: standard endpoint might be /api/users/{id}
                 const response = await fetchWithAuth(`/api/users/${initialData.user_id}`);
                 if (response.ok) {
-                    const user = await response.json();
+                    const data = (await response.json().catch(() => null)) as unknown;
+                    const rec =
+                      data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+                    const id = rec && typeof rec.id === "number" ? rec.id : null;
+                    if (id == null) return;
+                    const email = rec && typeof rec.email === "string" ? rec.email : "";
+                    const full_name =
+                      rec && typeof rec.full_name === "string" ? rec.full_name : undefined;
+                    const name = rec && typeof rec.name === "string" ? rec.name : undefined;
+                    const loadedUser: UserOption = { id, email, full_name, name };
                     setUsers(prev => {
-                        if (prev.find(u => u.id === user.id)) return prev;
-                        return [user, ...prev];
+                        if (prev.find(u => u.id === loadedUser.id)) return prev;
+                        return [loadedUser, ...prev];
                     });
-                    setSelectedUserId(user.id);
+                    setSelectedUserId(loadedUser.id);
                 }
             } catch (e) {
                 console.error("Error loading initial user", e);
@@ -94,18 +145,200 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     }
   }, [initialData]);
 
-  // Debounced Search
+  type NormalizedMpAccount = { connected: boolean; email: string | null };
+
+  const normalizeMpAccount = useCallback((payload: unknown): NormalizedMpAccount | null => {
+    const toRecord = (value: unknown) =>
+      value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+
+    const getString = (rec: Record<string, unknown> | null, key: string) =>
+      rec && typeof rec[key] === "string" ? (rec[key] as string) : null;
+
+    const getBool = (rec: Record<string, unknown> | null, key: string) =>
+      rec && typeof rec[key] === "boolean" ? (rec[key] as boolean) : null;
+
+    const coerceConnected = (rec: Record<string, unknown> | null) => {
+      const direct =
+        getBool(rec, "connected") ??
+        getBool(rec, "is_connected") ??
+        getBool(rec, "isLinked") ??
+        getBool(rec, "is_linked") ??
+        getBool(rec, "linked");
+      if (typeof direct === "boolean") return direct;
+      const status =
+        getString(rec, "status") || getString(rec, "state") || getString(rec, "connection_status");
+      if (status) {
+        const s = status.toLowerCase();
+        if (["connected", "linked", "active", "ok"].includes(s)) return true;
+        if (["disconnected", "unlinked", "inactive"].includes(s)) return false;
+      }
+      const hasToken =
+        typeof rec?.access_token === "string" ||
+        typeof rec?.token === "string" ||
+        typeof rec?.refresh_token === "string";
+      return hasToken ? true : null;
+    };
+
+    const coerceEmail = (rec: Record<string, unknown> | null) => {
+      const direct =
+        getString(rec, "email") ||
+        getString(rec, "account_email") ||
+        getString(rec, "payer_email") ||
+        getString(rec, "connected_email");
+      if (direct) return direct;
+      const account = toRecord(rec?.account);
+      return getString(account, "email");
+    };
+
+    const normalizeFromRecord = (rec: Record<string, unknown>): NormalizedMpAccount | null => {
+      const connected = coerceConnected(rec);
+      if (connected == null) return null;
+      return { connected, email: coerceEmail(rec) ?? null };
+    };
+
+    const normalize = (value: unknown): NormalizedMpAccount | null => {
+      if (Array.isArray(value)) {
+        for (const entry of value) {
+          const rec = toRecord(entry);
+          if (!rec) continue;
+          const provider =
+            (getString(rec, "provider") || getString(rec, "platform") || getString(rec, "name") || "").toLowerCase();
+          const accountType = (getString(rec, "account_type") || getString(rec, "type") || "").toLowerCase();
+          if (provider && !provider.includes("mercado")) continue;
+          if (accountType && accountType !== "supplier") continue;
+          const normalized = normalizeFromRecord(rec);
+          if (normalized) return normalized;
+        }
+        return null;
+      }
+
+      const rec = toRecord(value);
+      if (!rec) return null;
+
+      if (Array.isArray(rec.payment_accounts)) {
+        const normalized = normalize(rec.payment_accounts);
+        if (normalized) return normalized;
+      }
+
+      if (Array.isArray(rec.accounts)) {
+        const normalized = normalize(rec.accounts);
+        if (normalized) return normalized;
+      }
+
+      return normalizeFromRecord(rec);
+    };
+
+    return normalize(payload);
+  }, []);
+
+  const loadMercadoPagoAccount = useCallback(async () => {
+    if (!canLoadMercadoPagoStatus) return;
+    setMpStatusLoading(true);
+    try {
+      const candidates = [
+        "/api/mercadopago/account?account_type=supplier",
+        "/api/mercadopago/status?account_type=supplier",
+        "/api/mercadopago/account-status?account_type=supplier",
+      ];
+
+      for (const url of candidates) {
+        const res = await fetchWithAuth(url, { headers: { Accept: "application/json" } });
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          const normalized = normalizeMpAccount(data);
+          if (normalized) {
+            setMpAccount({ connected: normalized.connected, email: normalized.email ?? null });
+            return;
+          }
+        } else if (res.status !== 404) {
+          const text = await res.text().catch(() => "");
+          throw new Error(text || `Error ${res.status}`);
+        }
+      }
+
+      const meRes = await fetchWithAuth("/api/users/me", { headers: { Accept: "application/json" } });
+      if (!meRes.ok) {
+        setMpAccount({ connected: false, email: null });
+        return;
+      }
+
+      const meData = await meRes.json().catch(() => null);
+      const normalized = normalizeMpAccount(meData);
+      setMpAccount(
+        normalized ? { connected: normalized.connected, email: normalized.email ?? null } : { connected: false, email: null }
+      );
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
+          ? String((e as Record<string, unknown>).message)
+          : "No se pudo validar la vinculación de Mercado Pago.";
+      setToast({ type: "error", message: msg });
+    } finally {
+      setMpStatusLoading(false);
+    }
+  }, [canLoadMercadoPagoStatus, normalizeMpAccount]);
+
   useEffect(() => {
-    if (userMode !== 'existing') return;
+    if (!canLoadMercadoPagoStatus) return;
+    loadMercadoPagoAccount();
 
-    const delayDebounceFn = setTimeout(() => {
-      fetchUsers(userSearchTerm);
-    }, 500);
+    const onFocus = () => loadMercadoPagoAccount();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") loadMercadoPagoAccount();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    const interval = window.setInterval(loadMercadoPagoAccount, 15000);
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [userSearchTerm, userMode]);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(interval);
+    };
+  }, [canLoadMercadoPagoStatus, loadMercadoPagoAccount]);
 
-  const fetchUsers = async (term: string = "") => {
+  const handleMercadoPagoConnect = async () => {
+    if (!showMercadoPagoSection) return;
+    setMpConnectLoading(true);
+    try {
+      window.location.href =
+        "https://www.drooopy.com/api/mercadopago/connect?account_type=supplier&redirect=true";
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
+          ? String((e as Record<string, unknown>).message)
+          : "No se pudo iniciar la vinculación con Mercado Pago.";
+      setToast({ type: "error", message: msg });
+      setMpConnectLoading(false);
+    }
+  };
+
+  const handleMercadoPagoDisconnect = async () => {
+    if (!canLoadMercadoPagoStatus) return;
+    setMpDisconnectLoading(true);
+    try {
+      const res = await fetchWithAuth("/api/mercadopago/disconnect?account_type=supplier", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `Error ${res.status}`);
+      }
+      setToast({ type: "success", message: "Cuenta de Mercado Pago desconectada." });
+      await loadMercadoPagoAccount();
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
+          ? String((e as Record<string, unknown>).message)
+          : "No se pudo desconectar la cuenta de Mercado Pago.";
+      setToast({ type: "error", message: msg });
+    } finally {
+      setMpDisconnectLoading(false);
+    }
+  };
+
+  const fetchUsers = useCallback(async (term: string = "") => {
       setIsSearchingUsers(true);
       try {
           // Construct query params
@@ -121,12 +354,31 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
 
           const response = await fetchWithAuth(`/api/users/?${params.toString()}`);
           if (response.ok) {
-              const data = await response.json();
-              let newUsers: any[] = [];
-              if (Array.isArray(data)) {
-                  newUsers = data;
-              } else if (data && Array.isArray(data.items)) {
-                  newUsers = data.items;
+              const data = (await response.json().catch(() => null)) as unknown;
+              const toRecord = (value: unknown) =>
+                value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+              const toUserOption = (value: unknown): UserOption | null => {
+                const rec = toRecord(value);
+                if (!rec) return null;
+                const id = typeof rec.id === "number" ? rec.id : null;
+                if (id == null) return null;
+                const email = typeof rec.email === "string" ? rec.email : "";
+                const full_name = typeof rec.full_name === "string" ? rec.full_name : undefined;
+                const name = typeof rec.name === "string" ? rec.name : undefined;
+                return { id, email, full_name, name };
+              };
+
+              const list = Array.isArray(data)
+                ? data
+                : (() => {
+                    const rec = toRecord(data);
+                    return rec && Array.isArray(rec.items) ? rec.items : [];
+                  })();
+
+              const newUsers: UserOption[] = [];
+              for (const entry of list) {
+                const u = toUserOption(entry);
+                if (u) newUsers.push(u);
               }
               
               setUsers(prev => {
@@ -143,7 +395,18 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
       } finally {
           setIsSearchingUsers(false);
       }
-  };
+  }, [selectedUserId]);
+
+  // Debounced Search
+  useEffect(() => {
+    if (userMode !== 'existing') return;
+
+    const delayDebounceFn = setTimeout(() => {
+      fetchUsers(userSearchTerm);
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [userSearchTerm, userMode, fetchUsers]);
 
   const [formData, setFormData] = useState({
     name: initialData?.name || "",
@@ -163,7 +426,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     interior_number: initialData?.interior_number || "",
     neighborhood: initialData?.neighborhood || "",
     zip_code: initialData?.zip_code || "",
-    cp: (initialData as any)?.cp || initialData?.zip_code || "",
+    cp: initialData?.cp || initialData?.zip_code || "",
     cross_street_1: initialData?.cross_street_1 || "",
     cross_street_2: initialData?.cross_street_2 || "",
     about: initialData?.about || "",
@@ -196,8 +459,8 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
   const [aboutMediaPreviewUrl, setAboutMediaPreviewUrl] = useState<string | null>(
     initialData?.about_media ||
       initialData?.about_media_url ||
-      (initialData as any)?.about_image ||
-      (initialData as any)?.about_image_url ||
+      initialData?.about_image ||
+      initialData?.about_image_url ||
       null
   );
   const [clearLogo, setClearLogo] = useState(false);
@@ -211,8 +474,8 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     setAboutMediaPreviewUrl(
       initialData?.about_media ||
         initialData?.about_media_url ||
-        (initialData as any)?.about_image ||
-        (initialData as any)?.about_image_url ||
+        initialData?.about_image ||
+        initialData?.about_image_url ||
         null
     );
   }, [initialData]);
@@ -254,8 +517,8 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     const hadInitial =
       initialData?.about_media ||
       initialData?.about_media_url ||
-      (initialData as any)?.about_image ||
-      (initialData as any)?.about_image_url;
+      initialData?.about_image ||
+      initialData?.about_image_url;
 
     if (hadInitial) {
       setClearAboutMedia(file === null || file instanceof File);
@@ -321,8 +584,12 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
                   
                   const createdUser = await userResponse.json();
                   finalUserId = createdUser.id;
-              } catch (e: any) {
-                  setError(e.message);
+              } catch (e: unknown) {
+                  const msg =
+                    e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
+                      ? String((e as Record<string, unknown>).message)
+                      : "Error al crear el usuario";
+                  setError(msg);
                   setIsSubmitting(false);
                   return;
               }
@@ -342,7 +609,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
       const buildFormData = () => {
         const data = new FormData();
 
-        const appendIfPresent = (key: string, value: any) => {
+        const appendIfPresent = (key: string, value: unknown) => {
           if (value !== null && value !== undefined && value !== "") {
             data.append(key, String(value).trim());
           }
@@ -492,20 +759,24 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         return;
       }
 
-      let updatedSupplier: any = null;
+      let updatedSupplier: unknown = null;
       try {
         updatedSupplier = await response.json();
       } catch {
         updatedSupplier = null;
       }
 
-      if (updatedSupplier) {
-        const newLogoUrl = updatedSupplier.logo || updatedSupplier.logo_url || null;
+      if (updatedSupplier && typeof updatedSupplier === "object") {
+        const rec = updatedSupplier as Record<string, unknown>;
+        const newLogoUrl =
+          (typeof rec.logo === "string" ? rec.logo : null) ||
+          (typeof rec.logo_url === "string" ? rec.logo_url : null) ||
+          null;
         const newAboutMediaUrl =
-          updatedSupplier.about_media ||
-          updatedSupplier.about_media_url ||
-          (updatedSupplier as any).about_image ||
-          (updatedSupplier as any).about_image_url ||
+          (typeof rec.about_media === "string" ? rec.about_media : null) ||
+          (typeof rec.about_media_url === "string" ? rec.about_media_url : null) ||
+          (typeof rec.about_image === "string" ? rec.about_image : null) ||
+          (typeof rec.about_image_url === "string" ? rec.about_image_url : null) ||
           null;
 
         if (typeof newLogoUrl !== 'undefined') {
@@ -526,9 +797,13 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         router.push("/admin/suppliers");
       }
       router.refresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "Ocurrió un error al guardar");
+      const msg =
+        err && typeof err === "object" && "message" in err && typeof (err as Record<string, unknown>).message === "string"
+          ? String((err as Record<string, unknown>).message)
+          : "Ocurrió un error al guardar";
+      setError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -536,6 +811,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-5xl">
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
           {error}
@@ -752,6 +1028,57 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
               className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
+
+          {showMercadoPagoSection && (
+            <div className="pt-4 mt-2 border-t border-gray-200 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-base font-semibold text-gray-900">Configuración de Cobros</h4>
+                {mpStatusLoading ? (
+                  <div className="inline-flex items-center gap-2 text-xs text-gray-500">
+                    <Loader2 size={14} className="animate-spin" />
+                    Validando…
+                  </div>
+                ) : null}
+              </div>
+
+              {!mpAccount.connected ? (
+                <button
+                  type="button"
+                  onClick={handleMercadoPagoConnect}
+                  disabled={mpConnectLoading || mpStatusLoading}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: "#009EE3" }}
+                >
+                  {mpConnectLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {mpConnectLoading ? "Redirigiendo…" : "Conectar con Mercado Pago"}
+                </button>
+              ) : (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <CheckCircle size={18} className="text-[#168E00] mt-0.5" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-[#168E00]">Cuenta Vinculada</div>
+                      {mpAccount.email ? (
+                        <div className="text-xs text-gray-600 truncate">{mpAccount.email}</div>
+                      ) : (
+                        <div className="text-xs text-gray-500">Mercado Pago vinculado correctamente.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleMercadoPagoDisconnect}
+                    disabled={mpDisconnectLoading || mpStatusLoading}
+                    className="shrink-0 inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 text-gray-700 hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {mpDisconnectLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                    Desconectar
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           
            <div>
             <label className="flex items-center space-x-2 cursor-pointer mt-4">

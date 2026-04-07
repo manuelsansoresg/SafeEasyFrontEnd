@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { Toast } from "@/components/ui/Toast";
 
 interface Supplier {
   id: number;
@@ -50,6 +51,13 @@ export default function AdminSuppliersPage() {
 
   // Modal & Form
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
 
   useEffect(() => {
     fetchSuppliers();
@@ -69,9 +77,9 @@ export default function AdminSuppliersPage() {
           const prevById = new Map(prev.map((s) => [Number(s.id), s]));
           return next.map((s) => {
             const prevRow = prevById.get(Number(s.id));
-            const hasIncomingVerified = typeof (s as any).is_verified === "boolean";
-            const preserved = hasIncomingVerified ? (s as any).is_verified : prevRow?.is_verified;
-            return typeof preserved === "boolean" ? { ...(s as any), is_verified: preserved } : s;
+            const hasIncomingVerified = typeof s.is_verified === "boolean";
+            const preserved = hasIncomingVerified ? s.is_verified : prevRow?.is_verified;
+            return typeof preserved === "boolean" ? { ...s, is_verified: preserved } : s;
           });
         });
       } else {
@@ -126,14 +134,20 @@ export default function AdminSuppliersPage() {
     setVerifyingId(supplier.id);
     try {
       const updated = await updateSupplierVerified(supplier.id, next);
+      const updatedRec =
+        updated && typeof updated === "object" ? (updated as Record<string, unknown>) : null;
       const nextValue =
-        updated && typeof updated === "object" && typeof (updated as any).is_verified === "boolean"
-          ? Boolean((updated as any).is_verified)
+        typeof updatedRec?.is_verified === "boolean"
+          ? updatedRec.is_verified
           : next;
       setSuppliers((prev) => prev.map((s) => (s.id === supplier.id ? { ...s, is_verified: nextValue } : s)));
       fetchSuppliers();
-    } catch (e: any) {
-      alert(e?.message || "No se pudo actualizar la verificación del proveedor.");
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
+          ? String((e as Record<string, unknown>).message)
+          : "No se pudo actualizar la verificación del proveedor.";
+      setToast({ type: "error", message: msg });
     } finally {
       setVerifyingId(null);
     }
@@ -175,8 +189,8 @@ export default function AdminSuppliersPage() {
       if (!Number.isFinite(numericId)) {
         const s =
           suppliers.find((x) => String(x.id) === String(id)) ||
-          suppliers.find((x: any) => x.slug && String(x.slug) === String(id));
-        targetSlug = (s as any)?.slug;
+          suppliers.find((x) => x.slug && String(x.slug) === String(id));
+        targetSlug = s?.slug;
 
         if (targetSlug) {
           const resolve = await fetchWithAuth(`/api/suppliers/${encodeURIComponent(targetSlug)}`);
@@ -238,7 +252,7 @@ export default function AdminSuppliersPage() {
     if (result.success) {
       fetchSuppliers();
     } else if (result.message) {
-      alert(result.message);
+      setToast({ type: "error", message: result.message });
     }
   };
 
@@ -258,7 +272,7 @@ export default function AdminSuppliersPage() {
       .filter((id) => Number.isFinite(id));
 
     if (numericIds.length === 0) {
-      alert("No hay IDs válidos para borrar.");
+      setToast({ type: "info", message: "No hay IDs válidos para borrar." });
       return;
     }
 
@@ -300,16 +314,17 @@ export default function AdminSuppliersPage() {
             if (text) message = text;
           } catch {}
         }
-        alert(message);
+        setToast({ type: "error", message });
       }
     } catch (e) {
       console.error("Error en borrado masivo:", e);
-      alert("Error de red al intentar borrar proveedores.");
+      setToast({ type: "error", message: "Error de red al intentar borrar proveedores." });
     }
   };
 
   return (
     <div className="space-y-6">
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Gestión de Proveedores</h1>

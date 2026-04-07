@@ -15,6 +15,7 @@ import {
   Image as ImageIcon
 } from "lucide-react";
 import Link from "next/link";
+import { Toast } from "@/components/ui/Toast";
 
 interface Subcategory {
   id: number;
@@ -42,23 +43,17 @@ export default function AdminSubcategoriesPage() {
   // Pagination
   const [skip, setSkip] = useState(0);
   const [limit] = useState(100);
-  
-  // -- Effects --
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
 
   useEffect(() => {
-    const init = async () => {
-        setLoading(true);
-        await Promise.all([fetchSubcategories(), fetchCategories()]);
-        setLoading(false);
-    };
-    if (token) {
-        init();
-    }
-  }, [skip, limit, token]);
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
 
   // -- API Calls --
 
-  const fetchSubcategories = async () => {
+  async function fetchSubcategories() {
     try {
       const response = await fetchWithAuth(`/api/subcategories/?skip=${skip}&limit=${limit}`);
       if (response.ok) {
@@ -68,9 +63,9 @@ export default function AdminSubcategoriesPage() {
     } catch (error) {
       console.error("Error fetching subcategories:", error);
     }
-  };
+  }
 
-  const fetchCategories = async () => {
+  async function fetchCategories() {
     try {
         // Fetch all categories to map IDs to names
         const response = await fetchWithAuth(`/api/categories/?skip=0&limit=1000`);
@@ -87,7 +82,20 @@ export default function AdminSubcategoriesPage() {
     } catch (error) {
         console.error("Error fetching categories:", error);
     }
-  };
+  }
+
+  // -- Effects --
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([fetchSubcategories(), fetchCategories()]);
+      setLoading(false);
+    };
+    if (token) {
+      init();
+    }
+  }, [skip, limit, token]);
 
   const deleteSubcategory = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar esta subcategoría?")) return;
@@ -99,7 +107,7 @@ export default function AdminSubcategoriesPage() {
       if (response.ok) {
         fetchSubcategories();
       } else {
-        alert("Error al eliminar subcategoría");
+        setToast({ type: "error", message: "Error al eliminar subcategoría." });
       }
     } catch (error) {
       console.error("Error deleting subcategory:", error);
@@ -114,6 +122,7 @@ export default function AdminSubcategoriesPage() {
 
   return (
     <div className="space-y-6">
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Subcategorías</h1>

@@ -115,7 +115,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
         width: isCollapsed ? "80px" : "260px",
       }}
       className={cn(
-        "relative flex flex-col h-screen bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-40 sticky top-0",
+        "hidden md:flex relative flex-col h-screen bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-40 sticky top-0",
         // Mobile behavior can be handled via parent or media queries, 
         // but typically sidebar is fixed or overlay on mobile.
         // For this requirement: "version movil que se vean por default solo iconos"

@@ -8,7 +8,8 @@ import {
   MessageSquare,
   LogOut,
   LayoutDashboard,
-  Heart
+  Heart,
+  ShoppingCart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -32,6 +33,11 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
       icon: User,
     },
     {
+      title: "Mi Carrito",
+      path: "/cart",
+      icon: ShoppingCart,
+    },
+    {
       title: "Favoritos",
       path: "/client/favorites",
       icon: Heart,
@@ -46,7 +52,7 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
         width: isCollapsed ? "80px" : "260px",
       }}
       className={cn(
-        "relative flex flex-col h-screen bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-40 sticky top-0",
+        "hidden md:flex relative flex-col h-screen bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-40 sticky top-0",
       )}
     >
       {/* Header / Logo */}

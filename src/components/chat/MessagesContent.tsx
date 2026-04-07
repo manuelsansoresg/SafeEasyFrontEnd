@@ -9,7 +9,7 @@ import { useChatInboxWebSocket, useChatWebSocket } from "@/hooks/useChatWebSocke
 import { fetchWithAuth } from "@/lib/api";
 import { 
   Send, Search, MessageSquare, Info, Package, CheckCheck, 
-  FileText, Download, Image as ImageIcon, CreditCard, Loader2, Paperclip, X,
+  FileText, Download, Image as ImageIcon, Loader2, Paperclip, X,
   MoreHorizontal, Phone, Video, Smile, PlusCircle, ShoppingBag, ChevronRight, Clock
 } from "lucide-react";
 import Image from "next/image";
@@ -63,12 +63,9 @@ export function MessagesContent() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showRightSidebar, setShowRightSidebar] = useState(true);
   
-  // Product & Payment State
+  // Product State
   const [productData, setProductData] = useState<ProductDetail | null>(null);
   const [recentProducts, setRecentProducts] = useState<ProductDetail[]>([]); // For history
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
-  const [createdOrderId, setCreatedOrderId] = useState<string | number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -341,82 +338,6 @@ export function MessagesContent() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
-    }
-  };
-
-  const handlePaymentClick = async () => {
-    // 1. Validate dependencies
-    if (!user?.role) {
-       console.error("User role not found");
-       return;
-    }
-
-    if (!productData?.supplier?.transfer_accepted) {
-        setError("El proveedor aún no ha configurado sus datos de pago o transferencia.");
-        return;
-    }
-
-    // Use activeConversation info or productData as fallback
-    const targetSupplierId = activeConversation?.supplier_id || productData?.supplier?.id;
-    const targetProductId = activeConversation?.product_id || productData?.id;
-
-    if (!targetSupplierId) {
-        console.error("Missing supplier info");
-        setError("Error: Información del proveedor incompleta.");
-        return;
-    }
-
-    // 2. Ensure conversation exists
-    let targetConversationId = activeConversation?.id;
-
-    if (!targetConversationId) {
-        console.log("No active conversation found. Attempting to create one...");
-        try {
-            const newConv = await chatService.createConversation({
-                supplier_id: Number(targetSupplierId),
-                product_id: targetProductId ? String(targetProductId) : undefined
-            });
-            targetConversationId = newConv.id;
-            setActiveConversation(newConv);
-        } catch (err) {
-             console.error("Failed to create conversation for order:", err);
-             setError("Error: No se pudo iniciar la conversación para el pedido.");
-             return;
-        }
-    }
-    
-    setIsCreatingOrder(true);
-    setError(null);
-    try {
-        const payload = {
-            supplier_id: Number(targetSupplierId),
-            product_id: targetProductId ? String(targetProductId) : undefined, 
-            conversation_id: String(targetConversationId),
-            status: "pending"
-        };
-        
-        console.log("Creating order with payload:", payload);
-
-        const res = await fetchWithAuth('/api/orders/', {
-             method: 'POST',
-             body: JSON.stringify(payload)
-        });
-        
-        const data = await res.json();
-        console.log("Order creation response:", data);
-
-        if (res.ok) {
-            setCreatedOrderId(data.id || data.order_id || null);
-            setIsPaymentModalOpen(true);
-        } else {
-            console.error("Failed to create order:", data);
-            setError(data.message || data.error || "No se pudo iniciar el proceso de pago. Intenta de nuevo.");
-        }
-    } catch (error) {
-        console.error("Error creating order", error);
-        setError("Error al procesar la solicitud de pago. Verifica tu conexión.");
-    } finally {
-        setIsCreatingOrder(false);
     }
   };
 
@@ -1048,76 +969,6 @@ export function MessagesContent() {
                  )}
             </div>
 
-            {/* 4. Actions */}
-            <div className="mt-auto p-4 border-t border-gray-100">
-                 {user?.role === 'client' && (
-                     <button 
-                        onClick={handlePaymentClick}
-                        disabled={!productData?.supplier?.transfer_accepted}
-                        className={`w-full py-2.5 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 mb-2 ${
-                             !productData?.supplier?.transfer_accepted
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-primary text-white hover:bg-blue-700'
-                        }`}
-                     >
-                         <CreditCard size={16} />
-                         Iniciar Pago
-                     </button>
-                 )}
-            </div>
-        </div>
-      )}
-
-      {/* Payment Modal */}
-      {isPaymentModalOpen && productData?.supplier && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="bg-gray-50 p-4 border-b flex items-center justify-between">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                        <CreditCard className="text-green-600" size={20} />
-                        Datos de Transferencia
-                    </h3>
-                    <button onClick={() => setIsPaymentModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                        <X size={20} />
-                    </button>
-                </div>
-                
-                <div className="p-6 space-y-6">
-                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                        <p className="text-sm text-blue-800 mb-2 font-medium">Instrucciones:</p>
-                        <p className="text-xs text-blue-600 leading-relaxed">
-                            Realiza la transferencia a la siguiente cuenta y envía el comprobante por este chat.
-                            Tu orden ha sido creada con ID: <span className="font-bold">{createdOrderId}</span>.
-                        </p>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Banco</label>
-                            <p className="text-lg font-medium text-gray-900">{productData.supplier.transfer_bank || "No especificado"}</p>
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Beneficiario</label>
-                            <p className="text-lg font-medium text-gray-900">{productData.supplier.transfer_name || productData.supplier.name || "No especificado"}</p>
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">CLABE / Cuenta</label>
-                            <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-lg border border-gray-200 mt-1">
-                                <code className="text-lg font-mono text-primary font-bold flex-1">
-                                    {productData.supplier.transfer_clabe || "No especificada"}
-                                </code>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button 
-                        onClick={() => setIsPaymentModalOpen(false)}
-                        className="w-full py-3 bg-gray-900 text-white rounded-xl font-medium hover:bg-black transition-all shadow-lg"
-                    >
-                        Entendido
-                    </button>
-                </div>
-            </div>
         </div>
       )}
     </div>
