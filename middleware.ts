@@ -6,6 +6,14 @@ export function middleware(request: NextRequest) {
   if (pathname === '/api/mercadopago/callback' || pathname.startsWith('/api/mercadopago/callback/')) {
     return NextResponse.next();
   }
+  const host = request.nextUrl.hostname;
+  const isProd = process.env.NODE_ENV === "production";
+  if (isProd && host === "www.drooopy.com") {
+    const url = request.nextUrl.clone();
+    url.hostname = "drooopy.com";
+    url.protocol = "https:";
+    return NextResponse.redirect(url);
+  }
   const response = NextResponse.next();
   
   // 1. Intentar obtener la ciudad de los headers de Cloudflare

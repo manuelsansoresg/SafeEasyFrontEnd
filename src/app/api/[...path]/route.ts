@@ -28,6 +28,7 @@ const rewriteSetCookieHeader = (cookie: string, requestHost: string) => {
 
   const enforced: string[] = [...kept, "Path=/", "SameSite=Lax", "Secure"];
   if (desiredDomain) enforced.push(`Domain=${desiredDomain}`);
+  enforced.push("HttpOnly");
 
   return [nameValue, ...enforced].join("; ");
 };
@@ -242,6 +243,18 @@ async function handler(request: NextRequest) {
                if (pathname.startsWith("/api/mercadopago/")) {
                  applyRewrittenSetCookies(headers, response, request.nextUrl.hostname);
                }
+               return NextResponse.redirect(newUrlString, { status: response.status, headers });
+             }
+
+             if (pathname.startsWith("/api/mercadopago/")) {
+               const headers = new Headers();
+               response.headers.forEach((v, k) => {
+                 const lowerKey = k.toLowerCase();
+                 if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(lowerKey)) {
+                   headers.set(k, v);
+                 }
+               });
+               applyRewrittenSetCookies(headers, response, request.nextUrl.hostname);
                return NextResponse.redirect(newUrlString, { status: response.status, headers });
              }
              
