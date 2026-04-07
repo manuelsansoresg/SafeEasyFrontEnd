@@ -302,11 +302,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     setMpConnectLoading(true);
     try {
       const connectUrl = "/api/mercadopago/connect?account_type=supplier&redirect=true";
-      const res = await fetchWithAuth(connectUrl, {
-        headers: { Accept: "application/json" },
-        redirect: "manual",
-      });
-
+      const res = await fetchWithAuth(connectUrl, { headers: { Accept: "application/json" } });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(text || `Error ${res.status}`);
@@ -324,7 +320,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         throw new Error("No se recibió la URL de autorización de Mercado Pago.");
       }
 
-      window.open(redirectUrl, "_self");
+      window.location.href = redirectUrl;
     } catch (e: unknown) {
       const msg =
         e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
