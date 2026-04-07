@@ -301,35 +301,9 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     if (!showMercadoPagoSection) return;
     setMpConnectLoading(true);
     try {
-      const connectUrl = "/api/mercadopago/connect?account_type=supplier&redirect=true";
-      const res = await fetchWithAuth(connectUrl, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        redirect: "manual",
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        console.error("[MercadoPago Connect] HTTP error", { status: res.status, body: text });
-        throw new Error(text || `Error ${res.status}`);
-      }
-
-      const data = (await res.json().catch(() => null)) as unknown;
-      const rec = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
-      const redirectUrl =
-        (rec && typeof rec.redirect_url === "string" && rec.redirect_url) ||
-        (rec && typeof rec.url === "string" && rec.url) ||
-        (rec && typeof rec.auth_url === "string" && rec.auth_url) ||
-        null;
-
-      if (!redirectUrl) {
-        console.error("[MercadoPago Connect] Missing redirect URL", data);
-        throw new Error("No se recibió la URL de autorización de Mercado Pago.");
-      }
-
-      window.location.href = redirectUrl;
+      window.location.href = "/api/mercadopago/connect?account_type=supplier&redirect=true";
     } catch (e: unknown) {
-      console.error("[MercadoPago Connect] Failed", e);
+      console.error("[MercadoPago Connect] Redirect failed", e);
       const msg =
         e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
           ? String((e as Record<string, unknown>).message)

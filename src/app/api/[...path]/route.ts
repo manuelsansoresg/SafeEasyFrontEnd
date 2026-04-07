@@ -7,9 +7,23 @@ const getSetCookieHeaders = (response: Response) => {
   return raw ? [raw] : [];
 };
 
-const rewriteSetCookieHeader = (cookie: string, requestHost: string) => {
+const shouldRewriteCookie = (cookie: string) => {
+  const name = cookie.split("=", 1)[0]?.trim().toLowerCase() || "";
+  if (!name) return false;
+  return (
+    name.includes("session") ||
+    name.includes("auth") ||
+    name.includes("token") ||
+    name.includes("access") ||
+    name.includes("refresh") ||
+    name.includes("jwt")
+  );
+};
+
+const rewriteSetCookieHeader = (cookie: string, requestHost: string, mode: "all" | "auth") => {
   const isProd = process.env.NODE_ENV === "production";
   if (!isProd) return cookie;
+  if (mode === "auth" && !shouldRewriteCookie(cookie)) return cookie;
 
   const sessionDomain = String(process.env.SESSION_DOMAIN || "").trim();
   const desiredDomain = sessionDomain || (requestHost.endsWith("drooopy.com") ? ".drooopy.com" : "");
@@ -18,6 +32,8 @@ const rewriteSetCookieHeader = (cookie: string, requestHost: string) => {
   if (parts.length === 0) return cookie;
 
   const [nameValue, ...attrs] = parts;
+  const cookieName = nameValue.split("=", 1)[0]?.trim() || "";
+  const isHostCookie = cookieName.toLowerCase().startsWith("__host-");
   const kept: string[] = [];
   for (const attr of attrs) {
     const [kRaw] = attr.split("=", 1);
@@ -27,19 +43,29 @@ const rewriteSetCookieHeader = (cookie: string, requestHost: string) => {
   }
 
   const enforced: string[] = [...kept, "Path=/", "SameSite=Lax", "Secure"];
-  if (desiredDomain) enforced.push(`Domain=${desiredDomain}`);
+  if (!isHostCookie && desiredDomain) enforced.push(`Domain=${desiredDomain}`);
   enforced.push("HttpOnly");
 
   return [nameValue, ...enforced].join("; ");
 };
 
-const applyRewrittenSetCookies = (headers: Headers, upstream: Response, requestHost: string) => {
+const applyRewrittenSetCookies = (
+  headers: Headers,
+  upstream: Response,
+  requestHost: string,
+  mode: "all" | "auth"
+) => {
   const setCookies = getSetCookieHeaders(upstream);
   if (setCookies.length === 0) return;
+  const kept: string[] = [];
+  const existing = headers.get("set-cookie");
+  if (existing) kept.push(existing);
   headers.delete("set-cookie");
   for (const c of setCookies) {
-    headers.append("set-cookie", rewriteSetCookieHeader(c, requestHost));
+    const rewritten = rewriteSetCookieHeader(c, requestHost, mode);
+    if (rewritten) headers.append("set-cookie", rewritten);
   }
+  for (const k of kept) headers.append("set-cookie", k);
 };
 
 const sanitizeBaseUrl = (value: string | undefined) => {
@@ -240,9 +266,12 @@ async function handler(request: NextRequest) {
                    headers.set(k, v);
                  }
                });
-               if (pathname.startsWith("/api/mercadopago/")) {
-                 applyRewrittenSetCookies(headers, response, request.nextUrl.hostname);
-               }
+              applyRewrittenSetCookies(
+                headers,
+                response,
+                request.nextUrl.hostname,
+                pathname.startsWith("/api/mercadopago/") ? "all" : "auth"
+              );
                return NextResponse.redirect(newUrlString, { status: response.status, headers });
              }
 
@@ -254,7 +283,7 @@ async function handler(request: NextRequest) {
                    headers.set(k, v);
                  }
                });
-               applyRewrittenSetCookies(headers, response, request.nextUrl.hostname);
+              applyRewrittenSetCookies(headers, response, request.nextUrl.hostname, "all");
                return NextResponse.redirect(newUrlString, { status: response.status, headers });
              }
              
@@ -284,9 +313,12 @@ async function handler(request: NextRequest) {
             headers.set(k, v);
         }
       });
-      if (pathname.startsWith("/api/mercadopago/")) {
-        applyRewrittenSetCookies(headers, response, request.nextUrl.hostname);
-      }
+      applyRewrittenSetCookies(
+        headers,
+        response,
+        request.nextUrl.hostname,
+        pathname.startsWith("/api/mercadopago/") ? "all" : "auth"
+      );
       return new NextResponse(response.body, {
         status: response.status,
         headers
@@ -314,9 +346,12 @@ async function handler(request: NextRequest) {
             headers.set(k, v);
         }
     });
-    if (pathname.startsWith("/api/mercadopago/")) {
-      applyRewrittenSetCookies(headers, response, request.nextUrl.hostname);
-    }
+    applyRewrittenSetCookies(
+      headers,
+      response,
+      request.nextUrl.hostname,
+      pathname.startsWith("/api/mercadopago/") ? "all" : "auth"
+    );
     
     // Ensure Content-Type is set if missing (e.g. for empty 204)
     // But if it's JSON, ensure it says so.
