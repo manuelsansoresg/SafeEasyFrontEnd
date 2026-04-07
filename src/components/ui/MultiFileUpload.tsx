@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Upload, X, FileText, Image as ImageIcon } from 'lucide-react';
+import { Toast } from "@/components/ui/Toast";
 
 interface MultiFileUploadProps {
   label?: string;
@@ -24,6 +25,13 @@ export default function MultiFileUpload({
 }: MultiFileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -57,7 +65,7 @@ export default function MultiFileUpload({
   const addFiles = (newFiles: File[]) => {
     const totalFiles = value.length + newFiles.length;
     if (totalFiles > maxFiles) {
-      alert(`Solo puedes subir un máximo de ${maxFiles} archivos.`);
+      setToast({ type: "info", message: `Solo puedes subir un máximo de ${maxFiles} archivos.` });
       const allowed = newFiles.slice(0, maxFiles - value.length);
       if (allowed.length > 0) {
         onChange([...value, ...allowed]);
@@ -131,6 +139,7 @@ export default function MultiFileUpload({
               ))}
           </div>
       )}
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
     </div>
   );
 }

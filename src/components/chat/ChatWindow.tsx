@@ -7,10 +7,9 @@ import { chatService } from "@/services/chatService";
 import { orderService } from "@/services/orderService";
 import { useChatInboxWebSocket, useChatWebSocket } from "@/hooks/useChatWebSocket";
 import { Conversation, Message } from "@/types/chat";
-import { Send, Image as ImageIcon, X, MoreVertical, Phone, Paperclip, Loader2, CreditCard, Smile, PlusCircle, Star, Package, Ticket } from "lucide-react";
+import { Send, Image as ImageIcon, X, MoreVertical, Phone, Paperclip, Loader2, Smile, PlusCircle, Star, Package, Ticket } from "lucide-react";
 import Image from "next/image";
 import StarRating from "../StarRating";
-import ExistingOrderModal from "../modals/ExistingOrderModal";
 
 import { fetchWithAuth } from "@/lib/api";
 
@@ -53,12 +52,8 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   const [error, setError] = useState<string | null>(null);
   const [showProductCard, setShowProductCard] = useState(true);
   
-  // Payment Modal State
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
-  const [createdOrderId, setCreatedOrderId] = useState<string | number | null>(null);
+  // Order/checkout is handled from the cart flow (not from chat)
   const [isCreatingOrderAsSupplier, setIsCreatingOrderAsSupplier] = useState(false);
-  const [showOrderConflict, setShowOrderConflict] = useState(false);
   const getSupplierOrdersStorageKey = (uid?: number | string) =>
     `safeeasy:supplier_orders_by_product_v1:${uid ?? "anon"}`;
 
@@ -210,15 +205,12 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   useEffect(() => {
     if (!isOpen) return;
     if (user) return;
-    setIsPaymentModalOpen(false);
     setError(null);
     setMessages([]);
     setConversations([]);
     setActiveConversation(null);
     setInputValue("");
     setSelectedFile(null);
-    setCreatedOrderId(null);
-    setIsCreatingOrder(false);
     setIsCreatingOrderAsSupplier(false);
     setSupplierOrderByProductId({});
     onClose?.();
@@ -333,14 +325,6 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         setError(null);
     }
   }, [status]);
-
-  const [localTransferData, setLocalTransferData] = useState(supplierTransferData);
-
-  useEffect(() => {
-    setLocalTransferData(supplierTransferData);
-  }, [supplierTransferData]);
-
-  const [canPay, setCanPay] = useState(!!supplierTransferData?.transfer_accepted);
   const [productPrice, setProductPrice] = useState(productData.price);
   const [productSlug, setProductSlug] = useState<string | undefined>(productData.slug);
 
@@ -348,280 +332,6 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     setProductPrice(productData.price);
     setProductSlug(productData.slug);
   }, [productData.price, productData.slug]);
-
-  // Fetch extra supplier details if needed (for payment button)
-  const fetchSupplierDetails = async () => {
-    // Only fetch if we are missing key transfer details
-    const hasDetails = localTransferData?.transfer_clabe || localTransferData?.transfer_bank;
-    if (localTransferData?.transfer_accepted && hasDetails) return;
-    
-    // 1. Try fetching by SLUG first if available (Most reliable for transfer data)
-    if (supplierSlug) {
-        try {
-            // console.log(`[ChatWindow] Fetching supplier details using slug: ${supplierSlug}`);
-            // Ensure trailing slash for backend compatibility
-            const slugRes = await fetchWithAuth(`/api/suppliers/${supplierSlug}/`);
-            if (slugRes.ok) {
-                const slugData = await slugRes.json();
-                // console.log("[ChatWindow] Resolved supplier from slug:", slugData);
-                
-                if (slugData.transfer_accepted) {
-                    setLocalTransferData({
-                        transfer_accepted: true,
-                        transfer_bank: slugData.transfer_bank,
-                        transfer_clabe: slugData.transfer_clabe,
-                        transfer_name: slugData.transfer_name
-                    });
-                    setCanPay(true);
-                    return; 
-                }
-            } else {
-                 // console.warn(`[ChatWindow] Failed to fetch supplier by slug (${slugRes.status}). trying without slash...`);
-                 // Retry without slash just in case
-                 const retryRes = await fetchWithAuth(`/api/suppliers/${supplierSlug}`);
-                 if (retryRes.ok) {
-                    const slugData = await retryRes.json();
-                    if (slugData.transfer_accepted) {
-                        setLocalTransferData({
-                            transfer_accepted: true,
-                            transfer_bank: slugData.transfer_bank,
-                            transfer_clabe: slugData.transfer_clabe,
-                            transfer_name: slugData.transfer_name
-                        });
-                        setCanPay(true);
-                        return;
-                    }
-                 }
-            }
-        } catch (slugErr) {
-             console.error("[ChatWindow] Error fetching supplier by slug:", slugErr);
-        }
-    }
-
-    // 2. Fallback: Fetch by User ID if slug failed or wasn't provided
-    if (!supplierId) return;
-    
-    try {
-        // console.log("[ChatWindow] Fetching extra supplier details by User ID:", supplierId);
-        const suppRes = await fetchWithAuth(`/api/users/${supplierId}`);
-        if (suppRes.ok) {
-            const suppData = await suppRes.json();
-            
-            let transferData = {
-                transfer_accepted: suppData.transfer_accepted,
-                transfer_bank: suppData.transfer_bank,
-                transfer_clabe: suppData.transfer_clabe,
-                transfer_name: suppData.transfer_name
-            };
-
-            // If we have a slug but missing transfer details, try fetching the specific supplier endpoint
-            // This matches the user's suggestion to use /suppliers/{slug}
-            if (suppData.slug && (!transferData.transfer_bank || !transferData.transfer_clabe)) {
-                // console.log(`[ChatWindow] Fetching detailed supplier info from /api/suppliers/${suppData.slug}`);
-                try {
-                    const slugRes = await fetchWithAuth(`/api/suppliers/${suppData.slug}`);
-                    if (slugRes.ok) {
-                        const slugData = await slugRes.json();
-                        // Merge transfer details
-                        transferData = {
-                            ...transferData,
-                            transfer_accepted: slugData.transfer_accepted ?? transferData.transfer_accepted,
-                            transfer_bank: slugData.transfer_bank ?? transferData.transfer_bank,
-                            transfer_clabe: slugData.transfer_clabe ?? transferData.transfer_clabe,
-                            transfer_name: slugData.transfer_name ?? transferData.transfer_name
-                        };
-                        // console.log("[ChatWindow] Updated transfer data from slug endpoint:", transferData);
-                    }
-                } catch (err) {
-                    console.warn("Failed to fetch from supplier slug endpoint", err);
-                }
-            }
-            
-            if (transferData.transfer_accepted) {
-                setCanPay(true);
-                // Update local transfer data with fetched details
-                setLocalTransferData(transferData);
-            }
-        }
-    } catch (e) {
-        console.warn("Could not fetch extra supplier details", e);
-    }
-  };
-
-  useEffect(() => {
-    // Check if we need to fetch details: if we are client, and (canPay is false OR missing details)
-    const hasDetails = localTransferData?.transfer_clabe || localTransferData?.transfer_bank;
-    if (user?.role === 'client' && (!canPay || !hasDetails)) {
-        fetchSupplierDetails();
-    }
-  }, [supplierId, user, canPay, localTransferData]);
-
-
-  const handlePaymentClick = async () => {
-    if (!user?.role) {
-       console.error("User role not found");
-       return;
-    }
-
-    let targetSlug = supplierSlug;
-
-    if (!targetSlug && supplierId) {
-        try {
-            const suppRes = await fetchWithAuth(`/api/users/${supplierId}`);
-            if (suppRes.ok) {
-                const suppData = await suppRes.json();
-                targetSlug = suppData.slug;
-            }
-        } catch (e) {
-            console.error("Failed to fetch supplier slug", e);
-        }
-    }
-
-    if (!targetSlug) {
-        setError("No se pudo identificar al proveedor para el pago.");
-        return;
-    }
-
-    const targetSupplierId = supplierId;
-    const targetProductId = productId;
-
-    if (!targetSupplierId || !targetProductId) {
-        console.error("Missing supplier or product info for order creation");
-        setError("Error: Información del proveedor o producto incompleta.");
-        return;
-    }
-
-    setIsCreatingOrder(true);
-    setError(null);
-
-    try {
-        let targetConversationId = activeConversation?.id;
-
-        if (!targetConversationId) {
-            try {
-                const newConv = await chatService.createConversation({
-                    supplier_id: Number(targetSupplierId),
-                    product_id: String(targetProductId)
-                });
-                targetConversationId = newConv.id;
-                setActiveConversation(newConv);
-            } catch (err) {
-                console.error("Failed to create conversation for order:", err);
-                setError("Error: No se pudo iniciar la conversación para el pedido.");
-                setIsCreatingOrder(false);
-                return;
-            }
-        }
-
-        const payload = {
-            supplier_id: Number(targetSupplierId),
-            product_id: String(targetProductId),
-            conversation_id: String(targetConversationId),
-            status: "pending"
-        };
-
-        console.log("Creating order from ChatWindow with payload:", payload);
-
-        const res = await fetchWithAuth('/api/orders/', {
-             method: 'POST',
-             body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        console.log("Order creation response (ChatWindow):", data);
-
-        if (!res.ok) {
-            console.error("Failed to create order from ChatWindow:", data);
-            setError(data.message || data.error || "No se pudo iniciar el proceso de pago. Intenta de nuevo.");
-            setIsCreatingOrder(false);
-            return;
-        }
-
-        setCreatedOrderId(data.id || data.order_id || null);
-
-        const amount = productPrice || 0;
-        router.push(`/payment-info?slug=${targetSlug}&amount=${amount}&order_id=${data.id || data.order_id || ''}`);
-    } catch (error) {
-        console.error("Error creating order from ChatWindow", error);
-        setError("Error al procesar la solicitud de pago. Verifica tu conexión.");
-    } finally {
-        setIsCreatingOrder(false);
-    }
-  };
-
-  const handleRequestOrder = async () => {
-    if (isVendorMode) return;
-    if (user?.role !== "client") return;
-    if (loading || isCreatingOrder) return;
-
-    if (!supplierId || !productId) {
-      setError("Error: Información del proveedor o producto incompleta.");
-      return;
-    }
-
-    setIsCreatingOrder(true);
-    setError(null);
-
-    try {
-      let targetConversationId = activeConversation?.id;
-
-      if (!targetConversationId) {
-        const newConv = await chatService.createConversation({
-          supplier_id: Number(supplierId),
-          product_id: String(productId),
-        });
-        targetConversationId = newConv.id;
-        setActiveConversation(newConv);
-        setConversations((prev) => [newConv, ...prev]);
-      }
-
-      const orderPayload = {
-        supplier_id: Number(supplierId),
-        product_id: String(productId),
-        conversation_id: String(targetConversationId),
-        status: "pending",
-      };
-
-      const res = await fetchWithAuth("/api/orders/", {
-        method: "POST",
-        body: JSON.stringify(orderPayload),
-      });
-
-      if (res.status === 409) {
-        setShowOrderConflict(true);
-        return;
-      }
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(
-          (data as any)?.detail ||
-            (data as any)?.message ||
-            (data as any)?.error ||
-            "No se pudo crear la orden."
-        );
-        return;
-      }
-
-      const newOrderId = (data as any)?.id || (data as any)?.order_id || null;
-      setCreatedOrderId(newOrderId);
-
-      if (targetConversationId) {
-        await chatService.sendMessage(
-          targetConversationId,
-          newOrderId ? `Orden generada #${newOrderId}` : "Orden generada",
-          "text",
-          undefined,
-          String(productId)
-        );
-        await loadMessages(targetConversationId);
-      }
-    } catch (err) {
-      setError("Error al solicitar la orden. Verifica tu conexión.");
-    } finally {
-      setIsCreatingOrder(false);
-    }
-  };
 
   const handleCreateOrderAsSupplier = async (msg: Message) => {
     if (!msg?.product || !activeConversation) return;
@@ -1451,27 +1161,6 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                     <div className="text-sm font-bold text-primary">
                       ${Number(productPrice || 0).toLocaleString()}
                     </div>
-                    {user?.role === "client" && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRequestOrder();
-                        }}
-                        disabled={loading || isCreatingOrder}
-                        className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
-                          isCreatingOrder
-                            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                            : "bg-[#168e00] hover:bg-[#137500] text-white"
-                        }`}
-                      >
-                        {isCreatingOrder ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <CreditCard size={14} />
-                        )}
-                        <span>Solicitar orden</span>
-                      </button>
-                    )}
                   </div>
                 )}
           </div>
@@ -1772,21 +1461,6 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
                         {/* Right: Actions */}
                         <div className="flex items-center gap-2">
 
-                             {/* Payment Button (Cliente con datos de transferencia completos) */}
-                             {user?.role === 'client' && canPay && localTransferData?.transfer_accepted && (localTransferData.transfer_clabe || localTransferData.transfer_bank) && (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); handlePaymentClick(); }}
-                                    className={`px-3 py-1.5 rounded-full font-medium text-xs transition-colors flex items-center gap-1 shadow-sm ${
-                                        isCreatingOrder 
-                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
-                                            : 'bg-[#0084FF] hover:bg-[#0078E7] text-white'
-                                    }`}
-                                >
-                                    {isCreatingOrder ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
-                                    <span>Pagar</span>
-                                </button>
-                             )}
-
                             {/* Send Button */}
                             {inputValue.trim() || selectedFile ? (
                                 <button 
@@ -1809,85 +1483,6 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
         </div>
 
       </div>
-      <ExistingOrderModal
-        open={showOrderConflict}
-        onClose={() => setShowOrderConflict(false)}
-        onGo={() => {
-          setShowOrderConflict(false);
-          router.push("/client/orders");
-        }}
-      />
-      
-      {/* Payment Modal */}
-      {isPaymentModalOpen && localTransferData && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="bg-gray-50 p-4 border-b flex items-center justify-between">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                        <CreditCard className="text-green-600" size={20} />
-                        Datos de Transferencia
-                    </h3>
-                    <button onClick={() => setIsPaymentModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                        <X size={20} />
-                    </button>
-                </div>
-                
-                <div className="p-6 space-y-6">
-                    {/* Amount */}
-                    <div className="text-center">
-                        <p className="text-sm text-gray-500 mb-1">Monto Total a Pagar</p>
-                        <p className="text-3xl font-bold text-gray-900">${productData.price.toLocaleString()}</p>
-                    </div>
-                    
-                    {/* Bank Details */}
-                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
-                        <div>
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Banco</p>
-                            <p className="font-medium text-gray-800">{localTransferData.transfer_bank || 'No especificado'}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Beneficiario</p>
-                            <p className="font-medium text-gray-800">{localTransferData.transfer_name || 'No especificado'}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">CLABE Interbancaria</p>
-                            <div className="flex items-center gap-2">
-                                <p className="font-mono font-medium text-gray-800 text-lg tracking-wide select-all">
-                                    {localTransferData.transfer_clabe || 'No especificado'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    {/* Instructions */}
-                    <div className="text-xs text-gray-500 bg-blue-50 text-blue-700 p-3 rounded-lg">
-                        <p className="font-bold mb-1">Instrucciones:</p>
-                        <ul className="list-disc pl-4 space-y-1">
-                            <li>Realiza la transferencia por el monto exacto.</li>
-                            <li>
-                                Usa el siguiente ID como concepto de pago:
-                                {createdOrderId && (
-                                    <span className="block mt-1 font-mono font-bold text-lg bg-blue-100 px-2 py-1 rounded w-fit select-all text-blue-900">
-                                        {createdOrderId}
-                                    </span>
-                                )}
-                            </li>
-                            <li>Envía el comprobante en este chat para confirmar.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <div className="p-4 border-t bg-gray-50 flex justify-end">
-                    <button 
-                        onClick={() => setIsPaymentModalOpen(false)}
-                        className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium text-sm"
-                    >
-                        Entendido
-                    </button>
-                </div>
-            </div>
-        </div>
-      )}
     </div>
   );
 }

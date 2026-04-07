@@ -7,7 +7,9 @@ import { Supplier } from "@/lib/products";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { cn } from "@/lib/utils";
+import { Toast } from "@/components/ui/Toast";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 
 interface ProductCardProps {
   id: string;
@@ -37,6 +39,13 @@ export function ProductCard({
   const { isAuthenticated } = useAuthStore();
   const { isFavorite, toggleFavorite } = useFavoritesStore();
   const isFav = isFavorite(id);
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(t);
+  }, [toast]);
 
   const supplierSlug =
     supplier &&
@@ -67,7 +76,7 @@ export function ProductCard({
     e.stopPropagation();
 
     if (!isAuthenticated) {
-      alert("Debes iniciar sesión para agregar a favoritos");
+      setToast({ type: "info", message: "Debes iniciar sesión para agregar a favoritos." });
       return;
     }
 
@@ -178,6 +187,7 @@ export function ProductCard({
           </div>
         </div>
       </div>
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
     </div>
   );
 }

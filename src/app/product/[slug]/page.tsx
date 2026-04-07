@@ -21,13 +21,16 @@ import {
   ChevronRight,
   Loader2,
   Package,
-  CreditCard,
   Store,
-  Heart
+  Heart,
+  ShoppingCart,
+  Minus,
+  Plus
 } from "lucide-react";
 import Link from "next/link";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { cn } from "@/lib/utils";
+import { Toast } from "@/components/ui/Toast";
 import DOMPurify from "isomorphic-dompurify";
 
 // Interfaces
@@ -226,12 +229,96 @@ export default function ProductDetailPage() {
   const [ratingError, setRatingError] = useState<string | null>(null);
   const [ratingSuccess, setRatingSuccess] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [cartToast, setCartToast] = useState<null | { type: "success" | "error"; message: string }>(null);
+
+  useEffect(() => {
+    if (!product) return;
+    setQuantity(1);
+  }, [product?.id]);
+
+  useEffect(() => {
+    if (!cartToast) return;
+    const id = window.setTimeout(() => setCartToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [cartToast]);
 
   useEffect(() => {
     if (slug) {
       fetchProduct();
     }
   }, [slug, token]);
+
+  const clampQuantity = (value: number) => {
+    const max = Math.max(1, Number(product?.stock ?? 0) || 0);
+    const next = Math.min(Math.max(1, value), max);
+    return next;
+  };
+
+  const handleAddToCart = async () => {
+    if (!token) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+
+    if (!product) return;
+    const stock = Number(product.stock ?? 0) || 0;
+    if (stock <= 0) {
+      setCartToast({ type: "error", message: "Este producto está agotado." });
+      return;
+    }
+
+    const safeQuantity = clampQuantity(quantity);
+    setIsAddingToCart(true);
+    try {
+      const tryUrls = ["/api/cart/add", "/api/cart/add/", "/api/v1/cart/add", "/api/v1/cart/add/"];
+      const options = {
+        method: "POST",
+        body: JSON.stringify({ product_id: product.id, quantity: safeQuantity }),
+      };
+
+      let res: Response | null = null;
+      for (const url of tryUrls) {
+        res = await fetchWithAuth(url, options);
+        if (res.ok) break;
+        if (res.status === 404 || res.status === 405) continue;
+        if (res.status === 301 || res.status === 302 || res.status === 307 || res.status === 308) continue;
+        break;
+      }
+
+      if (!res || !res.ok) {
+        const contentType = res?.headers.get("content-type") || "";
+        const bodyText = await res?.text().catch(() => "") ?? "";
+        let msg = "";
+        if (contentType.includes("application/json") && bodyText) {
+          try {
+            const parsed = JSON.parse(bodyText) as Record<string, unknown>;
+            const detail = parsed.detail;
+            const message = parsed.message;
+            const errorValue = parsed.error;
+            msg =
+              (typeof detail === "string" && detail.trim()) ||
+              (typeof message === "string" && message.trim()) ||
+              (typeof errorValue === "string" && errorValue.trim()) ||
+              "";
+          } catch {}
+        }
+        if (!msg) {
+          msg = bodyText.trim() || `No se pudo agregar al carrito (HTTP ${res?.status ?? "?"}).`;
+        }
+        setCartToast({ type: "error", message: msg });
+        return;
+      }
+
+      setCartToast({ type: "success", message: "Producto agregado al carrito." });
+      window.dispatchEvent(new CustomEvent("cart:changed"));
+    } catch {
+      setCartToast({ type: "error", message: "Error de conexión. Intenta de nuevo." });
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
 
   const checkUserRating = async (forceFetch = false, preserveInput = false) => {
     if (!user || !product) return null;
@@ -901,12 +988,48 @@ export default function ProductDetailPage() {
                   <p className="text-sm text-gray-500 mt-1">Precio por unidad (IVA incluido)</p>
                 </div>
 
-                {/* Stock & Quantity Placeholder (Static for now as requested "elementos que consideres como stock") */}
                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mb-8">
                   <div className="flex flex-col gap-4">
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-medium text-gray-700">Disponibilidad:</span>
                       <span className="text-sm font-bold text-gray-900">{product.stock} unidades</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">Cantidad:</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setQuantity((prev) => clampQuantity(prev - 1))}
+                          disabled={isAddingToCart || product.stock <= 0 || quantity <= 1}
+                          className="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                          aria-label="Disminuir cantidad"
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <input
+                          inputMode="numeric"
+                          type="number"
+                          min={1}
+                          max={Math.max(1, product.stock)}
+                          value={quantity}
+                          onChange={(e) => {
+                            const next = Number(e.target.value);
+                            if (!Number.isFinite(next)) return;
+                            setQuantity(clampQuantity(next));
+                          }}
+                          disabled={isAddingToCart || product.stock <= 0}
+                          className="w-20 h-9 rounded-lg border border-gray-200 bg-white text-center font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setQuantity((prev) => clampQuantity(prev + 1))}
+                          disabled={isAddingToCart || product.stock <= 0 || quantity >= Math.max(1, product.stock)}
+                          className="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                          aria-label="Aumentar cantidad"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
@@ -955,11 +1078,30 @@ export default function ProductDetailPage() {
                 {/* Actions */}
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
                   <button 
-                    onClick={handleChatOpen}
-                    className="flex-1 bg-primary text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    onClick={handleAddToCart}
+                    disabled={isAddingToCart || product.stock <= 0}
+                    className={cn(
+                      "flex-1 px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2",
+                      isAddingToCart || product.stock <= 0
+                        ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
+                        : "bg-[#168e00] text-white hover:bg-[#137500] shadow-[#168e00]/20"
+                    )}
                   >
-                    <MessageCircle size={24} />
-                    Chat con Proveedor
+                    {isAddingToCart ? (
+                      <Loader2 size={22} className="animate-spin" />
+                    ) : (
+                      <ShoppingCart size={24} />
+                    )}
+                    Agregar al carrito
+                  </button>
+
+                  <button 
+                    onClick={handleChatOpen}
+                    className="px-6 py-4 rounded-xl border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-gray-700 font-semibold"
+                    title="Chat con el proveedor"
+                  >
+                    <MessageCircle size={22} className="text-primary" />
+                    Chat
                   </button>
 
                   <button 
@@ -1149,6 +1291,15 @@ export default function ProductDetailPage() {
         isOpen={isLoginModalOpen} 
         onClose={() => setIsLoginModalOpen(false)} 
       />
+
+      {cartToast ? (
+        <Toast
+          type={cartToast.type}
+          message={cartToast.message}
+          action={cartToast.type === "success" ? { kind: "link", label: "Ver mi carrito", href: "/cart" } : undefined}
+          onClose={() => setCartToast(null)}
+        />
+      ) : null}
 
       {/* Zoom Modal */}
       {isZoomOpen && currentMedia && (

@@ -119,7 +119,7 @@ async function handler(request: NextRequest) {
     // Determine body based on content type and method.
     // IMPORTANT: request.body is a stream; if we follow redirects manually we must be able to replay the body.
     // We only stream for multipart/octet-stream; JSON is buffered to support safe redirect replay.
-    let body: any = undefined;
+    let body: BodyInit | null | undefined = undefined;
     let isStreamingBody = false;
     const contentType = request.headers.get('content-type') || '';
     const methodHasBody = !['GET', 'HEAD'].includes(request.method);
@@ -137,7 +137,7 @@ async function handler(request: NextRequest) {
       }
     }
 
-    const fetchOptions: any = {
+    const fetchOptions: RequestInit & { duplex?: "half" } = {
       method: request.method,
       headers: forwardHeaders,
       body,
@@ -178,6 +178,20 @@ async function handler(request: NextRequest) {
              if (newUrlString.startsWith('http:')) {
                  console.log(`[Generic Proxy] Upgrading redirect to HTTPS: ${newUrlString}`);
                  newUrlString = newUrlString.replace('http:', 'https:');
+             }
+
+             const originHost = new URL(targetUrl).host;
+             const redirectHost = new URL(newUrlString).host;
+             const isExternalRedirect = originHost !== redirectHost;
+             if (isExternalRedirect) {
+               const accept = (request.headers.get("accept") || "").toLowerCase();
+               const wantsJson =
+                 accept.includes("application/json") ||
+                 request.nextUrl.searchParams.get("redirect") === "json";
+               if (wantsJson) {
+                 return NextResponse.json({ redirect_url: newUrlString }, { status: 200 });
+               }
+               return NextResponse.redirect(newUrlString, { status: response.status });
              }
              
              console.log(`[Generic Proxy] Following redirect manually to: ${newUrlString}`);
@@ -245,11 +259,15 @@ async function handler(request: NextRequest) {
       headers
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`[Generic Proxy] Error forwarding request to ${targetUrl}:`, error);
+    const message =
+      error && typeof error === "object" && "message" in error && typeof (error as Record<string, unknown>).message === "string"
+        ? String((error as Record<string, unknown>).message)
+        : "Unknown proxy error";
     return NextResponse.json({
       error: 'Proxy Error',
-      message: error?.message || 'Unknown proxy error',
+      message,
     }, { status: 502 });
   }
 }

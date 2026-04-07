@@ -3,19 +3,20 @@
 import { useState, useEffect } from 'react';
 import { fetchWithAuth } from '@/lib/api';
 import { Loader2 } from 'lucide-react';
+import { Toast } from "@/components/ui/Toast";
 
 interface StepPersonalizationProps {
   supplierId: number;
   token: string;
   onNext?: () => void;
-  initialData?: any;
+  initialData?: Record<string, unknown> | null;
 }
 
 export default function StepPersonalization({ supplierId, token, onNext, initialData }: StepPersonalizationProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [slug, setSlug] = useState<string | null>(null);
-  const [currentSupplier, setCurrentSupplier] = useState<any>(null); // Store full supplier object
+  const [currentSupplier, setCurrentSupplier] = useState<Record<string, unknown> | null>(null);
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
   const [formData, setFormData] = useState({
     page_background_color: '#ffffff',
     card_background_color: '#ffffff',
@@ -23,51 +24,58 @@ export default function StepPersonalization({ supplierId, token, onNext, initial
   });
 
   useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  const showToast = (type: "success" | "error" | "info", message: string) => setToast({ type, message });
+
+  useEffect(() => {
+    const readString = (obj: Record<string, unknown> | null, key: string) => {
+      const v = obj ? obj[key] : null;
+      return typeof v === "string" ? v : null;
+    };
+
+    const fetchSupplier = async () => {
+      if (!supplierId) return;
+      setLoading(true);
+      try {
+        const res = await fetchWithAuth(`/api/suppliers/${supplierId}`);
+        if (res.ok) {
+          const dataUnknown: unknown = await res.json();
+          const data =
+            dataUnknown && typeof dataUnknown === "object" ? (dataUnknown as Record<string, unknown>) : null;
+          setCurrentSupplier(data);
+          setFormData({
+            page_background_color:
+              readString(data, "page_background_color") || readString(data, "background_color") || "#ffffff",
+            card_background_color: readString(data, "card_background_color") || "#ffffff",
+            header_background_color: readString(data, "header_background_color") || "#ffffff",
+          });
+        } else {
+          const errText = await res.text();
+          showToast("error", `Error al cargar datos del proveedor (${res.status}): ${errText}`);
+        }
+      } catch (error) {
+        showToast("error", `Error de conexión al cargar proveedor: ${error}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (initialData) {
-        console.log('[StepPersonalization] Using initialData provided by parent');
-        setCurrentSupplier(initialData);
-        setFormData({
-            page_background_color: initialData.page_background_color || initialData.background_color || '#ffffff',
-            card_background_color: initialData.card_background_color || '#ffffff',
-            header_background_color: initialData.header_background_color || '#ffffff',
-        });
-        setSlug(initialData.slug);
+      setCurrentSupplier(initialData);
+      setFormData({
+        page_background_color:
+          readString(initialData, "page_background_color") || readString(initialData, "background_color") || "#ffffff",
+        card_background_color: readString(initialData, "card_background_color") || "#ffffff",
+        header_background_color: readString(initialData, "header_background_color") || "#ffffff",
+      });
     } else {
-        fetchSupplier();
+      fetchSupplier();
     }
   }, [supplierId, initialData]);
-
-  const fetchSupplier = async () => {
-    if (!supplierId) {
-      console.error('[StepPersonalization] Missing supplierId');
-      return;
-    }
-    console.log(`[StepPersonalization] Fetching supplier data for ID: ${supplierId}`);
-    setLoading(true);
-    try {
-      const res = await fetchWithAuth(`/api/suppliers/${supplierId}`);
-      if (res.ok) {
-        const data = await res.json();
-        console.log('[StepPersonalization] Supplier data fetched successfully:', data);
-        setCurrentSupplier(data); // Store full data
-        setFormData({
-          page_background_color: data.page_background_color || data.background_color || '#ffffff',
-          card_background_color: data.card_background_color || '#ffffff',
-          header_background_color: data.header_background_color || '#ffffff',
-        });
-        setSlug(data.slug);
-      } else {
-        const errText = await res.text();
-        console.error(`[StepPersonalization] Failed to fetch supplier: ${res.status}`, errText);
-        alert(`Error al cargar datos del proveedor (${res.status}): ${errText}`);
-      }
-    } catch (error) {
-      console.error('[StepPersonalization] Exception fetching supplier:', error);
-      alert(`Error de conexión al cargar proveedor: ${error}`);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -77,7 +85,6 @@ export default function StepPersonalization({ supplierId, token, onNext, initial
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    console.log(`[StepPersonalization] Starting update for supplierId: ${supplierId}`);
     try {
       if (!currentSupplier) {
         throw new Error('No se ha cargado la información del proveedor. Recargue la página.');
@@ -90,7 +97,7 @@ export default function StepPersonalization({ supplierId, token, onNext, initial
       // Build FormData to match SupplierForm implementation
       const data = new FormData();
       
-      const appendIfPresent = (key: string, value: any) => {
+      const appendIfPresent = (key: string, value: unknown) => {
         if (value !== null && value !== undefined && value !== "") {
           data.append(key, String(value).trim());
         }
@@ -138,17 +145,6 @@ export default function StepPersonalization({ supplierId, token, onNext, initial
       // We do not append files (logo, etc) as we are not changing them here. 
       // If the backend requires them, this might fail, but usually updates are partial or optional files.
 
-      console.log("Sending PUT request to:", `/api/suppliers/${supplierId}`);
-      // Log FormData entries for debugging
-      for (let [key, value] of data.entries()) {
-        console.log(`${key}: ${value}`);
-      }
-      
-      // Use direct fetch instead of fetchWithAuth to debug token/header issues
-      const token = localStorage.getItem('auth-storage') 
-        ? JSON.parse(localStorage.getItem('auth-storage') || '{}').state?.token 
-        : null;
-
       const updateRes = await fetch(`/api/suppliers/${supplierId}`, {
         method: 'PUT',
         headers: {
@@ -162,17 +158,14 @@ export default function StepPersonalization({ supplierId, token, onNext, initial
         if (onNext) onNext();
         else {
             // Optional: Show a success message if not proceeding to next step
-            alert('Personalización guardada correctamente');
+            showToast("success", "Personalización guardada correctamente.");
         }
       } else {
         const errorText = await updateRes.text();
-        console.error('Failed to update supplier. Status:', updateRes.status);
-        console.error('Response body:', errorText);
-        alert(`Error al guardar: Status ${updateRes.status}\nDetalle: ${errorText}`);
+        showToast("error", `Error al guardar: Status ${updateRes.status}. Detalle: ${errorText}`);
       }
     } catch (error) {
-      console.error('Error updating supplier:', error);
-      alert(`Error de excepción: ${error}`);
+      showToast("error", `Error de excepción: ${error}`);
     } finally {
       setSaving(false);
     }
@@ -188,6 +181,7 @@ export default function StepPersonalization({ supplierId, token, onNext, initial
 
   return (
     <div className="max-w-2xl mx-auto p-6">
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       <h2 className="text-2xl font-bold mb-6">Personalización del Sitio</h2>
       <p className="text-gray-600 mb-6">
         Elija los colores que mejor representen su marca. Estos se reflejarán en su página pública de proveedor.

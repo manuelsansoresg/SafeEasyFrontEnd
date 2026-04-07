@@ -6,6 +6,7 @@ import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/o
 import { chatService } from "@/services/chatService";
 import { useChat } from "@/context/ChatContext";
 import FileUpload from "@/components/ui/FileUpload";
+import { Toast } from "@/components/ui/Toast";
 import { 
   Loader2, 
   MessageSquare,
@@ -246,11 +247,7 @@ export default function AdminOrdersPage() {
       setOrders(data);
     } catch (error) {
       console.error("Error fetching orders:", error);
-      const msg =
-        error && typeof error === "object" && "message" in error
-          ? String((error as any).message)
-          : "No se pudieron cargar las órdenes.";
-      setError(msg || "No se pudieron cargar las órdenes.");
+      setError(getErrorMessage(error) || "No se pudieron cargar las órdenes.");
     } finally {
       setLoading(false);
     }
@@ -261,6 +258,12 @@ export default function AdminOrdersPage() {
       style: 'currency',
       currency: 'MXN'
     }).format(amount);
+  };
+
+  const getErrorMessage = (e: unknown) => {
+    if (!e || typeof e !== "object") return null;
+    const rec = e as Record<string, unknown>;
+    return typeof rec.message === "string" ? rec.message : null;
   };
 
   const formatDate = (value: string | undefined) => {
@@ -637,9 +640,7 @@ export default function AdminOrdersPage() {
       setIsRefundApproveModalOpen(false);
       setRefundApproveNote("");
     } catch (e) {
-      const msg =
-        e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo aprobar el reembolso.";
-      setModalError(msg || "No se pudo aprobar el reembolso.");
+      setModalError(getErrorMessage(e) || "No se pudo aprobar el reembolso.");
     } finally {
       setActionLoading(null);
     }
@@ -682,9 +683,7 @@ export default function AdminOrdersPage() {
       setIsRefundRejectModalOpen(false);
       setRefundRejectReason("");
     } catch (e) {
-      const msg =
-        e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo rechazar el reembolso.";
-      setModalError(msg || "No se pudo rechazar el reembolso.");
+      setModalError(getErrorMessage(e) || "No se pudo rechazar el reembolso.");
     } finally {
       setActionLoading(null);
     }
@@ -732,9 +731,7 @@ export default function AdminOrdersPage() {
       setRefundFinalizeNote("");
       setRefundFinalizeFile(null);
     } catch (e) {
-      const msg =
-        e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo confirmar el pago.";
-      setModalError(msg || "No se pudo confirmar el pago.");
+      setModalError(getErrorMessage(e) || "No se pudo confirmar el pago.");
     } finally {
       setActionLoading(null);
     }
@@ -749,13 +746,15 @@ export default function AdminOrdersPage() {
     setModalError(null);
     try {
       const updated = await orderService.updateOrderStatus(selectedOrder.id, newStatus, note).catch(() => null);
+      const updatedRec =
+        updated && typeof updated === "object" ? (updated as Record<string, unknown>) : null;
       const nextStatus =
-        updated && typeof (updated as any).status === "string" ? String((updated as any).status) : newStatus;
+        typeof updatedRec?.status === "string" ? updatedRec.status : newStatus;
       const nextVisualStatus =
-        updated && typeof (updated as any).visual_status === "string"
-          ? String((updated as any).visual_status)
-          : updated && typeof (updated as any).status === "string"
-            ? String((updated as any).status)
+        typeof updatedRec?.visual_status === "string"
+          ? updatedRec.visual_status
+          : typeof updatedRec?.status === "string"
+            ? updatedRec.status
             : newStatus;
 
       setOrders((prev) =>
@@ -780,9 +779,7 @@ export default function AdminOrdersPage() {
       } catch {
       }
     } catch (e) {
-      const msg =
-        e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo actualizar el estatus.";
-      setModalError(msg || "No se pudo actualizar el estatus.");
+      setModalError(getErrorMessage(e) || "No se pudo actualizar el estatus.");
     } finally {
       setActionLoading(null);
     }
@@ -883,13 +880,7 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="p-6">
-      {toastMessage ? (
-        <div className="fixed right-4 top-4 z-[80]">
-          <div className="rounded-xl bg-[#004e28] px-4 py-3 text-sm font-semibold text-white shadow-xl font-[family-name:var(--font-poppins)]">
-            {toastMessage}
-          </div>
-        </div>
-      ) : null}
+      {toastMessage ? <Toast type="success" message={toastMessage} onClose={() => setToastMessage(null)} /> : null}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Órdenes</h1>
       </div>

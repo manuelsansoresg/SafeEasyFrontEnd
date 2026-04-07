@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Upload, X, Image as ImageIcon, FileText, Video } from 'lucide-react';
+import { Toast } from "@/components/ui/Toast";
 
 interface FileUploadProps {
   label?: string;
@@ -29,9 +30,18 @@ export default function FileUpload({
   const [isDragging, setIsDragging] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [inlineError, setInlineError] = useState(false);
-  const [hasClearedExisting, setHasClearedExisting] = useState(false);
+  const [clearedExistingUrl, setClearedExistingUrl] = useState<string | null>(null);
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  const showToast = (type: "success" | "error" | "info", message: string) => setToast({ type, message });
 
   const buildMediaUrl = (url: string | null | undefined) => {
     if (!url) return null;
@@ -52,7 +62,6 @@ export default function FileUpload({
     if (!accept) return true;
     const patterns = accept.split(',').map((p) => p.trim());
     const mime = file.type;
-    const name = file.name.toLowerCase();
 
     const allowed = patterns.some((pattern) => {
       if (pattern === 'image/*') return mime.startsWith('image/');
@@ -69,14 +78,10 @@ export default function FileUpload({
       } else if (accept.includes('image/*')) {
         message = 'Solo se permiten archivos de imagen.';
       }
-      alert(message);
+      showToast("error", message);
     }
     return allowed;
   };
-
-  useEffect(() => {
-    setHasClearedExisting(false);
-  }, [currentImageUrl]);
 
   // Update preview when value changes
   if (value && !preview) {
@@ -108,7 +113,7 @@ export default function FileUpload({
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       if (e.dataTransfer.files.length > 1) {
-        alert('Solo se permite adjuntar un archivo.');
+        showToast("info", "Solo se permite adjuntar un archivo.");
       }
       const file = e.dataTransfer.files[0];
       if (!isAllowedFile(file)) return;
@@ -126,7 +131,7 @@ export default function FileUpload({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       if (e.target.files.length > 1) {
-        alert('Solo se permite adjuntar un archivo.');
+        showToast("info", "Solo se permite adjuntar un archivo.");
       }
       const file = e.target.files[0];
       if (!isAllowedFile(file)) {
@@ -150,14 +155,15 @@ export default function FileUpload({
     onChange(null);
     setPreview(null);
     if (removeBehavior === "clear_all") {
-      setHasClearedExisting(true);
+      if (currentImageUrl) setClearedExistingUrl(currentImageUrl);
     }
     if (inputRef.current) {
       inputRef.current.value = '';
     }
   };
   
-  const effectiveCurrentUrlRaw = hasClearedExisting ? null : currentImageUrl || null;
+  const effectiveCurrentUrlRaw =
+    clearedExistingUrl && currentImageUrl && clearedExistingUrl === currentImageUrl ? null : currentImageUrl || null;
   const effectiveCurrentUrl = buildMediaUrl(effectiveCurrentUrlRaw);
   const displayImage = preview || effectiveCurrentUrl || null;
 
@@ -168,7 +174,6 @@ export default function FileUpload({
   const isVideo =
     (value && value.type.startsWith('video/')) ||
     /\.(mp4|webm|ogg|mov)$/i.test(lowerDisplay);
-  const acceptsVideo = !!accept && accept.includes('video');
 
   const getFileNameFromUrl = (url: string) => {
     try {
@@ -223,14 +228,12 @@ export default function FileUpload({
                     <span className="text-sm font-medium text-gray-600">Documento PDF</span>
                   </div>
                 ) : isVideo ? (
-                  // eslint-disable-next-line jsx-a11y/media-has-caption
                   <video
                     src={displayImage || undefined}
                     className="max-h-48 rounded-lg shadow-sm object-contain"
                     controls
                   />
                 ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={displayImage || undefined}
                     alt="Preview"
@@ -245,7 +248,6 @@ export default function FileUpload({
               <>
                 {!inlineError && isVideo ? (
                   <div className="relative w-full flex items-center justify-center">
-                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                     <video
                       src={effectiveCurrentUrl}
                       className="max-h-48 rounded-lg shadow-sm object-contain"
@@ -331,6 +333,7 @@ export default function FileUpload({
           )}
         </div>
       )}
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
     </div>
   );
 }
