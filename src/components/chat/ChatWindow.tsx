@@ -11,6 +11,7 @@ import { Send, Image as ImageIcon, X, MoreVertical, Phone, Paperclip, Loader2, S
 import Image from "next/image";
 import StarRating from "../StarRating";
 
+
 import { fetchWithAuth } from "@/lib/api";
 
 interface ChatWindowProps {
