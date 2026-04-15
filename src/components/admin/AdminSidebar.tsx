@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { 
   User, 
   Users,
   Users2,
-  MessageSquare,
   Grid, 
   Layers, 
   Package, 
@@ -16,7 +14,8 @@ import {
   LogOut,
   LayoutDashboard,
   ShoppingCart,
-  BarChart3
+  BarChart3,
+  Truck
 } from "lucide-react";
 import { Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -101,6 +100,12 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       path: "/admin/stats", 
       icon: BarChart3,
       roles: ['supplier']
+    },
+    {
+      title: "Envíos",
+      path: "/admin/settings/shipping",
+      icon: Truck,
+      roles: ['admin']
     }
   ];
 

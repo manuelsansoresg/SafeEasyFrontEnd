@@ -47,9 +47,9 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
     return headers;
   };
 
-  let response = await fetch(url, { 
-    ...options, 
-    headers: getHeaders(token) 
+  let response = await fetch(url, {
+    ...options,
+    headers: getHeaders(token),
   });
 
   const shouldAttemptRefresh = response.status === 401 || response.status === 403;
@@ -82,9 +82,9 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
             setAuthToken(newToken);
             
             // Retry original request
-            response = await fetch(url, { 
-              ...options, 
-              headers: getHeaders(newToken) 
+            response = await fetch(url, {
+              ...options,
+              headers: getHeaders(newToken),
             });
 
             const retryIsAuthError = response.status === 401 || response.status === 403;

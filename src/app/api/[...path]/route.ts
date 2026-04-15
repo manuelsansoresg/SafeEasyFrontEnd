@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const PROXY_VERSION = "2026-04-15-body-replay-2";
+
 const getSetCookieHeaders = (response: Response) => {
   const headersAny = response.headers as unknown as { getSetCookie?: () => string[] };
   if (headersAny && typeof headersAny.getSetCookie === "function") return headersAny.getSetCookie();
@@ -81,20 +83,31 @@ const ensureApiRootPath = (baseUrl: string) => {
   return `${normalized}/api`;
 };
 
-const getBaseUrl = () => {
+const getBaseUrlCandidates = () => {
   const internal = sanitizeBaseUrl(process.env.API_INTERNAL_URL);
-  if (internal) return ensureApiRootPath(internal);
-  
+  if (internal) return [ensureApiRootPath(internal)];
+
   const publicUrl = sanitizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
   const isProd = process.env.NODE_ENV === "production";
-  if (publicUrl && !publicUrl.startsWith("/") && (!isProd || !publicUrl.includes("localhost"))) {
-      return ensureApiRootPath(publicUrl);
-  }
-  
-  return 'https://drooopy.com/api';
-};
+  const isLocalPublic =
+    publicUrl.includes("localhost") ||
+    publicUrl.includes("127.0.0.1") ||
+    publicUrl.includes("0.0.0.0");
+  const candidates: string[] = [];
 
-const BASE_URL = getBaseUrl();
+  if (publicUrl && !publicUrl.startsWith("/") && (!isProd || !isLocalPublic)) {
+    candidates.push(ensureApiRootPath(publicUrl));
+  }
+
+  if (!isProd) {
+    candidates.push("http://localhost:8000/api", "http://127.0.0.1:8000/api");
+    if (publicUrl && !publicUrl.startsWith("/") && isLocalPublic) candidates.unshift(ensureApiRootPath(publicUrl));
+  }
+
+  candidates.push("https://drooopy.com/api");
+
+  return Array.from(new Set(candidates));
+};
 
 async function handler(request: NextRequest) {
   // Use pathname directly to avoid params ambiguity
@@ -113,32 +126,8 @@ async function handler(request: NextRequest) {
       relativePath = '/' + relativePath;
   }
   
-  // Normalize base URL to remove trailing slashes
-  const baseUrl = BASE_URL.replace(/\/+$/, '');
-  
-  // Construct target URL
-  let targetUrl = `${baseUrl}${relativePath}`;
-
-  // Fix double slashes in path (but keep protocol slashes)
-  // This handles cases where relativePath might start with multiple slashes
-  targetUrl = targetUrl.replace(/([^:])\/{2,}/g, '$1/');
-  
-  // Backend requires trailing slash for some endpoints (FastAPI default behavior sometimes)
-  // If the original request didn't have a slash, but it's a known collection, force it.
-  if (
-    (targetUrl.endsWith('users') ||
-      targetUrl.endsWith('products') ||
-      targetUrl.endsWith('suppliers') ||
-      targetUrl.endsWith('orders')) &&
-    !targetUrl.endsWith('/')
-  ) {
-      targetUrl += '/';
-  }
-  
-  // Append query string (search params)
-  targetUrl += request.nextUrl.search;
-
-  console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
+  const baseUrlCandidates = getBaseUrlCandidates();
+  let targetUrl = "";
 
   try {
     // Use text for JSON to ensure correct formatting and debugging
@@ -154,6 +143,19 @@ async function handler(request: NextRequest) {
         'host', 
         'connection', 
         'transfer-encoding',
+        'content-length',
+        'content-encoding',
+        'accept-encoding',
+        'origin',
+        'referer',
+        'sec-fetch-site',
+        'sec-fetch-mode',
+        'sec-fetch-dest',
+        'sec-fetch-user',
+        'sec-ch-ua',
+        'sec-ch-ua-mobile',
+        'sec-ch-ua-platform',
+        'accept-language',
         'x-vercel-ip-city',
         'x-vercel-ip-country',
         'cf-ipcity',
@@ -185,10 +187,10 @@ async function handler(request: NextRequest) {
     }
 
     // Determine body based on content type and method.
-    // IMPORTANT: request.body is a stream; if we follow redirects manually we must be able to replay the body.
-    // We only stream for multipart/octet-stream; JSON is buffered to support safe redirect replay.
-    let body: BodyInit | null | undefined = undefined;
+    // IMPORTANT: a request body can only be consumed once. Since we may retry across multiple upstreams
+    // and/or follow a redirect, buffer non-streaming bodies and create a fresh copy per fetch.
     let isStreamingBody = false;
+    let bufferedBody: ArrayBuffer | null = null;
     const contentType = request.headers.get('content-type') || '';
     const methodHasBody = !['GET', 'HEAD'].includes(request.method);
 
@@ -198,27 +200,92 @@ async function handler(request: NextRequest) {
         contentType.includes('application/octet-stream');
 
       if (shouldStream) {
-        body = request.body;
         isStreamingBody = true;
       } else {
-        body = await request.arrayBuffer();
+        bufferedBody = await request.arrayBuffer();
       }
     }
 
-    const fetchOptions: RequestInit & { duplex?: "half" } = {
-      method: request.method,
-      headers: forwardHeaders,
-      body,
-      redirect: 'manual', // Do not follow redirects automatically
-      cache: 'no-store',
+    const buildFetchOptions = (): (RequestInit & { duplex?: "half" }) => {
+      const opts: RequestInit & { duplex?: "half" } = {
+        method: request.method,
+        headers: forwardHeaders,
+        redirect: 'manual', // Do not follow redirects automatically
+        cache: 'no-store',
+      };
+      if (isStreamingBody) {
+        opts.body = request.body;
+        opts.duplex = 'half';
+      } else if (bufferedBody) {
+        opts.body = bufferedBody.slice(0);
+      }
+      return opts;
     };
-    
-    // Required for streaming bodies in Node.js environment (Next.js App Router)
-    if (isStreamingBody) {
-      fetchOptions.duplex = 'half';
+
+    let response: Response | null = null;
+    let lastError: unknown = null;
+    let upstreamBase: string | null = null;
+    const retryableStatuses = new Set([502, 503, 504, 520, 521, 522, 523, 524]);
+
+    for (let i = 0; i < baseUrlCandidates.length; i++) {
+      const baseCandidate = baseUrlCandidates[i]!;
+      const hasNextCandidate = i < baseUrlCandidates.length - 1;
+      const baseUrl = baseCandidate.replace(/\/+$/, "");
+      let nextTargetUrl = `${baseUrl}${relativePath}`;
+      nextTargetUrl = nextTargetUrl.replace(/([^:])\/{2,}/g, "$1/");
+
+      if (
+        (nextTargetUrl.endsWith("users") ||
+          nextTargetUrl.endsWith("products") ||
+          nextTargetUrl.endsWith("suppliers") ||
+          nextTargetUrl.endsWith("orders")) &&
+        !nextTargetUrl.endsWith("/")
+      ) {
+        nextTargetUrl += "/";
+      }
+
+      nextTargetUrl += request.nextUrl.search;
+      targetUrl = nextTargetUrl;
+      console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
+
+      try {
+        response = await fetch(targetUrl, buildFetchOptions());
+        upstreamBase = baseCandidate;
+        lastError = null;
+        if (response.ok) break;
+        if (retryableStatuses.has(response.status)) {
+          if (isStreamingBody) break;
+          if (hasNextCandidate) {
+            try {
+              await response.body?.cancel();
+            } catch {}
+            continue;
+          }
+          break;
+        }
+        break;
+      } catch (err: unknown) {
+        lastError = err;
+        console.error(`[Generic Proxy] Upstream fetch failed for ${targetUrl}:`, err);
+        if (isStreamingBody) break;
+      }
     }
 
-    let response = await fetch(targetUrl, fetchOptions);
+    if (!response) {
+      const message =
+        lastError && typeof lastError === "object" && "message" in lastError && typeof (lastError as Record<string, unknown>).message === "string"
+          ? String((lastError as Record<string, unknown>).message)
+          : "No upstream response";
+      return NextResponse.json(
+        {
+          error: "Proxy Error",
+          message,
+          proxy_version: PROXY_VERSION,
+          tried: baseUrlCandidates,
+        },
+        { status: 502, headers: { "x-next-proxy-version": PROXY_VERSION, "x-next-proxy-upstream": "" } },
+      );
+    }
 
     console.log(`[Generic Proxy] Response status: ${response.status}`);
 
@@ -230,9 +297,18 @@ async function handler(request: NextRequest) {
              console.log(`[Generic Proxy] Redirect detected to: ${location}`);
              
              if (isStreamingBody) {
+                 const headers = new Headers();
+                 response.headers.forEach((v, k) => {
+                   const lowerKey = k.toLowerCase();
+                   if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(lowerKey)) {
+                     headers.set(k, v);
+                   }
+                 });
+                 headers.set("x-next-proxy-version", PROXY_VERSION);
+                 headers.set("x-next-proxy-upstream", upstreamBase || "");
                  return new NextResponse(response.body, {
                    status: response.status,
-                   headers: response.headers
+                   headers
                  });
              }
              
@@ -257,7 +333,10 @@ async function handler(request: NextRequest) {
                  accept.includes("application/json") ||
                  request.nextUrl.searchParams.get("redirect") === "json";
                if (wantsJson) {
-                 return NextResponse.json({ redirect_url: newUrlString }, { status: 200 });
+                 return NextResponse.json(
+                   { redirect_url: newUrlString },
+                   { status: 200, headers: { "x-next-proxy-version": PROXY_VERSION, "x-next-proxy-upstream": upstreamBase || "" } },
+                 );
                }
                const headers = new Headers();
                response.headers.forEach((v, k) => {
@@ -266,6 +345,8 @@ async function handler(request: NextRequest) {
                    headers.set(k, v);
                  }
                });
+               headers.set("x-next-proxy-version", PROXY_VERSION);
+               headers.set("x-next-proxy-upstream", upstreamBase || "");
               applyRewrittenSetCookies(
                 headers,
                 response,
@@ -283,13 +364,15 @@ async function handler(request: NextRequest) {
                    headers.set(k, v);
                  }
                });
+               headers.set("x-next-proxy-version", PROXY_VERSION);
+               headers.set("x-next-proxy-upstream", upstreamBase || "");
               applyRewrittenSetCookies(headers, response, request.nextUrl.hostname, "all");
                return NextResponse.redirect(newUrlString, { status: response.status, headers });
              }
              
              console.log(`[Generic Proxy] Following redirect manually to: ${newUrlString}`);
              
-             response = await fetch(newUrlString, fetchOptions);
+             response = await fetch(newUrlString, buildFetchOptions());
              console.log(`[Generic Proxy] Followed response status: ${response.status}`);
         }
     }
@@ -303,6 +386,9 @@ async function handler(request: NextRequest) {
        respContentType === 'application/octet-stream' ||
        respContentType.startsWith('application/zip') ||
        respContentType.startsWith('audio/'));
+    const debugProxy =
+      request.nextUrl.searchParams.get("_proxy_debug") === "1" ||
+      request.headers.get("x-proxy-debug") === "1";
 
     // For binary GETs (videos, images, etc.), stream the body and preserve headers
     if (isBinaryGet) {
@@ -313,6 +399,8 @@ async function handler(request: NextRequest) {
             headers.set(k, v);
         }
       });
+      headers.set("x-next-proxy-version", PROXY_VERSION);
+      headers.set("x-next-proxy-upstream", upstreamBase || "");
       applyRewrittenSetCookies(
         headers,
         response,
@@ -325,27 +413,57 @@ async function handler(request: NextRequest) {
       });
     }
 
-    // For non-binary or non-GET, read as text to maintain existing debug behavior
-    const data = await response.text();
-    
-    // Only return error JSON if status is truly an error and not just 404/401 that client handles
-    // Actually, client expects standard HTTP responses. 
-    // If we wrap 404 in a JSON structure that client doesn't expect, it might break.
-    // Let's return the body as is, but log it.
-    
-    if (!response.ok) {
-      console.error(`[Generic Proxy] Backend error ${response.status} for ${targetUrl}`);
-      // Don't modify body for 404/401 etc as client might parse it
+    if (debugProxy) {
+      const raw = await response.text().catch(() => "");
+      let parsed: unknown = null;
+      try {
+        parsed = raw ? JSON.parse(raw) : null;
+      } catch {
+        parsed = null;
+      }
+      const proxyInfo = {
+        version: PROXY_VERSION,
+        upstream: upstreamBase || "",
+        target: targetUrl,
+        status: response.status,
+        content_type: respContentType,
+      };
+      let body: unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        body = { ...(parsed as Record<string, unknown>), _proxy: proxyInfo };
+      } else if (Array.isArray(parsed)) {
+        body = { data: parsed, _proxy: proxyInfo };
+      } else {
+        body = { raw, _proxy: proxyInfo };
+      }
+      const headers = new Headers();
+      response.headers.forEach((v, k) => {
+        const lowerKey = k.toLowerCase();
+        if (!["content-encoding", "content-length", "transfer-encoding"].includes(lowerKey)) {
+          headers.set(k, v);
+        }
+      });
+      headers.set("x-next-proxy-version", PROXY_VERSION);
+      headers.set("x-next-proxy-upstream", upstreamBase || "");
+      headers.set("Content-Type", "application/json");
+      applyRewrittenSetCookies(
+        headers,
+        response,
+        request.nextUrl.hostname,
+        pathname.startsWith("/api/mercadopago/") ? "all" : "auth"
+      );
+      return NextResponse.json(body, { status: response.status, headers });
     }
 
     const headers = new Headers();
     response.headers.forEach((v, k) => {
         const lowerKey = k.toLowerCase();
-        // Remove compression headers since we've already decompressed the body (via .text())
         if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(lowerKey)) {
             headers.set(k, v);
         }
     });
+    headers.set("x-next-proxy-version", PROXY_VERSION);
+    headers.set("x-next-proxy-upstream", upstreamBase || "");
     applyRewrittenSetCookies(
       headers,
       response,
@@ -353,13 +471,7 @@ async function handler(request: NextRequest) {
       pathname.startsWith("/api/mercadopago/") ? "all" : "auth"
     );
     
-    // Ensure Content-Type is set if missing (e.g. for empty 204)
-    // But if it's JSON, ensure it says so.
-    if (!headers.get('Content-Type') && data && (data.startsWith('{') || data.startsWith('['))) {
-       headers.set('Content-Type', 'application/json');
-    }
-
-    return new NextResponse(data, {
+    return new NextResponse(response.body, {
       status: response.status,
       headers
     });
@@ -370,10 +482,14 @@ async function handler(request: NextRequest) {
       error && typeof error === "object" && "message" in error && typeof (error as Record<string, unknown>).message === "string"
         ? String((error as Record<string, unknown>).message)
         : "Unknown proxy error";
-    return NextResponse.json({
-      error: 'Proxy Error',
-      message,
-    }, { status: 502 });
+    return NextResponse.json(
+      {
+        error: 'Proxy Error',
+        message,
+        proxy_version: PROXY_VERSION,
+      },
+      { status: 502, headers: { "x-next-proxy-version": PROXY_VERSION, "x-next-proxy-upstream": "" } },
+    );
   }
 }
 

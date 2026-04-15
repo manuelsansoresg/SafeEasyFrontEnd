@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
+import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
+import { LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
 import { Loader2, CheckCircle, Eye, EyeOff, User, Mail, Lock, Shield } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 export default function ProfilePage() {
   const { user, token } = useAuthStore();
-  const router = useRouter();
   
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -25,6 +25,18 @@ export default function ProfilePage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const [addressData, setAddressData] = useState({
+    address: "",
+    exterior_number: "",
+    interior_number: "",
+    cp: "",
+    neighborhood: "",
+    city: "Mérida",
+    state: "Yucatán",
+    country: "México"
+  });
+  const [mapLocation, setMapLocation] = useState<LatLngLiteral | null>(null);
+
   useEffect(() => {
     const fetchProfileData = async () => {
       if (!user || !token) return;
@@ -33,54 +45,41 @@ export default function ProfilePage() {
       setError(null);
 
       try {
-        // Test both APIs as requested to see which one works best
-        console.log("Testing profile APIs...");
-        
-        const [resMe, resId] = await Promise.allSettled([
-          fetchWithAuth('/api/users/me'),
-          fetchWithAuth(`/api/users/${user.id}`)
-        ]);
-
-        let profileData = null;
-        let usedSource = "";
-
-        // Check /api/users/me
-        if (resMe.status === 'fulfilled' && resMe.value.ok) {
-            const data = await resMe.value.json();
-            console.log("/api/users/me response:", data);
-            if (data && (data.email || data.name)) {
-                profileData = data;
-                usedSource = "/api/users/me";
-            }
+        const res = await fetchWithAuth("/api/users/me", { headers: { Accept: "application/json" } });
+        if (!res.ok) {
+          setError("No se pudieron cargar los datos del perfil. Intente recargar.");
+          return;
         }
-
-        // Check /api/users/{id} if me didn't yield good data or just to compare
-        if (resId.status === 'fulfilled' && resId.value.ok) {
-            const data = await resId.value.json();
-            console.log(`/api/users/${user.id} response:`, data);
-            
-            // If we haven't found data yet, or if this one seems more complete (e.g. has name where other didn't)
-            if (!profileData || (!profileData.name && data.name)) {
-                profileData = data;
-                usedSource = `/api/users/${user.id}`;
-            }
+        const profileData: unknown = await res.json().catch(() => null);
+        if (!profileData || typeof profileData !== "object") {
+          setError("No se pudieron cargar los datos del perfil. Intente recargar.");
+          return;
         }
+        const data = profileData as Record<string, unknown>;
 
-        if (profileData) {
-            console.log(`Using data from ${usedSource}:`, profileData);
-            setFormData(prev => ({
-                ...prev,
-                name: profileData.full_name || profileData.name || "",
-                email: profileData.email || ""
-            }));
-        } else {
-            setError("No se pudieron cargar los datos del perfil. Intente recargar.");
-            console.error("Both APIs failed to return usable profile data");
-        }
+        setFormData((prev) => ({
+          ...prev,
+          name: String(data.full_name || data.name || ""),
+          email: String(data.email || ""),
+        }));
 
-      } catch (err: any) {
-        console.error("Error fetching profile:", err);
-        setError(err.message || "Error al cargar perfil");
+        setAddressData((prev) => ({
+          ...prev,
+          address: String(data.address || data.street || ""),
+          exterior_number: String(data.exterior_number || data.outdoor_number || ""),
+          interior_number: String(data.interior_number || data.indoor_number || ""),
+          cp: String(data.cp || data.zip_code || data.postal_code || ""),
+          neighborhood: String(data.neighborhood || data.colonia || ""),
+          city: String(data.city || "Mérida"),
+          state: String(data.state || "Yucatán"),
+          country: String(data.country || "México"),
+        }));
+
+        const loc = parseMapLocation(data.map_location || null);
+        if (loc) setMapLocation(loc);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Error al cargar perfil";
+        setError(msg);
       } finally {
         setLoading(false);
       }
@@ -109,14 +108,23 @@ export default function ProfilePage() {
     setIsSubmitting(true);
 
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         name: formData.name,
         email: formData.email,
+        address: addressData.address,
+        exterior_number: addressData.exterior_number,
+        interior_number: addressData.interior_number,
+        cp: addressData.cp,
+        neighborhood: addressData.neighborhood,
+        city: addressData.city,
+        state: addressData.state,
+        country: addressData.country,
       };
 
       if (formData.password) {
         payload.password = formData.password;
       }
+      if (mapLocation) payload.map_location = JSON.stringify(mapLocation);
 
       const response = await fetchWithAuth(`/api/users/${user.id}`, {
         method: 'PUT',
@@ -128,9 +136,6 @@ export default function ProfilePage() {
         throw new Error(errorData.detail || `Error al actualizar perfil (${response.status})`);
       }
 
-      const updatedUser = await response.json();
-      console.log("Profile updated:", updatedUser);
-      
       setSuccessMessage("Perfil actualizado correctamente");
       
       // Update store user data if needed (though store usually persists login data)
@@ -143,9 +148,9 @@ export default function ProfilePage() {
         confirmPassword: ""
       }));
 
-    } catch (err: any) {
-      console.error("Update error:", err);
-      setError(err.message || "Error al guardar los cambios");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error al guardar los cambios";
+      setError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -217,6 +222,101 @@ export default function ProfilePage() {
                 onChange={handleChange}
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-4">
+            <h2 className="text-lg font-semibold text-gray-700 border-b pb-2">Dirección de Entrega</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-sm font-medium text-gray-700">Calle</label>
+                <input
+                  value={addressData.address}
+                  onChange={(e) => setAddressData(prev => ({ ...prev, address: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  placeholder="Calle"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Número ext.</label>
+                <input
+                  value={addressData.exterior_number}
+                  onChange={(e) => setAddressData(prev => ({ ...prev, exterior_number: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  placeholder="123"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Número int.</label>
+                <input
+                  value={addressData.interior_number}
+                  onChange={(e) => setAddressData(prev => ({ ...prev, interior_number: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  placeholder="A"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">C.P.</label>
+                <input
+                  value={addressData.cp}
+                  onChange={(e) => setAddressData(prev => ({ ...prev, cp: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  placeholder="97000"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Colonia</label>
+                <input
+                  value={addressData.neighborhood}
+                  onChange={(e) => setAddressData(prev => ({ ...prev, neighborhood: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  placeholder="Colonia"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Ciudad</label>
+                <input
+                  value={addressData.city}
+                  onChange={(e) => setAddressData(prev => ({ ...prev, city: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  placeholder="Mérida"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Estado</label>
+                <input
+                  value={addressData.state}
+                  onChange={(e) => setAddressData(prev => ({ ...prev, state: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  placeholder="Yucatán"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">País</label>
+                <input
+                  value={addressData.country}
+                  onChange={(e) => setAddressData(prev => ({ ...prev, country: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  placeholder="México"
+                />
+              </div>
+            </div>
+            <div className="pt-2">
+              <GoogleMapPicker
+                location={mapLocation}
+                onChange={setMapLocation}
+                addressContext={{
+                  street: addressData.address,
+                  exteriorNumber: addressData.exterior_number,
+                  neighborhood: addressData.neighborhood,
+                  postalCode: addressData.cp,
+                  city: addressData.city,
+                  state: addressData.state,
+                  country: addressData.country
+                }}
+                height="280px"
+                className="rounded-xl overflow-hidden"
               />
             </div>
           </div>

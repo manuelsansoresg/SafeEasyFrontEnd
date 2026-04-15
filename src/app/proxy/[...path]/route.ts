@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const PROXY_VERSION = "2026-04-15-body-replay-2";
+
 const sanitizeBaseUrl = (value: string | undefined) => {
   const trimmed = String(value || "").trim();
   const unwrapped = trimmed.replace(/^['"`]+/, "").replace(/['"`]+$/, "").trim();
@@ -19,7 +21,15 @@ const getBaseUrl = () => {
 
   const publicUrl = sanitizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
   const isProd = process.env.NODE_ENV === "production";
-  if (publicUrl && !publicUrl.startsWith("/") && (!isProd || !publicUrl.includes("localhost"))) {
+  const isLocalPublic =
+    publicUrl.includes("localhost") ||
+    publicUrl.includes("127.0.0.1") ||
+    publicUrl.includes("0.0.0.0");
+  if (publicUrl && !publicUrl.startsWith("/") && (!isProd || !isLocalPublic)) {
+    return ensureApiRootPath(publicUrl);
+  }
+
+  if (!isProd && publicUrl && !publicUrl.startsWith("/") && isLocalPublic) {
     return ensureApiRootPath(publicUrl);
   }
 
@@ -62,6 +72,19 @@ async function handler(request: NextRequest) {
       "host",
       "connection",
       "transfer-encoding",
+      "content-length",
+      "content-encoding",
+      "accept-encoding",
+      "origin",
+      "referer",
+      "sec-fetch-site",
+      "sec-fetch-mode",
+      "sec-fetch-dest",
+      "sec-fetch-user",
+      "sec-ch-ua",
+      "sec-ch-ua-mobile",
+      "sec-ch-ua-platform",
+      "accept-language",
       "x-vercel-ip-city",
       "x-vercel-ip-country",
       "cf-ipcity",
@@ -91,8 +114,8 @@ async function handler(request: NextRequest) {
       forwardHeaders.set("X-Requested-With", "XMLHttpRequest");
     }
 
-    let body: any = undefined;
     let isStreamingBody = false;
+    let bufferedBody: ArrayBuffer | null = null;
     const contentType = request.headers.get("content-type") || "";
     const methodHasBody = !["GET", "HEAD"].includes(request.method);
 
@@ -101,26 +124,29 @@ async function handler(request: NextRequest) {
         contentType.includes("multipart/form-data") || contentType.includes("application/octet-stream");
 
       if (shouldStream) {
-        body = request.body;
         isStreamingBody = true;
       } else {
-        body = await request.arrayBuffer();
+        bufferedBody = await request.arrayBuffer();
       }
     }
 
-    const fetchOptions: any = {
-      method: request.method,
-      headers: forwardHeaders,
-      body,
-      redirect: "manual",
-      cache: "no-store",
+    const buildFetchOptions = (): RequestInit & { duplex?: "half" } => {
+      const opts: RequestInit & { duplex?: "half" } = {
+        method: request.method,
+        headers: forwardHeaders,
+        redirect: "manual",
+        cache: "no-store",
+      };
+      if (isStreamingBody) {
+        opts.body = request.body;
+        opts.duplex = "half";
+      } else if (bufferedBody) {
+        opts.body = bufferedBody.slice(0);
+      }
+      return opts;
     };
 
-    if (isStreamingBody) {
-      fetchOptions.duplex = "half";
-    }
-
-    let response = await fetch(targetUrl, fetchOptions);
+    let response = await fetch(targetUrl, buildFetchOptions());
 
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("Location");
@@ -139,7 +165,7 @@ async function handler(request: NextRequest) {
           newUrlString = newUrlString.replace("http:", "https:");
         }
 
-        response = await fetch(newUrlString, fetchOptions);
+        response = await fetch(newUrlString, buildFetchOptions());
       }
     }
 
@@ -152,6 +178,9 @@ async function handler(request: NextRequest) {
         respContentType === "application/octet-stream" ||
         respContentType.startsWith("application/zip") ||
         respContentType.startsWith("audio/"));
+    const debugProxy =
+      request.nextUrl.searchParams.get("_proxy_debug") === "1" ||
+      request.headers.get("x-proxy-debug") === "1";
 
     if (isBinaryGet) {
       const headers = new Headers();
@@ -161,10 +190,46 @@ async function handler(request: NextRequest) {
           headers.set(k, v);
         }
       });
+      headers.set("x-next-proxy-version", PROXY_VERSION);
+      headers.set("x-next-proxy-upstream", BASE_URL);
       return new NextResponse(response.body, { status: response.status, headers });
     }
 
-    const data = await response.text();
+    if (debugProxy) {
+      const raw = await response.text().catch(() => "");
+      let parsed: unknown = null;
+      try {
+        parsed = raw ? JSON.parse(raw) : null;
+      } catch {
+        parsed = null;
+      }
+      const proxyInfo = {
+        version: PROXY_VERSION,
+        upstream: BASE_URL,
+        target: targetUrl,
+        status: response.status,
+        content_type: respContentType,
+      };
+      let body: unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        body = { ...(parsed as Record<string, unknown>), _proxy: proxyInfo };
+      } else if (Array.isArray(parsed)) {
+        body = { data: parsed, _proxy: proxyInfo };
+      } else {
+        body = { raw, _proxy: proxyInfo };
+      }
+      const headers = new Headers();
+      response.headers.forEach((v, k) => {
+        const lowerKey = k.toLowerCase();
+        if (!["content-encoding", "content-length", "transfer-encoding"].includes(lowerKey)) {
+          headers.set(k, v);
+        }
+      });
+      headers.set("x-next-proxy-version", PROXY_VERSION);
+      headers.set("x-next-proxy-upstream", BASE_URL);
+      headers.set("Content-Type", "application/json");
+      return NextResponse.json(body, { status: response.status, headers });
+    }
 
     const headers = new Headers();
     response.headers.forEach((v, k) => {
@@ -173,16 +238,13 @@ async function handler(request: NextRequest) {
         headers.set(k, v);
       }
     });
-
-    if (!headers.get("Content-Type") && data && (data.startsWith("{") || data.startsWith("["))) {
-      headers.set("Content-Type", "application/json");
-    }
-
-    return new NextResponse(data, { status: response.status, headers });
+    headers.set("x-next-proxy-version", PROXY_VERSION);
+    headers.set("x-next-proxy-upstream", BASE_URL);
+    return new NextResponse(response.body, { status: response.status, headers });
   } catch (error: any) {
     return NextResponse.json(
-      { error: "Proxy Error", message: error?.message || "Unknown proxy error" },
-      { status: 502 },
+      { error: "Proxy Error", message: error?.message || "Unknown proxy error", proxy_version: PROXY_VERSION },
+      { status: 502, headers: { "x-next-proxy-version": PROXY_VERSION, "x-next-proxy-upstream": BASE_URL } },
     );
   }
 }

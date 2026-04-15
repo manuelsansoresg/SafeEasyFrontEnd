@@ -163,7 +163,9 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         getBool(rec, "is_connected") ??
         getBool(rec, "isLinked") ??
         getBool(rec, "is_linked") ??
-        getBool(rec, "linked");
+        getBool(rec, "linked") ??
+        getBool(rec, "mp_is_linked") ??
+        getBool(rec, "mpIsLinked");
       if (typeof direct === "boolean") return direct;
       const status =
         getString(rec, "status") || getString(rec, "state") || getString(rec, "connection_status");
@@ -184,7 +186,9 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         getString(rec, "email") ||
         getString(rec, "account_email") ||
         getString(rec, "payer_email") ||
-        getString(rec, "connected_email");
+        getString(rec, "connected_email") ||
+        getString(rec, "mp_email") ||
+        getString(rec, "mp_connected_email");
       if (direct) return direct;
       const account = toRecord(rec?.account);
       return getString(account, "email");
@@ -318,7 +322,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     setMpDisconnectLoading(true);
     try {
       const res = await fetchWithAuth("/api/mercadopago/disconnect?account_type=supplier", {
-        method: "POST",
+        method: "DELETE",
         headers: { Accept: "application/json" },
       });
       if (!res.ok) {
