@@ -4,10 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
-import { Loader2, AlertCircle, Eye, EyeOff, Facebook } from "lucide-react";
-import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
-import FacebookLogin from 'react-facebook-login/dist/facebook-login-render-props';
-import { jwtDecode } from "jwt-decode";
+import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { GoogleOAuthProvider } from "@react-oauth/google";
+import SocialLoginButtons, { SocialLoginPayload } from "@/components/auth/SocialLoginButtons";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 const FACEBOOK_CLIENT_ID = process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "";
@@ -90,46 +89,6 @@ export default function LoginPage() {
       setError("No se pudo iniciar sesión con la red social. Intenta nuevamente.");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const onGoogleSuccess = (credentialResponse: CredentialResponse) => {
-    if (credentialResponse.credential) {
-      try {
-        const decoded: any = jwtDecode(credentialResponse.credential);
-        const payload = {
-            provider: "google",
-            token: credentialResponse.credential,
-            email: decoded.email,
-            name: decoded.name,
-            avatar: decoded.picture,
-            social_id: decoded.sub
-        };
-        handleSocialLogin(payload);
-      } catch (e) {
-        console.error("Error decoding Google token", e);
-        setError("Error al procesar la respuesta de Google");
-      }
-    }
-  };
-
-  const responseFacebook = (response: any) => {
-    if (response.accessToken) {
-      const payload = {
-        provider: "facebook",
-        token: response.accessToken,
-        email: response.email,
-        name: response.name,
-        avatar: response.picture?.data?.url,
-        social_id: response.userID
-      };
-      handleSocialLogin(payload);
-    } else {
-        // User cancelled or error
-        if (response.status !== 'unknown') {
-            console.error("Facebook login error", response);
-            setError("Error al conectar con Facebook");
-        }
     }
   };
 
@@ -351,41 +310,14 @@ export default function LoginPage() {
                 </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-3">
-                <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                    <div className="w-full">
-                         <GoogleLogin
-                            onSuccess={onGoogleSuccess}
-                            onError={() => {
-                                console.error('Google Login Failed');
-                                setError('Falló el inicio de sesión con Google');
-                            }}
-                            theme="outline"
-                            width="300" 
-                            text="signin_with"
-                         />
-                    </div>
-                </GoogleOAuthProvider>
-
-                <div>
-                    <FacebookLogin
-                        appId={FACEBOOK_CLIENT_ID}
-                        autoLoad={false}
-                        fields="name,email,picture"
-                        callback={responseFacebook}
-                        render={(renderProps: any) => (
-                            <button
-                                onClick={renderProps.onClick}
-                                className="w-full inline-flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-                            >
-                                <Facebook className="h-5 w-5 text-[#1877F2] mr-2" />
-                                <span className="hidden sm:inline">Facebook</span>
-                                <span className="sm:hidden">FB</span>
-                            </button>
-                        )}
-                    />
-                </div>
-            </div>
+            <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+              <SocialLoginButtons
+                facebookClientId={FACEBOOK_CLIENT_ID}
+                onSocialLogin={(payload: SocialLoginPayload) => handleSocialLogin(payload)}
+                onError={setError}
+                disabled={isLoading}
+              />
+            </GoogleOAuthProvider>
         </div>
       </div>
     </div>
