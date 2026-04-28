@@ -29,15 +29,56 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
 
   // Initialize with default hours if none exist
   const initializeHours = (existingHours: BusinessHour[] = []) => {
+    const normalizedByDay = new Map<number, BusinessHour>();
+    const parseBool = (v: unknown) => {
+      if (typeof v === "boolean") return v;
+      if (typeof v === "number") return v !== 0;
+      if (typeof v === "string") {
+        const s = v.trim().toLowerCase();
+        if (s === "true" || s === "1" || s === "yes" || s === "y") return true;
+        if (s === "false" || s === "0" || s === "no" || s === "n") return false;
+      }
+      return false;
+    };
+
+    for (const raw of existingHours) {
+      const rec = raw as unknown as Record<string, unknown>;
+      const day = Number(rec.day_of_week);
+      if (!Number.isFinite(day)) continue;
+
+      const open = typeof rec.open_time === "string" ? rec.open_time : null;
+      const close = typeof rec.close_time === "string" ? rec.close_time : null;
+      const isClosed = parseBool(rec.is_closed) || (open == null && close == null);
+
+      const normalized: BusinessHour = {
+        ...(raw as BusinessHour),
+        day_of_week: day,
+        open_time: open,
+        close_time: close,
+        is_closed: isClosed,
+      };
+
+      const existing = normalizedByDay.get(day);
+      if (!existing) {
+        normalizedByDay.set(day, normalized);
+        continue;
+      }
+
+      const existingClosed =
+        Boolean(existing.is_closed) || (existing.open_time == null && existing.close_time == null);
+      const incomingClosed = Boolean(normalized.is_closed) || (open == null && close == null);
+      normalizedByDay.set(day, incomingClosed ? normalized : existingClosed ? existing : normalized);
+    }
+
     return DAYS.map((day) => {
-      const existing = existingHours.find((h) => h.day_of_week === day.id);
+      const existing = normalizedByDay.get(day.id);
       if (existing) return existing;
       
       return {
         day_of_week: day.id,
-        open_time: "09:00",
-        close_time: "18:00",
-        is_closed: false,
+        open_time: null,
+        close_time: null,
+        is_closed: true,
       };
     });
   };
@@ -45,24 +86,114 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
   useEffect(() => {
     const fetchHours = async () => {
       try {
-        const res = await fetchWithAuth(`/api/suppliers/${supplierId}`, {
-          method: "GET",
-        });
-        
-        if (res) {
-          // Check if the response has business_hours property
-          // The API returns the supplier object which contains business_hours array
-          const data = res as unknown as { business_hours: BusinessHour[] };
-          if (data.business_hours && Array.isArray(data.business_hours)) {
-            setHours(initializeHours(data.business_hours));
-          } else {
-            setHours(initializeHours([]));
+        const toRecord = (v: unknown) => (v && typeof v === "object" ? (v as Record<string, unknown>) : null);
+
+        const tryFetchJson = async (url: string) => {
+          const res = await fetchWithAuth(url, { method: "GET", headers: { Accept: "application/json" } });
+          if (!res.ok) return null;
+          return res.json().catch(() => null);
+        };
+
+        const pickSupplierPayload = (payload: unknown): Record<string, unknown> | null => {
+          if (Array.isArray(payload)) {
+            const found = payload.find((x) => {
+              const rec = toRecord(x);
+              return rec && Number(rec.id) === Number(supplierId);
+            });
+            return toRecord(found ?? payload[0] ?? null);
+          }
+
+          const root = toRecord(payload);
+          if (!root) return null;
+
+          if (Number(root.id) === Number(supplierId)) return root;
+
+          const dataRec = toRecord(root.data);
+          if (dataRec && Number(dataRec.id) === Number(supplierId)) return dataRec;
+
+          const items = root.items ?? root.results;
+          if (Array.isArray(items)) {
+            const found = items.find((x) => {
+              const rec = toRecord(x);
+              return rec && Number(rec.id) === Number(supplierId);
+            });
+            return toRecord(found ?? items[0] ?? null);
+          }
+
+          return root;
+        };
+
+        const parseBusinessHours = (payload: unknown): BusinessHour[] => {
+          if (Array.isArray(payload)) {
+            const first = toRecord(payload[0]);
+            const looksLikeBusinessHour = first && "day_of_week" in first && "is_closed" in first;
+            if (looksLikeBusinessHour) return payload as BusinessHour[];
+          }
+
+          const root = pickSupplierPayload(payload);
+          if (!root) return [];
+
+          const direct = root.business_hours;
+          if (Array.isArray(direct)) return direct as BusinessHour[];
+
+          const nested = toRecord(root.data)?.business_hours ?? toRecord(root.result)?.business_hours;
+          if (Array.isArray(nested)) return nested as BusinessHour[];
+
+          const items = root.items ?? root.results;
+          if (Array.isArray(items) && items.length > 0) {
+            const first = toRecord(items[0]);
+            const bh = first?.business_hours;
+            if (Array.isArray(bh)) return bh as BusinessHour[];
+          }
+
+          return [];
+        };
+
+        const businessHoursUrlsToTry = [
+          `/api/suppliers/${supplierId}/business-hours/`,
+          `/api/suppliers/${supplierId}/business-hours`,
+        ];
+
+        const supplierUrlsToTry = [
+          `/api/suppliers/${supplierId}/`,
+          `/api/suppliers/${supplierId}`,
+          `/api/suppliers/?id=${supplierId}`,
+          `/api/suppliers?id=${supplierId}`,
+          `/api/suppliers/?skip=0&limit=100&id=${supplierId}`,
+          `/api/suppliers?skip=0&limit=100&id=${supplierId}`,
+        ];
+
+        let payload: unknown = null;
+        for (const url of businessHoursUrlsToTry) {
+          payload = await tryFetchJson(url);
+          if (payload != null) break;
+        }
+
+        if (payload == null) {
+          for (const url of supplierUrlsToTry) {
+            payload = await tryFetchJson(url);
+            if (payload != null) break;
           }
         }
+
+        const businessHours = parseBusinessHours(payload);
+        if (payload == null) {
+          setError("No se pudieron cargar los horarios (sesión o permisos).");
+          setHours([]);
+          return;
+        }
+
+        if (businessHours.length === 0) {
+          setError("No se encontraron horarios en la respuesta del API.");
+          setHours(initializeHours([]));
+          return;
+        }
+
+        setHours(initializeHours(businessHours));
       } catch (err) {
         console.error("Error fetching business hours:", err);
         setError("Error al cargar los horarios");
-        setHours(initializeHours([]));
+        setHours([]);
       } finally {
         setLoading(false);
       }
@@ -76,7 +207,7 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
   const handleTimeChange = (dayId: number, field: "open_time" | "close_time", value: string) => {
     setHours((prev) =>
       prev.map((h) =>
-        h.day_of_week === dayId ? { ...h, [field]: value } : h
+        Number((h as unknown as { day_of_week?: unknown }).day_of_week) === dayId ? { ...h, [field]: value } : h
       )
     );
     setSuccess(false);
@@ -85,7 +216,9 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
   const toggleClosed = (dayId: number) => {
     setHours((prev) =>
       prev.map((h) =>
-        h.day_of_week === dayId ? { ...h, is_closed: !h.is_closed } : h
+        Number((h as unknown as { day_of_week?: unknown }).day_of_week) === dayId
+          ? { ...h, is_closed: !h.is_closed }
+          : h
       )
     );
     setSuccess(false);
@@ -99,13 +232,13 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
     try {
       // Filter out null times for open days to ensure validity
       const payload = hours.map(({ day_of_week, open_time, close_time, is_closed }) => ({
-        day_of_week,
+        day_of_week: Number(day_of_week),
         open_time: is_closed ? null : (open_time || "09:00"),
         close_time: is_closed ? null : (close_time || "18:00"),
-        is_closed
+        is_closed: Boolean(is_closed),
       }));
 
-      const res = await fetchWithAuth(`/api/suppliers/${supplierId}/business-hours`, {
+      await fetchWithAuth(`/api/suppliers/${supplierId}/business-hours`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -159,8 +292,8 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
       <div className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
         <div className="divide-y divide-gray-200">
           {DAYS.map((day) => {
-            const dayConfig = hours.find((h) => h.day_of_week === day.id);
-            const isClosed = dayConfig?.is_closed ?? false;
+            const dayConfig = hours.find((h) => Number((h as unknown as { day_of_week?: unknown }).day_of_week) === day.id);
+            const isClosed = dayConfig?.is_closed ?? true;
             const openTime = dayConfig?.open_time || "09:00";
             const closeTime = dayConfig?.close_time || "18:00";
 
