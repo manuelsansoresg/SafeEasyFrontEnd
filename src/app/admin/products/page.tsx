@@ -162,14 +162,14 @@ export default function AdminProductsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="p-4 font-semibold text-gray-600 text-sm w-[80px]">Imagen</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm min-w-[200px]">Nombre</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm">SKU</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm">Precio</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm">Stock</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm text-center">Estado</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm text-right">Acciones</th>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-[80px]">Imagen</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]">Nombre</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">SKU</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Estado</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -182,7 +182,7 @@ export default function AdminProductsPage() {
                 ) : (
                   products.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="p-4">
+                      <td className="px-6 py-4">
                         <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center border border-gray-200">
                           {product.thumbnail_url ? (
                             <img 
@@ -195,36 +195,36 @@ export default function AdminProductsPage() {
                           )}
                         </div>
                       </td>
-                      <td className="p-4">
+                      <td className="px-6 py-4">
                         <div className="font-medium text-gray-800">{product.title}</div>
                         <div 
                           className="text-xs text-gray-400 truncate max-w-[200px]" 
                           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description).substring(0, 100) + (product.description.length > 100 ? '...' : '') }} 
                         />
                       </td>
-                      <td className="p-4 text-sm text-gray-600">{product.sku}</td>
-                      <td className="p-4 text-sm font-medium text-gray-800">${product.price}</td>
-                      <td className="p-4 text-sm text-gray-600">{product.stock}</td>
-                      <td className="p-4 text-center">
+                      <td className="px-6 py-4 text-sm text-gray-600">{product.sku}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-800">${product.price}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{product.stock}</td>
+                      <td className="px-6 py-4 text-center">
                         <span className={cn(
-                          "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                          product.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border",
+                          product.is_active ? "bg-green-50 text-green-700 border-green-100" : "bg-gray-50 text-gray-600 border-gray-100"
                         )}>
                           {product.is_active ? "Activo" : "Inactivo"}
                         </span>
                       </td>
-                      <td className="p-4 text-right">
+                      <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Link 
                             href={`/admin/products/${product.id}`}
-                            className="cursor-pointer p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                             title="Editar"
                           >
                             <Edit2 size={18} />
                           </Link>
                           <button 
                             onClick={() => deleteProduct(product.id)}
-                            className="cursor-pointer p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                             title="Eliminar"
                           >
                             <Trash2 size={18} />
@@ -240,21 +240,21 @@ export default function AdminProductsPage() {
         )}
         
         {/* Simple Pagination Controls */}
-        <div className="p-4 border-t border-gray-100 flex justify-between items-center">
+        <div className="p-4 border-t border-gray-100 flex items-center justify-between">
           <button
             disabled={skip === 0}
             onClick={() => setSkip(Math.max(0, skip - limit))}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+            className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Anterior
           </button>
           <span className="text-sm text-gray-500">
-            Mostrando {skip + 1} - {skip + products.length}
+            Página {Math.floor(skip / limit) + 1}
           </span>
           <button
             disabled={products.length < limit}
             onClick={() => setSkip(skip + limit)}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+            className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Siguiente
           </button>

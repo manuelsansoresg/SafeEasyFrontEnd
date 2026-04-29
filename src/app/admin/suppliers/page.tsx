@@ -358,8 +358,8 @@ export default function AdminSuppliersPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="p-4 w-10">
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="px-6 py-4 w-10">
                     <input
                       type="checkbox"
                       checked={allSelected}
@@ -367,13 +367,13 @@ export default function AdminSuppliersPage() {
                       className="h-4 w-4 text-primary border-gray-300 rounded"
                     />
                   </th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm">Nombre</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm">RFC</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm hidden md:table-cell">Teléfono</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm hidden lg:table-cell">Email</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm text-center">Estado</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm text-center">Verificado</th>
-                  <th className="p-4 font-semibold text-gray-600 text-sm text-right">Acciones</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Nombre</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">RFC</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Teléfono</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Email</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Estado</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Verificado</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -387,7 +387,7 @@ export default function AdminSuppliersPage() {
                   suppliers.map((supplier) => (
                     <Fragment key={supplier.id}>
                       <tr className="hover:bg-gray-50/50 transition-colors">
-                        <td className="p-4">
+                        <td className="px-6 py-4">
                           <input
                             type="checkbox"
                             checked={selectedIds.includes(supplier.id)}
@@ -395,42 +395,41 @@ export default function AdminSuppliersPage() {
                             className="h-4 w-4 text-primary border-gray-300 rounded"
                           />
                         </td>
-                        <td className="p-4">
+                        <td className="px-6 py-4">
                           <div className="font-medium text-gray-800">{supplier.name}</div>
                           {supplier.short_name && (
                             <div className="text-xs text-gray-400">{supplier.short_name}</div>
                           )}
-                          {/* Mobile view info */}
                           <div className="md:hidden text-xs text-gray-500 mt-1">
                             {supplier.phone}
                           </div>
                         </td>
-                        <td className="p-4 text-sm text-gray-600">{supplier.rfc || '-'}</td>
-                        <td className="p-4 text-sm text-gray-600 hidden md:table-cell">{supplier.phone || '-'}</td>
-                        <td className="p-4 text-sm text-gray-600 hidden lg:table-cell">{supplier.email || '-'}</td>
-                        <td className="p-4 text-center">
+                        <td className="px-6 py-4 text-sm text-gray-600">{supplier.rfc || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 hidden md:table-cell">{supplier.phone || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 hidden lg:table-cell">{supplier.email || '-'}</td>
+                        <td className="px-6 py-4 text-center">
                           <span className={cn(
-                            "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+                            "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border",
                             supplier.is_active 
-                              ? "bg-green-100 text-green-800" 
-                              : "bg-red-100 text-red-800"
+                              ? "bg-green-50 text-green-700 border-green-100" 
+                              : "bg-gray-50 text-gray-600 border-gray-100"
                           )}>
                             {supplier.is_active ? "Activo" : "Inactivo"}
                           </span>
                         </td>
-                        <td className="p-4 text-center">
+                        <td className="px-6 py-4 text-center">
                           {supplier.is_verified ? (
                             <span className="inline-flex items-center" title="Empresa verificada">
                               <CheckCircle size={16} className="text-[#168e00]" />
                             </span>
                           ) : null}
                         </td>
-                        <td className="p-4 text-right">
+                        <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <button
                               type="button"
                               onClick={() => toggleRow(supplier.id)}
-                              className="cursor-pointer p-2 text-gray-400 hover:text-primary transition-colors"
+                              className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                               title="Ver más detalles"
                             >
                               {expandedRows.has(supplier.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -445,10 +444,10 @@ export default function AdminSuppliersPage() {
                                 }}
                                 disabled={verifyingId === supplier.id}
                                 className={cn(
-                                  "cursor-pointer p-2 rounded-lg transition-colors",
+                                  "p-2 rounded-lg transition-colors",
                                   supplier.is_verified
-                                    ? "text-gray-600 hover:bg-gray-50"
-                                    : "text-green-600 hover:bg-green-50",
+                                    ? "text-gray-400 hover:text-primary hover:bg-primary/5"
+                                    : "text-gray-400 hover:text-green-600 hover:bg-green-50",
                                   verifyingId === supplier.id ? "opacity-60 cursor-default" : ""
                                 )}
                                 title={supplier.is_verified ? "Desverificar" : "Verificar"}
@@ -464,7 +463,7 @@ export default function AdminSuppliersPage() {
                             ) : null}
                             <Link 
                               href={`/admin/suppliers/${supplier.id}`}
-                              className="cursor-pointer p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                              className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                               title="Editar"
                             >
                               <Edit2 size={18} />
@@ -472,7 +471,7 @@ export default function AdminSuppliersPage() {
                             <button
                               type="button"
                               onClick={() => handleDelete(supplier.id)}
-                              className="cursor-pointer p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                               title="Eliminar"
                             >
                               <Trash2 size={18} />

@@ -121,21 +121,6 @@ export default function AdminSubscriptionsPage() {
     }
   };
 
-  const markExpired = async (sub: Subscription) => {
-    if (!confirm("¿Estás seguro de marcar esta subscripción como expirada?")) return;
-    try {
-      await subscriptionsService.updateStatus(sub.id, {
-        status: "expired",
-        note: "Marcado como expirado desde administración.",
-      });
-      setToast({ type: "success", message: "Subscripción actualizada." });
-      await refresh();
-    } catch (e) {
-      console.error("Error updating subscription:", e);
-      setToast({ type: "error", message: "Error al actualizar subscripción." });
-    }
-  };
-
   if (!isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
@@ -283,13 +268,6 @@ export default function AdminSubscriptionsPage() {
                           title="Editar estado"
                         >
                           <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => markExpired(sub)}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Marcar como expirado"
-                        >
-                          <XCircle size={18} />
                         </button>
                       </div>
                     </td>

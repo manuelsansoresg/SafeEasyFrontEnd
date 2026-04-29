@@ -248,46 +248,36 @@ export default function AdminAdsPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-100">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Imagen
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Link
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ciudad
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-gray-50/50">
+              <tr className="border-b border-gray-100">
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Imagen</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Link</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ciudad</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Activo</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
-                    <Loader2 className="w-6 h-6 animate-spin inline-block mr-2" />
-                    Cargando anuncios...
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="animate-spin" size={20} />
+                      Cargando anuncios...
+                    </div>
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
-                    No hay anuncios registrados.
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    No se encontraron anuncios
                   </td>
                 </tr>
               ) : (
                 items.map((ad) => (
-                  <tr key={ad.id} className="hover:bg-gray-50">
+                  <tr key={ad.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         {renderImage(ad)}
@@ -302,19 +292,19 @@ export default function AdminAdsPage() {
                     <td className="px-6 py-4 text-sm text-gray-700">
                       {ad.state || "Yucatán"}
                     </td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-6 py-4 text-center">
                       <span
-                        className={
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                           ad.is_active
-                            ? "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800"
-                            : "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600"
-                        }
+                            ? "bg-green-50 text-green-700 border-green-100"
+                            : "bg-gray-50 text-gray-600 border-gray-100"
+                        }`}
                       >
                         {ad.is_active ? "Activo" : "Inactivo"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right text-sm">
-                      <div className="inline-flex items-center gap-2">
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -326,7 +316,7 @@ export default function AdminAdsPage() {
                             setEditFile(null);
                             setIsEditOpen(true);
                           }}
-                          className="p-2 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100"
+                          className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                           title="Editar"
                         >
                           <Pencil className="w-4 h-4" />
@@ -335,7 +325,7 @@ export default function AdminAdsPage() {
                           type="button"
                           onClick={() => handleToggleActive(ad)}
                           disabled={updatingId === ad.id}
-                          className="p-2 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-50"
+                          className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors disabled:opacity-50"
                           title={ad.is_active ? "Desactivar" : "Activar"}
                         >
                           {ad.is_active ? (
@@ -348,7 +338,7 @@ export default function AdminAdsPage() {
                           type="button"
                           onClick={() => handleDelete(ad.id)}
                           disabled={deletingId === ad.id}
-                          className="p-2 rounded-full border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50"
+                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                           title="Eliminar anuncio"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -368,16 +358,16 @@ export default function AdminAdsPage() {
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1 || loading}
-            className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 bg-white disabled:opacity-50"
+            className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Anterior
           </button>
-          <span className="text-sm text-gray-600">Página {page}</span>
+          <span className="text-sm text-gray-500">Página {page}</span>
           <button
             type="button"
             onClick={() => hasMore && setPage((p) => p + 1)}
             disabled={!hasMore || loading}
-            className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 bg-white disabled:opacity-50"
+            className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Siguiente
           </button>
