@@ -40,3 +40,9 @@ export interface UpdateSubscriptionStatusPayload {
   plan_id?: number;
   end_date?: string;
 }
+
+export interface PurchaseResponse {
+  init_point: string;
+  preference_id: string;
+  subscription_payment_id: number;
+}

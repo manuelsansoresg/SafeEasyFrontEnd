@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "@/lib/api";
 import type {
   Plan,
+  PurchaseResponse,
   Subscription,
   SubscriptionEvent,
   UpdateSubscriptionStatusPayload,
@@ -140,6 +141,47 @@ export const subscriptionsService = {
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return readJson<unknown>(response);
     return null;
+  },
+
+  async getMySubscription(): Promise<Subscription | null> {
+    const tryUrls = [`/api/subscriptions/my`, `/api/subscriptions/my/`];
+    let response: Response | null = null;
+    for (const url of tryUrls) {
+      response = await fetchWithAuth(url);
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+    if (!response || !response.ok) {
+      if (response?.status === 404) return null;
+      const text = await response?.text().catch(() => "") ?? "";
+      console.error(`[subscriptionsService] getMySubscription failed:`, {
+        status: response?.status,
+        statusText: response?.statusText,
+        body: text.slice(0, 500),
+      });
+      throw new Error(`Failed to fetch my subscription (${response?.status ?? "unknown"}) ${text}`.trim());
+    }
+    const json = await readJson<Subscription>(response);
+    return json;
+  },
+
+  async purchase(planId: number): Promise<PurchaseResponse> {
+    const body = JSON.stringify({ plan_id: planId });
+    const options = { method: "POST", body };
+    const tryUrls = [`/api/subscriptions/purchase`, `/api/subscriptions/purchase/`];
+    let response: Response | null = null;
+    for (const url of tryUrls) {
+      response = await fetchWithAuth(url, options);
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+    if (!response || !response.ok) {
+      const text = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to purchase subscription (${response?.status ?? "unknown"}) ${text}`.trim());
+    }
+    const json = await readJson<PurchaseResponse>(response);
+    if (!json) throw new Error("Empty response from purchase endpoint");
+    return json;
   },
 };
 

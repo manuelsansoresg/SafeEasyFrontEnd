@@ -104,6 +104,12 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       roles: ['supplier']
     },
     {
+      title: "Mi Subscripción",
+      path: "/admin/my-subscription",
+      icon: BadgeDollarSign,
+      roles: ['supplier']
+    },
+    {
       title: "Envíos",
       path: "/admin/settings/shipping",
       icon: Truck,
