@@ -238,7 +238,9 @@ async function handler(request: NextRequest) {
         (nextTargetUrl.endsWith("users") ||
           nextTargetUrl.endsWith("products") ||
           nextTargetUrl.endsWith("suppliers") ||
-          nextTargetUrl.endsWith("orders")) &&
+          nextTargetUrl.endsWith("orders") ||
+          nextTargetUrl.endsWith("subscriptions") ||
+          nextTargetUrl.endsWith("plans")) &&
         !nextTargetUrl.endsWith("/")
       ) {
         nextTargetUrl += "/";

@@ -15,7 +15,9 @@ import {
   LayoutDashboard,
   ShoppingCart,
   BarChart3,
-  Truck
+  Truck,
+  BadgeDollarSign,
+  Repeat
 } from "lucide-react";
 import { Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -106,6 +108,18 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       path: "/admin/settings/shipping",
       icon: Truck,
       roles: ['admin']
+    },
+    {
+      title: "Planes",
+      path: "/admin/plans",
+      icon: BadgeDollarSign,
+      roles: ['admin', 'superuser']
+    },
+    {
+      title: "Subscripciones",
+      path: "/admin/subscriptions",
+      icon: Repeat,
+      roles: ['admin', 'superuser']
     }
   ];
 
