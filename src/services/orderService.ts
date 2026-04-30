@@ -6,6 +6,13 @@ export interface Order {
   product_id: string;
   conversation_id: string;
   buyer_id: number;
+  delivery_type?: "pickup" | "shipping" | string;
+  payment_method?: "card" | "transfer" | string;
+  shipping_cost?: number | string | null;
+  distance_km?: number | string | null;
+  delivery_address?: string | null;
+  shipping_address?: string | null;
+  pickup_address?: string | null;
   total_amount?: string | number;
   payment_status?: string;
   fulfillment_status?: string;
@@ -67,6 +74,53 @@ export interface OrderRefund {
 }
 
 export const orderService = {
+  getOrderById: async (orderId: number): Promise<Order> => {
+    const tryUrls = [
+      `/api/orders/${orderId}`,
+      `/api/orders/${orderId}/`,
+      `/api/v1/orders/${orderId}`,
+      `/api/v1/orders/${orderId}/`,
+    ];
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url, { headers: { Accept: "application/json" } });
+      if (response.ok) break;
+      if (response.status === 404 || response.status === 405) continue;
+      if (response.status === 301 || response.status === 302 || response.status === 307 || response.status === 308) continue;
+      break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to fetch order: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+    }
+
+    const data: unknown = await response.json().catch(() => null);
+    if (data && typeof data === "object") {
+      const record = data as Record<string, unknown>;
+      const nested = record.order && typeof record.order === "object" ? (record.order as Record<string, unknown>) : null;
+      const candidate = (nested || record) as unknown;
+      return candidate as Order;
+    }
+
+    throw new Error("Failed to fetch order: invalid response");
+  },
+
+  getMyOrderById: async (orderId: number): Promise<Order> => {
+    try {
+      const order = await orderService.getOrderById(orderId);
+      return order;
+    } catch {
+      const all = await orderService.getMyOrders();
+      const found = all.find((o) => Number(o.id) === Number(orderId));
+      if (!found) throw new Error("No se encontró la orden.");
+      return found;
+    }
+  },
+
   getOrders: async (
     page = 1,
     limit = 10,

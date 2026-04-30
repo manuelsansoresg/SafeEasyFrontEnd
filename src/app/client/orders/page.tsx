@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
 import FileUpload from "@/components/ui/FileUpload";
 import {
@@ -11,6 +12,14 @@ import {
   Copy,
   CheckCircle,
   AlertTriangle,
+  BadgeCheck,
+  Check,
+  Clock,
+  FileText,
+  MapPin,
+  PackageCheck,
+  Store,
+  Truck,
 } from "lucide-react";
 
 function getImageUrl(path: string | null | undefined) {
@@ -125,6 +134,190 @@ function toSpanishHistoryText(value: string) {
   let out = raw;
   for (const [re, rep] of replacements) out = out.replace(re, rep);
   return out;
+}
+
+type DeliveryTypeKey = "shipping" | "pickup";
+
+function getDeliveryTypeKey(order: Order): DeliveryTypeKey {
+  const anyOrder = order as unknown as Record<string, unknown>;
+  const raw =
+    anyOrder.delivery_type ??
+    anyOrder.deliveryType ??
+    anyOrder.shipping_type ??
+    anyOrder.shippingType ??
+    anyOrder.fulfillment_type ??
+    anyOrder.fulfillmentType ??
+    null;
+  const v = String(raw || "").trim().toLowerCase();
+  if (v === "shipping" || v === "delivery" || v === "envio" || v === "envío") return "shipping";
+  if (v === "pickup" || v === "store_pickup" || v === "recoger" || v === "recoleccion") return "pickup";
+
+  const statusRaw = String(order.fulfillment_status || order.visual_status || order.status || order.payment_status || "");
+  const normalized = normalizeStatusKey(statusRaw);
+  if (normalized === "shipped") return "shipping";
+  return "pickup";
+}
+
+function getDeliveryTitle(mode: DeliveryTypeKey) {
+  return mode === "shipping" ? "Envío a domicilio" : "Recoger en tienda";
+}
+
+function formatEtaLabel(order: Order, mode: DeliveryTypeKey) {
+  const created = new Date(order.created_at || "");
+  const base = Number.isNaN(created.getTime()) ? new Date() : created;
+  const minutesToAdd = mode === "shipping" ? 24 * 60 + 90 : 120;
+  const eta = new Date(base.getTime() + minutesToAdd * 60_000);
+  const now = new Date();
+  const sameDay =
+    eta.getFullYear() === now.getFullYear() && eta.getMonth() === now.getMonth() && eta.getDate() === now.getDate();
+  const dayLabel = sameDay
+    ? "Hoy"
+    : eta.toLocaleDateString("es-MX", { weekday: "short", month: "short", day: "2-digit" }).replace(/\.$/, "");
+  const timeLabel = eta.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+  return `${dayLabel}, ${timeLabel}`;
+}
+
+function DeliveryTypePill({ order }: { order: Order }) {
+  const mode = getDeliveryTypeKey(order);
+  const label = mode === "shipping" ? "Envío" : "Recoger";
+  const bg = mode === "shipping" ? "#3b82f614" : "#004e2814";
+  const fg = mode === "shipping" ? "#3b82f6" : "#004e28";
+  return (
+    <span
+      className="inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold font-[family-name:var(--font-poppins)]"
+      style={{ backgroundColor: bg, color: fg, border: `1px solid ${fg}33` }}
+    >
+      {label}
+    </span>
+  );
+}
+
+type ProgressStep = {
+  key: "created" | "receipt_uploaded" | "paid" | "shipped" | "completed";
+  label: string;
+  Icon: typeof Check;
+};
+
+function getBaseProgressSteps(mode: DeliveryTypeKey): ProgressStep[] {
+  return [
+    { key: "created", label: "Creado", Icon: Check },
+    { key: "receipt_uploaded", label: "Comprobante", Icon: FileText },
+    { key: "paid", label: "Pago verificado", Icon: BadgeCheck },
+    { key: "shipped", label: mode === "shipping" ? "Enviado" : "Listo para recoger", Icon: mode === "shipping" ? Truck : Store },
+    { key: "completed", label: mode === "shipping" ? "Entregado" : "Completado", Icon: PackageCheck },
+  ];
+}
+
+function getProgressRank(statusKey: string) {
+  const k = normalizeStatusKey(statusKey);
+  if (k === "created" || k === "pending") return 1;
+  if (k === "receipt_uploaded") return 2;
+  if (k === "paid") return 3;
+  if (k === "shipped") return 4;
+  if (k === "verified" || k === "completed") return 5;
+  if (k === "refund_requested" || k === "refund_approved" || k === "refund_rejected" || k === "refund_refunded") return 5;
+  return 1;
+}
+
+function DemoRouteMap({
+  mode,
+  label,
+}: {
+  mode: DeliveryTypeKey;
+  label: string;
+}) {
+  const accent = mode === "shipping" ? "#22c55e" : "#004e28";
+  return (
+    <div className="relative w-full overflow-hidden rounded-2xl border border-gray-100 bg-[#0b1220]">
+      <div
+        className="absolute inset-0 opacity-60"
+        style={{
+          backgroundImage:
+            "linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px)",
+          backgroundSize: "42px 42px",
+        }}
+      />
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 800 420" preserveAspectRatio="none" aria-hidden="true">
+        <path
+          d="M80 360 C 180 300, 260 310, 320 260 C 390 200, 420 210, 470 170 C 540 110, 590 130, 650 90 C 700 60, 730 70, 760 50"
+          fill="none"
+          stroke={accent}
+          strokeWidth="10"
+          strokeLinecap="round"
+          opacity="0.9"
+        />
+        <path
+          d="M80 360 C 180 300, 260 310, 320 260 C 390 200, 420 210, 470 170 C 540 110, 590 130, 650 90 C 700 60, 730 70, 760 50"
+          fill="none"
+          stroke="rgba(255,255,255,0.35)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          opacity="0.8"
+        />
+        <circle cx="80" cy="360" r="10" fill={accent} />
+        <circle cx="760" cy="50" r="10" fill={accent} />
+      </svg>
+      <div className="relative p-5">
+        <div className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-3 text-white backdrop-blur">
+          <MapPin className="h-4 w-4" style={{ color: accent }} />
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-white/70 font-[family-name:var(--font-poppins)]">
+              Ubicación (demo)
+            </div>
+            <div className="text-sm font-semibold text-white font-[family-name:var(--font-poppins)] truncate">
+              {label}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="relative h-[220px]" />
+    </div>
+  );
+}
+
+function ProgressStepper({
+  steps,
+  currentRank,
+}: {
+  steps: ProgressStep[];
+  currentRank: number;
+}) {
+  return (
+    <div className="w-full">
+      <div className="flex items-center justify-between gap-2">
+        {steps.map((s, idx) => {
+          const stepRank = idx + 1;
+          const done = currentRank > stepRank;
+          const active = currentRank === stepRank;
+          const Icon = s.Icon;
+          const baseColor = done ? "#004e28" : active ? "#16a34a" : "#9ca3af";
+          const bg = done || active ? `${baseColor}14` : "#f3f4f6";
+          return (
+            <div key={s.key} className="flex-1 min-w-0">
+              <div className="flex items-center justify-center">
+                <div
+                  className="h-10 w-10 rounded-full flex items-center justify-center border"
+                  style={{
+                    backgroundColor: bg,
+                    borderColor: done || active ? `${baseColor}55` : "#e5e7eb",
+                  }}
+                >
+                  <Icon className="h-5 w-5" style={{ color: baseColor }} />
+                </div>
+              </div>
+              <div className="mt-2 text-center text-xs font-semibold text-gray-900 font-[family-name:var(--font-poppins)] truncate">
+                {s.label}
+              </div>
+              <div className="mt-0.5 text-center text-[11px] text-gray-400 font-[family-name:var(--font-poppins)]">
+                {done ? "Listo" : active ? "Actual" : "Pendiente"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 h-px bg-gray-100" />
+    </div>
+  );
 }
 
 function StatusBadge({ value }: { value: string }) {
@@ -262,6 +455,7 @@ function Timeline({ items, loading }: { items: OrderHistoryItem[]; loading: bool
 }
 
 export default function ClientOrdersPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -627,7 +821,10 @@ export default function ClientOrdersPage() {
                           Pedido #{order.id}
                         </div>
                       </div>
-                      <StatusBadge value={statusRaw || statusKey} />
+                      <div className="flex flex-col items-end gap-2">
+                        <DeliveryTypePill order={order} />
+                        <StatusBadge value={statusRaw || statusKey} />
+                      </div>
                     </div>
 
                     <div className="mt-3 flex items-center justify-between">
@@ -635,7 +832,7 @@ export default function ClientOrdersPage() {
                         {formatMoney(order.total_amount ?? order.product?.price ?? 0)}
                       </div>
                       <button
-                        onClick={() => openModal(order)}
+                        onClick={() => router.push(`/client/orders/${order.id}`)}
                         className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)]"
                         style={{
                           backgroundColor: "#004e2814",
@@ -686,6 +883,125 @@ export default function ClientOrdersPage() {
             </div>
 
             <div className="px-8 py-6 space-y-6">
+              {(() => {
+                const mode = getDeliveryTypeKey(selectedOrder);
+                const title = getDeliveryTitle(mode);
+                const etaLabel = formatEtaLabel(selectedOrder, mode);
+                const rawStatus = getOrderStatusRaw(selectedOrder);
+                const currentKey = latestHistoryKey || normalizeStatusKey(rawStatus);
+                const progressRank = getProgressRank(currentKey);
+                const steps = getBaseProgressSteps(mode);
+                const anyOrder = selectedOrder as unknown as Record<string, unknown>;
+                const addressRaw =
+                  (typeof anyOrder.delivery_address === "string" && anyOrder.delivery_address) ||
+                  (typeof anyOrder.shipping_address === "string" && anyOrder.shipping_address) ||
+                  (typeof anyOrder.address === "string" && anyOrder.address) ||
+                  (typeof anyOrder.pickup_address === "string" && anyOrder.pickup_address) ||
+                  "";
+                const address = addressRaw && addressRaw.trim() ? addressRaw.trim() : mode === "shipping" ? selectedOrder.supplier?.name || "Sucursal" : selectedOrder.supplier?.name || "Tienda";
+                const shippingGradient = "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)";
+                const pickupGradient = "linear-gradient(135deg, #004e28 0%, #0b6b3a 100%)";
+                const headerBg = mode === "shipping" ? shippingGradient : pickupGradient;
+                return (
+                  <div className="overflow-hidden rounded-2xl border border-gray-100">
+                    <div
+                      className="px-6 py-5 text-white"
+                      style={{ background: headerBg }}
+                    >
+                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            {mode === "shipping" ? (
+                              <Truck className="h-4 w-4 text-white/80" />
+                            ) : (
+                              <Store className="h-4 w-4 text-white/80" />
+                            )}
+                            <span className="text-xs font-semibold tracking-wider text-white/70 font-[family-name:var(--font-poppins)]">
+                              {title}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-semibold font-[family-name:var(--font-poppins)]">
+                              {toSpanishStatusLabel(isRefundFinalizedInHistory ? "refund_refunded" : rawStatus)}
+                            </span>
+                            <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-semibold font-[family-name:var(--font-poppins)]">
+                              {selectedOrder.supplier?.name || "Proveedor"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 text-left md:text-right">
+                          <div className="text-xs font-semibold tracking-wider text-white/70 font-[family-name:var(--font-poppins)]">
+                            {mode === "shipping" ? "Entrega estimada" : "Recolección estimada"}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 md:justify-end">
+                            <Clock className="h-4 w-4 text-white/80" />
+                            <div className="text-xl font-bold font-[family-name:var(--font-poppins)]">{etaLabel}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white px-6 py-5 space-y-5">
+                      <ProgressStepper steps={steps} currentRank={progressRank} />
+                      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+                        <div className="lg:col-span-3">
+                          <DemoRouteMap
+                            mode={mode}
+                            label={mode === "shipping" ? `Destino: ${address}` : `Ubicación: ${address}`}
+                          />
+                        </div>
+                        <div className="lg:col-span-2 space-y-4">
+                          <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 font-[family-name:var(--font-poppins)]">
+                              {mode === "shipping" ? (
+                                <><Truck className="h-3 w-3" /> Entregar en</>
+                              ) : (
+                                <><Store className="h-3 w-3" /> Recoger en</>
+                              )}
+                            </div>
+                            <div className="mt-1 text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)]">
+                              {address}
+                            </div>
+                            {mode === "shipping" ? (
+                              <div className="mt-2 space-y-1">
+                                <div className="text-xs text-gray-500 font-[family-name:var(--font-poppins)]">
+                                  <span className="font-semibold">Origen:</span> {selectedOrder.supplier?.name || "Sucursal"}
+                                </div>
+                                <div className="text-xs text-gray-500 font-[family-name:var(--font-poppins)]">
+                                  <span className="font-semibold">Código:</span>{" "}
+                                  <span className="font-mono">{(anyOrder as any).delivery_code || "—"}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mt-2 text-xs text-gray-500 font-[family-name:var(--font-poppins)]">
+                                {selectedOrder.supplier?.name || "Tienda"}
+                              </div>
+                            )}
+                          </div>
+                          <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                            <div className="text-xs font-semibold text-gray-500 font-[family-name:var(--font-poppins)]">
+                              Estado actual
+                            </div>
+                            <div className="mt-2">
+                              <span
+                                className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold font-[family-name:var(--font-poppins)]"
+                                style={{
+                                  backgroundColor: currentKey === "completed" || currentKey === "verified" ? "#004e2814" : "#3b82f614",
+                                  color: currentKey === "completed" || currentKey === "verified" ? "#004e28" : "#3b82f6",
+                                  border: `1px solid ${currentKey === "completed" || currentKey === "verified" ? "#004e2833" : "#3b82f633"}`,
+                                }}
+                              >
+                                {toSpanishStatusLabel(currentKey)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {modalSuccess ? (
                 <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-green-700 flex items-center gap-2 font-[family-name:var(--font-poppins)]">
                   <CheckCircle className="w-4 h-4" />
