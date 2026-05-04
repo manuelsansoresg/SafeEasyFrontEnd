@@ -487,4 +487,74 @@ export const orderService = {
     if (contentType.includes("application/json")) return response.json();
     return null;
   },
+
+  markOrderReady: async (orderId: number) => {
+    const options = { method: "POST" as const };
+    const tryUrls = [
+      `/api/orders/${orderId}/mark-ready`,
+      `/api/orders/${orderId}/mark-ready/`,
+      `/api/v1/orders/${orderId}/mark-ready`,
+      `/api/v1/orders/${orderId}/mark-ready/`,
+    ];
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url, options);
+      if ([301, 302, 307, 308].includes(response.status)) {
+        const redirectUrl = response.headers.get("Location");
+        if (redirectUrl && (redirectUrl.startsWith("/") || redirectUrl.startsWith(window.location.origin))) {
+          response = await fetchWithAuth(redirectUrl, options);
+        }
+      }
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to mark order ready: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+    }
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) return response.json();
+    return null;
+  },
+
+  completeOrder: async (orderId: number, note?: string) => {
+    const payload: Record<string, unknown> = {};
+    if (typeof note === "string" && note.trim().length > 0) {
+      payload.note = note.trim();
+    }
+    const options = { method: "PUT" as const, body: JSON.stringify(payload) };
+    const tryUrls = [
+      `/api/orders/${orderId}/complete`,
+      `/api/orders/${orderId}/complete/`,
+      `/api/v1/orders/${orderId}/complete`,
+      `/api/v1/orders/${orderId}/complete/`,
+    ];
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url, options);
+      if ([301, 302, 307, 308].includes(response.status)) {
+        const redirectUrl = response.headers.get("Location");
+        if (redirectUrl && (redirectUrl.startsWith("/") || redirectUrl.startsWith(window.location.origin))) {
+          response = await fetchWithAuth(redirectUrl, options);
+        }
+      }
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to complete order: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+    }
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) return response.json();
+    return null;
+  },
 };

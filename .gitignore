@@ -46,3 +46,6 @@ esquema.md
 CHAT.md
 DOCUMENTACION_SISTEMA.md
 planesmd/
+.agents/
+skills-lock.json
+AGENTS.md

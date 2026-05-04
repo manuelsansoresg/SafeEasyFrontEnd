@@ -38,7 +38,6 @@ type SupplierCart = {
 type ToastState = null | { type: "success" | "error" | "info"; message: string };
 
 type DeliveryType = "pickup" | "shipping";
-type PaymentMethod = "card" | "transfer";
 
 type AddressForm = {
   address: string;
@@ -205,7 +204,6 @@ export default function CartPage() {
   const addressDirtyRef = useRef(false);
   const [checkoutSupplierId, setCheckoutSupplierId] = useState<number | null>(null);
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("pickup");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
   const [meUserId, setMeUserId] = useState<number | null>(null);
   const [meLoading, setMeLoading] = useState(false);
   const [addressForm, setAddressForm] = useState<AddressForm>({
@@ -592,6 +590,29 @@ export default function CartPage() {
     }
   };
 
+  const fetchSupplierMapLocation = async (supplierId: number) => {
+    const res = await tryFetch(
+      [`/api/suppliers/${supplierId}`, `/api/suppliers/${supplierId}/`, `/api/v1/suppliers/${supplierId}`, `/api/v1/suppliers/${supplierId}/`],
+      { headers: { Accept: "application/json" } },
+    );
+    if (!res || !res.ok) return null;
+    const data: unknown = await res.json().catch(() => null);
+    const rec = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+    const nested =
+      (rec.supplier && typeof rec.supplier === "object" ? (rec.supplier as Record<string, unknown>) : null) ||
+      (rec.data && typeof rec.data === "object" ? (rec.data as Record<string, unknown>) : null) ||
+      null;
+    const src = nested || rec;
+    const loc = parseMapLocation(
+      src.map_location ?? src.location ?? src.supplier_map_location ?? src.supplierLocation ?? null,
+    );
+    if (!loc) return null;
+    setCarts((prev) =>
+      prev.map((c) => (Number(c.supplier_id) === Number(supplierId) ? { ...c, supplier_map_location: loc } : c)),
+    );
+    return loc;
+  };
+
   const computeShippingQuote = async (supplierId: number, force?: boolean) => {
     setQuoteError(null);
     if (!force && deliveryType !== "shipping") return;
@@ -601,7 +622,10 @@ export default function CartPage() {
       return;
     }
 
-    const sLoc = carts.find((c) => c.supplier_id === supplierId)?.supplier_map_location ?? null;
+    let sLoc = carts.find((c) => c.supplier_id === supplierId)?.supplier_map_location ?? null;
+    if (!sLoc) {
+      sLoc = await fetchSupplierMapLocation(supplierId);
+    }
     if (!sLoc) {
       setQuoteError("No se pudo obtener la ubicación del proveedor.");
       return;
@@ -653,6 +677,25 @@ export default function CartPage() {
     }
   };
 
+  const extractInitPoint = (payload: unknown) => {
+    const asRec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
+    const pick = (rec: Record<string, unknown>, keys: string[]) => {
+      for (const k of keys) {
+        const v = rec[k];
+        if (typeof v === "string" && v.trim()) return v.trim();
+      }
+      return null;
+    };
+    const raw = asRec(payload);
+    const preference = raw.preference && typeof raw.preference === "object" ? (raw.preference as Record<string, unknown>) : {};
+    const payment = raw.payment && typeof raw.payment === "object" ? (raw.payment as Record<string, unknown>) : {};
+    return (
+      pick(raw, ["init_point", "mp_init_point", "mercadopago_init_point", "payment_url", "checkout_url"]) ||
+      pick(preference, ["init_point"]) ||
+      pick(payment, ["init_point", "mp_init_point", "mercadopago_init_point", "payment_url", "checkout_url"])
+    );
+  };
+
   const confirmCheckout = async (supplierId: number) => {
     setMutating(true);
     try {
@@ -679,7 +722,7 @@ export default function CartPage() {
       const payload: Record<string, unknown> = {
         items,
         delivery_type: deliveryType,
-        payment_method: paymentMethod,
+        payment_method: "card",
         distance_km: 0,
         courier_user_id: 0,
       };
@@ -725,17 +768,35 @@ export default function CartPage() {
           sessionStorage.setItem(key, JSON.stringify(data));
         }
       } catch {}
-      const initPoint =
-        (record.preference && typeof (record.preference as any)?.init_point === "string"
-          ? (record.preference as any).init_point
-          : null) || (typeof record.init_point === "string" ? record.init_point : null);
+      const initPoint = extractInitPoint(data);
       if (initPoint) {
+        isRedirectingRef.current = true;
         setCheckoutSupplierId(null);
-        setPaymentModal({ init_point: initPoint, order_id: orderId || null });
+        window.dispatchEvent(new CustomEvent("cart:changed"));
+        window.location.href = initPoint;
         return;
       }
+
+      if (orderId) {
+        const orderRes = await tryFetch(
+          [`/api/orders/${orderId}`, `/api/orders/${orderId}/`, `/api/v1/orders/${orderId}`, `/api/v1/orders/${orderId}/`],
+          { headers: { Accept: "application/json" } },
+        );
+        if (orderRes && orderRes.ok) {
+          const orderData: unknown = await orderRes.json().catch(() => null);
+          const fetchedInitPoint = extractInitPoint(orderData);
+          if (fetchedInitPoint) {
+            isRedirectingRef.current = true;
+            setCheckoutSupplierId(null);
+            window.dispatchEvent(new CustomEvent("cart:changed"));
+            window.location.href = fetchedInitPoint;
+            return;
+          }
+        }
+      }
+
       window.dispatchEvent(new CustomEvent("cart:changed"));
-      if (orderId) router.push(`/checkout/${orderId}`);
+      setToast({ type: "error", message: "No se recibió el link de pago (init_point) para Mercado Pago." });
     } catch {
       setToast({ type: "error", message: "Error de conexión al iniciar el checkout." });
     } finally {
@@ -940,27 +1001,9 @@ export default function CartPage() {
                         )}
                         <div className="pt-2">
                           <p className="text-sm font-semibold text-gray-800 mb-2">Método de pago</p>
-                          <div className="flex items-center gap-3">
-                            <button
-                              type="button"
-                              onClick={() => setPaymentMethod("card")}
-                              className={cn(
-                                "px-3 py-2 rounded-lg border",
-                                paymentMethod === "card" ? "border-primary text-primary" : "border-gray-200 text-gray-700"
-                              )}
-                            >
-                              Tarjeta
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setPaymentMethod("transfer")}
-                              className={cn(
-                                "px-3 py-2 rounded-lg border",
-                                paymentMethod === "transfer" ? "border-primary text-primary" : "border-gray-200 text-gray-700"
-                              )}
-                            >
-                              Transferencia
-                            </button>
+                          <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800">
+                            <ShieldCheck className="w-4 h-4 text-primary" />
+                            Pago con tarjeta
                           </div>
                         </div>
                       </div>

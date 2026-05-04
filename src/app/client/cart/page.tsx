@@ -62,7 +62,6 @@ export default function ClientCartPage() {
   const isRedirectingRef = useRef(false);
   const addressDirtyRef = useRef(false);
 
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "transfer">("card");
   const [paymentModal, setPaymentModal] = useState<null | { init_point: string; order_id: number | null }>(null);
   const [deliveryType, setDeliveryType] = useState<"pickup" | "shipping">("pickup");
   const [meUserId, setMeUserId] = useState<number | null>(null);
@@ -78,7 +77,7 @@ export default function ClientCartPage() {
     country: "México",
   });
   const [userMapLocation, setUserMapLocation] = useState<LatLngLiteral | null>(null);
-  const [supplierLocById, setSupplierLocById] = useState<Record<number, LatLngLiteral>>({});
+  const [supplierLocById, setSupplierLocById] = useState<Record<number, LatLngLiteral | undefined>>({});
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [shippingCost, setShippingCost] = useState<number | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -422,11 +421,30 @@ export default function ClientCartPage() {
         }
       }
 
+      const extractInitPoint = (payload: unknown) => {
+        const asRec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
+        const pick = (rec: Record<string, unknown>, keys: string[]) => {
+          for (const k of keys) {
+            const v = rec[k];
+            if (typeof v === "string" && v.trim()) return v.trim();
+          }
+          return null;
+        };
+        const raw = asRec(payload);
+        const preference = raw.preference && typeof raw.preference === "object" ? (raw.preference as Record<string, unknown>) : {};
+        const payment = raw.payment && typeof raw.payment === "object" ? (raw.payment as Record<string, unknown>) : {};
+        return (
+          pick(raw, ["init_point", "mp_init_point", "mercadopago_init_point", "payment_url", "checkout_url"]) ||
+          pick(preference, ["init_point"]) ||
+          pick(payment, ["init_point", "mp_init_point", "mercadopago_init_point", "payment_url", "checkout_url"])
+        );
+      };
+
       const tryUrls = ["/api/orders/checkout", "/api/orders/checkout/", "/api/v1/orders/checkout", "/api/v1/orders/checkout/"];
       const payload: Record<string, unknown> = {
         items,
         delivery_type: deliveryType,
-        payment_method: paymentMethod,
+        payment_method: "card",
         distance_km: 0,
         courier_user_id: 0,
       };
@@ -472,18 +490,36 @@ export default function ClientCartPage() {
         }
       } catch {}
 
-      const preferenceObj = record.preference && typeof record.preference === "object" ? (record.preference as Record<string, unknown>) : null;
-      const initPoint =
-        (preferenceObj && typeof preferenceObj.init_point === "string" ? preferenceObj.init_point : null) ||
-        (typeof record.init_point === "string" ? record.init_point : null);
+      const initPoint = extractInitPoint(data);
       if (initPoint) {
+        isRedirectingRef.current = true;
         setCheckout(null);
-        setPaymentModal({ init_point: initPoint, order_id: orderId || null });
+        window.location.href = initPoint;
         return;
       }
 
+      if (orderId) {
+        const orderTryUrls = [`/api/orders/${orderId}`, `/api/orders/${orderId}/`, `/api/v1/orders/${orderId}`, `/api/v1/orders/${orderId}/`];
+        let orderRes: Response | null = null;
+        for (const url of orderTryUrls) {
+          orderRes = await fetchWithAuth(url, { headers: { Accept: "application/json" } });
+          if (orderRes.ok) break;
+          if (orderRes.status !== 404 && orderRes.status !== 405) break;
+        }
+        if (orderRes && orderRes.ok) {
+          const orderData: unknown = await orderRes.json().catch(() => null);
+          const fetchedInit = extractInitPoint(orderData);
+          if (fetchedInit) {
+            isRedirectingRef.current = true;
+            setCheckout(null);
+            window.location.href = fetchedInit;
+            return;
+          }
+        }
+      }
+
       await loadCart();
-      if (orderId) router.push(`/checkout/${orderId}`);
+      setError("No se recibió el link de pago (init_point) para Mercado Pago.");
     } catch {
       setError("Error de conexión al iniciar el checkout.");
     } finally {
@@ -525,7 +561,32 @@ export default function ClientCartPage() {
       return;
     }
 
-    const sLoc = supplierLocById[supplierId] ?? null;
+    const fetchSupplierMapLocation = async (id: number) => {
+      const tryUrls = [`/api/suppliers/${id}`, `/api/suppliers/${id}/`, `/api/v1/suppliers/${id}`, `/api/v1/suppliers/${id}/`];
+      let res: Response | null = null;
+      for (const url of tryUrls) {
+        res = await fetchWithAuth(url, { headers: { Accept: "application/json" } });
+        if (res.ok) break;
+        if (res.status !== 404 && res.status !== 405) break;
+      }
+      if (!res || !res.ok) return null;
+      const data: unknown = await res.json().catch(() => null);
+      const rec = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+      const nested =
+        (rec.supplier && typeof rec.supplier === "object" ? (rec.supplier as Record<string, unknown>) : null) ||
+        (rec.data && typeof rec.data === "object" ? (rec.data as Record<string, unknown>) : null) ||
+        null;
+      const src = nested || rec;
+      const loc = parseMapLocation(src.map_location ?? src.location ?? src.supplier_map_location ?? src.supplierLocation ?? null);
+      if (!loc) return null;
+      setSupplierLocById((prev) => ({ ...prev, [id]: loc }));
+      return loc;
+    };
+
+    let sLoc = supplierLocById[supplierId] ?? null;
+    if (!sLoc) {
+      sLoc = await fetchSupplierMapLocation(supplierId);
+    }
     if (!sLoc) {
       setQuoteError("No se pudo obtener la ubicación del proveedor.");
       return;
@@ -596,7 +657,6 @@ export default function ClientCartPage() {
     setError(null);
     setStockError(null);
     invalidateQuote();
-    setPaymentMethod("card");
     setDeliveryType("pickup");
     const g = groups.find((x) => x.supplier_id === supplierId) || null;
     setCheckout({
@@ -878,28 +938,9 @@ export default function ClientCartPage() {
 
               <div className="space-y-3">
                 <p className="text-sm font-bold text-gray-900">Método de pago</p>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("card")}
-                    className={cn(
-                      "px-3 py-2 rounded-lg border text-sm font-semibold inline-flex items-center gap-2",
-                      paymentMethod === "card" ? "border-primary text-primary" : "border-gray-200 text-gray-700"
-                    )}
-                  >
-                    <CreditCard size={16} />
-                    Tarjeta
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("transfer")}
-                    className={cn(
-                      "px-3 py-2 rounded-lg border text-sm font-semibold",
-                      paymentMethod === "transfer" ? "border-primary text-primary" : "border-gray-200 text-gray-700"
-                    )}
-                  >
-                    Transferencia
-                  </button>
+                <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800">
+                  <CreditCard size={16} className="text-primary" />
+                  Pago con tarjeta
                 </div>
               </div>
 

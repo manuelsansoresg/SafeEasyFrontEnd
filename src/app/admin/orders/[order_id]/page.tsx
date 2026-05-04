@@ -484,6 +484,51 @@ export default function AdminOrderDetailPage() {
     }
   };
 
+  const paymentStatusKey = useMemo(() => {
+    const raw = String(order?.payment_status || order?.status || "").trim();
+    return normalizeStatusKey(raw || "pending");
+  }, [order]);
+
+  const isPaymentPaid = useMemo(() => paymentStatusKey === "paid", [paymentStatusKey]);
+
+  const handleMarkReady = async () => {
+    if (!orderId) return;
+    if (!isPaymentPaid) {
+      setToast({ type: "error", message: "Solo puedes marcar como listo cuando el pago esté confirmado." });
+      return;
+    }
+    setActionLoading("mark-ready");
+    try {
+      await orderService.markOrderReady(orderId);
+      setToast({ type: "success", message: "Orden marcada como lista para recoger." });
+      await refresh();
+    } catch (e) {
+      const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo marcar como lista.";
+      setToast({ type: "error", message: msg });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleComplete = async (note?: string) => {
+    if (!orderId) return;
+    if (!isPaymentPaid) {
+      setToast({ type: "error", message: "Solo puedes completar la orden cuando el pago esté confirmado." });
+      return;
+    }
+    setActionLoading("complete");
+    try {
+      await orderService.completeOrder(orderId, note);
+      setToast({ type: "success", message: "Orden completada." });
+      await refresh();
+    } catch (e) {
+      const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo completar la orden.";
+      setToast({ type: "error", message: msg });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const submitRefundApprove = async () => {
     if (!orderId || !activeRefund?.id) return;
     setActionLoading("refund_approve");
@@ -715,12 +760,12 @@ export default function AdminOrderDetailPage() {
                       <span
                         className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
                         style={{
-                          backgroundColor: cancelled ? "#ef444414" : "#16a34a14",
-                          color: cancelled ? "#ef4444" : "#16a34a",
-                          border: `1px solid ${cancelled ? "#ef444433" : "#16a34a33"}`,
+                          backgroundColor: cancelled ? "#ef444414" : isPaymentPaid ? "#16a34a14" : "#f59e0b14",
+                          color: cancelled ? "#ef4444" : isPaymentPaid ? "#16a34a" : "#b45309",
+                          border: `1px solid ${cancelled ? "#ef444433" : isPaymentPaid ? "#16a34a33" : "#f59e0b33"}`,
                         }}
                       >
-                        {cancelled ? "Cancelado" : "Pago Confirmado"}
+                        {cancelled ? "Cancelado" : isPaymentPaid ? "Pago Confirmado" : "Pago Pendiente"}
                       </span>
                     </div>
                     <div className="mt-1 text-sm text-gray-500 flex items-center gap-2">
@@ -849,11 +894,22 @@ export default function AdminOrderDetailPage() {
                       <div className="mt-4 space-y-3">
                         <button
                           type="button"
-                          disabled={actionLoading !== null || !canMarkDelivered}
-                          onClick={() => applyStatus("completed")}
+                          disabled={actionLoading !== null || !isPaymentPaid}
+                          onClick={() => handleComplete("Entregado en tienda")}
+                          className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                          style={{ backgroundColor: "#0b6b3a" }}
+                        >
+                          <Store className="h-4 w-4 mr-2" />
+                          Marcar como listo para recoger
+                        </button>
+                        <button
+                          type="button"
+                          disabled={actionLoading !== null || !isPaymentPaid}
+                          onClick={() => handleComplete()}
                           className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
                           style={{ backgroundColor: "#004e28" }}
                         >
+                          <CheckCircle className="h-4 w-4 mr-2" />
                           Marcar como Entregado
                         </button>
                         <button
@@ -1097,10 +1153,11 @@ export default function AdminOrderDetailPage() {
                         <button
                           type="button"
                           disabled={actionLoading !== null || !canMarkShipped}
-                          onClick={() => applyStatus("shipped")}
+                          onClick={handleMarkReady}
                           className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
                           style={{ backgroundColor: "#0b6b3a" }}
                         >
+                          <Truck className="h-4 w-4 mr-2" />
                           Cambiar a "Listo para recoger"
                         </button>
                         <button

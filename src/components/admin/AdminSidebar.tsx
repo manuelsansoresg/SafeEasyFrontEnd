@@ -17,7 +17,8 @@ import {
   BarChart3,
   Truck,
   BadgeDollarSign,
-  Repeat
+  Repeat,
+  Settings
 } from "lucide-react";
 import { Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -114,6 +115,12 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       path: "/admin/settings/shipping",
       icon: Truck,
       roles: ['admin']
+    },
+    {
+      title: "Configuración",
+      path: "/admin/settings/configuracion",
+      icon: Settings,
+      roles: ['admin', 'superuser']
     },
     {
       title: "Planes",
