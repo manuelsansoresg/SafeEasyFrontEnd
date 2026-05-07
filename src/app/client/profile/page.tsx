@@ -124,7 +124,7 @@ export default function ProfilePage() {
       if (formData.password) {
         payload.password = formData.password;
       }
-      if (mapLocation) payload.map_location = JSON.stringify(mapLocation);
+      if (mapLocation) payload.map_location = `${mapLocation.lat},${mapLocation.lng}`;
 
       const response = await fetchWithAuth(`/api/users/${user.id}`, {
         method: 'PUT',

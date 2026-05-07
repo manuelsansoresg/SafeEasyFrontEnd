@@ -381,7 +381,7 @@ export default function ClientCartPage() {
       state: addressForm.state,
       country: addressForm.country,
     };
-    if (userMapLocation) body.map_location = JSON.stringify(userMapLocation);
+    if (userMapLocation) body.map_location = `${userMapLocation.lat},${userMapLocation.lng}`;
     const res = await fetchWithAuth(`/api/users/${meUserId}`, {
       method: "PUT",
       body: JSON.stringify(body),
