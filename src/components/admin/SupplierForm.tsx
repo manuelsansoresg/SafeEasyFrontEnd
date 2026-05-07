@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2, CheckCircle, UserPlus, Users, Search } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
+import { loadGoogleMaps, parseMapLocation, type LatLngLiteral } from "@/lib/googleMaps";
 import FileUpload from "@/components/ui/FileUpload";
 import MapPicker from "@/components/ui/MapPicker";
 import { Toast } from "@/components/ui/Toast";
@@ -47,7 +48,15 @@ interface Supplier {
   transfer_clabe?: string;
   transfer_bank?: string;
   transfer_name?: string;
-  map_location?: string;
+  map_location?: string | LatLngLiteral | null;
+}
+
+function parseSupplierMapLocation(value: unknown): LatLngLiteral | null {
+  return parseMapLocation(value);
+}
+
+function serializeMapLocation(location: LatLngLiteral) {
+  return `${Number(location.lat)},${Number(location.lng)}`;
 }
 
 interface SupplierFormProps {
@@ -440,20 +449,9 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
     transfer_name: initialData?.transfer_name || "",
   });
 
-  const [mapLocation, setMapLocation] = useState<{lat: number, lng: number} | null>(() => {
-    if (initialData?.map_location) {
-      try {
-        // Handle if it's already an object or a string
-        return typeof initialData.map_location === 'string' 
-          ? JSON.parse(initialData.map_location) 
-          : initialData.map_location;
-      } catch (e) {
-        console.error("Error parsing map_location", e);
-        return null;
-      }
-    }
-    return null;
-  });
+  const [mapLocation, setMapLocation] = useState<LatLngLiteral | null>(() =>
+    parseSupplierMapLocation(initialData?.map_location ?? null),
+  );
 
   const [logo, setLogo] = useState<File | null>(null);
   const [aboutImage, setAboutImage] = useState<File | null>(null);
@@ -472,6 +470,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [mapSearchQuery, setMapSearchQuery] = useState("");
 
   useEffect(() => {
     setLogoPreviewUrl(initialData?.logo || initialData?.logo_url || null);
@@ -482,7 +481,83 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         initialData?.about_image_url ||
         null
     );
+    setMapLocation(parseSupplierMapLocation(initialData?.map_location ?? null));
   }, [initialData]);
+
+  const buildMapAddressQuery = () => {
+    const street = String(formData.address || "").trim();
+    let streetPart = street;
+    if (streetPart && !/^(calle|c\.|av\.?|avenida|blvd|boulevard|cerrada|privada|calzada|andador|retorno)/i.test(streetPart)) {
+      streetPart = `Calle ${streetPart}`;
+    }
+
+    const exteriorNumber = String(formData.exterior_number || "").trim();
+    const parts = [
+      streetPart ? `${streetPart} ${exteriorNumber}`.trim() : "",
+      formData.neighborhood,
+      formData.cp || formData.zip_code,
+      formData.city,
+      formData.state,
+      formData.country,
+    ]
+      .map((part) => String(part || "").trim())
+      .filter(Boolean);
+
+    return parts.join(", ");
+  };
+
+  const geocodeMapAddress = async (): Promise<LatLngLiteral | null> => {
+    const typedMapQuery = mapSearchQuery.trim();
+    const query = typedMapQuery || buildMapAddressQuery();
+    if (!query) return null;
+
+    try {
+      const g = await loadGoogleMaps(["places"]);
+      const geocoder = new g.maps.Geocoder();
+      const result = await new Promise<{ results?: unknown[]; status?: string }>((resolve) => {
+        geocoder.geocode({ address: query, region: "MX" }, (results: unknown[] | null, status: string) => {
+          resolve({ results: results || [], status });
+        });
+      });
+
+      if (result.status === "OK") {
+        const first = result.results?.[0] as { geometry?: { location?: { lat?: () => number; lng?: () => number } } } | undefined;
+        const loc = first?.geometry?.location;
+        const lat = Number(loc?.lat?.());
+        const lng = Number(loc?.lng?.());
+        if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+      }
+    } catch {
+      // Fallback below keeps supplier editing usable if Google geocoding is unavailable.
+    }
+
+    const fallbackQueries = [
+      query,
+      typedMapQuery ? buildMapAddressQuery() : "",
+      formData.cp || formData.zip_code ? `${formData.cp || formData.zip_code}, ${formData.city}, ${formData.state}, ${formData.country}` : "",
+      `${formData.city}, ${formData.state}, ${formData.country}`,
+    ].filter(Boolean);
+
+    for (const fallbackQuery of fallbackQueries) {
+      const searchParams = new URLSearchParams({
+        format: "json",
+        limit: "1",
+        countrycodes: "mx",
+        q: fallbackQuery,
+      });
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?${searchParams.toString()}`, {
+        headers: { Accept: "application/json" },
+      }).catch(() => null);
+      if (!res?.ok) continue;
+      const data: unknown = await res.json().catch(() => null);
+      const first = Array.isArray(data) ? (data[0] as { lat?: string; lon?: string } | undefined) : undefined;
+      const lat = Number(first?.lat);
+      const lng = Number(first?.lon);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+    }
+
+    return null;
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -608,9 +683,23 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
 
       const isEdit = isEditMode && initialData;
 
+      let resolvedMapLocation = mapLocation;
+      if (!resolvedMapLocation) {
+        resolvedMapLocation = await geocodeMapAddress();
+        if (resolvedMapLocation) {
+          setMapLocation(resolvedMapLocation);
+        }
+      }
+
+      if (!resolvedMapLocation && buildMapAddressQuery()) {
+        setError("No se pudo obtener la ubicación del mapa. Usa 'Buscar con datos del formulario' o haz clic en el mapa antes de guardar.");
+        setIsSubmitting(false);
+        return;
+      }
+
       let response: Response;
 
-      const buildFormData = () => {
+      const buildFormData = (nextMapLocation: LatLngLiteral | null) => {
         const data = new FormData();
 
         const appendIfPresent = (key: string, value: unknown) => {
@@ -668,8 +757,8 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         appendIfPresent("cross_street_2", formData.cross_street_2);
         appendIfPresent("about", formData.about);
         
-        if (mapLocation) {
-          data.append("map_location", JSON.stringify(mapLocation));
+        if (nextMapLocation) {
+          data.append("map_location", serializeMapLocation(nextMapLocation));
         }
 
         data.append("user_id", String(finalUserId));
@@ -686,38 +775,19 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
           data.append("clear_about_media", "true");
         }
 
-        const debugEntries: Array<{ key: string; value: unknown }> = [];
-        data.forEach((v, k) => {
-          if (v instanceof File) {
-            debugEntries.push({
-              key: k,
-              value: {
-                name: v.name,
-                type: v.type,
-                size: v.size,
-              },
-            });
-          } else {
-            debugEntries.push({ key: k, value: v });
-          }
-        });
-        console.log("[SupplierForm] FormData debug", debugEntries);
-
         return data;
       };
 
       if (isEdit) {
-        // Removed trailing slash as Swagger shows /suppliers/{id} without it
         const url = `/api/suppliers/${initialData.id}`;
-        const data = buildFormData();
-        console.log('[SupplierForm] Updating supplier:', { url, id: initialData.id, data: Object.fromEntries(data.entries()) });
+        const data = buildFormData(resolvedMapLocation);
 
         response = await fetchWithAuth(url, {
           method: "PUT",
           body: data,
         });
       } else {
-        const data = buildFormData();
+        const data = buildFormData(resolvedMapLocation);
 
         response = await fetchWithAuth("/api/suppliers", {
           method: "POST",
@@ -782,6 +852,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
           (typeof rec.about_image === "string" ? rec.about_image : null) ||
           (typeof rec.about_image_url === "string" ? rec.about_image_url : null) ||
           null;
+        const updatedMapLocation = parseSupplierMapLocation(rec.map_location);
 
         if (typeof newLogoUrl !== 'undefined') {
           setLogoPreviewUrl(newLogoUrl);
@@ -789,6 +860,9 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         if (typeof newAboutMediaUrl !== 'undefined') {
           setAboutMediaPreviewUrl(newAboutMediaUrl);
         }
+        setMapLocation(updatedMapLocation || resolvedMapLocation);
+      } else if (resolvedMapLocation) {
+        setMapLocation(resolvedMapLocation);
       }
 
       setLogo(null);
@@ -1222,6 +1296,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
             <MapPicker 
               location={mapLocation} 
               onChange={setMapLocation}
+              onSearchQueryChange={setMapSearchQuery}
               height="300px"
               addressContext={{
                 street: formData.address,

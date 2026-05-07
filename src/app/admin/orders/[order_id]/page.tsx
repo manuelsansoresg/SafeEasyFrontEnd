@@ -4,6 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
+import { downloadPickupTicket, downloadShippingLabel } from "@/lib/pickupTicket";
+import type { LatLngLiteral } from "@/lib/googleMaps";
+import {
+  fetchSupplierLocation,
+  getBuyerAddress,
+  getOrderBuyerCoordinates,
+  getOrderSupplierCoordinates,
+  getSupplierAddress,
+} from "@/lib/orderLocation";
+import OrderRouteMap from "@/components/orders/OrderRouteMap";
 import FileUpload from "@/components/ui/FileUpload";
 import { Toast } from "@/components/ui/Toast";
 import {
@@ -41,6 +51,7 @@ function normalizeStatusKey(value: string) {
   if (v === "shipped" || v === "enviado") return "shipped";
   if (v === "cancelled" || v === "cancelado") return "cancelled";
 
+  if (v === "expired" || v === "expirado" || v === "vencido") return "expired";
   if (v === "refund_requested" || v === "reembolso_solicitado") return "refund_requested";
   if (
     v === "refund_refunded" ||
@@ -91,6 +102,7 @@ function toSpanishStatusLabel(value: string) {
     completed: "Entregado",
     verified: "Entregado",
     cancelled: "Cancelado",
+    expired: "Expirado",
     refund_requested: "Reembolso solicitado",
     refund_approved: "Reembolso aprobado",
     refund_rejected: "Reembolso rechazado",
@@ -229,87 +241,6 @@ function Stepper({ steps, rank, cancelled }: { steps: ProgressStep[]; rank: numb
   );
 }
 
-function StaticMap({ mode, label }: { mode: DeliveryTypeKey; label: string }) {
-  const accentColor = mode === "shipping" ? "#22c55e" : "#004e28";
-  const tileUrl = "https://tile.openstreetmap.org/12/920/1484.png";
-  return (
-    <div className="relative w-full aspect-[3/2] rounded-2xl overflow-hidden border border-gray-100 bg-[#e8e4db]">
-      <div
-        className="absolute inset-0"
-        style={{ backgroundImage: `url('${tileUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/25" />
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 260" preserveAspectRatio="none">
-        {mode === "shipping" ? (
-          <path
-            d="M50 210 C 130 170, 190 150, 250 110 C 290 85, 320 70, 350 55"
-            fill="none"
-            stroke={accentColor}
-            strokeWidth="4"
-            strokeDasharray="8 5"
-            strokeLinecap="round"
-            opacity="0.85"
-          />
-        ) : null}
-        {mode === "shipping" ? (
-          <>
-            <circle cx="50" cy="210" r="16" fill="#6b7280" opacity="0.25" />
-            <circle cx="50" cy="210" r="8" fill="#6b7280" />
-          </>
-        ) : null}
-        <circle cx={mode === "shipping" ? "350" : "200"} cy={mode === "shipping" ? "55" : "130"} r="22" fill={accentColor} opacity="0.25" />
-        <circle cx={mode === "shipping" ? "350" : "200"} cy={mode === "shipping" ? "55" : "130"} r="10" fill={accentColor} />
-        <circle cx={mode === "shipping" ? "350" : "200"} cy={mode === "shipping" ? "55" : "130"} r="4" fill="#fff" />
-      </svg>
-      <div className="absolute bottom-4 left-4 right-4">
-        <div className="inline-flex items-center gap-2 rounded-xl bg-white/95 backdrop-blur px-4 py-3 shadow-lg border border-gray-100">
-          <MapPin className="h-4 w-4" style={{ color: accentColor }} />
-          <div className="min-w-0">
-            <div className="text-xs font-semibold text-gray-400">
-              {mode === "shipping" ? "Dirección de entrega" : "Punto de recolección"}
-            </div>
-            <div className="text-sm font-semibold text-gray-900 truncate max-w-[280px]">{label}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LargeRouteMap({ label }: { label: string }) {
-  const tileUrl = "https://tile.openstreetmap.org/12/920/1484.png";
-  return (
-    <div className="relative w-full h-[360px] lg:h-[420px] rounded-2xl overflow-hidden border border-gray-100 bg-[#e8e4db]">
-      <div
-        className="absolute inset-0"
-        style={{ backgroundImage: `url('${tileUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }}
-      />
-      <div className="absolute inset-0 bg-black/10" />
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 800 420" preserveAspectRatio="none">
-        <path
-          d="M120 340 C 240 280, 320 290, 410 220 C 500 150, 560 170, 650 120 C 700 90, 730 80, 760 70"
-          fill="none"
-          stroke="#0b6b3a"
-          strokeWidth="10"
-          strokeLinecap="round"
-          opacity="0.9"
-        />
-        <circle cx="120" cy="340" r="14" fill="#0b6b3a" />
-        <circle cx="760" cy="70" r="14" fill="#0b6b3a" />
-        <circle cx="760" cy="70" r="6" fill="#fff" opacity="0.9" />
-      </svg>
-
-      <div className="absolute left-5 bottom-5">
-        <div className="rounded-2xl bg-white/95 backdrop-blur px-4 py-3 shadow-lg border border-gray-100 max-w-[320px]">
-          <div className="text-[10px] font-bold tracking-widest text-gray-500">UBICACIÓN ACTUAL</div>
-          <div className="mt-1 text-sm font-semibold text-gray-900">{label}</div>
-          <div className="mt-1 text-xs text-gray-500">Estimado: 12 min restantes</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function getOrderItems(order: Order | null): Array<Record<string, unknown>> {
   if (!order) return [];
   const anyOrder = order as unknown as Record<string, unknown>;
@@ -378,6 +309,9 @@ export default function AdminOrderDetailPage() {
   const [history, setHistory] = useState<OrderHistoryItem[]>([]);
   const [refunds, setRefunds] = useState<OrderRefund[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [buyerAddress, setBuyerAddress] = useState<string>("");
+  const [supplierAddress, setSupplierAddress] = useState<string>("");
+  const [supplierCoordsFromApi, setSupplierCoordsFromApi] = useState<LatLngLiteral | null>(null);
 
   const [refundApproveOpen, setRefundApproveOpen] = useState(false);
   const [refundRejectOpen, setRefundRejectOpen] = useState(false);
@@ -422,12 +356,26 @@ export default function AdminOrderDetailPage() {
       ]);
       setHistory(h.status === "fulfilled" ? h.value : []);
       setRefunds(r.status === "fulfilled" ? r.value : []);
+
+      setBuyerAddress(getBuyerAddress(ord));
+      setSupplierAddress(getSupplierAddress(ord));
+      setSupplierCoordsFromApi(null);
+
+      const supplierId = Number(ord.supplier?.id ?? ord.supplier_id);
+      if (Number.isFinite(supplierId) && supplierId > 0) {
+        const supplierLocation = await fetchSupplierLocation(supplierId);
+        if (supplierLocation.address) setSupplierAddress(supplierLocation.address);
+        if (supplierLocation.coordinates) setSupplierCoordsFromApi(supplierLocation.coordinates);
+      }
     } catch (e) {
       const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo cargar la orden.";
       setToast({ type: "error", message: msg });
       setOrder(null);
       setHistory([]);
       setRefunds([]);
+      setBuyerAddress("");
+      setSupplierAddress("");
+      setSupplierCoordsFromApi(null);
     } finally {
       setLoading(false);
     }
@@ -454,6 +402,7 @@ export default function AdminOrderDetailPage() {
 
   const address = useMemo(() => {
     if (!order) return "";
+    if (mode === "shipping" && buyerAddress) return buyerAddress;
     const anyOrder = order as unknown as Record<string, unknown>;
     const raw =
       (typeof anyOrder.delivery_address === "string" && anyOrder.delivery_address) ||
@@ -463,7 +412,7 @@ export default function AdminOrderDetailPage() {
       "";
     const fallback = mode === "shipping" ? order.supplier?.name || "Sucursal" : order.supplier?.name || "Tienda";
     return raw && raw.trim() ? raw.trim() : fallback;
-  }, [order, mode]);
+  }, [order, mode, buyerAddress]);
 
   const refresh = async () => {
     await load();
@@ -604,10 +553,16 @@ export default function AdminOrderDetailPage() {
     return k !== "completed" && k !== "verified" && k !== "cancelled" && k !== "refund_refunded";
   }, [effectiveKey]);
 
+  const isReadyForPickup = useMemo(() => {
+    const k = normalizeStatusKey(effectiveKey);
+    return k === "ready_for_pickup";
+  }, [effectiveKey]);
+
   const canMarkShipped = useMemo(() => {
     const k = normalizeStatusKey(effectiveKey);
     if (k === "completed" || k === "verified" || k === "cancelled" || k === "refund_refunded") return false;
     if (k === "shipped" || k === "in_transit") return false;
+    if (k === "ready_for_pickup") return false;
     return true;
   }, [effectiveKey]);
 
@@ -640,6 +595,16 @@ export default function AdminOrderDetailPage() {
     return normalizePhone(raw);
   }, [order]);
 
+  const supplierCoords = useMemo(() => {
+    if (!order) return supplierCoordsFromApi;
+    return getOrderSupplierCoordinates(order) || supplierCoordsFromApi;
+  }, [order, supplierCoordsFromApi]);
+
+  const buyerCoords = useMemo(() => {
+    if (!order) return null;
+    return getOrderBuyerCoordinates(order);
+  }, [order]);
+
   const shippingCost = useMemo(() => {
     const v = (order as any)?.shipping_cost ?? (order as any)?.shippingCost ?? null;
     const n = typeof v === "number" ? v : typeof v === "string" ? Number(String(v).replace(/[^\d.-]/g, "")) : 0;
@@ -666,6 +631,7 @@ export default function AdminOrderDetailPage() {
     if (k === "paid") return "Pago confirmado";
     if (k === "completed" || k === "verified") return "Entregado";
     if (k === "cancelled") return "Cancelado";
+    if (k === "expired") return "Expirado";
     return toSpanishStatusLabel(effectiveKey);
   }, [effectiveKey]);
 
@@ -799,6 +765,10 @@ export default function AdminOrderDetailPage() {
                           <div className="text-[11px] font-semibold tracking-wider text-gray-400">CORREO ELECTRÓNICO</div>
                           <div className="mt-1 text-sm font-semibold text-gray-900">{order.buyer?.email || "—"}</div>
                         </div>
+                        <div className="md:col-span-2">
+                          <div className="text-[11px] font-semibold tracking-wider text-gray-400">DIRECCIÓN DE ENTREGA</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{buyerAddress || "—"}</div>
+                        </div>
                       </div>
                     </div>
 
@@ -914,11 +884,13 @@ export default function AdminOrderDetailPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => window.print()}
+                          onClick={async () => {
+                            await downloadPickupTicket(order);
+                          }}
                           className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold"
                           style={{ backgroundColor: "#ffffff", color: "#004e28", border: "1px solid #004e2833" }}
                         >
-                          Imprimir Ticket de Recogida
+                          Descargar Ticket de Recogida
                         </button>
                       </div>
                     </div>
@@ -1016,7 +988,14 @@ export default function AdminOrderDetailPage() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                   <div className="lg:col-span-3 space-y-6">
-                    <LargeRouteMap label={address} />
+                    <OrderRouteMap
+                      mode={mode}
+                      label={address}
+                      origin={supplierCoords}
+                      destination={buyerCoords}
+                      originAddress={supplierAddress}
+                      destinationAddress={address}
+                    />
 
                     <div className="rounded-2xl border border-gray-100 bg-white p-6">
                       <div className="flex items-center justify-between gap-4">
@@ -1024,7 +1003,7 @@ export default function AdminOrderDetailPage() {
                           Información del Repartidor
                         </div>
                         <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#16a34a14", color: "#16a34a", border: "1px solid #16a34a33" }}>
-                          EN CAMINO AL DESTINO
+                          ESPERANDO REPARTIDOR
                         </span>
                       </div>
 
@@ -1150,23 +1129,32 @@ export default function AdminOrderDetailPage() {
                     <div className="rounded-2xl border border-gray-100 bg-white p-6">
                       <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Gestión de Orden</div>
                       <div className="mt-4 space-y-3">
+                        {isReadyForPickup ? (
+                          <div className="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ backgroundColor: "#16a34a" }}>
+                            <CheckCircle className="h-4 w-4" />
+                            Listo para que lo retire el repartidor
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={actionLoading !== null || !canMarkShipped}
+                            onClick={handleMarkReady}
+                            className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                            style={{ backgroundColor: "#0b6b3a" }}
+                          >
+                            <Truck className="h-4 w-4 mr-2" />
+                            Cambiar a "Listo para recoger"
+                          </button>
+                        )}
                         <button
                           type="button"
-                          disabled={actionLoading !== null || !canMarkShipped}
-                          onClick={handleMarkReady}
-                          className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-                          style={{ backgroundColor: "#0b6b3a" }}
-                        >
-                          <Truck className="h-4 w-4 mr-2" />
-                          Cambiar a "Listo para recoger"
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => window.print()}
+                          onClick={async () => {
+                            await downloadShippingLabel(order);
+                          }}
                           className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold"
                           style={{ backgroundColor: "#ffffff", color: "#0b6b3a", border: "1px solid #0b6b3a33" }}
                         >
-                          Imprimir etiqueta
+                          Descargar etiqueta
                         </button>
                         <button
                           type="button"
@@ -1189,7 +1177,7 @@ export default function AdminOrderDetailPage() {
                         </div>
                         <div>
                           <div className="text-xs text-gray-400 font-semibold">DIRECCIÓN DE ENTREGA</div>
-                          <div className="mt-1 text-sm font-semibold text-gray-900">{address}</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{buyerAddress || address}</div>
                         </div>
                         <div>
                           <div className="text-xs text-gray-400 font-semibold">TELÉFONO</div>

@@ -17,6 +17,7 @@ interface MapPickerProps {
     state?: string;
     country?: string;
   };
+  onSearchQueryChange?: (query: string) => void;
   className?: string;
 }
 

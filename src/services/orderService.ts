@@ -12,6 +12,7 @@ export interface Order {
   distance_km?: number | string | null;
   delivery_address?: string | null;
   shipping_address?: string | null;
+  buyer_address?: string | null;
   pickup_address?: string | null;
   total_amount?: string | number;
   payment_status?: string;
@@ -34,7 +35,14 @@ export interface Order {
     id: number;
     name: string;
     email: string;
-    // ... other buyer fields
+    address?: string | null;
+    exterior_number?: string | null;
+    interior_number?: string | null;
+    neighborhood?: string | null;
+    cp?: string | null;
+    city?: string | null;
+    state?: string | null;
+    country?: string | null;
   };
   product: {
     id: string;
@@ -489,12 +497,13 @@ export const orderService = {
   },
 
   markOrderReady: async (orderId: number) => {
-    const options = { method: "POST" as const };
+    const payload = { fulfillment_status: "ready_for_pickup" };
+    const options = { method: "PUT" as const, body: JSON.stringify(payload) };
     const tryUrls = [
-      `/api/orders/${orderId}/mark-ready`,
-      `/api/orders/${orderId}/mark-ready/`,
-      `/api/v1/orders/${orderId}/mark-ready`,
-      `/api/v1/orders/${orderId}/mark-ready/`,
+      `/api/orders/${orderId}`,
+      `/api/orders/${orderId}/`,
+      `/api/v1/orders/${orderId}`,
+      `/api/v1/orders/${orderId}/`,
     ];
 
     let response: Response | null = null;

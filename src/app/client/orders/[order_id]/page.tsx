@@ -4,6 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
+import type { LatLngLiteral } from "@/lib/googleMaps";
+import {
+  fetchSupplierLocation,
+  getBuyerAddress,
+  getOrderBuyerCoordinates,
+  getOrderSupplierCoordinates,
+  getSupplierAddress,
+} from "@/lib/orderLocation";
+import OrderRouteMap from "@/components/orders/OrderRouteMap";
 import FileUpload from "@/components/ui/FileUpload";
 import { Toast } from "@/components/ui/Toast";
 import {
@@ -227,53 +236,6 @@ function Stepper({ steps, rank, cancelled }: { steps: ProgressStep[]; rank: numb
   );
 }
 
-function StaticMap({ mode, label }: { mode: DeliveryTypeKey; label: string }) {
-  const accentColor = mode === "shipping" ? "#22c55e" : "#004e28";
-  const tileUrl = "https://tile.openstreetmap.org/12/920/1484.png";
-  return (
-    <div className="relative w-full aspect-[3/2] rounded-2xl overflow-hidden border border-gray-100 bg-[#e8e4db]">
-      <div
-        className="absolute inset-0"
-        style={{ backgroundImage: `url('${tileUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/25" />
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 260" preserveAspectRatio="none">
-        {mode === "shipping" ? (
-          <path
-            d="M50 210 C 130 170, 190 150, 250 110 C 290 85, 320 70, 350 55"
-            fill="none"
-            stroke={accentColor}
-            strokeWidth="4"
-            strokeDasharray="8 5"
-            strokeLinecap="round"
-            opacity="0.85"
-          />
-        ) : null}
-        {mode === "shipping" ? (
-          <>
-            <circle cx="50" cy="210" r="16" fill="#6b7280" opacity="0.25" />
-            <circle cx="50" cy="210" r="8" fill="#6b7280" />
-          </>
-        ) : null}
-        <circle cx={mode === "shipping" ? "350" : "200"} cy={mode === "shipping" ? "55" : "130"} r="22" fill={accentColor} opacity="0.25" />
-        <circle cx={mode === "shipping" ? "350" : "200"} cy={mode === "shipping" ? "55" : "130"} r="10" fill={accentColor} />
-        <circle cx={mode === "shipping" ? "350" : "200"} cy={mode === "shipping" ? "55" : "130"} r="4" fill="#fff" />
-      </svg>
-      <div className="absolute bottom-4 left-4 right-4">
-        <div className="inline-flex items-center gap-2 rounded-xl bg-white/95 backdrop-blur px-4 py-3 shadow-lg border border-gray-100">
-          <MapPin className="h-4 w-4" style={{ color: accentColor }} />
-          <div className="min-w-0">
-            <div className="text-xs font-semibold text-gray-400">
-              {mode === "shipping" ? "Dirección de entrega" : "Punto de recolección"}
-            </div>
-            <div className="text-sm font-semibold text-gray-900 truncate max-w-[280px]">{label}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function pickLatestHistoryKey(items: OrderHistoryItem[]) {
   if (!items.length) return "";
   const scored = items
@@ -320,6 +282,9 @@ export default function ClientOrderDetailPage() {
   const [refundReason, setRefundReason] = useState("");
   const [refundEvidence, setRefundEvidence] = useState<File | null>(null);
   const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [buyerAddress, setBuyerAddress] = useState("");
+  const [supplierAddress, setSupplierAddress] = useState("");
+  const [supplierCoordsFromApi, setSupplierCoordsFromApi] = useState<LatLngLiteral | null>(null);
 
   const orderId = useMemo(() => {
     const raw = params?.order_id;
@@ -351,12 +316,25 @@ export default function ClientOrderDetailPage() {
       ]);
       setHistory(h.status === "fulfilled" ? h.value : []);
       setRefunds(r.status === "fulfilled" ? r.value : []);
+      setBuyerAddress(getBuyerAddress(ord));
+      setSupplierAddress(getSupplierAddress(ord));
+      setSupplierCoordsFromApi(null);
+
+      const supplierId = Number(ord.supplier?.id ?? ord.supplier_id);
+      if (Number.isFinite(supplierId) && supplierId > 0) {
+        const supplierLocation = await fetchSupplierLocation(supplierId);
+        if (supplierLocation.address) setSupplierAddress(supplierLocation.address);
+        if (supplierLocation.coordinates) setSupplierCoordsFromApi(supplierLocation.coordinates);
+      }
     } catch (e) {
       const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo cargar la orden.";
       setToast({ type: "error", message: msg });
       setOrder(null);
       setHistory([]);
       setRefunds([]);
+      setBuyerAddress("");
+      setSupplierAddress("");
+      setSupplierCoordsFromApi(null);
     } finally {
       setLoading(false);
     }
@@ -383,6 +361,7 @@ export default function ClientOrderDetailPage() {
 
   const address = useMemo(() => {
     if (!order) return "";
+    if (mode === "shipping" && buyerAddress) return buyerAddress;
     const anyOrder = order as unknown as Record<string, unknown>;
     const raw =
       (typeof anyOrder.delivery_address === "string" && anyOrder.delivery_address) ||
@@ -392,7 +371,17 @@ export default function ClientOrderDetailPage() {
       "";
     const fallback = mode === "shipping" ? order.supplier?.name || "Sucursal" : order.supplier?.name || "Tienda";
     return raw && raw.trim() ? raw.trim() : fallback;
-  }, [order, mode]);
+  }, [order, mode, buyerAddress]);
+
+  const supplierCoords = useMemo(() => {
+    if (!order) return supplierCoordsFromApi;
+    return getOrderSupplierCoordinates(order) || supplierCoordsFromApi;
+  }, [order, supplierCoordsFromApi]);
+
+  const buyerCoords = useMemo(() => {
+    if (!order) return null;
+    return getOrderBuyerCoordinates(order);
+  }, [order]);
 
   const canRequestRefund = useMemo(() => {
     if (!order) return false;
@@ -680,7 +669,14 @@ export default function ClientOrderDetailPage() {
                     </div>
                   )}
                   <div className="mt-4">
-                    <StaticMap mode={mode} label={address} />
+                    <OrderRouteMap
+                      mode={mode}
+                      label={address}
+                      origin={supplierCoords}
+                      destination={buyerCoords}
+                      originAddress={supplierAddress}
+                      destinationAddress={address}
+                    />
                   </div>
                 </div>
 

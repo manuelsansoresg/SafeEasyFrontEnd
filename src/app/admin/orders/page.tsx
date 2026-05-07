@@ -487,7 +487,7 @@ export default function AdminOrdersPage() {
   };
 
   const getOrderPaymentStatus = (order: Order) => {
-    const s = order.fulfillment_status || order.visual_status || order.payment_status || order.status;
+    const s = order.payment_status || order.status || order.visual_status || order.fulfillment_status;
     return typeof s === "string" && s.trim() ? s : "-";
   };
 

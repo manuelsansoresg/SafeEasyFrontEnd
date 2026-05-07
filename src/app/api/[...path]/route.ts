@@ -188,35 +188,24 @@ async function handler(request: NextRequest) {
 
     // Determine body based on content type and method.
     // IMPORTANT: a request body can only be consumed once. Since we may retry across multiple upstreams
-    // and/or follow a redirect, buffer non-streaming bodies and create a fresh copy per fetch.
-    let isStreamingBody = false;
+    // and/or follow a redirect, we ALWAYS buffer the body to allow retries.
+    // This includes multipart/form-data — without buffering, the first failed upstream candidate
+    // would consume the stream and retries would send an empty body.
     let bufferedBody: ArrayBuffer | null = null;
-    const contentType = request.headers.get('content-type') || '';
     const methodHasBody = !['GET', 'HEAD'].includes(request.method);
 
     if (methodHasBody) {
-      const shouldStream =
-        contentType.includes('multipart/form-data') ||
-        contentType.includes('application/octet-stream');
-
-      if (shouldStream) {
-        isStreamingBody = true;
-      } else {
-        bufferedBody = await request.arrayBuffer();
-      }
+      bufferedBody = await request.arrayBuffer();
     }
 
-    const buildFetchOptions = (): (RequestInit & { duplex?: "half" }) => {
-      const opts: RequestInit & { duplex?: "half" } = {
+    const buildFetchOptions = (): RequestInit => {
+      const opts: RequestInit = {
         method: request.method,
         headers: forwardHeaders,
         redirect: 'manual', // Do not follow redirects automatically
         cache: 'no-store',
       };
-      if (isStreamingBody) {
-        opts.body = request.body;
-        opts.duplex = 'half';
-      } else if (bufferedBody) {
+      if (bufferedBody) {
         opts.body = bufferedBody.slice(0);
       }
       return opts;
@@ -256,7 +245,6 @@ async function handler(request: NextRequest) {
         lastError = null;
         if (response.ok) break;
         if (retryableStatuses.has(response.status)) {
-          if (isStreamingBody) break;
           if (hasNextCandidate) {
             try {
               await response.body?.cancel();
@@ -269,7 +257,6 @@ async function handler(request: NextRequest) {
       } catch (err: unknown) {
         lastError = err;
         console.error(`[Generic Proxy] Upstream fetch failed for ${targetUrl}:`, err);
-        if (isStreamingBody) break;
       }
     }
 
@@ -292,29 +279,12 @@ async function handler(request: NextRequest) {
     console.log(`[Generic Proxy] Response status: ${response.status}`);
 
     // Manually follow redirect (once) to preserve Authorization header.
-    // NOTE: This requires a replayable body; streaming bodies cannot be resent.
     if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('Location');
         if (location) {
              console.log(`[Generic Proxy] Redirect detected to: ${location}`);
-             
-             if (isStreamingBody) {
-                 const headers = new Headers();
-                 response.headers.forEach((v, k) => {
-                   const lowerKey = k.toLowerCase();
-                   if (!['content-encoding', 'content-length', 'transfer-encoding'].includes(lowerKey)) {
-                     headers.set(k, v);
-                   }
-                 });
-                 headers.set("x-next-proxy-version", PROXY_VERSION);
-                 headers.set("x-next-proxy-upstream", upstreamBase || "");
-                 return new NextResponse(response.body, {
-                   status: response.status,
-                   headers
-                 });
-             }
-             
-             let newUrlString = location;
+              
+              let newUrlString = location;
              if (!location.startsWith('http')) {
                  const baseUrlObj = new URL(targetUrl);
                  newUrlString = new URL(location, baseUrlObj).toString();

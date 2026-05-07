@@ -22,7 +22,43 @@ type Props = {
   height?: string;
   zoom?: number;
   addressContext?: AddressDetails;
+  onSearchQueryChange?: (query: string) => void;
   className?: string;
+};
+
+type RemovableListener = { remove?: () => void };
+type GoogleLatLng = { lat?: () => number; lng?: () => number };
+type GoogleMapMouseEvent = { latLng?: GoogleLatLng };
+type GoogleMapInstance = {
+  setCenter?: (center: LatLngLiteral) => void;
+  addListener?: (eventName: string, handler: (event?: GoogleMapMouseEvent) => void) => RemovableListener;
+};
+type GoogleMarkerInstance = {
+  setDraggable?: (draggable: boolean) => void;
+  setPosition?: (location: LatLngLiteral | null) => void;
+  getPosition?: () => GoogleLatLng | null;
+  addListener?: (eventName: string, handler: (event?: GoogleMapMouseEvent) => void) => RemovableListener;
+};
+type GooglePlace = { geometry?: { location?: GoogleLatLng } };
+type GoogleAutocompleteInstance = {
+  addListener: (eventName: string, handler: () => void) => RemovableListener;
+  getPlace: () => GooglePlace;
+};
+type GoogleGeocoderResult = { geometry?: { location?: GoogleLatLng } };
+type GoogleMapsApi = {
+  maps?: {
+    Map: new (element: HTMLElement, options: Record<string, unknown>) => GoogleMapInstance;
+    Marker: new (options: Record<string, unknown>) => GoogleMarkerInstance;
+    Geocoder: new () => {
+      geocode: (
+        request: Record<string, unknown>,
+        callback: (results: GoogleGeocoderResult[] | null, status: string) => void,
+      ) => void;
+    };
+    places?: {
+      Autocomplete: new (input: HTMLInputElement, options: Record<string, unknown>) => GoogleAutocompleteInstance;
+    };
+  };
 };
 
 const buildQuery = (ctx?: AddressDetails) => {
@@ -51,16 +87,21 @@ export default function GoogleMapPicker({
   height = "300px",
   zoom = 15,
   addressContext,
+  onSearchQueryChange,
   className,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const mapRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const clickListenerRef = useRef<any>(null);
-  const dragListenerRef = useRef<any>(null);
-  const placeListenerRef = useRef<any>(null);
+  const mapRef = useRef<GoogleMapInstance | null>(null);
+  const markerRef = useRef<GoogleMarkerInstance | null>(null);
+  const clickListenerRef = useRef<RemovableListener | null>(null);
+  const dragListenerRef = useRef<RemovableListener | null>(null);
+  const placeListenerRef = useRef<RemovableListener | null>(null);
   const onChangeRef = useRef<Props["onChange"]>(onChange);
+  const initialLocationRef = useRef(location);
+  const initialReadOnlyRef = useRef(readOnly);
+  const inputTouchedRef = useRef(false);
+  const lastSuggestedQueryRef = useRef("");
   const [ready, setReady] = useState(false);
   const [searching, setSearching] = useState(false);
 
@@ -77,10 +118,11 @@ export default function GoogleMapPicker({
     const init = async () => {
       if (!containerRef.current) return;
       try {
-        const g = await loadGoogleMaps(["places"]);
-        if (cancelled) return;
+        const g = (await loadGoogleMaps(["places"])) as GoogleMapsApi;
+        if (cancelled || !g.maps) return;
 
-        const center = location || defaultCenter;
+        const initialLocation = initialLocationRef.current;
+        const center = initialLocation || defaultCenter;
         const map = new g.maps.Map(containerRef.current, {
           center,
           zoom,
@@ -94,8 +136,8 @@ export default function GoogleMapPicker({
         mapRef.current = map;
         markerRef.current = new g.maps.Marker({
           map,
-          position: location || null,
-          draggable: !readOnly,
+          position: initialLocation || null,
+          draggable: !initialReadOnlyRef.current,
         });
 
         const input = inputRef.current;
@@ -137,7 +179,7 @@ export default function GoogleMapPicker({
   }, [defaultCenter, zoom]);
 
   useEffect(() => {
-    const g = (window as any).google;
+    const g = (window as Window & { google?: GoogleMapsApi }).google;
     const map = mapRef.current;
     const marker = markerRef.current;
     if (!g?.maps || !map || !marker) return;
@@ -149,7 +191,7 @@ export default function GoogleMapPicker({
   }, [defaultCenter, location, readOnly]);
 
   useEffect(() => {
-    const g = (window as any).google;
+    const g = (window as Window & { google?: GoogleMapsApi }).google;
     const map = mapRef.current;
     const marker = markerRef.current;
     if (!g?.maps || !map || !marker) return;
@@ -163,14 +205,14 @@ export default function GoogleMapPicker({
 
     if (!readOnly) {
       marker.setDraggable?.(true);
-      dragListenerRef.current = marker.addListener("dragend", (e: any) => {
+      dragListenerRef.current = marker.addListener?.("dragend", (e) => {
         const lat = Number(e?.latLng?.lat?.());
         const lng = Number(e?.latLng?.lng?.());
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         onChangeRef.current?.({ lat, lng });
       });
 
-      clickListenerRef.current = map.addListener("click", (e: any) => {
+      clickListenerRef.current = map.addListener?.("click", (e) => {
         const lat = Number(e?.latLng?.lat?.());
         const lng = Number(e?.latLng?.lng?.());
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
@@ -178,7 +220,7 @@ export default function GoogleMapPicker({
       });
     } else {
       marker.setDraggable?.(false);
-      clickListenerRef.current = map.addListener("click", () => {
+      clickListenerRef.current = map.addListener?.("click", () => {
         const pos = marker.getPosition?.();
         const lat = Number(pos?.lat?.());
         const lng = Number(pos?.lng?.());
@@ -192,8 +234,14 @@ export default function GoogleMapPicker({
     const input = inputRef.current;
     if (!input) return;
     const suggested = buildQuery(addressContext);
-    if (suggested && !input.value) input.value = suggested;
-  }, [addressContext]);
+    if (suggested !== lastSuggestedQueryRef.current) {
+      lastSuggestedQueryRef.current = suggested;
+    }
+    if (suggested && !input.value && !inputTouchedRef.current) {
+      input.value = suggested;
+      onSearchQueryChange?.(suggested);
+    }
+  }, [addressContext, onSearchQueryChange]);
 
   const canSearchFromForm = useMemo(() => {
     if (readOnly) return false;
@@ -205,11 +253,12 @@ export default function GoogleMapPicker({
     if (!canSearchFromForm) return;
     try {
       setSearching(true);
-      const g = await loadGoogleMaps(["places"]);
+      const g = (await loadGoogleMaps(["places"])) as GoogleMapsApi;
+      if (!g.maps) return;
       const geocoder = new g.maps.Geocoder();
       const query = buildQuery(addressContext);
-      const res = await new Promise<any>((resolve) => {
-        geocoder.geocode({ address: query, region: "MX" }, (results: any, status: any) => {
+      const res = await new Promise<{ results: GoogleGeocoderResult[] | null; status: string }>((resolve) => {
+        geocoder.geocode({ address: query, region: "MX" }, (results, status) => {
           resolve({ results, status });
         });
       });
@@ -238,6 +287,10 @@ export default function GoogleMapPicker({
               placeholder="Buscar dirección"
               className="w-full rounded-md border border-gray-300 bg-white px-9 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
               disabled={!ready}
+              onChange={(event) => {
+                inputTouchedRef.current = true;
+                onSearchQueryChange?.(event.target.value);
+              }}
             />
           </div>
           {canSearchFromForm ? (
