@@ -52,7 +52,7 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
     headers: getHeaders(token),
   });
 
-  const shouldAttemptRefresh = response.status === 401 || response.status === 403;
+  const shouldAttemptRefresh = response.status === 401;
   const initialStatus = response.status;
 
   if (shouldAttemptRefresh) {
@@ -88,7 +88,7 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
             });
 
             const retryIsAuthError = response.status === 401 || response.status === 403;
-            if (retryIsAuthError && initialStatus === 401) {
+            if (retryIsAuthError) {
               console.warn("Retried request failed with auth error after 401. Logging out.");
               logout();
               if (typeof window !== "undefined") {

@@ -221,7 +221,7 @@ export default function OrderRouteMap({
         : "Coordenadas no disponibles";
 
   return (
-    <div className="relative h-[360px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-[#eef2ed] shadow-[0_16px_36px_rgba(15,23,42,.08)] lg:h-[420px]">
+    <div className="relative isolate z-0 h-[360px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-[#eef2ed] shadow-[0_16px_36px_rgba(15,23,42,.08)] lg:h-[420px]">
       <MapContainer center={primaryPoint} zoom={13} zoomControl={false} scrollWheelZoom={false} className="order-route-map h-full w-full">
         <TileLayer
           attribution={tileAttribution}
@@ -250,14 +250,10 @@ export default function OrderRouteMap({
         ) : null}
       </MapContainer>
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-[500] h-24 bg-gradient-to-b from-white/35 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[500] h-36 bg-gradient-to-t from-slate-950/18 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-24 bg-gradient-to-b from-white/35 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-36 bg-gradient-to-t from-slate-950/18 to-transparent" />
 
-      <div className="absolute left-4 top-4 z-[510] rounded-full border border-white/70 bg-white/95 px-3 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm backdrop-blur">
-        OpenStreetMap
-      </div>
-
-      <div className="absolute bottom-4 left-4 right-4 z-[510] sm:right-auto sm:max-w-[360px]">
+      <div className="absolute bottom-4 left-4 right-4 z-20 sm:right-auto sm:max-w-[360px]">
         <div className="rounded-2xl border border-white/80 bg-white/95 px-4 py-3 shadow-[0_14px_32px_rgba(15,23,42,.18)] backdrop-blur">
           <div className="flex items-start gap-3">
             <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
@@ -275,7 +271,7 @@ export default function OrderRouteMap({
       </div>
 
       {loading ? (
-        <div className="absolute right-4 top-4 z-[510] inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm backdrop-blur">
+        <div className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm backdrop-blur">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Calculando ruta
         </div>

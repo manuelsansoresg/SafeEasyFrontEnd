@@ -150,8 +150,8 @@ export default function GoogleMapPicker({
             const place = autocomplete.getPlace();
             const loc = place?.geometry?.location;
             if (!loc) return;
-            const lat = Number(loc.lat());
-            const lng = Number(loc.lng());
+            const lat = Number(loc.lat?.());
+            const lng = Number(loc.lng?.());
             if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
             onChangeRef.current?.({ lat, lng });
           });
@@ -210,14 +210,14 @@ export default function GoogleMapPicker({
         const lng = Number(e?.latLng?.lng?.());
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         onChangeRef.current?.({ lat, lng });
-      });
+      }) ?? null;
 
       clickListenerRef.current = map.addListener?.("click", (e) => {
         const lat = Number(e?.latLng?.lat?.());
         const lng = Number(e?.latLng?.lng?.());
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         onChangeRef.current?.({ lat, lng });
-      });
+      }) ?? null;
     } else {
       marker.setDraggable?.(false);
       clickListenerRef.current = map.addListener?.("click", () => {
@@ -226,7 +226,7 @@ export default function GoogleMapPicker({
         const lng = Number(pos?.lng?.());
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
-      });
+      }) ?? null;
     }
   }, [readOnly]);
 
@@ -266,8 +266,8 @@ export default function GoogleMapPicker({
       const first = res?.results?.[0];
       const loc = first?.geometry?.location;
       if (!loc) return;
-      const lat = Number(loc.lat());
-      const lng = Number(loc.lng());
+      const lat = Number(loc.lat?.());
+      const lng = Number(loc.lng?.());
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
       onChange?.({ lat, lng });
     } finally {

@@ -124,7 +124,6 @@ export default function ProfilePage() {
       if (formData.password) {
         payload.password = formData.password;
       }
-      if (mapLocation) payload.map_location = `${mapLocation.lat},${mapLocation.lng}`;
 
       const response = await fetchWithAuth(`/api/users/${user.id}`, {
         method: 'PUT',
@@ -134,6 +133,16 @@ export default function ProfilePage() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || `Error al actualizar perfil (${response.status})`);
+      }
+
+      const updatedData = await response.json().catch(() => null);
+      console.log("[Profile] PUT response body:", updatedData);
+
+      if (mapLocation) {
+        await fetchWithAuth(`/api/users/${user.id}/map-location`, {
+          method: "PATCH",
+          body: JSON.stringify({ map_location: `${mapLocation.lat},${mapLocation.lng}` }),
+        });
       }
 
       setSuccessMessage("Perfil actualizado correctamente");

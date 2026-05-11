@@ -59,12 +59,19 @@ function serializeMapLocation(location: LatLngLiteral) {
   return `${Number(location.lat)},${Number(location.lng)}`;
 }
 
+function formText(value: unknown, fallback = "") {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  return trimmed.toLowerCase() === "string" ? "" : trimmed;
+}
+
 interface SupplierFormProps {
   initialData?: Supplier;
   isEditMode?: boolean;
+  onSaved?: () => void;
 }
 
-export default function SupplierForm({ initialData, isEditMode = false }: SupplierFormProps) {
+export default function SupplierForm({ initialData, isEditMode = false, onSaved }: SupplierFormProps) {
   const { token, user } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -422,31 +429,31 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
   }, [userSearchTerm, userMode, fetchUsers]);
 
   const [formData, setFormData] = useState({
-    name: initialData?.name || "",
-    short_name: initialData?.short_name || "",
-    rfc: initialData?.rfc || "",
-    phone: initialData?.phone || "",
-    email: initialData?.email || "",
-    city: initialData?.city || "",
-    state: initialData?.state || "",
-    country: initialData?.country || "Mexico",
+    name: formText(initialData?.name),
+    short_name: formText(initialData?.short_name),
+    rfc: formText(initialData?.rfc),
+    phone: formText(initialData?.phone),
+    email: formText(initialData?.email),
+    city: formText(initialData?.city),
+    state: formText(initialData?.state),
+    country: formText(initialData?.country, "Mexico") || "Mexico",
     is_active: initialData?.is_active ?? true,
     // Extended
-    short_description: initialData?.short_description || "",
-    description: initialData?.description || "",
-    address: initialData?.address || "",
-    exterior_number: initialData?.exterior_number || "",
-    interior_number: initialData?.interior_number || "",
-    neighborhood: initialData?.neighborhood || "",
-    zip_code: initialData?.zip_code || "",
-    cp: initialData?.cp || initialData?.zip_code || "",
-    cross_street_1: initialData?.cross_street_1 || "",
-    cross_street_2: initialData?.cross_street_2 || "",
-    about: initialData?.about || "",
+    short_description: formText(initialData?.short_description),
+    description: formText(initialData?.description),
+    address: formText(initialData?.address),
+    exterior_number: formText(initialData?.exterior_number),
+    interior_number: formText(initialData?.interior_number),
+    neighborhood: formText(initialData?.neighborhood),
+    zip_code: formText(initialData?.zip_code),
+    cp: formText(initialData?.cp) || formText(initialData?.zip_code),
+    cross_street_1: formText(initialData?.cross_street_1),
+    cross_street_2: formText(initialData?.cross_street_2),
+    about: formText(initialData?.about),
     transfer_accepted: initialData?.transfer_accepted || false,
-    transfer_clabe: initialData?.transfer_clabe || "",
-    transfer_bank: initialData?.transfer_bank || "",
-    transfer_name: initialData?.transfer_name || "",
+    transfer_clabe: formText(initialData?.transfer_clabe),
+    transfer_bank: formText(initialData?.transfer_bank),
+    transfer_name: formText(initialData?.transfer_name),
   });
 
   const [mapLocation, setMapLocation] = useState<LatLngLiteral | null>(() =>
@@ -468,7 +475,6 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
   const [clearLogo, setClearLogo] = useState(false);
   const [clearAboutMedia, setClearAboutMedia] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [mapSearchQuery, setMapSearchQuery] = useState("");
 
@@ -481,7 +487,10 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         initialData?.about_image_url ||
         null
     );
-    setMapLocation(parseSupplierMapLocation(initialData?.map_location ?? null));
+    const parsed = parseSupplierMapLocation(initialData?.map_location ?? null);
+    console.log("[SupplierForm] initialData.map_location raw:", initialData?.map_location);
+    console.log("[SupplierForm] initialData.map_location parsed:", parsed);
+    setMapLocation(parsed);
   }, [initialData]);
 
   const buildMapAddressQuery = () => {
@@ -607,14 +616,15 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log("[SupplierForm] handleSubmit called, preventing default");
     e.preventDefault();
+    e.stopPropagation();
     if (!token || !user) {
-        setError("No hay sesión activa");
+        setToast({ type: "error", message: "No hay sesión activa" });
         return;
     }
 
     setIsSubmitting(true);
-    setError(null);
     setSuccess(false);
 
     try {
@@ -629,14 +639,14 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
       if (user.role === 'admin') {
           if (userMode === 'existing') {
               if (!selectedUserId) {
-                  setError("Debes seleccionar un usuario para asignar al proveedor");
+                  setToast({ type: "error", message: "Debes seleccionar un usuario para asignar al proveedor" });
                   setIsSubmitting(false);
                   return;
               }
               finalUserId = Number(selectedUserId);
           } else if (userMode === 'new') {
               if (!newUser.email || !newUser.password || !newUser.name) {
-                  setError("Todos los campos del nuevo usuario son obligatorios");
+                  setToast({ type: "error", message: "Todos los campos del nuevo usuario son obligatorios" });
                   setIsSubmitting(false);
                   return;
               }
@@ -668,9 +678,9 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
                     e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
                       ? String((e as Record<string, unknown>).message)
                       : "Error al crear el usuario";
-                  setError(msg);
-                  setIsSubmitting(false);
-                  return;
+                   setToast({ type: "error", message: msg });
+                   setIsSubmitting(false);
+                   return;
               }
           }
           // If userMode is 'current', we keep the finalUserId set at the beginning 
@@ -691,40 +701,35 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         }
       }
 
-      if (!resolvedMapLocation && buildMapAddressQuery()) {
-        setError("No se pudo obtener la ubicación del mapa. Usa 'Buscar con datos del formulario' o haz clic en el mapa antes de guardar.");
-        setIsSubmitting(false);
-        return;
-      }
-
       let response: Response;
 
-      const buildFormData = (nextMapLocation: LatLngLiteral | null) => {
+      const buildFormData = () => {
         const data = new FormData();
 
         const appendIfPresent = (key: string, value: unknown) => {
-          if (value !== null && value !== undefined && value !== "") {
-            data.append(key, String(value).trim());
+          const trimmed = typeof value === "string" ? value.trim() : String(value ?? "").trim();
+          if (trimmed && trimmed.toLowerCase() !== "string") {
+            data.append(key, trimmed);
           }
         };
 
         // Transfer Data Validation
         if (formData.transfer_accepted) {
-             if (!formData.transfer_clabe || !/^\d{18}$/.test(formData.transfer_clabe)) {
-                 setError("La CLABE debe tener 18 dígitos numéricos.");
-                 setIsSubmitting(false);
-                 throw new Error("Validación fallida"); 
-             }
-             if (!formData.transfer_bank) {
-                 setError("El nombre del banco es obligatorio.");
-                 setIsSubmitting(false);
-                 throw new Error("Validación fallida");
-             }
-             if (!formData.transfer_name) {
-                 setError("El nombre del beneficiario es obligatorio.");
-                 setIsSubmitting(false);
-                 throw new Error("Validación fallida");
-             }
+              if (!formData.transfer_clabe || !/^\d{18}$/.test(formData.transfer_clabe)) {
+                  setToast({ type: "error", message: "La CLABE debe tener 18 dígitos numéricos." });
+                  setIsSubmitting(false);
+                  throw new Error("Validación fallida"); 
+              }
+              if (!formData.transfer_bank) {
+                  setToast({ type: "error", message: "El nombre del banco es obligatorio." });
+                  setIsSubmitting(false);
+                  throw new Error("Validación fallida");
+              }
+              if (!formData.transfer_name) {
+                  setToast({ type: "error", message: "El nombre del beneficiario es obligatorio." });
+                  setIsSubmitting(false);
+                  throw new Error("Validación fallida");
+              }
              
              data.append('transfer_accepted', 'true');
              data.append('transfer_clabe', formData.transfer_clabe);
@@ -756,10 +761,6 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         appendIfPresent("cross_street_1", formData.cross_street_1);
         appendIfPresent("cross_street_2", formData.cross_street_2);
         appendIfPresent("about", formData.about);
-        
-        if (nextMapLocation) {
-          data.append("map_location", serializeMapLocation(nextMapLocation));
-        }
 
         data.append("user_id", String(finalUserId));
 
@@ -780,14 +781,33 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
 
       if (isEdit) {
         const url = `/api/suppliers/${initialData.id}`;
-        const data = buildFormData(resolvedMapLocation);
+        const data = buildFormData();
+        const debugEntries: Array<{ key: string; value: unknown }> = [];
+        data.forEach((v, k) => {
+          if (v instanceof File) {
+            debugEntries.push({ key: k, value: { name: v.name, type: v.type, size: v.size } });
+          } else {
+            debugEntries.push({ key: k, value: v });
+          }
+        });
+        console.log("[SupplierForm] PUT payload:", debugEntries);
+        console.log("[SupplierForm] Token being used:", token ? `${token.slice(0, 20)}...` : "NULL/EMPTY");
+        console.log("[SupplierForm] initialData.id:", initialData?.id);
+        console.log("[SupplierForm] isEdit:", isEdit);
+        console.log("[SupplierForm] finalUserId:", finalUserId);
 
         response = await fetchWithAuth(url, {
           method: "PUT",
           body: data,
         });
+
+        console.log("[SupplierForm] PUT response status:", response.status);
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "");
+          console.log("[SupplierForm] PUT response body:", errorText);
+        }
       } else {
-        const data = buildFormData(resolvedMapLocation);
+        const data = buildFormData();
 
         response = await fetchWithAuth("/api/suppliers", {
           method: "POST",
@@ -828,7 +848,7 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
           errorMessage += ` | Detalles: ${backend}`;
         }
 
-        setError(errorMessage);
+        setToast({ type: "error", message: errorMessage });
         setIsSubmitting(false);
         return;
       }
@@ -838,6 +858,20 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         updatedSupplier = await response.json();
       } catch {
         updatedSupplier = null;
+      }
+
+      console.log("[SupplierForm] PUT response body:", updatedSupplier);
+
+      if (isEdit && resolvedMapLocation) {
+        try {
+          await fetchWithAuth(`/api/suppliers/${initialData.id}/map-location`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ map_location: serializeMapLocation(resolvedMapLocation) }),
+          });
+        } catch (e) {
+          console.warn("[SupplierForm] PATCH map-location failed, continuing:", e);
+        }
       }
 
       if (updatedSupplier && typeof updatedSupplier === "object") {
@@ -860,9 +894,9 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
         if (typeof newAboutMediaUrl !== 'undefined') {
           setAboutMediaPreviewUrl(newAboutMediaUrl);
         }
-        setMapLocation(updatedMapLocation || resolvedMapLocation);
-      } else if (resolvedMapLocation) {
-        setMapLocation(resolvedMapLocation);
+        if (updatedMapLocation) {
+          setMapLocation(updatedMapLocation);
+        }
       }
 
       setLogo(null);
@@ -871,17 +905,18 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
       setClearAboutMedia(false);
 
       setSuccess(true);
+      console.log("[SupplierForm] Save successful, calling onSaved");
+      onSaved?.();
       if (!isEditMode) {
         router.push("/admin/suppliers");
       }
-      router.refresh();
     } catch (err: unknown) {
       console.error(err);
       const msg =
         err && typeof err === "object" && "message" in err && typeof (err as Record<string, unknown>).message === "string"
           ? String((err as Record<string, unknown>).message)
           : "Ocurrió un error al guardar";
-      setError(msg);
+      setToast({ type: "error", message: msg });
     } finally {
       setIsSubmitting(false);
     }
@@ -890,11 +925,6 @@ export default function SupplierForm({ initialData, isEditMode = false }: Suppli
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-5xl">
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
-          {error}
-        </div>
-      )}
       
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded relative flex items-center gap-2">
