@@ -24,6 +24,14 @@ interface UserFormData {
   role: string;
 }
 
+interface UserPayload {
+  email: string;
+  name: string;
+  is_active: boolean;
+  role: string;
+  password?: string;
+}
+
 const initialFormData: UserFormData = {
   email: "",
   name: "",
@@ -36,9 +44,19 @@ interface UserFormProps {
   initialData?: User;
   isEditMode?: boolean;
   isProfileMode?: boolean;
+  fixedRole?: string;
+  returnPath?: string;
+  submitLabel?: string;
 }
 
-export default function UserForm({ initialData, isEditMode = false, isProfileMode = false }: UserFormProps) {
+export default function UserForm({
+  initialData,
+  isEditMode = false,
+  isProfileMode = false,
+  fixedRole,
+  returnPath = "/admin/users",
+  submitLabel = "Guardar Usuario",
+}: UserFormProps) {
   const { token } = useAuthStore();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -50,9 +68,9 @@ export default function UserForm({ initialData, isEditMode = false, isProfileMod
           name: initialData.full_name || initialData.name || "",
           password: "", // Password usually not returned
           is_active: initialData.is_active,
-          role: initialData.role || "client",
+          role: fixedRole || initialData.role || "client",
         }
-      : initialFormData
+      : { ...initialFormData, role: fixedRole || initialFormData.role }
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,12 +98,11 @@ export default function UserForm({ initialData, isEditMode = false, isProfileMod
       const url = isEditMode && initialData ? `/api/users/${initialData.id}` : "/api/users";
       const method = isEditMode ? "PUT" : "POST";
 
-      // Prepare payload
-      const payload: any = {
+      const payload: UserPayload = {
         email: formData.email,
         name: formData.name,
         is_active: formData.is_active,
-        role: formData.role,
+        role: fixedRole || formData.role,
       };
 
       // Only include password if it's provided (or if creating a new user)
@@ -114,16 +131,16 @@ export default function UserForm({ initialData, isEditMode = false, isProfileMod
             } catch {
                 errorMessage = `Error ${response.status}: ${text || response.statusText}`;
             }
-        } catch (e) {
+        } catch {
             errorMessage = `Error ${response.status}: ${response.statusText}`;
         }
         throw new Error(errorMessage);
       }
 
-      router.push("/admin/users");
+      router.push(returnPath);
       router.refresh();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al guardar usuario");
     } finally {
       setIsSubmitting(false);
     }
@@ -187,7 +204,7 @@ export default function UserForm({ initialData, isEditMode = false, isProfileMod
 
         {!isProfileMode && (
           <>
-            <div className="space-y-2">
+            {!fixedRole && <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">Rol</label>
               <select
                 name="role"
@@ -198,8 +215,9 @@ export default function UserForm({ initialData, isEditMode = false, isProfileMod
                 <option value="client">Cliente</option>
                 <option value="admin">Administrador</option>
                 <option value="supplier">Proveedor</option>
+                <option value="courier">Repartidor</option>
               </select>
-            </div>
+            </div>}
 
             <div className="col-span-2 space-y-2 flex items-center gap-3">
               <input
@@ -221,7 +239,7 @@ export default function UserForm({ initialData, isEditMode = false, isProfileMod
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() => router.push(returnPath)}
           className="cursor-pointer px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
           disabled={isSubmitting}
         >
@@ -240,7 +258,7 @@ export default function UserForm({ initialData, isEditMode = false, isProfileMod
           ) : (
             <>
               <CheckCircle size={18} />
-              Guardar Usuario
+              {submitLabel}
             </>
           )}
         </button>

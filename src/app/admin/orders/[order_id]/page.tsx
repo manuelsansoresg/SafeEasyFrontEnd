@@ -448,8 +448,11 @@ export default function AdminOrderDetailPage() {
     }
     setActionLoading("mark-ready");
     try {
-      await orderService.markOrderReady(orderId);
-      setToast({ type: "success", message: "Orden marcada como lista para recoger." });
+      await orderService.markOrderReady(orderId, mode);
+      const msg = mode === "shipping"
+        ? "Orden marcada como lista para envío."
+        : "Orden marcada como lista para recoger.";
+      setToast({ type: "success", message: msg });
       await refresh();
     } catch (e) {
       const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo marcar como lista.";
@@ -865,7 +868,7 @@ export default function AdminOrderDetailPage() {
                         <button
                           type="button"
                           disabled={actionLoading !== null || !isPaymentPaid}
-                          onClick={() => handleComplete("Entregado en tienda")}
+                          onClick={handleMarkReady}
                           className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
                           style={{ backgroundColor: "#0b6b3a" }}
                         >

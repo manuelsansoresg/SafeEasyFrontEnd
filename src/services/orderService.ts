@@ -496,15 +496,16 @@ export const orderService = {
     return null;
   },
 
-  markOrderReady: async (orderId: number) => {
-    const payload = { fulfillment_status: "ready_for_pickup" };
-    const options = { method: "PUT" as const, body: JSON.stringify(payload) };
+  markOrderReady: async (orderId: number, deliveryType: "shipping" | "pickup") => {
+    const suffix = deliveryType === "shipping" ? "courier-pickup" : "customer-pickup";
     const tryUrls = [
-      `/api/orders/${orderId}`,
-      `/api/orders/${orderId}/`,
-      `/api/v1/orders/${orderId}`,
-      `/api/v1/orders/${orderId}/`,
+      `/api/orders/${orderId}/mark-ready/${suffix}`,
+      `/api/orders/${orderId}/mark-ready/${suffix}/`,
+      `/api/v1/orders/${orderId}/mark-ready/${suffix}`,
+      `/api/v1/orders/${orderId}/mark-ready/${suffix}/`,
     ];
+
+    const options = { method: "POST" as const };
 
     let response: Response | null = null;
     let usedUrl = "";

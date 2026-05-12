@@ -1,0 +1,233 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useAuthStore } from "@/store/useAuthStore";
+import { fetchWithAuth } from "@/lib/api";
+import { Toast } from "@/components/ui/Toast";
+import {
+  CheckCircle,
+  Edit,
+  Plus,
+  Search,
+  Trash2,
+  Truck,
+  User as UserIcon,
+  XCircle,
+} from "lucide-react";
+
+interface User {
+  id: number;
+  email: string;
+  is_active: boolean;
+  name?: string;
+  full_name?: string;
+  role?: string;
+}
+
+const isCourier = (user: User) => (user.role || "").toLowerCase() === "courier";
+
+export default function CouriersPage() {
+  const { token } = useAuthStore();
+  const [couriers, setCouriers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  useEffect(() => {
+    const fetchCouriers = async () => {
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await fetchWithAuth("/api/users/?skip=0&limit=1000");
+
+        if (response.ok) {
+          const data = await response.json();
+          const users = Array.isArray(data) ? data : data && Array.isArray(data.items) ? data.items : [];
+          setCouriers(users.filter(isCourier));
+        } else {
+          const text = await response.text();
+          setError(`Error: ${text || response.statusText}`);
+        }
+      } catch (error) {
+        console.error("Error fetching couriers:", error);
+        setError("Error de conexión al cargar repartidores");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCouriers();
+  }, [token]);
+
+  const deleteCourier = async (id: number) => {
+    if (!confirm("¿Estás seguro de eliminar este repartidor?")) return;
+
+    try {
+      const response = await fetchWithAuth(`/api/users/${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setCouriers((prev) => prev.filter((courier) => courier.id !== id));
+        setToast({ type: "success", message: "Repartidor eliminado correctamente." });
+      } else {
+        setToast({ type: "error", message: "Error al eliminar repartidor." });
+      }
+    } catch (error) {
+      console.error("Error deleting courier:", error);
+      setToast({ type: "error", message: "Error de red al eliminar repartidor." });
+    }
+  };
+
+  const filteredCouriers = couriers.filter((courier) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      courier.email.toLowerCase().includes(term) ||
+      (courier.name && courier.name.toLowerCase().includes(term)) ||
+      (courier.full_name && courier.full_name.toLowerCase().includes(term))
+    );
+  });
+
+  return (
+    <div className="space-y-6">
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Repartidores</h1>
+          <p className="text-gray-500 mt-1">Gestiona los repartidores del sistema.</p>
+        </div>
+        <Link
+          href="/admin/couriers/create"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
+        >
+          <Plus size={20} />
+          Nuevo Repartidor
+        </Link>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
+          <XCircle size={20} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 flex gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Buscar repartidores..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50/50">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Repartidor</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Rol</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    Cargando repartidores...
+                  </td>
+                </tr>
+              ) : filteredCouriers.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    No se encontraron repartidores
+                  </td>
+                </tr>
+              ) : (
+                filteredCouriers.map((courier) => (
+                  <tr key={courier.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                          <UserIcon size={20} />
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">{courier.full_name || courier.name || "Sin nombre"}</div>
+                          <div className="text-sm text-gray-500">{courier.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        <Truck size={12} />
+                        Courier
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          courier.is_active
+                            ? "bg-green-50 text-green-700 border border-green-100"
+                            : "bg-red-50 text-red-700 border border-red-100"
+                        }`}
+                      >
+                        {courier.is_active ? (
+                          <>
+                            <CheckCircle size={12} /> Activo
+                          </>
+                        ) : (
+                          <>
+                            <XCircle size={12} /> Inactivo
+                          </>
+                        )}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <Link
+                          href={`/admin/couriers/${courier.id}`}
+                          className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                        >
+                          <Edit size={18} />
+                        </Link>
+                        <button
+                          onClick={() => deleteCourier(courier.id)}
+                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="p-4 border-t border-gray-100">
+          <div className="text-sm text-gray-500">Mostrando {filteredCouriers.length} repartidores</div>
+        </div>
+      </div>
+    </div>
+  );
+}

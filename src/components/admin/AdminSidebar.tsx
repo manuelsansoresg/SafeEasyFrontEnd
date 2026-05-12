@@ -80,6 +80,12 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       icon: Users,
       roles: ['admin', 'superuser']
     },
+    {
+      title: "Repartidores",
+      path: "/admin/couriers",
+      icon: Truck,
+      roles: ['admin', 'superuser']
+    },
     { 
       title: "Mis Productos", 
       path: "/admin/products", 
