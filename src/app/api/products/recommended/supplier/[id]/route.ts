@@ -15,7 +15,7 @@ const getBaseUrl = () => {
       return publicUrl;
   }
   
-  return 'https://drooopy.com/api';
+  return process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
 };
 
 const BASE_URL = getBaseUrl();

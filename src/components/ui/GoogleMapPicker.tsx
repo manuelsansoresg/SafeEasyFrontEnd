@@ -104,6 +104,7 @@ export default function GoogleMapPicker({
   const lastSuggestedQueryRef = useRef("");
   const [ready, setReady] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const defaultCenter = useMemo<LatLngLiteral>(() => {
     return { lat: 20.96737, lng: -89.592585 };
@@ -158,7 +159,9 @@ export default function GoogleMapPicker({
         }
 
         setReady(true);
-      } catch {
+      } catch (err) {
+        console.error("[GoogleMapPicker] Error cargando Google Maps:", err);
+        setLoadError(err instanceof Error ? err.message : "No se pudo cargar Google Maps");
         setReady(false);
       }
     };
@@ -308,7 +311,44 @@ export default function GoogleMapPicker({
           ) : null}
         </div>
         <div ref={containerRef} className="h-full w-full" />
-        {!ready && (
+        {!ready && loadError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
+            <p className="text-sm font-medium text-red-600 mb-2">No se pudo cargar el mapa</p>
+            <p className="text-xs text-gray-500 mb-3">{loadError}</p>
+            <p className="text-xs text-gray-400 mb-4">
+              Revisa que la API key de Google Maps esté configurada correctamente.
+            </p>
+            {!readOnly && onChange && (
+              <div className="flex gap-2 w-full max-w-xs">
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Latitud"
+                  value={location?.lat ?? ""}
+                  onChange={(e) => {
+                    const lat = parseFloat(e.target.value);
+                    const lng = location?.lng ?? 0;
+                    if (Number.isFinite(lat)) onChange({ lat, lng });
+                  }}
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Longitud"
+                  value={location?.lng ?? ""}
+                  onChange={(e) => {
+                    const lng = parseFloat(e.target.value);
+                    const lat = location?.lat ?? 0;
+                    if (Number.isFinite(lng)) onChange({ lat, lng });
+                  }}
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {!ready && !loadError && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
             <Loader2 className="h-7 w-7 animate-spin text-primary" />
           </div>
