@@ -243,17 +243,27 @@ export const orderService = {
     const tryUrls = [
       `/api/users/me/orders`,
       `/api/users/me/orders/`,
+      `/api/orders/me`,
+      `/api/orders/me/`,
+      `/api/orders/my`,
+      `/api/orders/my/`,
+      `/api/v1/users/me/orders`,
+      `/api/v1/users/me/orders/`,
     ];
 
     let response: Response | null = null;
+    let usedUrl = "";
     for (const url of tryUrls) {
+      usedUrl = url;
       response = await fetchWithAuth(url);
       if (response.ok) break;
       if (response.status !== 404 && response.status !== 405) break;
     }
 
     if (!response || !response.ok) {
-      throw new Error("Failed to fetch my orders");
+      const status = response?.status ?? "unknown";
+      const bodyText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to fetch my orders (${status}) ${usedUrl} ${bodyText}`.trim());
     }
 
     const data: unknown = await response.json().catch(() => null);

@@ -223,18 +223,6 @@ async function handler(request: NextRequest) {
       let nextTargetUrl = `${baseUrl}${relativePath}`;
       nextTargetUrl = nextTargetUrl.replace(/([^:])\/{2,}/g, "$1/");
 
-      if (
-        (nextTargetUrl.endsWith("users") ||
-          nextTargetUrl.endsWith("products") ||
-          nextTargetUrl.endsWith("suppliers") ||
-          nextTargetUrl.endsWith("orders") ||
-          nextTargetUrl.endsWith("subscriptions") ||
-          nextTargetUrl.endsWith("plans")) &&
-        !nextTargetUrl.endsWith("/")
-      ) {
-        nextTargetUrl += "/";
-      }
-
       nextTargetUrl += request.nextUrl.search;
       targetUrl = nextTargetUrl;
       console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
