@@ -5,24 +5,12 @@ import { cn } from "@/lib/utils";
 import { LatLngLiteral, loadGoogleMaps } from "@/lib/googleMaps";
 import { Loader2, Search } from "lucide-react";
 
-type AddressDetails = {
-  street?: string;
-  exteriorNumber?: string;
-  neighborhood?: string;
-  postalCode?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-};
-
 type Props = {
   location?: LatLngLiteral | null;
   onChange?: (location: LatLngLiteral) => void;
   readOnly?: boolean;
   height?: string;
   zoom?: number;
-  addressContext?: AddressDetails;
-  onSearchQueryChange?: (query: string) => void;
   className?: string;
 };
 
@@ -39,45 +27,19 @@ type GoogleMarkerInstance = {
   getPosition?: () => GoogleLatLng | null;
   addListener?: (eventName: string, handler: (event?: GoogleMapMouseEvent) => void) => RemovableListener;
 };
-type GooglePlace = { geometry?: { location?: GoogleLatLng } };
+type GooglePlace = { geometry?: { location?: GoogleLatLng }; formatted_address?: string };
 type GoogleAutocompleteInstance = {
   addListener: (eventName: string, handler: () => void) => RemovableListener;
   getPlace: () => GooglePlace;
 };
-type GoogleGeocoderResult = { geometry?: { location?: GoogleLatLng } };
 type GoogleMapsApi = {
   maps?: {
     Map: new (element: HTMLElement, options: Record<string, unknown>) => GoogleMapInstance;
     Marker: new (options: Record<string, unknown>) => GoogleMarkerInstance;
-    Geocoder: new () => {
-      geocode: (
-        request: Record<string, unknown>,
-        callback: (results: GoogleGeocoderResult[] | null, status: string) => void,
-      ) => void;
-    };
     places?: {
       Autocomplete: new (input: HTMLInputElement, options: Record<string, unknown>) => GoogleAutocompleteInstance;
     };
   };
-};
-
-const buildQuery = (ctx?: AddressDetails) => {
-  if (!ctx) return "";
-  const parts: string[] = [];
-  const street = String(ctx.street || "").trim();
-  const ext = String(ctx.exteriorNumber || "").trim();
-  if (street) parts.push(`${street} ${ext}`.trim());
-  const neigh = String(ctx.neighborhood || "").trim();
-  if (neigh) parts.push(neigh);
-  const cp = String(ctx.postalCode || "").trim();
-  if (cp) parts.push(cp);
-  const city = String(ctx.city || "").trim();
-  if (city) parts.push(city);
-  const state = String(ctx.state || "").trim();
-  if (state) parts.push(state);
-  const country = String(ctx.country || "").trim();
-  if (country) parts.push(country);
-  return parts.join(", ");
 };
 
 export default function GoogleMapPicker({
@@ -86,8 +48,6 @@ export default function GoogleMapPicker({
   readOnly,
   height = "300px",
   zoom = 15,
-  addressContext,
-  onSearchQueryChange,
   className,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -98,12 +58,7 @@ export default function GoogleMapPicker({
   const dragListenerRef = useRef<RemovableListener | null>(null);
   const placeListenerRef = useRef<RemovableListener | null>(null);
   const onChangeRef = useRef<Props["onChange"]>(onChange);
-  const initialLocationRef = useRef(location);
-  const initialReadOnlyRef = useRef(readOnly);
-  const inputTouchedRef = useRef(false);
-  const lastSuggestedQueryRef = useRef("");
   const [ready, setReady] = useState(false);
-  const [searching, setSearching] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const defaultCenter = useMemo<LatLngLiteral>(() => {
@@ -122,8 +77,7 @@ export default function GoogleMapPicker({
         const g = (await loadGoogleMaps(["places"])) as GoogleMapsApi;
         if (cancelled || !g.maps) return;
 
-        const initialLocation = initialLocationRef.current;
-        const center = initialLocation || defaultCenter;
+        const center = location || defaultCenter;
         const map = new g.maps.Map(containerRef.current, {
           center,
           zoom,
@@ -137,8 +91,8 @@ export default function GoogleMapPicker({
         mapRef.current = map;
         markerRef.current = new g.maps.Marker({
           map,
-          position: initialLocation || null,
-          draggable: !initialReadOnlyRef.current,
+          position: location || null,
+          draggable: !readOnly,
         });
 
         const input = inputRef.current;
@@ -162,24 +116,17 @@ export default function GoogleMapPicker({
       } catch (err) {
         console.error("[GoogleMapPicker] Error cargando Google Maps:", err);
         setLoadError(err instanceof Error ? err.message : "No se pudo cargar Google Maps");
-        setReady(false);
       }
     };
 
     init();
     return () => {
       cancelled = true;
-      try {
-        if (clickListenerRef.current?.remove) clickListenerRef.current.remove();
-      } catch {}
-      try {
-        if (dragListenerRef.current?.remove) dragListenerRef.current.remove();
-      } catch {}
-      try {
-        if (placeListenerRef.current?.remove) placeListenerRef.current.remove();
-      } catch {}
+      try { clickListenerRef.current?.remove?.(); } catch {}
+      try { dragListenerRef.current?.remove?.(); } catch {}
+      try { placeListenerRef.current?.remove?.(); } catch {}
     };
-  }, [defaultCenter, zoom]);
+  }, []);
 
   useEffect(() => {
     const g = (window as Window & { google?: GoogleMapsApi }).google;
@@ -199,12 +146,8 @@ export default function GoogleMapPicker({
     const marker = markerRef.current;
     if (!g?.maps || !map || !marker) return;
 
-    try {
-      if (clickListenerRef.current?.remove) clickListenerRef.current.remove();
-    } catch {}
-    try {
-      if (dragListenerRef.current?.remove) dragListenerRef.current.remove();
-    } catch {}
+    try { clickListenerRef.current?.remove?.(); } catch {}
+    try { dragListenerRef.current?.remove?.(); } catch {}
 
     if (!readOnly) {
       marker.setDraggable?.(true);
@@ -233,51 +176,6 @@ export default function GoogleMapPicker({
     }
   }, [readOnly]);
 
-  useEffect(() => {
-    const input = inputRef.current;
-    if (!input) return;
-    const suggested = buildQuery(addressContext);
-    if (suggested !== lastSuggestedQueryRef.current) {
-      lastSuggestedQueryRef.current = suggested;
-    }
-    if (suggested && !input.value && !inputTouchedRef.current) {
-      input.value = suggested;
-      onSearchQueryChange?.(suggested);
-    }
-  }, [addressContext, onSearchQueryChange]);
-
-  const canSearchFromForm = useMemo(() => {
-    if (readOnly) return false;
-    const q = buildQuery(addressContext);
-    return q.trim().length > 0;
-  }, [addressContext, readOnly]);
-
-  const searchFromForm = async () => {
-    if (!canSearchFromForm) return;
-    try {
-      setSearching(true);
-      const g = (await loadGoogleMaps(["places"])) as GoogleMapsApi;
-      if (!g.maps) return;
-      const geocoder = new g.maps.Geocoder();
-      const query = buildQuery(addressContext);
-      const res = await new Promise<{ results: GoogleGeocoderResult[] | null; status: string }>((resolve) => {
-        geocoder.geocode({ address: query, region: "MX" }, (results, status) => {
-          resolve({ results, status });
-        });
-      });
-      if (res?.status !== "OK") return;
-      const first = res?.results?.[0];
-      const loc = first?.geometry?.location;
-      if (!loc) return;
-      const lat = Number(loc.lat?.());
-      const lng = Number(loc.lng?.());
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-      onChange?.({ lat, lng });
-    } finally {
-      setSearching(false);
-    }
-  };
-
   return (
     <div className={cn("w-full rounded-lg border border-gray-200 overflow-hidden bg-white", className)}>
       <div className="relative" style={{ height }}>
@@ -289,68 +187,20 @@ export default function GoogleMapPicker({
               type="text"
               placeholder="Buscar dirección"
               className="w-full rounded-md border border-gray-300 bg-white px-9 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              disabled={!ready}
-              onChange={(event) => {
-                inputTouchedRef.current = true;
-                onSearchQueryChange?.(event.target.value);
-              }}
+              disabled={!ready || readOnly}
             />
           </div>
-          {canSearchFromForm ? (
-            <button
-              type="button"
-              disabled={!ready || searching}
-              onClick={searchFromForm}
-              className={cn(
-                "mt-2 w-full rounded-md px-3 py-2 text-sm font-semibold",
-                !ready || searching ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-primary text-white hover:bg-primary/90",
-              )}
-            >
-              {searching ? "Buscando..." : "Buscar con datos del formulario"}
-            </button>
-          ) : null}
         </div>
         <div ref={containerRef} className="h-full w-full" />
-        {!ready && loadError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
-            <p className="text-sm font-medium text-red-600 mb-2">No se pudo cargar el mapa</p>
-            <p className="text-xs text-gray-500 mb-3">{loadError}</p>
-            <p className="text-xs text-gray-400 mb-4">
-              Revisa que la API key de Google Maps esté configurada correctamente.
-            </p>
-            {!readOnly && onChange && (
-              <div className="flex gap-2 w-full max-w-xs">
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="Latitud"
-                  value={location?.lat ?? ""}
-                  onChange={(e) => {
-                    const lat = parseFloat(e.target.value);
-                    const lng = location?.lng ?? 0;
-                    if (Number.isFinite(lat)) onChange({ lat, lng });
-                  }}
-                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-                />
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="Longitud"
-                  value={location?.lng ?? ""}
-                  onChange={(e) => {
-                    const lng = parseFloat(e.target.value);
-                    const lat = location?.lat ?? 0;
-                    if (Number.isFinite(lng)) onChange({ lat, lng });
-                  }}
-                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-                />
-              </div>
-            )}
-          </div>
-        )}
         {!ready && !loadError && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
             <Loader2 className="h-7 w-7 animate-spin text-primary" />
+          </div>
+        )}
+        {loadError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 p-4 text-center z-20">
+            <p className="text-sm font-medium text-red-600 mb-2">No se pudo cargar el mapa</p>
+            <p className="text-xs text-gray-500">{loadError}</p>
           </div>
         )}
       </div>

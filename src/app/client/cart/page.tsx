@@ -1134,15 +1134,6 @@ export default function ClientCartPage() {
                     setUserMapLocation(loc);
                     invalidateQuote();
                   }}
-                  addressContext={{
-                    street: addressForm.address,
-                    exteriorNumber: addressForm.exterior_number,
-                    neighborhood: addressForm.neighborhood,
-                    postalCode: addressForm.cp,
-                    city: addressForm.city,
-                    state: addressForm.state,
-                    country: addressForm.country,
-                  }}
                   height="320px"
                 />
 

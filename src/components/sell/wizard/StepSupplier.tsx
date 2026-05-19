@@ -475,15 +475,6 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                 location={mapLocation} 
                 onChange={setMapLocation}
                 height="300px"
-                addressContext={{
-                  street: formData.address,
-                  exteriorNumber: formData.exterior_number,
-                  neighborhood: formData.neighborhood,
-                  postalCode: formData.cp || formData.zip_code,
-                  city: formData.city,
-                  state: formData.state,
-                  country: formData.country
-                }}
               />
               <p className="text-xs text-gray-500 mt-1">Busca una dirección o haz clic en el mapa para establecer la ubicación.</p>
             </div>

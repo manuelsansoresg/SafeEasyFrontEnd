@@ -315,15 +315,6 @@ export default function ProfilePage() {
               <GoogleMapPicker
                 location={mapLocation}
                 onChange={setMapLocation}
-                addressContext={{
-                  street: addressData.address,
-                  exteriorNumber: addressData.exterior_number,
-                  neighborhood: addressData.neighborhood,
-                  postalCode: addressData.cp,
-                  city: addressData.city,
-                  state: addressData.state,
-                  country: addressData.country
-                }}
                 height="280px"
                 className="rounded-xl overflow-hidden"
               />

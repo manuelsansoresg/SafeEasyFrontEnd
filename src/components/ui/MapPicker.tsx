@@ -8,16 +8,6 @@ interface MapPickerProps {
   readOnly?: boolean;
   height?: string;
   zoom?: number;
-  addressContext?: {
-    street?: string;
-    exteriorNumber?: string;
-    neighborhood?: string;
-    postalCode?: string;
-    city?: string;
-    state?: string;
-    country?: string;
-  };
-  onSearchQueryChange?: (query: string) => void;
   className?: string;
 }
 
