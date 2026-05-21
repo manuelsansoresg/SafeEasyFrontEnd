@@ -1,22 +1,13 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { fetchWithAuth } from "@/lib/api";
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-
-type NotificationItem = {
-  id: number | string;
-  title?: string;
-  message?: string;
-  created_at?: string;
-  is_read?: boolean;
-  read?: boolean;
-  order_id?: number | string | null;
-};
+import { notificationService, NotificationItem } from "@/services/notificationService";
 
 export default function NotificationsPanel() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const router = useRouter();
 
@@ -26,21 +17,16 @@ export default function NotificationsPanel() {
     return `${raw.slice(0, max - 1)}…`;
   };
 
-  const load = async () => {
-    setLoading(true);
+  const load = async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setLoading(true);
+    setError(null);
     try {
-      const res = await fetchWithAuth("/api/notifications/");
-      if (!res.ok) {
-        setItems([]);
-        return;
-      }
-      const data = await res.json();
-      const list: NotificationItem[] = Array.isArray(data) ? data : (data?.results || []);
+      const list = await notificationService.getNotifications();
       setItems(list);
-    } catch {
-      setItems([]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron cargar las notificaciones.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -48,16 +34,22 @@ export default function NotificationsPanel() {
     load();
   }, []);
 
+  useEffect(() => {
+    const id = setInterval(() => load({ silent: true }), 10000);
+    return () => clearInterval(id);
+  }, []);
+
   const markRead = async (id: number | string) => {
     try {
-      const res = await fetchWithAuth(`/api/notifications/${id}/read`, { method: "PATCH" });
-      if (!res.ok) return;
+      await notificationService.markRead(id);
       setItems((prev) =>
         prev.map((n) =>
           String(n.id) === String(id) ? { ...n, is_read: true, read: true } : n
         )
       );
-    } catch {}
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo marcar la notificación como leída.");
+    }
   };
 
   const filtered = useMemo(() => {
@@ -79,7 +71,7 @@ export default function NotificationsPanel() {
             <p className="text-xs text-gray-500">Tus alertas recientes</p>
           </div>
           <button
-            onClick={load}
+            onClick={() => load()}
             disabled={loading}
             className="inline-flex items-center px-3 py-1 text-xs rounded-full border border-[#168E00] text-[#168E00] hover:bg-[#168E00]/10"
           >
@@ -108,12 +100,16 @@ export default function NotificationsPanel() {
               <div className="h-14 bg-gray-100 rounded-lg" />
               <div className="h-14 bg-gray-100 rounded-lg" />
             </div>
+          ) : error ? (
+            <div className="p-10 text-center text-sm text-red-600">
+              <p>{error}</p>
+            </div>
           ) : filtered.length === 0 ? (
             <div className="p-10 text-center text-gray-500">
               <p>No tienes notificaciones por ahora.</p>
             </div>
           ) : (
-            <div className="py-2">
+            <div className="space-y-2 px-2 py-2">
               {filtered.map((n) => {
                 const isRead = (n.is_read ?? n.read) === true;
                 return (
@@ -122,10 +118,10 @@ export default function NotificationsPanel() {
                     onClick={async () => {
                       await markRead(n.id);
                       if (n.order_id) {
-                        router.push(`/mis-pedidos?order_id=${encodeURIComponent(String(n.order_id))}`);
+                        router.push(`/client/orders/${encodeURIComponent(String(n.order_id))}?focus=delivery-code`);
                       }
                     }}
-                    className={`mx-2 rounded-lg cursor-pointer transition-colors px-3 py-3 flex items-start gap-3 ${
+                    className={`rounded-lg cursor-pointer transition-colors px-3 py-3 flex items-start gap-3 ${
                       isRead ? "hover:bg-gray-50" : "bg-[#E8F5E9] hover:bg-[#DCF8C6]"
                     }`}
                   >

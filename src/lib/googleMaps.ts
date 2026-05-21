@@ -1,9 +1,37 @@
 export type LatLngLiteral = { lat: number; lng: number };
+type LatLngLike = { lat?: unknown; lng?: unknown; latitude?: unknown; longitude?: unknown };
+type DistanceMatrixResponse = { rows?: Array<{ elements?: Array<{ distance?: { value?: number | string } }> }> };
+type DistanceMatrixRequest = {
+  origins: LatLngLiteral[];
+  destinations: LatLngLiteral[];
+  travelMode: string;
+  unitSystem: string | number;
+};
+type GoogleMapsApi = {
+  maps: {
+    Map?: new (element: HTMLElement, options: Record<string, unknown>) => unknown;
+    Marker?: new (options: Record<string, unknown>) => unknown;
+    places?: {
+      Autocomplete?: new (input: HTMLInputElement, options: Record<string, unknown>) => unknown;
+    };
+    DistanceMatrixService: new () => {
+      getDistanceMatrix: (
+        request: DistanceMatrixRequest,
+        callback: (res: DistanceMatrixResponse | null, status: string) => void,
+      ) => void;
+    };
+    Geocoder: new () => {
+      geocode: (request: Record<string, unknown>, callback: (results: unknown[] | null, status: string) => void) => void;
+    };
+    TravelMode: { DRIVING: string };
+    UnitSystem: { METRIC: string | number };
+  };
+};
 
 declare global {
   interface Window {
-    google?: any;
-    __drooopyGoogleMapsPromise?: Promise<any>;
+    google?: GoogleMapsApi;
+    __drooopyGoogleMapsPromise?: Promise<GoogleMapsApi>;
   }
 }
 
@@ -13,9 +41,22 @@ const getApiKey = () => {
 };
 
 export const parseMapLocation = (value: unknown): LatLngLiteral | null => {
-  const pick = (obj: any) => {
-    const lat = Number(obj?.lat);
-    const lng = Number(obj?.lng);
+  const pick = (obj: LatLngLike) => {
+    const lat = Number(obj.lat ?? obj.latitude);
+    const lng = Number(obj.lng ?? obj.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng };
+  };
+
+  const pickFromString = (raw: string) => {
+    const trimmed = raw.trim();
+    const direct = trimmed.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+    const googleAt = trimmed.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+    const googleQuery = trimmed.match(/[?&](?:q|query|ll)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+    const match = direct || googleAt || googleQuery;
+    if (!match) return null;
+    const lat = Number(match[1]);
+    const lng = Number(match[2]);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
     return { lat, lng };
   };
@@ -26,22 +67,14 @@ export const parseMapLocation = (value: unknown): LatLngLiteral | null => {
       const parsed = JSON.parse(value);
       return pick(parsed);
     } catch {
-      const parts = value
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean);
-      if (parts.length !== 2) return null;
-      const lat = Number(parts[0]);
-      const lng = Number(parts[1]);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-      return { lat, lng };
+      return pickFromString(value);
     }
   }
-  if (typeof value === "object") return pick(value as any);
+  if (typeof value === "object") return pick(value as LatLngLike);
   return null;
 };
 
-export const loadGoogleMaps = async (libraries: string[] = ["places"]): Promise<any> => {
+export const loadGoogleMaps = async (libraries: string[] = ["places"]): Promise<GoogleMapsApi> => {
   if (typeof window === "undefined") throw new Error("Google Maps solo está disponible en el navegador.");
   if (window.google?.maps) return window.google;
 
@@ -53,7 +86,10 @@ export const loadGoogleMaps = async (libraries: string[] = ["places"]): Promise<
   window.__drooopyGoogleMapsPromise = new Promise((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>('script[data-drooopy-google-maps="1"]');
     if (existing) {
-      existing.addEventListener("load", () => resolve(window.google));
+      existing.addEventListener("load", () => {
+        if (window.google) resolve(window.google);
+        else reject(new Error("No se pudo cargar Google Maps."));
+      });
       existing.addEventListener("error", () => reject(new Error("No se pudo cargar Google Maps.")));
       return;
     }
@@ -64,7 +100,10 @@ export const loadGoogleMaps = async (libraries: string[] = ["places"]): Promise<
     script.dataset.drooopyGoogleMaps = "1";
     const libs = libraries.length ? `&libraries=${encodeURIComponent(libraries.join(","))}` : "";
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}${libs}`;
-    script.onload = () => resolve(window.google);
+    script.onload = () => {
+      if (window.google) resolve(window.google);
+      else reject(new Error("No se pudo cargar Google Maps."));
+    };
     script.onerror = () => reject(new Error("No se pudo cargar Google Maps."));
     document.head.appendChild(script);
   });
@@ -84,7 +123,7 @@ export const distanceKmDriving = async (origin: LatLngLiteral, destination: LatL
         travelMode: g.maps.TravelMode.DRIVING,
         unitSystem: g.maps.UnitSystem.METRIC,
       },
-      (res: any, status: any) => {
+      (res, status) => {
         if (status !== "OK" || !res) {
           reject(new Error(`Google DistanceMatrix error: ${status || "unknown"}`));
           return;

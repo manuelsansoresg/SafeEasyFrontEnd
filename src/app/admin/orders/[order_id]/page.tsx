@@ -67,6 +67,8 @@ function normalizeStatusKey(value: string) {
   if (v === "preparing" || v === "in_preparation" || v === "en_preparacion" || v === "en_preparación") return "preparing";
   if (v === "ready_for_pickup" || v === "ready_pickup" || v === "listo_para_recoger" || v === "listo_para_recojer")
     return "ready_for_pickup";
+  if (v === "en_route_to_pickup" || v === "going_to_pickup" || v === "camino_a_recoger") return "en_route_to_pickup";
+  if (v === "picked_up" || v === "pickup_completed" || v === "recogido") return "picked_up";
   if (v === "in_transit" || v === "transit" || v === "en_camino") return "in_transit";
 
   return v;
@@ -97,6 +99,8 @@ function toSpanishStatusLabel(value: string) {
     paid: "Pago recibido",
     preparing: "En preparación",
     in_transit: "En camino",
+    en_route_to_pickup: "En camino a recoger",
+    picked_up: "Producto recogido",
     ready_for_pickup: "Listo para recoger",
     shipped: "Enviado",
     completed: "Entregado",
@@ -131,6 +135,14 @@ function formatDate(value: string | undefined | null) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleString("es-MX", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return fallback;
 }
 
 function getDeliveryTypeKey(order: Order): DeliveryTypeKey {
@@ -200,7 +212,7 @@ function getProgressRank(mode: DeliveryTypeKey, statusKey: string) {
     return 1;
   }
 
-  if (k === "ready_for_pickup" || k === "shipped") return 3;
+  if (k === "ready_for_pickup" || k === "shipped" || k === "en_route_to_pickup" || k === "picked_up") return 3;
   if (k === "preparing") return 2;
   if (k === "paid" || k === "created" || k === "pending") return 1;
   return 1;
@@ -368,7 +380,7 @@ export default function AdminOrderDetailPage() {
         if (supplierLocation.coordinates) setSupplierCoordsFromApi(supplierLocation.coordinates);
       }
     } catch (e) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo cargar la orden.";
+      const msg = getErrorMessage(e, "No se pudo cargar la orden.");
       setToast({ type: "error", message: msg });
       setOrder(null);
       setHistory([]);
@@ -426,7 +438,7 @@ export default function AdminOrderDetailPage() {
       setToast({ type: "success", message: "Estado actualizado." });
       await refresh();
     } catch (e) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo actualizar el estado.";
+      const msg = getErrorMessage(e, "No se pudo actualizar el estado.");
       setToast({ type: "error", message: msg });
     } finally {
       setActionLoading(null);
@@ -455,7 +467,7 @@ export default function AdminOrderDetailPage() {
       setToast({ type: "success", message: msg });
       await refresh();
     } catch (e) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo marcar como lista.";
+      const msg = getErrorMessage(e, "No se pudo marcar como lista.");
       setToast({ type: "error", message: msg });
     } finally {
       setActionLoading(null);
@@ -468,13 +480,20 @@ export default function AdminOrderDetailPage() {
       setToast({ type: "error", message: "Solo puedes completar la orden cuando el pago esté confirmado." });
       return;
     }
+    if (!canMarkDelivered) {
+      const msg = mode === "shipping"
+        ? "Primero marca la orden como lista para envío."
+        : "Primero marca la orden como lista para recoger.";
+      setToast({ type: "error", message: msg });
+      return;
+    }
     setActionLoading("complete");
     try {
       await orderService.completeOrder(orderId, note);
       setToast({ type: "success", message: "Orden completada." });
       await refresh();
     } catch (e) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo completar la orden.";
+      const msg = getErrorMessage(e, "No se pudo completar la orden.");
       setToast({ type: "error", message: msg });
     } finally {
       setActionLoading(null);
@@ -491,7 +510,7 @@ export default function AdminOrderDetailPage() {
       setRefundApproveNote("");
       await refresh();
     } catch (e) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo aprobar el reembolso.";
+      const msg = getErrorMessage(e, "No se pudo aprobar el reembolso.");
       setToast({ type: "error", message: msg });
     } finally {
       setActionLoading(null);
@@ -510,7 +529,7 @@ export default function AdminOrderDetailPage() {
       setRefundRejectReason("");
       await refresh();
     } catch (e) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo rechazar el reembolso.";
+      const msg = getErrorMessage(e, "No se pudo rechazar el reembolso.");
       setToast({ type: "error", message: msg });
     } finally {
       setActionLoading(null);
@@ -537,7 +556,7 @@ export default function AdminOrderDetailPage() {
       setRefundFinalizeFile(null);
       await refresh();
     } catch (e) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo finalizar el reembolso.";
+      const msg = getErrorMessage(e, "No se pudo finalizar el reembolso.");
       setToast({ type: "error", message: msg });
     } finally {
       setActionLoading(null);
@@ -553,8 +572,21 @@ export default function AdminOrderDetailPage() {
 
   const canMarkDelivered = useMemo(() => {
     const k = normalizeStatusKey(effectiveKey);
-    return k !== "completed" && k !== "verified" && k !== "cancelled" && k !== "refund_refunded";
-  }, [effectiveKey]);
+    if (k === "completed" || k === "verified" || k === "cancelled" || k === "refund_refunded") return false;
+    if (mode === "shipping") {
+      return k === "ready_for_pickup" || k === "en_route_to_pickup" || k === "picked_up" || k === "in_transit" || k === "shipped";
+    }
+    return k === "ready_for_pickup";
+  }, [effectiveKey, mode]);
+
+  const completeDisabledMessage = useMemo(() => {
+    if (canMarkDelivered) return "";
+    const k = normalizeStatusKey(effectiveKey);
+    if (k === "completed" || k === "verified" || k === "cancelled" || k === "refund_refunded") return "";
+    return mode === "shipping"
+      ? "Primero marca la orden como lista para envío."
+      : "Primero marca la orden como lista para recoger.";
+  }, [canMarkDelivered, effectiveKey, mode]);
 
   const isReadyForPickup = useMemo(() => {
     const k = normalizeStatusKey(effectiveKey);
@@ -609,13 +641,15 @@ export default function AdminOrderDetailPage() {
   }, [order]);
 
   const shippingCost = useMemo(() => {
-    const v = (order as any)?.shipping_cost ?? (order as any)?.shippingCost ?? null;
+    const anyOrder = order as unknown as Record<string, unknown> | null;
+    const v = anyOrder?.shipping_cost ?? anyOrder?.shippingCost ?? null;
     const n = typeof v === "number" ? v : typeof v === "string" ? Number(String(v).replace(/[^\d.-]/g, "")) : 0;
     return Number.isFinite(n) ? n : 0;
   }, [order]);
 
   const totalAmount = useMemo(() => {
-    const v = (order as any)?.total_amount ?? order?.product?.price ?? 0;
+    const anyOrder = order as unknown as Record<string, unknown> | null;
+    const v = anyOrder?.total_amount ?? order?.product?.price ?? 0;
     const n = typeof v === "number" ? v : typeof v === "string" ? Number(String(v).replace(/[^\d.-]/g, "")) : 0;
     return Number.isFinite(n) ? n : 0;
   }, [order]);
@@ -720,56 +754,80 @@ export default function AdminOrderDetailPage() {
           <>
             {mode === "pickup" ? (
               <>
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <div className="text-2xl lg:text-3xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)] truncate">
-                        Orden #{`DR-${order.id}`}
+                <div className="overflow-hidden rounded-[1.6rem] border border-[#004e28]/10 bg-white shadow-sm">
+                  <div className="bg-[#0b6b3a] px-6 py-6 text-white">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-white/70">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-white">
+                            <Store className="h-3.5 w-3.5" />
+                            Recogida en tienda
+                          </span>
+                          <span className="font-semibold">#{`DR-${order.id}`}</span>
+                          <span>•</span>
+                          <span>{formatDate(order.created_at)}</span>
+                        </div>
+                        <div className="mt-3 text-3xl font-bold leading-tight font-[family-name:var(--font-varela-round)]">
+                          Orden #{`DR-${order.id}`}
+                        </div>
+                        <div className="mt-2 text-sm text-white/70">{formatMoney(totalAmount)}</div>
                       </div>
-                      <span
-                        className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
-                        style={{
-                          backgroundColor: cancelled ? "#ef444414" : isPaymentPaid ? "#16a34a14" : "#f59e0b14",
-                          color: cancelled ? "#ef4444" : isPaymentPaid ? "#16a34a" : "#b45309",
-                          border: `1px solid ${cancelled ? "#ef444433" : isPaymentPaid ? "#16a34a33" : "#f59e0b33"}`,
-                        }}
-                      >
-                        {cancelled ? "Cancelado" : isPaymentPaid ? "Pago Confirmado" : "Pago Pendiente"}
-                      </span>
+
+                      <div className="flex flex-col gap-2 text-left lg:text-right">
+                        <div className="flex items-center gap-3 lg:justify-end">
+                          <span
+                            className="inline-flex items-center rounded-full px-3 py-1.5 text-sm font-bold"
+                            style={{
+                              backgroundColor: cancelled ? "rgba(0,0,0,0.18)" : "rgba(255,255,255,0.15)",
+                              color: "#ffffff",
+                            }}
+                          >
+                            {cancelled ? "Cancelado" : isPaymentPaid ? "Pago confirmado" : "Pago pendiente"}
+                          </span>
+                        </div>
+                        <div className="text-xs text-white/60">
+                          {completeDisabledMessage ? "Acción requerida" : "Estado actual"}
+                        </div>
+                        <div className="flex items-center gap-1.5 lg:justify-end">
+                          <Clock className="h-3.5 w-3.5 text-white/70" />
+                          <div className="text-sm font-bold text-white">
+                            {completeDisabledMessage || toSpanishStatusLabel(effectiveKey)}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-1 text-sm text-gray-500 flex items-center gap-2">
-                      <Store className="h-4 w-4 text-gray-400" />
-                      Recogida en Tienda • {order.supplier?.name || "Sucursal"}
-                    </div>
+                  </div>
+                  <div className="bg-white px-6 py-4">
+                    <Stepper steps={steps} rank={rank} cancelled={cancelled} />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                  <div className="lg:col-span-2 space-y-5">
                     <div className="rounded-2xl border border-gray-100 bg-white p-6">
                       <div className="flex items-center gap-2 text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
                         <Store className="h-4 w-4 text-[#004e28]" />
-                        Información del Comprador
+                        Información del comprador
                       </div>
-                      <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <div className="text-[11px] font-semibold tracking-wider text-gray-400">NOMBRE COMPLETO</div>
+                          <div className="text-xs font-semibold text-gray-500">Nombre</div>
                           <div className="mt-1 text-sm font-semibold text-gray-900">{order.buyer?.name || "—"}</div>
                         </div>
                         <div>
-                          <div className="text-[11px] font-semibold tracking-wider text-gray-400">DOCUMENTO DE IDENTIDAD</div>
-                          <div className="mt-1 text-sm font-semibold text-gray-900">{buyerDoc}</div>
+                          <div className="text-xs font-semibold text-gray-500">Correo</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{order.buyer?.email || "—"}</div>
                         </div>
                         <div>
-                          <div className="text-[11px] font-semibold tracking-wider text-gray-400">TELÉFONO DE CONTACTO</div>
+                          <div className="text-xs font-semibold text-gray-500">Teléfono</div>
                           <div className="mt-1 text-sm font-semibold text-gray-900">{buyerPhone}</div>
                         </div>
                         <div>
-                          <div className="text-[11px] font-semibold tracking-wider text-gray-400">CORREO ELECTRÓNICO</div>
-                          <div className="mt-1 text-sm font-semibold text-gray-900">{order.buyer?.email || "—"}</div>
+                          <div className="text-xs font-semibold text-gray-500">Documento</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{buyerDoc}</div>
                         </div>
                         <div className="md:col-span-2">
-                          <div className="text-[11px] font-semibold tracking-wider text-gray-400">DIRECCIÓN DE ENTREGA</div>
+                          <div className="text-xs font-semibold text-gray-500">Dirección de entrega</div>
                           <div className="mt-1 text-sm font-semibold text-gray-900">{buyerAddress || "—"}</div>
                         </div>
                       </div>
@@ -779,16 +837,17 @@ export default function AdminOrderDetailPage() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
                           <PackageCheck className="h-4 w-4 text-[#004e28]" />
-                          Resumen de Productos
+                          Resumen del producto
                         </div>
                         <div className="text-sm font-bold text-[#004e28]">{formatMoney(totalAmount)}</div>
                       </div>
 
                       <div className="mt-4 overflow-hidden rounded-xl border border-gray-100">
                         <div className="grid grid-cols-12 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-500">
-                          <div className="col-span-7">PRODUCTO</div>
+                          <div className="col-span-6">PRODUCTO</div>
                           <div className="col-span-2 text-center">CANTIDAD</div>
-                          <div className="col-span-3 text-right">TOTAL</div>
+                          <div className="col-span-2 text-right">PRECIO</div>
+                          <div className="col-span-2 text-right">TOTAL</div>
                         </div>
                         <div className="divide-y divide-gray-100">
                           {(items.length ? items : [order as unknown as Record<string, unknown>]).map((it, idx) => {
@@ -817,7 +876,7 @@ export default function AdminOrderDetailPage() {
                             const lineTotal = Number.isFinite(unit) ? unit * (Number.isFinite(qty) ? qty : 1) : 0;
                             return (
                               <div key={idx} className="grid grid-cols-12 px-4 py-4 text-sm text-gray-900 items-center">
-                                <div className="col-span-7">
+                                <div className="col-span-6">
                                   <div className="flex items-center gap-3 min-w-0">
                                     <div className="h-10 w-10 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden shrink-0">
                                       <img
@@ -833,7 +892,8 @@ export default function AdminOrderDetailPage() {
                                   </div>
                                 </div>
                                 <div className="col-span-2 text-center">{Number.isFinite(qty) ? qty : 1}</div>
-                                <div className="col-span-3 text-right font-bold">{formatMoney(lineTotal || unit || 0)}</div>
+                                <div className="col-span-2 text-right">{formatMoney(unit || 0)}</div>
+                                <div className="col-span-2 text-right font-bold">{formatMoney(lineTotal || unit || 0)}</div>
                               </div>
                             );
                           })}
@@ -856,13 +916,43 @@ export default function AdminOrderDetailPage() {
                         </div>
                       </div>
                     </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white p-6">
+                      <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Historial</div>
+                      <div className="mt-4 space-y-3">
+                        {history.length === 0 ? (
+                          <div className="text-sm text-gray-500">Aún no hay movimientos.</div>
+                        ) : (
+                          [...history]
+                            .sort((a, b) => {
+                              const ad = new Date(a.created_at || a.timestamp || a.date || "").getTime();
+                              const bd = new Date(b.created_at || b.timestamp || b.date || "").getTime();
+                              return (Number.isFinite(bd) ? bd : 0) - (Number.isFinite(ad) ? ad : 0);
+                            })
+                            .slice(0, 8)
+                            .map((h, idx) => {
+                              const label = toSpanishStatusLabel(String(h.status || h.event || h.action || h.description || h.message || "").trim());
+                              const at = formatDate(h.created_at || h.timestamp || h.date || "");
+                              return (
+                                <div key={idx} className="flex items-start justify-between gap-3 rounded-xl border border-gray-100 px-4 py-3">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-semibold text-gray-900 truncate">{label || "Actualización"}</div>
+                                    <div className="text-xs text-gray-500 mt-1">{at}</div>
+                                  </div>
+                                  <div className="text-xs font-semibold text-gray-500">{h.actor || h.user?.role || ""}</div>
+                                </div>
+                              );
+                            })
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-6">
+                  <div className="space-y-5">
                     <div className="rounded-2xl border border-gray-100 bg-white p-6">
                       <div className="flex items-center gap-2 text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
                         <CheckCircle className="h-4 w-4 text-[#004e28]" />
-                        Acciones de Entrega
+                        Acciones de entrega
                       </div>
                       <div className="mt-4 space-y-3">
                         <button
@@ -877,14 +967,20 @@ export default function AdminOrderDetailPage() {
                         </button>
                         <button
                           type="button"
-                          disabled={actionLoading !== null || !isPaymentPaid}
+                          disabled={actionLoading !== null || !isPaymentPaid || !canMarkDelivered}
                           onClick={() => handleComplete()}
+                          title={completeDisabledMessage || undefined}
                           className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
                           style={{ backgroundColor: "#004e28" }}
                         >
                           <CheckCircle className="h-4 w-4 mr-2" />
                           Marcar como Entregado
                         </button>
+                        {isPaymentPaid && completeDisabledMessage ? (
+                          <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
+                            {completeDisabledMessage}
+                          </div>
+                        ) : null}
                         <button
                           type="button"
                           onClick={async () => {
@@ -898,25 +994,44 @@ export default function AdminOrderDetailPage() {
                       </div>
                     </div>
 
+                    <div className="rounded-2xl border border-gray-100 bg-white p-6">
+                      <div className="flex items-center gap-2 text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                        <Store className="h-4 w-4 text-[#004e28]" />
+                        Datos de la orden
+                      </div>
+                      <div className="mt-4 space-y-3">
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold text-gray-500">Estado</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{toSpanishStatusLabel(effectiveKey)}</div>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold text-gray-500">Punto de recolección</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{address}</div>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold text-gray-500">Tipo</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                            <Store className="h-3.5 w-3.5 text-[#004e28]" />
+                            Recoger en tienda
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold text-gray-500">Proveedor</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{order.supplier?.name || "Tienda"}</div>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold text-gray-500">Creado</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{formatDate(order.created_at)}</div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="rounded-2xl border border-gray-100 bg-white p-5">
                       <div className="text-sm">
                         <span className="font-bold" style={{ color: "#004e28" }}>Nota:</span>{" "}
                         <span className="text-gray-600">
                           Al marcar como entregado, se notificará automáticamente al cliente y se cerrará el ciclo logístico de este pedido.
                         </span>
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-gray-100 bg-white p-5">
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-400">Fecha de Orden:</span>
-                          <span className="font-semibold text-gray-900">{formatDate(order.created_at)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-400">Método:</span>
-                          <span className="font-semibold text-gray-900">Recogida Local</span>
-                        </div>
                       </div>
                     </div>
 
@@ -975,100 +1090,84 @@ export default function AdminOrderDetailPage() {
               </>
             ) : (
               <>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-2xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)] truncate">
-                      Detalle de Orden #{`DR-${order.id}`}
-                    </div>
-                    <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
-                      <span className="inline-flex h-2 w-2 rounded-full bg-green-500" />
-                      <span className="font-semibold">Estado:</span>
-                      <span className="font-semibold text-green-700">{shippingHeaderStatus}</span>
+                <div className="overflow-hidden rounded-[1.6rem] border border-[#004e28]/10 bg-white shadow-sm">
+                  <div className="bg-[#0b6b3a] px-6 py-6 text-white">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-white/70">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-white">
+                            <Truck className="h-3.5 w-3.5" />
+                            Envío a domicilio
+                          </span>
+                          <span className="font-semibold">#{`DR-${order.id}`}</span>
+                          <span>•</span>
+                          <span>{formatDate(order.created_at)}</span>
+                        </div>
+                        <div className="mt-3 text-3xl font-bold leading-tight font-[family-name:var(--font-varela-round)]">
+                          Orden #{`DR-${order.id}`}
+                        </div>
+                        <div className="mt-2 text-sm text-white/70">{formatMoney(totalAmount)}</div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 text-left lg:text-right">
+                        <div className="flex items-center gap-3 lg:justify-end">
+                          <span className="inline-flex items-center rounded-full bg-white/15 px-3 py-1.5 text-sm font-bold text-white">
+                            {shippingHeaderStatus}
+                          </span>
+                        </div>
+                        <div className="text-xs text-white/60">Estado logístico</div>
+                        <div className="flex items-center gap-1.5 lg:justify-end">
+                          <Clock className="h-3.5 w-3.5 text-white/70" />
+                          <div className="text-sm font-bold text-white">{toSpanishStatusLabel(effectiveKey)}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-xs text-gray-400">{formatDate(order.created_at)}</div>
+                  <div className="bg-white px-6 py-4">
+                    <Stepper steps={steps} rank={rank} cancelled={cancelled} />
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                  <div className="lg:col-span-3 space-y-6">
-                    <OrderRouteMap
-                      mode={mode}
-                      label={address}
-                      origin={supplierCoords}
-                      destination={buyerCoords}
-                      originAddress={supplierAddress}
-                      destinationAddress={address}
-                    />
-
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                  <div className="lg:col-span-2 space-y-5">
                     <div className="rounded-2xl border border-gray-100 bg-white p-6">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
-                          Información del Repartidor
-                        </div>
-                        <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#16a34a14", color: "#16a34a", border: "1px solid #16a34a33" }}>
-                          ESPERANDO REPARTIDOR
-                        </span>
+                      <div className="flex items-center gap-2 text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                        <Store className="h-4 w-4 text-[#004e28]" />
+                        Información del comprador
                       </div>
-
-                      <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                        <div className="md:col-span-4 flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400">
-                            <Truck className="h-6 w-6" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs font-semibold text-gray-400">REPARTIDOR</div>
-                            <div className="mt-0.5 text-sm font-bold text-gray-900 truncate">{courierMeta.name}</div>
-                          </div>
+                      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <div className="text-xs font-semibold text-gray-500">Nombre</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{order.buyer?.name || "—"}</div>
                         </div>
-
-                        <div className="md:col-span-6 grid grid-cols-3 gap-3 text-sm">
-                          <div>
-                            <div className="text-xs font-semibold text-gray-400">VEHÍCULO</div>
-                            <div className="mt-0.5 font-semibold text-gray-900">{courierMeta.vehicle}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs font-semibold text-gray-400">PLACA</div>
-                            <div className="mt-0.5 font-semibold text-gray-900">{courierMeta.plate}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs font-semibold text-gray-400">CALIFICACIÓN</div>
-                            <div className="mt-0.5 font-semibold text-gray-900 flex items-center gap-1">
-                              <Star className="h-4 w-4 text-yellow-500" />
-                              {courierMeta.rating.toFixed(1)}
-                            </div>
-                          </div>
+                        <div>
+                          <div className="text-xs font-semibold text-gray-500">Correo</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{order.buyer?.email || "—"}</div>
                         </div>
-
-                        <div className="md:col-span-2 flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            className="h-10 w-10 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 inline-flex items-center justify-center"
-                            aria-label="Llamar"
-                            title="Llamar"
-                          >
-                            <Phone className="h-5 w-5 text-[#004e28]" />
-                          </button>
-                          <button
-                            type="button"
-                            className="h-10 w-10 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 inline-flex items-center justify-center"
-                            aria-label="Mensaje"
-                            title="Mensaje"
-                          >
-                            <FileText className="h-5 w-5 text-[#004e28]" />
-                          </button>
+                        <div>
+                          <div className="text-xs font-semibold text-gray-500">Teléfono</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{buyerPhone}</div>
+                        </div>
+                        <div className="md:col-span-3">
+                          <div className="text-xs font-semibold text-gray-500">Dirección de entrega</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{buyerAddress || address}</div>
                         </div>
                       </div>
                     </div>
 
                     <div className="rounded-2xl border border-gray-100 bg-white p-6">
-                      <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
-                        Resumen de Productos
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                          <PackageCheck className="h-4 w-4 text-[#004e28]" />
+                          Resumen del producto
+                        </div>
+                        <div className="text-sm font-bold text-[#004e28]">{formatMoney(totalAmount)}</div>
                       </div>
                       <div className="mt-4 overflow-hidden rounded-xl border border-gray-100">
                         <div className="grid grid-cols-12 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-500">
                           <div className="col-span-6">PRODUCTO</div>
-                          <div className="col-span-2">SKU</div>
-                          <div className="col-span-2 text-center">CANTIDAD</div>
+                          <div className="col-span-2 text-center">CANT.</div>
+                          <div className="col-span-2 text-right">PRECIO</div>
                           <div className="col-span-2 text-right">TOTAL</div>
                         </div>
                         <div className="divide-y divide-gray-100">
@@ -1079,10 +1178,12 @@ export default function AdminOrderDetailPage() {
                               (typeof it.product_title === "string" && it.product_title) ||
                               order.product?.title ||
                               "Producto";
-                            const sku =
-                              (typeof it.sku === "string" && it.sku) ||
-                              (rawProduct && typeof rawProduct.sku === "string" ? (rawProduct.sku as string) : "") ||
-                              "—";
+                            const imagePath =
+                              (rawProduct && typeof rawProduct.thumbnail_url === "string" && rawProduct.thumbnail_url) ||
+                              (rawProduct && typeof rawProduct.image === "string" && rawProduct.image) ||
+                              order.product?.thumbnail_url ||
+                              order.product?.image ||
+                              null;
                             const qtyRaw = (it.quantity as unknown) ?? (it.qty as unknown) ?? 1;
                             const qty = typeof qtyRaw === "number" ? qtyRaw : typeof qtyRaw === "string" ? Number(qtyRaw) : 1;
                             const unitRaw =
@@ -1095,45 +1196,83 @@ export default function AdminOrderDetailPage() {
                               typeof unitRaw === "number" ? unitRaw : typeof unitRaw === "string" ? Number(String(unitRaw).replace(/[^\d.-]/g, "")) : 0;
                             const lineTotal = Number.isFinite(unit) ? unit * (Number.isFinite(qty) ? qty : 1) : 0;
                             return (
-                              <div key={idx} className="grid grid-cols-12 px-4 py-4 text-sm text-gray-900">
-                                <div className="col-span-6 font-semibold">{title}</div>
-                                <div className="col-span-2 text-gray-500">{sku}</div>
+                              <div key={idx} className="grid grid-cols-12 px-4 py-4 text-sm text-gray-900 items-center">
+                                <div className="col-span-6">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="h-10 w-10 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden shrink-0">
+                                      <img src={getImageUrl(imagePath)} alt={title} className="h-full w-full object-cover" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="font-semibold truncate">{title}</div>
+                                      <div className="text-xs text-gray-400 truncate">{order.supplier?.name || ""}</div>
+                                    </div>
+                                  </div>
+                                </div>
                                 <div className="col-span-2 text-center">{Number.isFinite(qty) ? qty : 1}</div>
+                                <div className="col-span-2 text-right">{formatMoney(unit || 0)}</div>
                                 <div className="col-span-2 text-right font-bold">{formatMoney(lineTotal || unit || 0)}</div>
                               </div>
                             );
                           })}
                         </div>
-                        <div className="px-4 py-4">
+                        <div className="px-4 py-4 bg-white">
                           <div className="flex items-center justify-end gap-10 text-sm">
                             <div className="text-right">
                               <div className="text-xs text-gray-500 font-semibold">Subtotal</div>
                               <div className="mt-1 font-bold text-gray-900">{formatMoney(subtotalAmount)}</div>
                             </div>
                             <div className="text-right">
-                              <div className="text-xs text-gray-500 font-semibold">Costo de Envío</div>
+                              <div className="text-xs text-gray-500 font-semibold">Costo de envío</div>
                               <div className="mt-1 font-bold text-gray-900">{formatMoney(shippingCost)}</div>
                             </div>
                           </div>
                           <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-end">
                             <div className="text-right">
-                              <div className="text-xs font-semibold text-gray-500">TOTAL DEL PEDIDO</div>
-                              <div className="mt-1 text-2xl font-bold" style={{ color: "#0b6b3a" }}>
-                                {formatMoney(totalAmount)}
-                              </div>
+                              <div className="text-xs font-semibold text-gray-500">Total del pedido</div>
+                              <div className="mt-1 text-lg font-bold text-[#004e28]">{formatMoney(totalAmount)}</div>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white p-6">
+                      <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Historial</div>
+                      <div className="mt-4 space-y-3">
+                        {history.length === 0 ? (
+                          <div className="text-sm text-gray-500">Aún no hay movimientos.</div>
+                        ) : (
+                          [...history]
+                            .sort((a, b) => {
+                              const ad = new Date(a.created_at || a.timestamp || a.date || "").getTime();
+                              const bd = new Date(b.created_at || b.timestamp || b.date || "").getTime();
+                              return (Number.isFinite(bd) ? bd : 0) - (Number.isFinite(ad) ? ad : 0);
+                            })
+                            .slice(0, 8)
+                            .map((h, idx) => {
+                              const label = toSpanishStatusLabel(String(h.status || h.event || h.action || h.description || h.message || "").trim());
+                              const at = formatDate(h.created_at || h.timestamp || h.date || "");
+                              return (
+                                <div key={idx} className="flex items-start justify-between gap-3 rounded-xl border border-gray-100 px-4 py-3">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-semibold text-gray-900 truncate">{label || "Actualización"}</div>
+                                    <div className="text-xs text-gray-500 mt-1">{at}</div>
+                                  </div>
+                                  <div className="text-xs font-semibold text-gray-500">{h.actor || h.user?.role || ""}</div>
+                                </div>
+                              );
+                            })
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="lg:col-span-2 space-y-6">
+                  <div className="space-y-5">
                     <div className="rounded-2xl border border-gray-100 bg-white p-6">
-                      <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Gestión de Orden</div>
+                      <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Gestión de orden</div>
                       <div className="mt-4 space-y-3">
                         {isReadyForPickup ? (
-                          <div className="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2" style={{ backgroundColor: "#16a34a" }}>
+                          <div className="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2 bg-[#16a34a]">
                             <CheckCircle className="h-4 w-4" />
                             Listo para que lo retire el repartidor
                           </div>
@@ -1142,11 +1281,10 @@ export default function AdminOrderDetailPage() {
                             type="button"
                             disabled={actionLoading !== null || !canMarkShipped}
                             onClick={handleMarkReady}
-                            className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-                            style={{ backgroundColor: "#0b6b3a" }}
+                            className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 bg-[#0b6b3a]"
                           >
                             <Truck className="h-4 w-4 mr-2" />
-                            Cambiar a "Listo para recoger"
+                            Marcar listo para retiro
                           </button>
                         )}
                         <button
@@ -1172,19 +1310,111 @@ export default function AdminOrderDetailPage() {
                     </div>
 
                     <div className="rounded-2xl border border-gray-100 bg-white p-6">
-                      <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Datos del Comprador</div>
-                      <div className="mt-4 space-y-4">
-                        <div>
-                          <div className="text-xs text-gray-400 font-semibold">NOMBRE</div>
-                          <div className="mt-1 text-sm font-semibold text-gray-900">{order.buyer?.name || "—"}</div>
+                      <div className="flex items-center gap-2 text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                        <Store className="h-4 w-4 text-[#004e28]" />
+                        Datos de la orden
+                      </div>
+                      <div className="mt-4 space-y-3">
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold text-gray-500">Estado</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{toSpanishStatusLabel(effectiveKey)}</div>
                         </div>
-                        <div>
-                          <div className="text-xs text-gray-400 font-semibold">DIRECCIÓN DE ENTREGA</div>
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold text-gray-500">Dirección de entrega</div>
                           <div className="mt-1 text-sm font-semibold text-gray-900">{buyerAddress || address}</div>
                         </div>
-                        <div>
-                          <div className="text-xs text-gray-400 font-semibold">TELÉFONO</div>
-                          <div className="mt-1 text-sm font-semibold text-gray-900">{buyerPhone}</div>
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold text-gray-500">Tipo de envío</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                            <Truck className="h-3.5 w-3.5 text-[#004e28]" />
+                            Envío a domicilio
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold text-gray-500">Proveedor</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{order.supplier?.name || "Sucursal"}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white p-6">
+                      <div className="flex items-center gap-2 text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                        <MapPin className="h-4 w-4 text-[#004e28]" />
+                        Ruta de envío
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold text-gray-400">Origen</div>
+                          <div className="mt-1 font-semibold text-gray-900">{order.supplier?.name || "Sucursal"}</div>
+                        </div>
+                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="text-xs font-semibold text-gray-400">Destino</div>
+                          <div className="mt-1 font-semibold text-gray-900">{buyerAddress || address}</div>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <OrderRouteMap
+                          mode={mode}
+                          label={address}
+                          origin={supplierCoords}
+                          destination={buyerCoords}
+                          originAddress={supplierAddress}
+                          destinationAddress={address}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white p-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                          Información del repartidor
+                        </div>
+                        <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#16a34a14", color: "#16a34a", border: "1px solid #16a34a33" }}>
+                          ESPERANDO REPARTIDOR
+                        </span>
+                      </div>
+                      <div className="mt-5 space-y-3 text-sm">
+                        <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                          <div className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400">
+                            <Truck className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold text-gray-400">REPARTIDOR</div>
+                            <div className="font-bold text-gray-900">{courierMeta.name}</div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+                            <div className="text-xs font-semibold text-gray-400">Vehículo</div>
+                            <div className="mt-1 font-semibold text-gray-900">{courierMeta.vehicle}</div>
+                          </div>
+                          <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+                            <div className="text-xs font-semibold text-gray-400">Placa</div>
+                            <div className="mt-1 font-semibold text-gray-900">{courierMeta.plate}</div>
+                          </div>
+                          <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+                            <div className="text-xs font-semibold text-gray-400">Rating</div>
+                            <div className="mt-1 font-semibold text-gray-900 flex items-center gap-1">
+                              <Star className="h-4 w-4 text-yellow-500" />
+                              {courierMeta.rating.toFixed(1)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="flex-1 h-10 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 inline-flex items-center justify-center gap-2 text-sm font-semibold text-[#004e28]"
+                          >
+                            <Phone className="h-4 w-4" />
+                            Llamar
+                          </button>
+                          <button
+                            type="button"
+                            className="flex-1 h-10 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 inline-flex items-center justify-center gap-2 text-sm font-semibold text-[#004e28]"
+                          >
+                            <FileText className="h-4 w-4" />
+                            Mensaje
+                          </button>
                         </div>
                       </div>
                     </div>

@@ -83,10 +83,12 @@ const ensureApiRootPath = (baseUrl: string) => {
   return `${normalized}/api`;
 };
 
+const isLocalHostname = (hostname: string) => {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0" || hostname === "::1";
+};
+
 const getBaseUrlCandidates = () => {
   const internal = sanitizeBaseUrl(process.env.API_INTERNAL_URL);
-  if (internal) return [ensureApiRootPath(internal)];
-
   const publicUrl = sanitizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
   const isProd = process.env.NODE_ENV === "production";
   const isLocalPublic =
@@ -94,6 +96,10 @@ const getBaseUrlCandidates = () => {
     publicUrl.includes("127.0.0.1") ||
     publicUrl.includes("0.0.0.0");
   const candidates: string[] = [];
+
+  if (internal) {
+    candidates.push(ensureApiRootPath(internal));
+  }
 
   if (publicUrl && !publicUrl.startsWith("/") && (!isProd || !isLocalPublic)) {
     candidates.push(ensureApiRootPath(publicUrl));
@@ -124,6 +130,10 @@ async function handler(request: NextRequest) {
   // Ensure relativePath starts with / if it's not empty
   if (relativePath && !relativePath.startsWith('/')) {
       relativePath = '/' + relativePath;
+  }
+
+  if (relativePath === '/notifications') {
+      relativePath = '/notifications/';
   }
   
   const baseUrlCandidates = getBaseUrlCandidates();
@@ -278,11 +288,23 @@ async function handler(request: NextRequest) {
                  newUrlString = new URL(location, baseUrlObj).toString();
              }
 
-             // Force HTTPS for redirects to avoid downgrade loops (Cloudflare/Backend misconfig)
-             if (newUrlString.startsWith('http:')) {
-                 console.log(`[Generic Proxy] Upgrading redirect to HTTPS: ${newUrlString}`);
-                 newUrlString = newUrlString.replace('http:', 'https:');
-             }
+              const redirectUrlObj = new URL(newUrlString);
+              const targetUrlObj = new URL(targetUrl);
+              if (redirectUrlObj.protocol === "https:" && isLocalHostname(redirectUrlObj.hostname)) {
+                  redirectUrlObj.protocol = "http:";
+                  newUrlString = redirectUrlObj.toString();
+              }
+              const shouldUpgradeRedirect =
+                redirectUrlObj.protocol === "http:" &&
+                !isLocalHostname(redirectUrlObj.hostname) &&
+                !isLocalHostname(targetUrlObj.hostname);
+
+              // Force HTTPS for non-local redirects to avoid downgrade loops (Cloudflare/Backend misconfig).
+              // Local FastAPI dev redirects (e.g. /notifications -> /notifications/) must stay HTTP.
+              if (shouldUpgradeRedirect) {
+                  console.log(`[Generic Proxy] Upgrading redirect to HTTPS: ${newUrlString}`);
+                  newUrlString = newUrlString.replace('http:', 'https:');
+              }
 
              const originHost = new URL(targetUrl).host;
              const redirectHost = new URL(newUrlString).host;

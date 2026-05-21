@@ -18,6 +18,8 @@ import {
   FileText,
   MapPin,
   PackageCheck,
+  Search,
+  SlidersHorizontal,
   Store,
   Truck,
 } from "lucide-react";
@@ -38,9 +40,16 @@ function formatMoney(value: string | number | undefined) {
 }
 
 function getOrderStatusRaw(order: Order) {
+  if (isExpiredCheckout(order)) return "expired";
   return (order.fulfillment_status || order.visual_status || order.payment_status || order.status || "pending")
     .toString()
     .trim();
+}
+
+function isExpiredCheckout(order: Order) {
+  return [order.status, order.payment_status, order.fulfillment_status, order.visual_status].some(
+    (value) => normalizeStatusKey(String(value || "")) === "expired"
+  );
 }
 
 function getOrderStatusKey(order: Order) {
@@ -73,9 +82,17 @@ function normalizeStatusKey(value: string) {
     return "receipt_uploaded";
   if (v === "completed" || v === "completado" || v === "delivered" || v === "entregado") return "completed";
   if (v === "shipped" || v === "enviado") return "shipped";
+  if (v === "preparing" || v === "in_preparation" || v === "en_preparacion" || v === "en_preparación") return "preparing";
+  if (v === "ready_for_pickup" || v === "ready_pickup" || v === "listo_para_recoger" || v === "listo_para_recojer")
+    return "ready_for_pickup";
+  if (v === "en_route_to_pickup" || v === "going_to_pickup" || v === "camino_a_recoger") return "en_route_to_pickup";
+  if (v === "picked_up" || v === "pickup_completed" || v === "recogido") return "picked_up";
+  if (v === "en_route_to_delivery" || v === "out_for_delivery" || v === "camino_a_entregar") return "in_transit";
+  if (v === "in_transit" || v === "transit" || v === "en_camino") return "in_transit";
   if (v === "rejected" || v === "rechazado" || v === "payment_rejected" || v === "pago_rechazado")
     return "payment_rejected";
   if (v === "cancelled" || v === "cancelado") return "cancelled";
+  if (v === "expired" || v === "expirado" || v === "checkout_expired" || v === "checkout_expirado") return "expired";
   if (v === "receipt_uploaded" || v === "comprobante_subido") return "receipt_uploaded";
   if (v === "created" || v === "creado") return "created";
   if (v === "refund_requested" || v === "reembolso_solicitado") return "refund_requested";
@@ -96,9 +113,15 @@ function toSpanishStatusLabel(value: string) {
     verified: "Verificado",
     completed: "Completado",
     shipped: "Enviado",
+    preparing: "En preparación",
+    ready_for_pickup: "Listo para recoger",
+    en_route_to_pickup: "En camino a recoger",
+    picked_up: "Producto recogido",
+    in_transit: "En camino",
     receipt_uploaded: "Comprobante subido",
     payment_rejected: "Pago rechazado",
     cancelled: "Cancelado",
+    expired: "Checkout expirado",
     created: "Creado",
     refund_requested: "Reembolso solicitado",
     refund_approved: "Reembolso aprobado",
@@ -128,6 +151,7 @@ function toSpanishHistoryText(value: string) {
     [/(^|[^a-z0-9_])created([^a-z0-9_]|$)/gi, "$1Creado$2"],
     [/(^|[^a-z0-9_])completed([^a-z0-9_]|$)/gi, "$1Completado$2"],
     [/(^|[^a-z0-9_])shipped([^a-z0-9_]|$)/gi, "$1Enviado$2"],
+    [/(^|[^a-z0-9_])expired([^a-z0-9_]|$)/gi, "$1Checkout expirado$2"],
     [/(^|[^a-z0-9_])cancelled([^a-z0-9_]|$)/gi, "$1Cancelado$2"],
   ];
 
@@ -177,11 +201,63 @@ function formatEtaLabel(order: Order, mode: DeliveryTypeKey) {
   return `${dayLabel}, ${timeLabel}`;
 }
 
+function formatOrderDate(value: string | undefined | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }).replace(/\./g, "");
+}
+
+function isDateInRange(value: string | undefined | null, range: string) {
+  if (range === "all") return true;
+  if (!value) return false;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return false;
+
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  if (range === "today") return d >= start;
+  if (range === "week") {
+    const weekStart = new Date(start);
+    weekStart.setDate(start.getDate() - 7);
+    return d >= weekStart;
+  }
+  if (range === "month") {
+    const monthStart = new Date(start.getFullYear(), start.getMonth(), 1);
+    return d >= monthStart;
+  }
+  return true;
+}
+
+function isOrderReadyForDelivery(order: Order) {
+  const key = normalizeStatusKey(getOrderStatusRaw(order));
+  return key === "ready_for_pickup" || key === "en_route_to_pickup" || key === "picked_up" || key === "shipped" || key === "in_transit";
+}
+
+function getOrderStatusGroup(order: Order) {
+  const key = normalizeStatusKey(getOrderStatusRaw(order));
+  if (isOrderReadyForDelivery(order)) return "ready";
+  if (key === "completed" || key === "verified") return "completed";
+  if (key === "expired") return "expired";
+  if (key === "cancelled" || key === "payment_rejected") return "cancelled";
+  if (key.startsWith("refund_")) return "refund";
+  return "pending";
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return fallback;
+}
+
 function DeliveryTypePill({ order }: { order: Order }) {
   const mode = getDeliveryTypeKey(order);
   const label = mode === "shipping" ? "Envío" : "Recoger";
-  const bg = mode === "shipping" ? "#3b82f614" : "#004e2814";
-  const fg = mode === "shipping" ? "#3b82f6" : "#004e28";
+  const bg = "#004e2814";
+  const fg = "#004e28";
   return (
     <span
       className="inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold font-[family-name:var(--font-poppins)]"
@@ -321,7 +397,7 @@ function ProgressStepper({
 }
 
 function StatusBadge({ value }: { value: string }) {
-  const normalized = (value || "").toLowerCase();
+  const normalized = normalizeStatusKey(value);
   const map: Record<string, { bg: string; fg: string; label: string }> = {
     pending: { bg: "#f2f3f4", fg: "#111827", label: "Pendiente" },
     pendiente: { bg: "#f2f3f4", fg: "#111827", label: "Pendiente" },
@@ -334,6 +410,10 @@ function StatusBadge({ value }: { value: string }) {
     validated: { bg: "#168e00", fg: "#ffffff", label: "Pago verificado" },
     shipped: { bg: "#fbbf24", fg: "#000000", label: "Enviado" },
     enviado: { bg: "#fbbf24", fg: "#000000", label: "Enviado" },
+    ready_for_pickup: { bg: "#f2f3f4", fg: "#111827", label: "Listo para recoger" },
+    en_route_to_pickup: { bg: "#004e2814", fg: "#004e28", label: "En camino a recoger" },
+    picked_up: { bg: "#004e2814", fg: "#004e28", label: "Producto recogido" },
+    in_transit: { bg: "#004e2814", fg: "#004e28", label: "En camino" },
     completed: { bg: "#004e28", fg: "#ffffff", label: "Completado" },
     completado: { bg: "#004e28", fg: "#ffffff", label: "Completado" },
     verified: { bg: "#004e28", fg: "#ffffff", label: "Verificado" },
@@ -344,6 +424,9 @@ function StatusBadge({ value }: { value: string }) {
     "pago rechazado": { bg: "#ef4444", fg: "#ffffff", label: "Pago rechazado" },
     cancelled: { bg: "#6b7280", fg: "#ffffff", label: "Cancelado" },
     cancelado: { bg: "#6b7280", fg: "#ffffff", label: "Cancelado" },
+    expired: { bg: "#f2f3f4", fg: "#000000", label: "Checkout expirado" },
+    expirado: { bg: "#f2f3f4", fg: "#000000", label: "Checkout expirado" },
+    checkout_expired: { bg: "#f2f3f4", fg: "#000000", label: "Checkout expirado" },
     created: { bg: "#f2f3f4", fg: "#111827", label: "Creado" },
     creado: { bg: "#f2f3f4", fg: "#111827", label: "Creado" },
     refund_requested: { bg: "#f59e0b", fg: "#000000", label: "Reembolso solicitado" },
@@ -352,7 +435,7 @@ function StatusBadge({ value }: { value: string }) {
     refund_refunded: { bg: "#3b82f6", fg: "#ffffff", label: "Reembolsado" },
   };
 
-  const meta = map[normalized] || { bg: "#f2f3f4", fg: "#111827", label: value || "—" };
+  const meta = map[normalized] || { bg: "#f2f3f4", fg: "#111827", label: toSpanishStatusLabel(value) || "—" };
   return (
     <span
       className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap font-[family-name:var(--font-poppins)]"
@@ -477,6 +560,12 @@ export default function ClientOrdersPage() {
   const [refundError, setRefundError] = useState<string | null>(null);
   const [refundSuccess, setRefundSuccess] = useState<string | null>(null);
   const [refundRequestedByOrderId, setRefundRequestedByOrderId] = useState<Record<string, true>>({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [deliveryFilter, setDeliveryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+  const [ordersPage, setOrdersPage] = useState(1);
+  const ordersLimit = 10;
 
   const refundRequestedStorageKey = "safeeasy:refund_requested_v1";
 
@@ -497,8 +586,8 @@ export default function ClientOrdersPage() {
     try {
       const data = await orderService.getMyOrders();
       setOrders(data);
-    } catch (e: any) {
-      setError(e?.message || "No se pudieron cargar tus pedidos.");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "No se pudieron cargar tus pedidos."));
     } finally {
       setLoading(false);
     }
@@ -566,8 +655,8 @@ export default function ClientOrdersPage() {
       } else {
         setActiveRefund(null);
       }
-    } catch (e: any) {
-      setModalError(e?.message || "No se pudo cargar el historial.");
+    } catch (e: unknown) {
+      setModalError(getErrorMessage(e, "No se pudo cargar el historial."));
     } finally {
       setHistoryLoading(false);
       setRefundLoading(false);
@@ -640,8 +729,8 @@ export default function ClientOrdersPage() {
       }
 
       setTimeout(() => setModalSuccess(null), 3500);
-    } catch (e: any) {
-      setModalError(e?.message || "No se pudo subir el comprobante.");
+    } catch (e: unknown) {
+      setModalError(getErrorMessage(e, "No se pudo subir el comprobante."));
     } finally {
       setUploading(false);
     }
@@ -739,11 +828,177 @@ export default function ClientOrdersPage() {
 
       setTimeout(() => setModalSuccess(null), 3500);
       setTimeout(() => closeRefundModal(), 600);
-    } catch (e: any) {
-      setRefundError(e?.message || "No se pudo solicitar el reembolso.");
+    } catch (e: unknown) {
+      setRefundError(getErrorMessage(e, "No se pudo solicitar el reembolso."));
     } finally {
       setRefundSubmitting(false);
     }
+  };
+
+  const readyOrders = useMemo(() => {
+    return [...orders]
+      .filter(isOrderReadyForDelivery)
+      .sort((a, b) => new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime());
+  }, [orders]);
+
+  const regularOrders = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return [...orders]
+      .filter((order) => {
+        if (isOrderReadyForDelivery(order)) return false;
+        const mode = getDeliveryTypeKey(order);
+        if (deliveryFilter !== "all" && mode !== deliveryFilter) return false;
+        if (statusFilter !== "all" && getOrderStatusGroup(order) !== statusFilter) return false;
+        if (!isDateInRange(order.created_at, dateFilter)) return false;
+        if (!q) return true;
+        const haystack = [
+          order.id,
+          order.product?.title,
+          order.supplier?.name,
+          getOrderStatusRaw(order),
+          mode === "shipping" ? "envio" : "recoger",
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(q);
+      })
+      .sort((a, b) => {
+        return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
+      });
+  }, [orders, searchQuery, deliveryFilter, statusFilter, dateFilter]);
+
+  useEffect(() => {
+    setOrdersPage(1);
+  }, [searchQuery, deliveryFilter, statusFilter, dateFilter]);
+
+  const totalRegularPages = Math.max(1, Math.ceil(regularOrders.length / ordersLimit));
+  const safeOrdersPage = Math.min(ordersPage, totalRegularPages);
+  const ordersStart = (safeOrdersPage - 1) * ordersLimit;
+  const ordersEnd = ordersStart + ordersLimit;
+  const paginatedRegularOrders = regularOrders.slice(ordersStart, ordersEnd);
+  const visibleOrders = [...readyOrders, ...paginatedRegularOrders];
+  const visibleOrdersStart = regularOrders.length ? ordersStart + 1 : 0;
+  const visibleOrdersEnd = Math.min(ordersEnd, regularOrders.length);
+
+  useEffect(() => {
+    if (ordersPage > totalRegularPages) setOrdersPage(totalRegularPages);
+  }, [ordersPage, totalRegularPages]);
+
+  const renderOrdersTable = (items: Order[], emptyMessage: string) => {
+    if (!items.length) {
+      return (
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow font-[family-name:var(--font-poppins)]">
+          <div className="border-b border-gray-200 bg-gray-50 px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            Pedidos
+          </div>
+          <div className="px-6 py-8 text-center text-sm text-gray-500">
+            {emptyMessage}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow">
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full min-w-[920px] border-collapse text-left font-[family-name:var(--font-poppins)]">
+            <thead className="border-b border-gray-200 bg-gray-50">
+              <tr>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">ID</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">Entrega</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">Monto</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">Estado</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">Proveedor</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">Creado</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {items.map((order) => (
+                <tr key={order.id} className="transition-colors hover:bg-gray-50">
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    <span>#{order.id}</span>
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <DeliveryTypePill order={order} />
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {formatMoney(order.total_amount ?? order.product?.price ?? 0)}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <StatusBadge value={getOrderStatusRaw(order)} />
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <div className="flex flex-col">
+                      <span className="text-gray-900">{order.supplier?.name || "Proveedor desconocido"}</span>
+                      <span className="text-xs text-gray-400">ID: {order.supplier_id || order.supplier?.id || "-"}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{formatOrderDate(order.created_at)}</td>
+                  <td className="px-6 py-4 text-sm">
+                    <button
+                      onClick={() => router.push(`/client/orders/${order.id}`)}
+                      className="inline-flex items-center justify-center rounded-md px-4 py-2 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-95"
+                      style={{ backgroundColor: "#004e28" }}
+                    >
+                      Ver detalle
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="md:hidden divide-y divide-gray-100">
+          {items.map((order) => {
+            const image = getImageUrl(order.product?.thumbnail_url || order.product?.image || null);
+            return (
+              <div key={order.id} className="bg-white p-5">
+                <div className="flex items-start gap-4">
+                  <div
+                    className="h-16 w-16 overflow-hidden rounded-xl border border-gray-100 bg-gray-50 bg-cover bg-center shrink-0"
+                    style={{ backgroundImage: `url(${image})` }}
+                    role="img"
+                    aria-label={order.product?.title || "Producto"}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold uppercase tracking-[0.12em] text-gray-400">ID Orden</div>
+                    <div className="text-lg font-extrabold text-[#004e28]">#{order.id}</div>
+                    <div className="mt-1 line-clamp-2 text-sm font-bold text-gray-900">{order.product?.title || "Producto"}</div>
+                  </div>
+                </div>
+                <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-400">Monto</div>
+                    <div className="mt-1 font-bold text-gray-900">{formatMoney(order.total_amount ?? order.product?.price ?? 0)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-400">Fecha</div>
+                    <div className="mt-1 text-gray-600">{formatOrderDate(order.created_at)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-400">Tipo</div>
+                    <div className="mt-1"><DeliveryTypePill order={order} /></div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-400">Estado</div>
+                    <div className="mt-1"><StatusBadge value={getOrderStatusRaw(order)} /></div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => router.push(`/client/orders/${order.id}`)}
+                  className="mt-5 w-full rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white"
+                >
+                  Ver detalle
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -774,16 +1029,23 @@ export default function ClientOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Mis Pedidos</h1>
-          <p className="text-gray-500 font-[family-name:var(--font-poppins)]">
+          <h1 className="text-3xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Mis Pedidos</h1>
+          <p className="mt-1 text-gray-500 font-[family-name:var(--font-poppins)]">
             Revisa el estado de tus compras y sube tu comprobante cuando sea necesario.
           </p>
         </div>
-        <span className="bg-[#004e28]/10 text-[#004e28] px-3 py-1 rounded-full text-sm font-semibold font-[family-name:var(--font-poppins)]">
-          {orders.length} pedidos
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="bg-[#004e28]/10 text-[#004e28] px-3 py-1 rounded-full text-sm font-semibold font-[family-name:var(--font-poppins)]">
+            Mostrando {visibleOrdersStart}-{visibleOrdersEnd} de {regularOrders.length} pedidos
+          </span>
+          {readyOrders.length ? (
+            <span className="bg-emerald-500 text-white px-3 py-1 rounded-full text-sm font-semibold font-[family-name:var(--font-poppins)]">
+              {readyOrders.length} listos
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {orders.length === 0 ? (
@@ -799,55 +1061,81 @@ export default function ClientOrdersPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {orders.map((order) => {
-            const statusRaw = getOrderStatusRaw(order);
-            const statusKey = getOrderStatusKey(order);
-            const image =
-              getImageUrl(order.product?.thumbnail_url || order.product?.image || null) || "/placeholder.png";
-            return (
-              <div key={order.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="p-5 flex gap-4">
-                  <div className="h-16 w-16 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
-                    <img src={image} alt={order.product?.title || "Producto"} className="h-full w-full object-cover" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)] line-clamp-2">
-                          {order.product?.title || "Producto"}
-                        </div>
-                        <div className="mt-1 text-xs text-gray-500 font-[family-name:var(--font-poppins)]">
-                          Pedido #{order.id}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <DeliveryTypePill order={order} />
-                        <StatusBadge value={statusRaw || statusKey} />
-                      </div>
-                    </div>
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar por orden o proveedor"
+                  className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm text-gray-900 outline-none transition focus:border-[#004e28]/40 focus:ring-4 focus:ring-[#004e28]/10 font-[family-name:var(--font-poppins)]"
+                />
+              </label>
+              <label className="relative block">
+                <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-[#004e28]/40 focus:ring-4 focus:ring-[#004e28]/10 font-[family-name:var(--font-poppins)]"
+                >
+                  <option value="all">Todos los estados</option>
+                  <option value="pending">Pendientes</option>
+                  <option value="completed">Completados</option>
+                  <option value="refund">Reembolsos</option>
+                  <option value="expired">Expirados</option>
+                  <option value="cancelled">Cancelados</option>
+                </select>
+              </label>
+              <label className="relative block">
+                <Truck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <select
+                  value={deliveryFilter}
+                  onChange={(e) => setDeliveryFilter(e.target.value)}
+                  className="h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-[#004e28]/40 focus:ring-4 focus:ring-[#004e28]/10 font-[family-name:var(--font-poppins)]"
+                >
+                  <option value="all">Todos los tipos</option>
+                  <option value="shipping">Envío</option>
+                  <option value="pickup">Recoger</option>
+                </select>
+              </label>
+              <label className="relative block">
+                <Clock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <select
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm font-semibold text-gray-700 outline-none transition focus:border-[#004e28]/40 focus:ring-4 focus:ring-[#004e28]/10 font-[family-name:var(--font-poppins)]"
+                >
+                  <option value="all">Todas las fechas</option>
+                  <option value="today">Hoy</option>
+                  <option value="week">Últimos 7 días</option>
+                  <option value="month">Este mes</option>
+                </select>
+              </label>
+            </div>
+          </div>
 
-                    <div className="mt-3 flex items-center justify-between">
-                      <div className="text-sm font-bold text-gray-900 font-[family-name:var(--font-poppins)]">
-                        {formatMoney(order.total_amount ?? order.product?.price ?? 0)}
-                      </div>
-                      <button
-                        onClick={() => router.push(`/client/orders/${order.id}`)}
-                        className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold font-[family-name:var(--font-poppins)]"
-                        style={{
-                          backgroundColor: "#004e2814",
-                          color: "#004e28",
-                          border: "1px solid #004e2833",
-                        }}
-                      >
-                        Ver Detalle
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          <section className="space-y-3">
+            {renderOrdersTable(visibleOrders, "No hay pedidos que coincidan con los filtros.")}
+            <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-6 py-4 font-[family-name:var(--font-poppins)] shadow">
+              <button
+                disabled={safeOrdersPage === 1}
+                onClick={() => setOrdersPage((page) => Math.max(1, page - 1))}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Anterior
+              </button>
+              <span className="text-sm text-gray-700">Página {safeOrdersPage}</span>
+              <button
+                disabled={safeOrdersPage >= totalRegularPages || regularOrders.length === 0}
+                onClick={() => setOrdersPage((page) => Math.min(totalRegularPages, page + 1))}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Siguiente
+              </button>
+            </div>
+          </section>
         </div>
       )}
 
@@ -969,7 +1257,7 @@ export default function ClientOrdersPage() {
                                 </div>
                                 <div className="text-xs text-gray-500 font-[family-name:var(--font-poppins)]">
                                   <span className="font-semibold">Código:</span>{" "}
-                                  <span className="font-mono">{(anyOrder as any).delivery_code || "—"}</span>
+                                  <span className="font-mono">{String(anyOrder.delivery_code || "—")}</span>
                                 </div>
                               </div>
                             ) : (

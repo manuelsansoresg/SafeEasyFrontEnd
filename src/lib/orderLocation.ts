@@ -99,23 +99,34 @@ export function getSupplierAddress(order: Order) {
 
 export function getOrderBuyerCoordinates(order: Order) {
   const record = order as unknown as Record<string, unknown>;
+  const deliveryAddress = asRecord(record.delivery_address);
+  const deliveryAddressCoords = deliveryAddress
+    ? extractCoordinates(deliveryAddress.location || deliveryAddress.map_location || deliveryAddress.coordinates)
+    : null;
   const buyer = asRecord(record.buyer);
   if (buyer) {
     const coords = extractCoordinates(buyer.map_location || buyer.location || buyer.coordinates);
     if (coords) return coords;
   }
 
-  return extractCoordinates(
-    record.buyer_map_location ||
+  return (
+    extractCoordinates(record.dropoff) ||
+    deliveryAddressCoords ||
+    extractCoordinates(
+      record.buyer_map_location ||
       record.buyerLocation ||
       record.delivery_location ||
       record.shipping_location ||
       record.map_location,
+    )
   );
 }
 
 export function getOrderSupplierCoordinates(order: Order) {
   const record = order as unknown as Record<string, unknown>;
+  const orderPickup = extractCoordinates(record.pickup);
+  if (orderPickup) return orderPickup;
+
   const supplier = asRecord(record.supplier);
   if (supplier) {
     const coords = extractCoordinates(supplier.map_location || supplier.location || supplier.coordinates);

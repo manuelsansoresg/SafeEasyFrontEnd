@@ -81,6 +81,10 @@ export interface OrderRefund {
   updated_at?: string;
 }
 
+export interface OrderDeliveryCode {
+  code: string | null;
+}
+
 export const orderService = {
   getOrderById: async (orderId: number): Promise<Order> => {
     const tryUrls = [
@@ -198,6 +202,41 @@ export const orderService = {
       if (Array.isArray(items)) return items as OrderHistoryItem[];
     }
     return [];
+  },
+
+  getOrderDeliveryCode: async (orderId: number): Promise<OrderDeliveryCode> => {
+    const tryUrls = [
+      `/api/orders/${orderId}/delivery-code`,
+      `/api/orders/${orderId}/delivery-code/`,
+      `/api/v1/orders/${orderId}/delivery-code`,
+      `/api/v1/orders/${orderId}/delivery-code/`,
+    ];
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url, { headers: { Accept: "application/json" } });
+      if (response.ok) break;
+      if (response.status === 404 || response.status === 405) continue;
+      if (response.status === 301 || response.status === 302 || response.status === 307 || response.status === 308) continue;
+      break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to fetch delivery code: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+    }
+
+    const data: unknown = await response.json().catch(() => null);
+    if (typeof data === "string" || typeof data === "number") return { code: String(data) };
+    if (data && typeof data === "object") {
+      const record = data as Record<string, unknown>;
+      const raw = record.delivery_code ?? record.code ?? record.deliveryCode ?? record.value;
+      return { code: raw === undefined || raw === null ? null : String(raw) };
+    }
+
+    return { code: null };
   },
 
   updateOrderStatus: async (orderId: number, status: string, note?: string) => {

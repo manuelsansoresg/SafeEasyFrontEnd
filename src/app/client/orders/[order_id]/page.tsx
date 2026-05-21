@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
 import type { LatLngLiteral } from "@/lib/googleMaps";
 import {
@@ -17,11 +16,10 @@ import FileUpload from "@/components/ui/FileUpload";
 import { Toast } from "@/components/ui/Toast";
 import {
   AlertTriangle,
-  ArrowLeft,
   BadgeCheck,
   Check,
-  CheckCircle,
   Clock,
+  Copy,
   FileText,
   Loader2,
   MapPin,
@@ -50,6 +48,7 @@ function normalizeStatusKey(value: string) {
   if (v === "rejected" || v === "rechazado" || v === "payment_rejected" || v === "pago_rechazado")
     return "payment_rejected";
   if (v === "cancelled" || v === "cancelado") return "cancelled";
+  if (v === "expired" || v === "expirado" || v === "checkout_expired" || v === "checkout_expirado") return "expired";
   if (v === "created" || v === "creado") return "created";
   if (v === "refund_requested" || v === "reembolso_solicitado") return "refund_requested";
   if (
@@ -66,6 +65,9 @@ function normalizeStatusKey(value: string) {
   if (v === "preparing" || v === "in_preparation" || v === "en_preparacion" || v === "en_preparación") return "preparing";
   if (v === "ready_for_pickup" || v === "ready_pickup" || v === "listo_para_recoger" || v === "listo_para_recojer")
     return "ready_for_pickup";
+  if (v === "en_route_to_pickup" || v === "going_to_pickup" || v === "camino_a_recoger") return "en_route_to_pickup";
+  if (v === "picked_up" || v === "pickup_completed" || v === "recogido") return "picked_up";
+  if (v === "en_route_to_delivery" || v === "out_for_delivery" || v === "camino_a_entregar") return "in_transit";
   if (v === "in_transit" || v === "transit" || v === "en_camino") return "in_transit";
 
   return v;
@@ -82,8 +84,16 @@ function getPaymentMethodKey(order: Order | null): PaymentMethodKey {
 
 function toEffectiveCardStatusKey(value: string) {
   const k = normalizeStatusKey(value);
+  if (k === "expired") return "expired";
   if (k === "created" || k === "pending") return "paid";
   return k;
+}
+
+function isExpiredCheckout(order: Order | null) {
+  if (!order) return false;
+  return [order.status, order.payment_status, order.fulfillment_status, order.visual_status].some(
+    (value) => normalizeStatusKey(String(value || "")) === "expired"
+  );
 }
 
 function toSpanishStatusLabel(value: string) {
@@ -97,11 +107,14 @@ function toSpanishStatusLabel(value: string) {
     preparing: "En preparación",
     in_transit: "En camino",
     ready_for_pickup: "Listo para recoger",
+    en_route_to_pickup: "En camino a recoger",
+    picked_up: "Producto recogido",
     shipped: "Enviado",
     completed: "Entregado",
     verified: "Entregado",
     payment_rejected: "Pago rechazado",
     cancelled: "Cancelado",
+    expired: "Checkout expirado",
     refund_requested: "Reembolso solicitado",
     refund_approved: "Reembolso aprobado",
     refund_rejected: "Reembolso rechazado",
@@ -122,6 +135,17 @@ function formatDate(value: string | undefined | null) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleString("es-MX", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDeliveryCode(value: string | null) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw.length === 6 ? `${raw.slice(0, 3)} ${raw.slice(3)}` : raw;
+}
+
+function isDeliveryCodeStage(value: string) {
+  const k = normalizeStatusKey(value);
+  return ["en_route_to_pickup", "picked_up", "in_transit", "completed", "verified"].includes(k);
 }
 
 function getDeliveryTypeKey(order: Order): DeliveryTypeKey {
@@ -179,19 +203,19 @@ function getSteps(mode: DeliveryTypeKey): ProgressStep[] {
 
 function getProgressRank(mode: DeliveryTypeKey, statusKey: string) {
   const k = normalizeStatusKey(statusKey);
-  if (k === "cancelled") return 0;
+  if (k === "cancelled" || k === "expired") return 0;
   if (k === "refund_refunded") return 4;
   if (k === "refund_requested" || k === "refund_approved" || k === "refund_rejected") return 3;
   if (k === "completed" || k === "verified") return 4;
 
   if (mode === "shipping") {
-    if (k === "in_transit" || k === "shipped") return 3;
+    if (k === "in_transit" || k === "shipped" || k === "en_route_to_pickup" || k === "picked_up") return 3;
     if (k === "preparing") return 2;
     if (k === "paid" || k === "created" || k === "pending") return 1;
     return 1;
   }
 
-  if (k === "ready_for_pickup" || k === "shipped") return 3;
+  if (k === "ready_for_pickup" || k === "shipped" || k === "en_route_to_pickup" || k === "picked_up") return 3;
   if (k === "preparing") return 2;
   if (k === "paid" || k === "created" || k === "pending") return 1;
   return 1;
@@ -269,9 +293,15 @@ function pickLatestRefund(items: OrderRefund[]) {
   return scored[0]?.r ?? null;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return fallback;
+}
+
 export default function ClientOrderDetailPage() {
   const params = useParams<{ order_id?: string }>();
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<ToastState>(null);
   const [order, setOrder] = useState<Order | null>(null);
@@ -285,6 +315,12 @@ export default function ClientOrderDetailPage() {
   const [buyerAddress, setBuyerAddress] = useState("");
   const [supplierAddress, setSupplierAddress] = useState("");
   const [supplierCoordsFromApi, setSupplierCoordsFromApi] = useState<LatLngLiteral | null>(null);
+  const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
+  const [deliveryCodeLoading, setDeliveryCodeLoading] = useState(false);
+  const [deliveryCodeError, setDeliveryCodeError] = useState<string | null>(null);
+  const [focusDeliveryCode, setFocusDeliveryCode] = useState(false);
+  const [deliveryCodeHighlighted, setDeliveryCodeHighlighted] = useState(false);
+  const deliveryCodeRef = useRef<HTMLDivElement>(null);
 
   const orderId = useMemo(() => {
     const raw = params?.order_id;
@@ -326,8 +362,8 @@ export default function ClientOrderDetailPage() {
         if (supplierLocation.address) setSupplierAddress(supplierLocation.address);
         if (supplierLocation.coordinates) setSupplierCoordsFromApi(supplierLocation.coordinates);
       }
-    } catch (e) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo cargar la orden.";
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e, "No se pudo cargar la orden.");
       setToast({ type: "error", message: msg });
       setOrder(null);
       setHistory([]);
@@ -344,20 +380,31 @@ export default function ClientOrderDetailPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setFocusDeliveryCode(params.get("focus") === "delivery-code");
+  }, []);
+
   const latestHistoryKey = useMemo(() => pickLatestHistoryKey(history), [history]);
   const paymentMethod = useMemo(() => getPaymentMethodKey(order), [order]);
   const mode = useMemo(() => (order ? getDeliveryTypeKey(order) : "pickup"), [order]);
   const steps = useMemo(() => getSteps(mode), [mode]);
+  const isExpired = isExpiredCheckout(order);
   const statusRaw = order
-    ? String(order.fulfillment_status || order.visual_status || order.status || order.payment_status || "")
+    ? isExpired
+      ? "expired"
+      : String(order.fulfillment_status || order.visual_status || order.status || order.payment_status || "")
     : "";
-  const mergedKey = latestHistoryKey || normalizeStatusKey(statusRaw || "paid");
+  const mergedKey = isExpired ? "expired" : latestHistoryKey || normalizeStatusKey(statusRaw || "paid");
   const rawEffective =
     paymentMethod === "card" ? toEffectiveCardStatusKey(mergedKey) : normalizeStatusKey(mergedKey);
   const effectiveKey = rawEffective || "paid";
-  const cancelled = normalizeStatusKey(effectiveKey) === "cancelled";
+  const cancelled = normalizeStatusKey(effectiveKey) === "cancelled" || isExpired;
   const rank = getProgressRank(mode, effectiveKey);
   const activeRefund = useMemo(() => pickLatestRefund(refunds), [refunds]);
+  const deliveryCodeStage = mode === "shipping" && !cancelled && isDeliveryCodeStage(effectiveKey);
+  const showDeliveryCodeCard = Boolean(order && !isExpired && deliveryCodeStage);
 
   const address = useMemo(() => {
     if (!order) return "";
@@ -372,6 +419,7 @@ export default function ClientOrderDetailPage() {
     const fallback = mode === "shipping" ? order.supplier?.name || "Sucursal" : order.supplier?.name || "Tienda";
     return raw && raw.trim() ? raw.trim() : fallback;
   }, [order, mode, buyerAddress]);
+  const routeMapLabel = mode === "pickup" ? supplierAddress || address : address;
 
   const supplierCoords = useMemo(() => {
     if (!order) return supplierCoordsFromApi;
@@ -384,10 +432,63 @@ export default function ClientOrderDetailPage() {
   }, [order]);
 
   const canRequestRefund = useMemo(() => {
-    if (!order) return false;
+    if (!order || isExpired) return false;
     const k = normalizeStatusKey(statusRaw);
     return k === "completed" || k === "verified";
-  }, [order, statusRaw]);
+  }, [order, statusRaw, isExpired]);
+
+  useEffect(() => {
+    if (!orderId || !showDeliveryCodeCard) {
+      setDeliveryCode(null);
+      setDeliveryCodeError(null);
+      return;
+    }
+
+    let alive = true;
+    setDeliveryCodeLoading(true);
+    setDeliveryCodeError(null);
+    orderService
+      .getOrderDeliveryCode(orderId)
+      .then((result) => {
+        if (!alive) return;
+        setDeliveryCode(result.code);
+      })
+      .catch((e: unknown) => {
+        if (!alive) return;
+        setDeliveryCode(null);
+        setDeliveryCodeError(getErrorMessage(e, "No se pudo cargar el código de entrega."));
+      })
+      .finally(() => {
+        if (alive) setDeliveryCodeLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [orderId, showDeliveryCodeCard]);
+
+  useEffect(() => {
+    if (!focusDeliveryCode || !showDeliveryCodeCard || loading) return;
+    const scrollId = window.setTimeout(() => {
+      deliveryCodeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setDeliveryCodeHighlighted(true);
+    }, 150);
+    const highlightId = window.setTimeout(() => setDeliveryCodeHighlighted(false), 2600);
+    return () => {
+      window.clearTimeout(scrollId);
+      window.clearTimeout(highlightId);
+    };
+  }, [focusDeliveryCode, showDeliveryCodeCard, loading]);
+
+  const copyDeliveryCode = async () => {
+    if (!deliveryCode) return;
+    try {
+      await navigator.clipboard.writeText(deliveryCode);
+      setToast({ type: "success", message: "Código copiado." });
+    } catch {
+      setToast({ type: "error", message: "No se pudo copiar el código." });
+    }
+  };
 
   const submitRefund = async () => {
     if (!orderId) return;
@@ -408,8 +509,8 @@ export default function ClientOrderDetailPage() {
       setRefunds(next);
       const h = await orderService.getOrderHistory(orderId).catch(() => []);
       setHistory(h);
-    } catch (e) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as any).message) : "No se pudo solicitar el reembolso.";
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e, "No se pudo solicitar el reembolso.");
       setToast({ type: "error", message: msg });
     } finally {
       setRefundLoading(false);
@@ -418,16 +519,8 @@ export default function ClientOrderDetailPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-6rem)] pt-24 md:pt-28 pb-16 font-[family-name:var(--font-poppins)]">
+    <div className="pb-16 font-[family-name:var(--font-poppins)]">
       <div className="container mx-auto px-4 space-y-5">
-        <Link
-          href="/client/orders"
-          className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Volver a mis pedidos
-        </Link>
-
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -443,11 +536,7 @@ export default function ClientOrderDetailPage() {
             <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
               <div
                 className="px-6 py-5 text-white"
-                style={{
-                  background: mode === "shipping"
-                    ? "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)"
-                    : "linear-gradient(135deg, #004e28 0%, #0b6b3a 100%)",
-                }}
+                style={{ background: "linear-gradient(135deg, #004e28 0%, #0b6b3a 100%)" }}
               >
                 <div className="flex items-center gap-3 mb-3">
                   <span
@@ -476,7 +565,10 @@ export default function ClientOrderDetailPage() {
                   <div className="flex items-center gap-3 shrink-0">
                     <span
                       className="inline-flex items-center rounded-full px-3 py-1.5 text-sm font-bold"
-                      style={{ backgroundColor: cancelled ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.15)" }}
+                      style={{
+                        backgroundColor: isExpired ? "#f2f3f4" : cancelled ? "rgba(0,0,0,0.18)" : "rgba(255,255,255,0.15)",
+                        color: isExpired ? "#000000" : "#ffffff",
+                      }}
                     >
                       {toSpanishStatusLabel(effectiveKey)}
                     </span>
@@ -493,7 +585,78 @@ export default function ClientOrderDetailPage() {
                 </div>
               </div>
               <div className="px-6 py-4 bg-white">
-                <Stepper steps={steps} rank={rank} cancelled={cancelled} />
+                {isExpired ? (
+                  <div className="rounded-2xl border border-[#004e28]/25 bg-[#f2f3f4] px-5 py-4 text-black">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#004e28]" />
+                      <div>
+                        <div className="text-sm font-bold text-[#004e28]">Tu checkout expiró</div>
+                        <div className="mt-1 text-sm text-black">
+                          La reserva de stock venció porque no se completó el pago a tiempo. Para continuar, volvé a crear la orden.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <Stepper steps={steps} rank={rank} cancelled={cancelled} />
+                    {showDeliveryCodeCard ? (
+                      <div
+                        ref={deliveryCodeRef}
+                        className={`rounded-2xl border bg-[#f2f3f4] p-5 transition-all duration-300 ${
+                          deliveryCodeHighlighted
+                            ? "border-[#168e00] shadow-lg shadow-[#004e28]/20 ring-4 ring-[#168e00]/15"
+                            : "border-[#004e28]/20"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                          <div className="min-w-0">
+                            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-bold text-[#004e28]">
+                              <Truck className="h-3.5 w-3.5" />
+                              {deliveryCodeStage ? "Entrega en curso" : "Código de entrega"}
+                            </div>
+                            <div className="mt-3 text-sm font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
+                              Código de entrega
+                            </div>
+                            <p className="mt-1 text-sm text-gray-600">
+                              {mode === "shipping"
+                                ? "Compartilo con el repartidor solo cuando recibas tu pedido."
+                                : "Mostralo en tienda para retirar tu pedido."}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                            <div className="rounded-2xl border border-[#004e28]/15 bg-white px-5 py-3 text-center min-w-[180px]">
+                              {deliveryCodeLoading ? (
+                                <div className="flex items-center justify-center gap-2 text-sm font-semibold text-gray-500">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Cargando...
+                                </div>
+                              ) : deliveryCode ? (
+                                <div className="font-mono text-3xl font-black tracking-[0.18em] text-[#004e28]">
+                                  {formatDeliveryCode(deliveryCode)}
+                                </div>
+                              ) : (
+                                <div className="text-sm font-semibold text-gray-500">
+                                  {deliveryCodeError || "El código estará disponible cuando el repartidor esté en camino."}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={copyDeliveryCode}
+                              disabled={!deliveryCode || deliveryCodeLoading}
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#168e00] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Copy className="h-4 w-4" />
+                              Copiar código
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -576,7 +739,7 @@ export default function ClientOrderDetailPage() {
               <div className="space-y-5">
                 <div className="rounded-2xl border border-gray-100 bg-white p-6">
                   <div className="flex items-center gap-2 text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
-                    <Store className="h-4 w-4" style={{ color: mode === "shipping" ? "#3b82f6" : "#004e28" }} />
+                    <Store className="h-4 w-4" style={{ color: "#004e28" }} />
                     Datos de la orden
                   </div>
                   <div className="mt-4 space-y-3">
@@ -597,7 +760,7 @@ export default function ClientOrderDetailPage() {
                         <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                           <div className="text-xs font-semibold text-gray-500">Tipo de envío</div>
                           <div className="mt-1 text-sm font-semibold text-gray-900 flex items-center gap-1.5">
-                            <Truck className="h-3.5 w-3.5 text-blue-600" />
+                            <Truck className="h-3.5 w-3.5 text-[#004e28]" />
                             Envío a domicilio
                           </div>
                         </div>
@@ -605,12 +768,6 @@ export default function ClientOrderDetailPage() {
                           <div className="text-xs font-semibold text-gray-500">Proveedor</div>
                           <div className="mt-1 text-sm font-semibold text-gray-900">
                             {order.supplier?.name || "Sucursal del proveedor"}
-                          </div>
-                        </div>
-                        <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-                          <div className="text-xs font-semibold text-gray-500">Código de entrega</div>
-                          <div className="mt-1 text-sm font-semibold text-gray-900 font-mono tracking-wider">
-                            {(order as any).delivery_code || "—"}
                           </div>
                         </div>
                       </>
@@ -636,7 +793,7 @@ export default function ClientOrderDetailPage() {
 
                 <div className="rounded-2xl border border-gray-100 bg-white p-6">
                   <div className="flex items-center gap-2 text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
-                    <MapPin className="h-4 w-4" style={{ color: mode === "shipping" ? "#3b82f6" : "#004e28" }} />
+                    <MapPin className="h-4 w-4" style={{ color: "#004e28" }} />
                     {mode === "shipping" ? "Ruta de envío" : "Punto de recolección"}
                   </div>
                   {mode === "shipping" ? (
@@ -650,7 +807,7 @@ export default function ClientOrderDetailPage() {
                       </div>
                       <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                         <div className="text-xs font-semibold text-gray-400 flex items-center gap-1">
-                          <span className="h-2 w-2 rounded-full bg-blue-500" />
+                          <span className="h-2 w-2 rounded-full bg-[#004e28]" />
                           Destino
                         </div>
                         <div className="mt-1 font-semibold text-gray-900">{address}</div>
@@ -662,22 +819,24 @@ export default function ClientOrderDetailPage() {
                         <Store className="h-3 w-3" />
                         Ubicación de la tienda
                       </div>
-                      <div className="mt-1 text-sm font-semibold text-gray-900">{address}</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900">{routeMapLabel}</div>
                       <div className="mt-1 text-xs text-gray-400">
                         {order.supplier?.name || "Proveedor"}
                       </div>
                     </div>
                   )}
-                  <div className="mt-4">
-                    <OrderRouteMap
-                      mode={mode}
-                      label={address}
-                      origin={supplierCoords}
-                      destination={buyerCoords}
-                      originAddress={supplierAddress}
-                      destinationAddress={address}
-                    />
-                  </div>
+                  {mode === "shipping" && (
+                    <div className="mt-4">
+                      <OrderRouteMap
+                        mode={mode}
+                        label={address}
+                        origin={supplierCoords}
+                        destination={buyerCoords}
+                        originAddress={supplierAddress}
+                        destinationAddress={address}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-2xl border border-gray-100 bg-white p-6">

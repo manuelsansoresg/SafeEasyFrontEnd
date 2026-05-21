@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { 
   User, 
-  MessageSquare,
   LogOut,
-  LayoutDashboard,
   Heart,
-  ShoppingCart
+  ShoppingCart,
+  PackageCheck,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -23,7 +23,7 @@ interface ClientSidebarProps {
 export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { logout } = useAuthStore();
   
   // Menu items configuration
   const menuItems = [
@@ -31,6 +31,11 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
       title: "Mi Perfil", 
       path: "/client/profile", 
       icon: User,
+    },
+    {
+      title: "Mis Pedidos",
+      path: "/client/orders",
+      icon: PackageCheck,
     },
     {
       title: "Mi Carrito",
@@ -55,27 +60,6 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
         "hidden md:flex relative flex-col h-screen bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-40 sticky top-0",
       )}
     >
-      {/* Header / Logo */}
-      <div className="h-16 flex items-center justify-center border-b border-gray-100">
-        <Link href="/" className="flex items-center gap-2 overflow-hidden px-4 w-full">
-          <div className="min-w-[32px] h-8 flex items-center justify-center text-primary">
-            {/* Simple Logo Icon */}
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <span className="font-bold text-xl text-primary">S</span>
-            </div>
-          </div>
-          
-          <motion.div
-            animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : "auto" }}
-            transition={{ duration: 0.2 }}
-            className="whitespace-nowrap overflow-hidden"
-          >
-            <span className="text-lg font-bold text-gray-800">SafeEasy</span>
-            <span className="text-xs text-gray-500 block">Panel Cliente</span>
-          </motion.div>
-        </Link>
-      </div>
-
       {/* Navigation Items */}
       <div className="flex-1 py-6 overflow-y-auto overflow-x-hidden scrollbar-thin">
         <nav className="space-y-2 px-3">
@@ -143,6 +127,14 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
              </motion.span>
          </button>
       </div>
+
+      <button
+        onClick={toggleSidebar}
+        className="absolute -right-3 top-20 bg-white border border-gray-200 text-gray-500 hover:text-primary p-1 rounded-full shadow-md z-50 hidden md:flex"
+        aria-label={isCollapsed ? "Expandir menú" : "Colapsar menú"}
+      >
+        {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+      </button>
     </motion.aside>
   );
 }

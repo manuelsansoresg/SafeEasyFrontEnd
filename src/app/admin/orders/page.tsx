@@ -1097,7 +1097,6 @@ export default function AdminOrdersPage() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Producto</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Entrega</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Monto</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Pago</th>
@@ -1112,7 +1111,7 @@ export default function AdminOrdersPage() {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdminUser ? 9 : 8} className="px-6 py-8 text-center">
+                  <td colSpan={isAdminUser ? 8 : 7} className="px-6 py-8 text-center">
                     <div className="flex justify-center items-center">
                       <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
                     </div>
@@ -1120,7 +1119,7 @@ export default function AdminOrdersPage() {
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdminUser ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={isAdminUser ? 8 : 7} className="px-6 py-8 text-center text-gray-500">
                     No hay órdenes encontradas.
                   </td>
                 </tr>
@@ -1139,9 +1138,6 @@ export default function AdminOrdersPage() {
                         )}
                         <span>#{order.id}</span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 font-[family-name:var(--font-poppins)]">
-                      {order.product?.title || "Producto desconocido"}
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <DeliveryTypePill order={order} />
@@ -1397,7 +1393,7 @@ export default function AdminOrdersPage() {
                                 </div>
                                 <div className="text-xs text-gray-500 font-[family-name:var(--font-poppins)]">
                                   <span className="font-semibold">Código:</span>{" "}
-                                  <span className="font-mono">{(anyOrder as any).delivery_code || "—"}</span>
+                                  <span className="font-mono">{String(anyOrder.delivery_code || "—")}</span>
                                 </div>
                               </div>
                             ) : (

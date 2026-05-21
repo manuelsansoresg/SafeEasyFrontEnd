@@ -172,6 +172,19 @@ export default function OrderRouteMap({
         const destinationCoordinates = Number.isFinite(destinationLat) && Number.isFinite(destinationLng)
           ? { lat: Number(destinationLat), lng: Number(destinationLng) }
           : null;
+
+        if (!isShipping) {
+          const pickupPoint = await resolvePoint(
+            originCoordinates || destinationCoordinates,
+            originAddress || destinationAddress || label,
+            controller.signal,
+          );
+          setResolvedOrigin(pickupPoint);
+          setResolvedDestination(null);
+          setRoute([]);
+          return;
+        }
+
         const [nextOrigin, nextDestination] = await Promise.all([
           resolvePoint(originCoordinates, originAddress, controller.signal),
           resolvePoint(destinationCoordinates, destinationAddress || label, controller.signal),
@@ -203,7 +216,7 @@ export default function OrderRouteMap({
 
     resolveAndFetchRoute();
     return () => controller.abort();
-  }, [destinationAddress, destinationLat, destinationLng, label, originAddress, originLat, originLng]);
+  }, [destinationAddress, destinationLat, destinationLng, isShipping, label, originAddress, originLat, originLng]);
 
   const visiblePoints = useMemo(() => {
     if (route.length > 1) return route;
@@ -212,13 +225,15 @@ export default function OrderRouteMap({
 
   const destinationIcon = useMemo(() => makeMarkerIcon("#16a34a", "rgba(22,163,74,.22)"), []);
   const originIcon = useMemo(() => makeMarkerIcon("#64748b", "rgba(100,116,139,.2)"), []);
-  const mapStatus = route.length > 1
-    ? "Ruta calculada"
-    : loading
-      ? "Calculando ruta"
-      : markerPoint
-        ? "Ruta no disponible"
-        : "Coordenadas no disponibles";
+  const mapStatus = !isShipping && markerPoint
+    ? "Ubicación de la tienda"
+    : route.length > 1
+      ? "Ruta calculada"
+      : loading
+        ? isShipping ? "Calculando ruta" : "Cargando ubicación"
+        : markerPoint
+          ? "Ruta no disponible"
+          : "Coordenadas no disponibles";
 
   return (
     <div className="relative isolate z-0 h-[360px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-[#eef2ed] shadow-[0_16px_36px_rgba(15,23,42,.08)] lg:h-[420px]">
@@ -237,7 +252,7 @@ export default function OrderRouteMap({
           </>
         ) : null}
 
-        {originPoint ? (
+        {isShipping && originPoint ? (
           <Marker position={originPoint} icon={originIcon}>
             <Popup>{originAddress || "Proveedor"}</Popup>
           </Marker>
@@ -245,7 +260,7 @@ export default function OrderRouteMap({
 
         {markerPoint ? (
           <Marker position={markerPoint} icon={destinationIcon}>
-            <Popup>{label}</Popup>
+            <Popup>{isShipping ? label : originAddress || label}</Popup>
           </Marker>
         ) : null}
       </MapContainer>
@@ -273,7 +288,7 @@ export default function OrderRouteMap({
       {loading ? (
         <div className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm backdrop-blur">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Calculando ruta
+          {isShipping ? "Calculando ruta" : "Cargando ubicación"}
         </div>
       ) : null}
 
