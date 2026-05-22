@@ -467,8 +467,14 @@ export default function AdminOrderDetailPage() {
       setToast({ type: "success", message: msg });
       await refresh();
     } catch (e) {
-      const msg = getErrorMessage(e, "No se pudo marcar como lista.");
-      setToast({ type: "error", message: msg });
+      const errorText = e instanceof Error ? e.message : String(e);
+      if (errorText.includes("409") && errorText.includes("ready_for_pickup")) {
+        setToast({ type: "info", message: "La orden ya está lista para recoger." });
+        await refresh();
+      } else {
+        const msg = getErrorMessage(e, "No se pudo marcar como lista.");
+        setToast({ type: "error", message: msg });
+      }
     } finally {
       setActionLoading(null);
     }
