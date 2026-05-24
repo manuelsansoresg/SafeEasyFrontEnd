@@ -807,14 +807,11 @@ export default function CartPage() {
   return (
     <div className="font-[family-name:var(--font-poppins)]">
       <div className="space-y-6">
-        <div className="flex items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-6">
           <div className="flex items-center gap-2">
             <Store size={22} className="text-primary" />
             <h1 className="text-2xl font-bold text-gray-900">Carrito</h1>
           </div>
-          <Link href="/" className="text-sm font-semibold text-primary hover:underline">
-            Seguir comprando
-          </Link>
         </div>
 
         {loading ? (
@@ -866,26 +863,12 @@ export default function CartPage() {
                 return (
                   <div
                     key={c.supplier_id}
-                    className={cn(
-                      "rounded-2xl border bg-white overflow-hidden",
-                      checkoutSupplierId === c.supplier_id ? "border-primary/40 ring-1 ring-primary/20" : "border-gray-200",
-                    )}
+                    className="rounded-2xl bg-white overflow-hidden shadow-sm"
                   >
                     <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
                       <button type="button" onClick={() => startCheckout(c.supplier_id)} className="min-w-0 text-left">
                         <div className="flex items-center gap-2 min-w-0">
                           <p className="font-bold text-gray-900 truncate">{c.supplier_name}</p>
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 text-xs font-bold rounded-full px-2 py-1 border",
-                              c.supplier_is_verified
-                                ? "border-[#168e00]/20 bg-[#168e00]/10 text-[#168e00]"
-                                : "border-gray-200 bg-gray-50 text-gray-500",
-                            )}
-                          >
-                            <ShieldCheck size={14} />
-                            Tienda verificada
-                          </span>
                         </div>
                       </button>
                       <button
@@ -1078,7 +1061,7 @@ export default function CartPage() {
               })}
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 h-fit sticky top-28">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 h-fit self-start">
               <p className="text-sm font-bold text-gray-900">Resumen</p>
               <div className="mt-3 space-y-2 text-sm">
                 {activeCart ? (

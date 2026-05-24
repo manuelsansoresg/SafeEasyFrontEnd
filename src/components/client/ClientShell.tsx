@@ -22,7 +22,7 @@ export function ClientShell({ children }: ClientShellProps) {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="-mt-8 flex min-h-[calc(100vh+2rem)] bg-gray-50">
       <ClientSidebar
         isCollapsed={isSidebarCollapsed}
         toggleSidebar={() => setIsSidebarCollapsed((collapsed) => !collapsed)}
