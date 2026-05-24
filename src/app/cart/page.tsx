@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { fetchWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
@@ -193,7 +192,6 @@ function parseSupplierCarts(data: unknown): SupplierCart[] {
 }
 
 export default function CartPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [mutating, setMutating] = useState(false);
   const [carts, setCarts] = useState<SupplierCart[]>([]);
@@ -807,8 +805,8 @@ export default function CartPage() {
   const isEmpty = !loading && carts.length === 0;
 
   return (
-    <div className="min-h-[calc(100vh-6rem)] pt-24 md:pt-28 pb-16 font-[family-name:var(--font-poppins)]">
-      <div className="container mx-auto px-4">
+    <div className="font-[family-name:var(--font-poppins)]">
+      <div className="space-y-6">
         <div className="flex items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-2">
             <Store size={22} className="text-primary" />
