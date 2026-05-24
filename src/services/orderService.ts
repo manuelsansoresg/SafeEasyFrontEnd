@@ -545,35 +545,12 @@ export const orderService = {
     return null;
   },
 
-  markOrderReady: async (orderId: number, deliveryType: "shipping" | "pickup") => {
-    const suffix = deliveryType === "shipping" ? "courier-pickup" : "customer-pickup";
-    const tryUrls = [
-      `/api/orders/${orderId}/mark-ready/${suffix}`,
-      `/api/orders/${orderId}/mark-ready/${suffix}/`,
-      `/api/v1/orders/${orderId}/mark-ready/${suffix}`,
-      `/api/v1/orders/${orderId}/mark-ready/${suffix}/`,
-    ];
+  markOrderReady: async (orderId: number) => {
+    const response = await fetchWithAuth(`/api/orders/${orderId}/mark-ready`, { method: "POST" });
 
-    const options = { method: "POST" as const };
-
-    let response: Response | null = null;
-    let usedUrl = "";
-    for (const url of tryUrls) {
-      usedUrl = url;
-      response = await fetchWithAuth(url, options);
-      if ([301, 302, 307, 308].includes(response.status)) {
-        const redirectUrl = response.headers.get("Location");
-        if (redirectUrl && (redirectUrl.startsWith("/") || redirectUrl.startsWith(window.location.origin))) {
-          response = await fetchWithAuth(redirectUrl, options);
-        }
-      }
-      if (response.ok) break;
-      if (response.status !== 404 && response.status !== 405) break;
-    }
-
-    if (!response || !response.ok) {
-      const errorText = await response?.text().catch(() => "") ?? "";
-      throw new Error(`Failed to mark order ready: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "") ?? "";
+      throw new Error(`Failed to mark order ready: ${response.status} ${errorText}`.trim());
     }
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return response.json();

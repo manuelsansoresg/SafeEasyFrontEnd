@@ -207,7 +207,7 @@ function getProgressRank(mode: DeliveryTypeKey, statusKey: string) {
 
   if (mode === "shipping") {
     if (k === "in_transit" || k === "shipped") return 3;
-    if (k === "preparing") return 2;
+    if (k === "ready_for_pickup" || k === "preparing") return 2;
     if (k === "paid" || k === "created" || k === "pending") return 1;
     return 1;
   }
@@ -401,10 +401,12 @@ export default function AdminOrderDetailPage() {
   const paymentMethod = useMemo(() => getPaymentMethodKey(order), [order]);
   const mode = useMemo(() => (order ? getDeliveryTypeKey(order) : "pickup"), [order]);
   const steps = useMemo(() => getSteps(mode), [mode]);
-  const statusRaw = order
-    ? String(order.fulfillment_status || order.visual_status || order.status || order.payment_status || "")
-    : "";
-  const mergedKey = latestHistoryKey || normalizeStatusKey(statusRaw || "paid");
+  const fulfillmentStatusKey = order ? normalizeStatusKey(String(order.fulfillment_status || order.visual_status || "")) : "";
+  const orderStatusKey = order ? normalizeStatusKey(String(order.status || order.payment_status || "")) : "";
+  const hasFulfillmentProgress = Boolean(
+    fulfillmentStatusKey && !["created", "pending", "paid"].includes(fulfillmentStatusKey),
+  );
+  const mergedKey = hasFulfillmentProgress ? fulfillmentStatusKey : latestHistoryKey || fulfillmentStatusKey || orderStatusKey || "paid";
   const rawEffective =
     paymentMethod === "card" ? toEffectiveCardStatusKey(mergedKey) : normalizeStatusKey(mergedKey);
   const effectiveKey = rawEffective || "paid";
@@ -458,19 +460,33 @@ export default function AdminOrderDetailPage() {
       setToast({ type: "error", message: "Solo puedes marcar como listo cuando el pago esté confirmado." });
       return;
     }
+    if (isReadyForPickup) {
+      setToast({ type: "info", message: "La orden ya está lista para recoger." });
+      return;
+    }
     setActionLoading("mark-ready");
     try {
-      await orderService.markOrderReady(orderId, mode);
+      await orderService.markOrderReady(orderId);
+      if (order) {
+        setOrder({
+          ...order,
+          fulfillment_status: "ready_for_pickup",
+        });
+      }
       const msg = mode === "shipping"
         ? "Orden marcada como lista para envío."
         : "Orden marcada como lista para recoger.";
       setToast({ type: "success", message: msg });
-      await refresh();
     } catch (e) {
       const errorText = e instanceof Error ? e.message : String(e);
-      if (errorText.includes("409") && errorText.includes("ready_for_pickup")) {
-        setToast({ type: "info", message: "La orden ya está lista para recoger." });
-        await refresh();
+      if (errorText.includes("409") && errorText.includes("ready")) {
+        setToast({ type: "info", message: "La orden ya está lista." });
+        if (order) {
+          setOrder({
+            ...order,
+            fulfillment_status: "ready_for_pickup",
+          });
+        }
       } else {
         const msg = getErrorMessage(e, "No se pudo marcar como lista.");
         setToast({ type: "error", message: msg });
@@ -669,7 +685,7 @@ export default function AdminOrderDetailPage() {
   const shippingHeaderStatus = useMemo(() => {
     const k = normalizeStatusKey(effectiveKey);
     if (k === "in_transit" || k === "shipped") return "Enviando";
-    if (k === "ready_for_pickup") return "Listo para recoger";
+    if (k === "ready_for_pickup") return "Paquete listo";
     if (k === "preparing") return "En preparación";
     if (k === "paid") return "Pago confirmado";
     if (k === "completed" || k === "verified") return "Entregado";
@@ -963,7 +979,7 @@ export default function AdminOrderDetailPage() {
                       <div className="mt-4 space-y-3">
                         <button
                           type="button"
-                          disabled={actionLoading !== null || !isPaymentPaid}
+                          disabled={actionLoading !== null || !isPaymentPaid || isReadyForPickup}
                           onClick={handleMarkReady}
                           className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
                           style={{ backgroundColor: "#0b6b3a" }}
@@ -982,7 +998,11 @@ export default function AdminOrderDetailPage() {
                           <CheckCircle className="h-4 w-4 mr-2" />
                           Marcar como Entregado
                         </button>
-                        {isPaymentPaid && completeDisabledMessage ? (
+                        {isReadyForPickup ? (
+                          <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
+                            La orden ya está lista para recoger.
+                          </div>
+                        ) : isPaymentPaid && completeDisabledMessage ? (
                           <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
                             {completeDisabledMessage}
                           </div>
@@ -1280,7 +1300,7 @@ export default function AdminOrderDetailPage() {
                         {isReadyForPickup ? (
                           <div className="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2 bg-[#16a34a]">
                             <CheckCircle className="h-4 w-4" />
-                            Listo para que lo retire el repartidor
+                            Repartidor notificado
                           </div>
                         ) : (
                           <button
@@ -1290,7 +1310,7 @@ export default function AdminOrderDetailPage() {
                             className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 bg-[#0b6b3a]"
                           >
                             <Truck className="h-4 w-4 mr-2" />
-                            Marcar listo para retiro
+                            Notificar paquete listo
                           </button>
                         )}
                         <button
