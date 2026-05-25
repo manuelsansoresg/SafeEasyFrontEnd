@@ -19,6 +19,7 @@ import {
   AlertCircle,
   Clock,
   DollarSign,
+  Eye,
   Loader2,
   PackageCheck,
   RefreshCw,
@@ -27,6 +28,7 @@ import {
   TrendingUp,
   Truck,
   Wallet,
+  X,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 
@@ -56,6 +58,31 @@ type ProductRow = {
   revenue: number;
 };
 
+type OrderProductLine = {
+  key: string;
+  name: string;
+  sku: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+};
+
+type OrderTableRow = {
+  key: string;
+  idLabel: string;
+  dateLabel: string;
+  buyerName: string;
+  paymentStatus: string;
+  fulfillmentStatus: string;
+  deliveryLabel: string;
+  productsCount: number;
+  productRevenue: number;
+  shippingCost: number;
+  platformFee: number;
+  net: number;
+  products: OrderProductLine[];
+};
+
 const PRIMARY = "#004e28";
 const ACCENT = "#168e00";
 
@@ -67,6 +94,26 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
   rejected: { label: "Rechazados", color: "#ef4444" },
   expired: { label: "Expirados", color: "#9ca3af" },
   other: { label: "Otros", color: "#94a3b8" },
+};
+
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  pending: "Pendiente",
+  paid: "Pagado",
+  completed: "Completado",
+  cancelled: "Cancelado",
+  rejected: "Rechazado",
+  expired: "Expirado",
+  created: "Creado",
+  preparing: "En preparación",
+  ready: "Listo",
+  ready_for_pickup: "Listo para recoger",
+  ready_to_ship: "Listo para enviar",
+  en_route_to_pickup: "En camino a recolección",
+  picked_up: "Recolectado",
+  in_transit: "En tránsito",
+  out_for_delivery: "En reparto",
+  delivered: "Entregado",
+  other: "Otro",
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -151,6 +198,11 @@ function getItemTitle(item: Record<string, unknown>) {
   );
 }
 
+function getItemSku(item: Record<string, unknown>) {
+  const product = asRecord(item.product ?? item.product_detail);
+  return String(item.sku ?? product.sku ?? "").trim();
+}
+
 function getItemKey(item: Record<string, unknown>) {
   const product = asRecord(item.product ?? item.product_detail);
   return String(item.product_id ?? item.id ?? product.id ?? getItemTitle(item));
@@ -173,6 +225,53 @@ function getItemUnitPrice(item: Record<string, unknown>) {
 
 function getProductsRevenue(order: SupplierOrder) {
   return getOrderItems(order).reduce((sum, item) => sum + getItemQuantity(item) * getItemUnitPrice(item), 0);
+}
+
+function getOrderDate(order: SupplierOrder) {
+  const raw = order.created_at ?? order.createdAt ?? order.date ?? order.order_date;
+  const date = new Date(String(raw || ""));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isOrderInRange(order: SupplierOrder, start: Date, end: Date) {
+  const date = getOrderDate(order);
+  if (!date) return true;
+  return date >= start && date <= end;
+}
+
+function getBuyerName(order: SupplierOrder) {
+  const buyer = asRecord(order.buyer ?? order.customer ?? order.user);
+  return String(
+    buyer.name ??
+      buyer.full_name ??
+      buyer.email ??
+      order.buyer_name ??
+      order.customer_name ??
+      "Cliente",
+  );
+}
+
+function getStatusLabel(value: string) {
+  return ORDER_STATUS_LABELS[value] ?? STATUS_META[value]?.label ?? (value ? value.replace(/_/g, " ") : "—");
+}
+
+function getOrderProducts(order: SupplierOrder): OrderProductLine[] {
+  return getOrderItems(order).map((item, index) => {
+    const quantity = getItemQuantity(item);
+    const unitPrice = getItemUnitPrice(item);
+    return {
+      key: `${getItemKey(item)}-${index}`,
+      name: getItemTitle(item),
+      sku: getItemSku(item),
+      quantity,
+      unitPrice,
+      subtotal: quantity * unitPrice,
+    };
+  });
+}
+
+function getOrderKey(order: SupplierOrder, index: number) {
+  return String(order.id ?? order.order_id ?? order.orderId ?? index);
 }
 
 function getDeliveryType(order: SupplierOrder) {
@@ -246,6 +345,7 @@ export default function AdminStatsPage() {
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>("last30");
   const [interval, setInterval] = useState<StatsInterval>("day");
+  const [selectedOrder, setSelectedOrder] = useState<OrderTableRow | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -275,7 +375,7 @@ export default function AdminStatsPage() {
 
       const [statsResponse, ordersResponse] = await Promise.all([
         fetchJson(`/api/suppliers/${supplierId}/stats?${params.toString()}`),
-        fetchJson(`/api/orders?supplier_id=${supplierId}&limit=100`),
+        fetchJson(`/api/orders?supplier_id=${supplierId}&limit=100&start_date=${encodeURIComponent(range.start.toISOString())}&end_date=${encodeURIComponent(range.end.toISOString())}`),
       ]);
 
       setData({
@@ -298,7 +398,8 @@ export default function AdminStatsPage() {
   }, [loadDashboard]);
 
   const computed = useMemo(() => {
-    const orders = data?.orders ?? [];
+    const range = getDateRange(dateRange);
+    const orders = (data?.orders ?? []).filter((order) => isOrderInRange(order, range.start, range.end));
     const paidOrders = orders.filter(isPaidOrder);
     const paidOrdersCount = paidOrders.length;
     const productRevenue = paidOrders.reduce((sum, order) => sum + getProductsRevenue(order), 0);
@@ -339,7 +440,7 @@ export default function AdminStatsPage() {
       ["pickup", 0],
       ["shipping", 0],
     ]);
-    for (const order of orders) {
+    for (const order of paidOrders) {
       const deliveryType = getDeliveryType(order);
       deliveryMap.set(deliveryType, (deliveryMap.get(deliveryType) ?? 0) + 1);
     }
@@ -349,6 +450,32 @@ export default function AdminStatsPage() {
       amount: toNumber(item.amount ?? item.total_revenue ?? item.revenue ?? item.sales),
       count: toNumber(item.count ?? item.total_orders ?? item.orders),
     }));
+
+    const orderRows: OrderTableRow[] = orders.map((order, index) => {
+      const products = getOrderProducts(order);
+      const paymentStatus = getPaymentStatus(order);
+      const fulfillmentStatus = getFulfillmentStatus(order);
+      const shippingCost = toNumber(order.shipping_cost ?? order.shippingCost);
+      const rowPlatformFee = toNumber(order.platform_fee ?? order.platformFee);
+      const rowProductRevenue = products.reduce((sum, item) => sum + item.subtotal, 0);
+      const orderDate = getOrderDate(order);
+
+      return {
+        key: getOrderKey(order, index),
+        idLabel: `#${String(order.id ?? order.order_id ?? order.orderId ?? index + 1)}`,
+        dateLabel: orderDate ? format(orderDate, "dd MMM yyyy", { locale: es }) : "—",
+        buyerName: getBuyerName(order),
+        paymentStatus,
+        fulfillmentStatus,
+        deliveryLabel: getDeliveryType(order) === "shipping" ? "Envío" : "Recoger",
+        productsCount: products.reduce((sum, item) => sum + item.quantity, 0),
+        productRevenue: rowProductRevenue,
+        shippingCost,
+        platformFee: rowPlatformFee,
+        net: rowProductRevenue - rowPlatformFee,
+        products,
+      };
+    });
 
     return {
       totalOrders: toNumber(data?.stats.summary?.total_orders),
@@ -371,9 +498,10 @@ export default function AdminStatsPage() {
         { key: "pickup", label: "Recoger", value: deliveryMap.get("pickup") ?? 0, color: PRIMARY },
         { key: "shipping", label: "Envío", value: deliveryMap.get("shipping") ?? 0, color: ACCENT },
       ],
+      orderRows,
       timeline,
     };
-  }, [data]);
+  }, [data, dateRange]);
 
   if (loading && !data) {
     return (
@@ -620,6 +748,191 @@ export default function AdminStatsPage() {
           </div>
         </section>
       </div>
+
+      <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="flex flex-col gap-2 border-b border-gray-100 px-6 py-5 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+              Órdenes del rango
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Vista resumida por orden. Abrí el detalle para ver productos, envío, comisión y neto.
+            </p>
+          </div>
+          <span className="rounded-full bg-[#004e28]/10 px-4 py-2 text-sm font-bold text-[#004e28]">
+            {computed.orderRows.length} órdenes
+          </span>
+        </div>
+
+        {computed.orderRows.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="bg-[#f2f3f4] text-xs font-bold uppercase tracking-[0.14em] text-gray-500">
+                <tr>
+                  <th className="px-6 py-4">Orden</th>
+                  <th className="px-6 py-4">Fecha</th>
+                  <th className="px-6 py-4">Cliente</th>
+                  <th className="px-6 py-4">Pago</th>
+                  <th className="px-6 py-4">Preparación</th>
+                  <th className="px-6 py-4">Entrega</th>
+                  <th className="px-6 py-4 text-right">Total</th>
+                  <th className="px-6 py-4 text-right">Detalle</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {computed.orderRows.map((order) => (
+                  <tr key={order.key} className="transition-colors hover:bg-[#f2f3f4]/50">
+                    <td className="px-6 py-4 font-bold text-gray-900">{order.idLabel}</td>
+                    <td className="whitespace-nowrap px-6 py-4 text-gray-600">{order.dateLabel}</td>
+                    <td className="px-6 py-4 font-semibold text-gray-900">{order.buyerName}</td>
+                    <td className="px-6 py-4">
+                      <span className="rounded-full bg-[#168e00]/10 px-3 py-1 text-xs font-bold text-[#168e00]">
+                        {getStatusLabel(order.paymentStatus)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex max-w-[170px] rounded-full bg-[#004e28]/10 px-3 py-1 text-xs font-bold text-[#004e28]">
+                        {getStatusLabel(order.fulfillmentStatus)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-600">{order.deliveryLabel}</td>
+                    <td className="whitespace-nowrap px-6 py-4 text-right font-bold text-gray-900">
+                      {formatCurrency(order.productRevenue)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrder(order)}
+                        className="inline-flex items-center gap-2 rounded-xl border border-[#004e28]/20 px-3 py-2 text-xs font-bold text-[#004e28] transition-colors hover:bg-[#004e28]/10"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Ver detalle
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="px-6 py-12 text-center text-sm font-medium text-gray-500">
+            No hay órdenes para mostrar en el rango seleccionado.
+          </div>
+        )}
+      </section>
+
+      {selectedOrder ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="order-detail-title"
+          onClick={() => setSelectedOrder(null)}
+        >
+          <div
+            className="max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#168e00]">Detalle de orden</p>
+                <h2 id="order-detail-title" className="mt-1 text-2xl font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
+                  {selectedOrder.idLabel}
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  {selectedOrder.dateLabel} · {selectedOrder.buyerName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrder(null)}
+                className="rounded-full border border-gray-200 p-2 text-gray-500 transition-colors hover:bg-[#f2f3f4] hover:text-gray-900"
+                aria-label="Cerrar detalle de orden"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(88vh-96px)] overflow-y-auto px-6 py-5">
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className="rounded-2xl bg-[#f2f3f4] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">Ingresos</p>
+                  <p className="mt-2 text-lg font-bold text-gray-900">{formatCurrency(selectedOrder.productRevenue)}</p>
+                </div>
+                <div className="rounded-2xl bg-[#f2f3f4] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">Envío</p>
+                  <p className="mt-2 text-lg font-bold text-gray-900">{formatCurrency(selectedOrder.shippingCost)}</p>
+                </div>
+                <div className="rounded-2xl bg-[#f2f3f4] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">Comisión</p>
+                  <p className="mt-2 text-lg font-bold text-gray-900">{formatCurrency(selectedOrder.platformFee)}</p>
+                </div>
+                <div className="rounded-2xl bg-[#004e28] p-4 text-white">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-white/70">Neto estimado</p>
+                  <p className="mt-2 text-lg font-bold">{formatCurrency(selectedOrder.net)}</p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 text-sm md:grid-cols-2">
+                <div className="rounded-2xl border border-gray-100 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-400">Pago</p>
+                  <p className="mt-2 font-bold text-gray-900">{getStatusLabel(selectedOrder.paymentStatus)}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-100 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-400">Preparación</p>
+                  <p className="mt-2 font-bold text-gray-900">{getStatusLabel(selectedOrder.fulfillmentStatus)}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-100 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-400">Entrega</p>
+                  <p className="mt-2 font-bold text-gray-900">{selectedOrder.deliveryLabel}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-100 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-400">Productos</p>
+                  <p className="mt-2 font-bold text-gray-900">{selectedOrder.productsCount} unidades</p>
+                </div>
+              </div>
+
+              <div className="mt-5 overflow-hidden rounded-2xl border border-gray-100">
+                <div className="border-b border-gray-100 bg-[#f2f3f4] px-4 py-3">
+                  <h3 className="font-bold text-gray-900">Productos vendidos</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[620px] text-sm">
+                    <thead className="text-xs font-bold uppercase tracking-[0.14em] text-gray-400">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Producto</th>
+                        <th className="px-4 py-3 text-left">SKU</th>
+                        <th className="px-4 py-3 text-right">Cantidad</th>
+                        <th className="px-4 py-3 text-right">Precio compra</th>
+                        <th className="px-4 py-3 text-right">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {selectedOrder.products.length > 0 ? (
+                        selectedOrder.products.map((product) => (
+                          <tr key={product.key}>
+                            <td className="px-4 py-3 font-bold text-gray-900">{product.name}</td>
+                            <td className="px-4 py-3 text-gray-500">{product.sku || "—"}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-gray-900">{product.quantity}</td>
+                            <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(product.unitPrice)}</td>
+                            <td className="px-4 py-3 text-right font-bold text-[#004e28]">{formatCurrency(product.subtotal)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
+                            Esta orden no incluye detalle de productos en la respuesta.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
