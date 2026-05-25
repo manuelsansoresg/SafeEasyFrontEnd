@@ -6,8 +6,10 @@ export interface Plan {
   title: string;
   description?: string;
   price: number;
+  features?: string[];
   duration: PlanDuration;
   is_active: boolean;
+  created_at?: string;
 }
 
 export interface Subscription {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { subscriptionsService } from '@/services/subscriptionsService';
 import type { Plan } from '@/types/subscriptions';
+import { normalizePlanFeatures } from '@/components/sell/planText';
 import { Check, CreditCard, Eye, EyeOff, LockKeyhole, ReceiptText, ShieldCheck } from 'lucide-react';
 
 type CheckoutPlan = {
@@ -128,6 +129,16 @@ const buildRequestError = async (response: Response, fallback: string) => {
   return translateBackendMessage(backendMessage, fallback);
 };
 
+const pickPlanArray = (data: unknown): Plan[] => {
+  if (Array.isArray(data)) return data as Plan[];
+  if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    const items = record.items ?? record.results ?? record.data ?? record.plans;
+    if (Array.isArray(items)) return items as Plan[];
+  }
+  return [];
+};
+
 interface StepCheckoutProps {
   selectedPlan: string;
 }
@@ -154,8 +165,8 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
     fetch('/api/plans?skip=0&limit=1000&only_active=true')
       .then((response) => (response.ok ? response.json() : []))
       .then((plans: unknown) => {
-        if (!mounted || !Array.isArray(plans)) return;
-        setServerPlans(plans as Plan[]);
+        if (!mounted) return;
+        setServerPlans(pickPlanArray(plans));
       })
       .catch(() => {
         if (mounted) setServerPlans([]);
@@ -169,6 +180,7 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
   const plan = useMemo<CheckoutPlan>(() => {
     const matched = serverPlans.find((item) => normalize(item.title).includes(selectedKey));
     if (!matched) return fallbackPlan;
+    const featureLines = normalizePlanFeatures(matched.features, matched.description);
 
     return {
       ...fallbackPlan,
@@ -177,6 +189,7 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
       price: matched.price,
       period: matched.duration === 'monthly' ? 'mes' : 'año',
       description: matched.description || fallbackPlan.description,
+      features: featureLines.length > 0 ? featureLines : fallbackPlan.features,
     };
   }, [fallbackPlan, selectedKey, serverPlans]);
 
@@ -290,7 +303,7 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-      <aside className="rounded-lg border border-gray-100 bg-white p-6 shadow-sm lg:sticky lg:top-28 lg:self-start">
+      <aside className="h-full rounded-lg border border-gray-100 bg-white p-6 shadow-sm lg:sticky lg:top-28">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#f2f3f4] text-primary">
             <ReceiptText size={22} />
@@ -307,17 +320,19 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
             <span className="text-4xl font-bold text-primary">{formatCurrency(plan.price)}</span>
             <span className="pb-1 text-sm text-gray-500">/{plan.period}</span>
           </div>
-          <p className="mt-3 text-sm leading-6 text-gray-600">{plan.description}</p>
         </div>
 
-        <ul className="mt-6 space-y-3">
-          {plan.features.map((feature) => (
-            <li key={feature} className="flex items-center gap-3 text-sm text-gray-600">
+        <div className="mt-6">
+          <p className="mb-4 text-sm font-semibold text-gray-700">Incluye tu plan</p>
+          <ul className="space-y-3">
+          {plan.features.map((feature, featureIndex) => (
+            <li key={`${feature}-${featureIndex}`} className="flex items-center gap-3 text-sm text-gray-600">
               <Check className="shrink-0 text-secondary" size={18} />
               {feature}
             </li>
           ))}
-        </ul>
+          </ul>
+        </div>
 
         <div className="mt-6 flex items-start gap-3 rounded-lg border border-gray-100 p-4 text-sm leading-6 text-gray-500">
           <ShieldCheck className="mt-0.5 shrink-0 text-primary" size={18} />
