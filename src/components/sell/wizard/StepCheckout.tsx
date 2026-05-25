@@ -19,6 +19,7 @@ type CheckoutPlan = {
 type FormState = {
   name: string;
   email: string;
+  companyName: string;
   password: string;
   confirmPassword: string;
 };
@@ -151,6 +152,7 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
   const [formData, setFormData] = useState<FormState>({
     name: '',
     email: '',
+    companyName: '',
     password: '',
     confirmPassword: '',
   });
@@ -195,28 +197,6 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((current) => ({ ...current, [e.target.name]: e.target.value }));
-  };
-
-  const createSupplierProfile = async (userId: number, token: string) => {
-    const supplierData = new FormData();
-    supplierData.append('user_id', String(userId));
-    supplierData.append('name', formData.name);
-    supplierData.append('short_name', formData.name);
-    supplierData.append('email', formData.email);
-    supplierData.append('country', 'Mexico');
-    supplierData.append('is_active', 'true');
-
-    const response = await fetch('/api/suppliers', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: supplierData,
-    });
-
-    if (!response.ok) {
-      throw new Error(await buildRequestError(response, 'Cuenta creada, pero no pudimos preparar el perfil de proveedor.'));
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -286,13 +266,25 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
         role: 'supplier',
       });
 
-      await createSupplierProfile(userBody.id, loginData.access_token);
+      const supplierResponse = await fetch('/api/suppliers/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userBody.id,
+          name: formData.companyName,
+        }),
+      });
+
+      if (!supplierResponse.ok) {
+        const supplierBody = await readResponseBody(supplierResponse);
+        throw new Error(translateBackendMessage(extractBackendMessage(supplierBody), 'Cuenta creada, pero no pudimos registrar tu empresa.'));
+      }
 
       let purchase;
       try {
         purchase = await subscriptionsService.purchase(plan.id);
       } catch (purchaseError) {
-        throw new Error(translateBackendMessage(getMessage(purchaseError), 'No pudimos crear la ficha de pago.'));
+        throw new Error(translateBackendMessage(getMessage(purchaseError), 'No pudimos crear la ficha de pago. La cuenta fue creada pero el pago no se pudo iniciar. Contactá soporte si el problema persiste.'));
       }
       window.location.href = purchase.init_point;
     } catch (submitError) {
@@ -379,6 +371,20 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
               onChange={handleChange}
               className="h-12 w-full rounded-lg border border-gray-200 px-4 text-gray-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
               placeholder="juan@empresa.com"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">Nombre de la empresa</label>
+            <input
+              type="text"
+              name="companyName"
+              required
+              maxLength={255}
+              value={formData.companyName}
+              onChange={handleChange}
+              className="h-12 w-full rounded-lg border border-gray-200 px-4 text-gray-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+              placeholder="Mi Negocio S.A."
             />
           </div>
 

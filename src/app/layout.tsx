@@ -9,6 +9,7 @@ import { MobileNav } from "@/components/MobileNav";
 import { ChatProvider } from "@/context/ChatContext";
 import { ChatOverlay } from "@/components/chat/ChatOverlay";
 import { LocationProvider } from "@/components/LocationProvider";
+import { TokenRefreshProvider } from "@/components/TokenRefreshProvider";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -44,14 +45,16 @@ export default function RootLayout({
           }}
         />
         <ChatProvider>
-          <LocationProvider />
-          <Header />
-          <main className="min-h-screen">
-            {children}
-          </main>
-          <Footer />
-          <MobileNav />
-          <ChatOverlay />
+          <TokenRefreshProvider>
+            <LocationProvider />
+            <Header />
+            <main className="min-h-screen">
+              {children}
+            </main>
+            <Footer />
+            <MobileNav />
+            <ChatOverlay />
+          </TokenRefreshProvider>
         </ChatProvider>
       </body>
     </html>

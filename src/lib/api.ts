@@ -7,7 +7,7 @@ type FetchOptions = RequestInit & {
 export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => {
   const getAuthToken = () => useAuthStore.getState().token;
   const getRefreshToken = () => useAuthStore.getState().refreshToken;
-  const setAuthToken = (token: string) => useAuthStore.getState().setToken(token);
+  const setTokens = (token: string, refreshToken: string | null) => useAuthStore.getState().setToken(token, refreshToken);
   const logout = () => useAuthStore.getState().logout();
 
   const stripBearer = (value: string | null) => {
@@ -76,12 +76,11 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
       if (refreshResponse.ok) {
         const refreshData = await refreshResponse.json();
         const newToken = refreshData.access_token;
+        const newRefreshToken = refreshData.refresh_token ?? null;
         
         if (newToken) {
-            // Update store
-            setAuthToken(newToken);
+            setTokens(newToken, newRefreshToken);
             
-            // Retry original request
             response = await fetch(url, {
               ...options,
               headers: getHeaders(newToken),
