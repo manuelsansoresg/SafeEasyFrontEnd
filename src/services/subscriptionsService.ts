@@ -165,6 +165,26 @@ export const subscriptionsService = {
     return json;
   },
 
+  async refreshPayment(mpPaymentId: string) {
+    const qs = new URLSearchParams({ mp_payment_id: mpPaymentId });
+    const options = { method: "POST" };
+    const tryUrls = [
+      `/api/subscriptions/payments/refresh?${qs.toString()}`,
+      `/api/subscriptions/payments/refresh/?${qs.toString()}`,
+    ];
+    let response: Response | null = null;
+    for (const url of tryUrls) {
+      response = await fetchWithAuth(url, options);
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+    if (!response || !response.ok) {
+      const text = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to refresh subscription payment (${response?.status ?? "unknown"}) ${text}`.trim());
+    }
+    return readJson<unknown>(response);
+  },
+
   async purchase(planId: number): Promise<PurchaseResponse> {
     const body = JSON.stringify({ plan_id: planId });
     const options = { method: "POST", body };
@@ -184,4 +204,3 @@ export const subscriptionsService = {
     return json;
   },
 };
-

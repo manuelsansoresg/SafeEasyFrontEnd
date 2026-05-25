@@ -57,6 +57,7 @@ export default function MySubscriptionPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshingPayment, setRefreshingPayment] = useState(false);
 
   const fetchMySubscription = async () => {
     if (!token || !isSupplier) {
@@ -78,6 +79,34 @@ export default function MySubscriptionPage() {
 
   useEffect(() => {
     fetchMySubscription();
+  }, [token, isSupplier]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const mpPaymentId = searchParams.get("payment_id") || searchParams.get("collection_id");
+    const mpStatus = searchParams.get("status") || searchParams.get("collection_status");
+    if (!token || !isSupplier || !mpPaymentId || mpStatus !== "approved") return;
+
+    let mounted = true;
+    const refreshApprovedPayment = async () => {
+      setRefreshingPayment(true);
+      setError(null);
+      try {
+        await subscriptionsService.refreshPayment(mpPaymentId);
+        if (mounted) await fetchMySubscription();
+      } catch (e) {
+        console.error("Error refreshing subscription payment:", e);
+        if (mounted) setError("Tu pago fue aprobado, pero no pudimos actualizar la subscripción automáticamente. Intenta recargar en unos segundos.");
+      } finally {
+        if (mounted) setRefreshingPayment(false);
+      }
+    };
+
+    refreshApprovedPayment();
+    return () => {
+      mounted = false;
+    };
   }, [token, isSupplier]);
 
   if (!isSupplier) {
@@ -104,6 +133,13 @@ export default function MySubscriptionPage() {
           <div className="flex items-center justify-center gap-2 text-gray-500">
             <Loader2 className="animate-spin" size={20} />
             Cargando subscripción...
+          </div>
+        </div>
+      ) : refreshingPayment ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
+          <div className="flex items-center justify-center gap-2 text-gray-500">
+            <Loader2 className="animate-spin" size={20} />
+            Confirmando pago...
           </div>
         </div>
       ) : error ? (
