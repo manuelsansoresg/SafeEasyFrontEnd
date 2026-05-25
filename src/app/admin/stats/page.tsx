@@ -786,12 +786,12 @@ export default function AdminStatsPage() {
                     <td className="whitespace-nowrap px-6 py-4 text-gray-600">{order.dateLabel}</td>
                     <td className="px-6 py-4 font-semibold text-gray-900">{order.buyerName}</td>
                     <td className="px-6 py-4">
-                      <span className="rounded-full bg-[#168e00]/10 px-3 py-1 text-xs font-bold text-[#168e00]">
+                      <span className="inline-flex min-h-7 w-24 items-center justify-center rounded-full bg-[#168e00]/10 px-3 py-1 text-center text-xs font-bold leading-tight text-[#168e00]">
                         {getStatusLabel(order.paymentStatus)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="inline-flex max-w-[170px] rounded-full bg-[#004e28]/10 px-3 py-1 text-xs font-bold text-[#004e28]">
+                      <span className="inline-flex min-h-9 w-44 items-center justify-center rounded-full bg-[#004e28]/10 px-3 py-1 text-center text-xs font-bold leading-tight text-[#004e28]">
                         {getStatusLabel(order.fulfillmentStatus)}
                       </span>
                     </td>
