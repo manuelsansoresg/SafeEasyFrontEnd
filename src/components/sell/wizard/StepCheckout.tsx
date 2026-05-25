@@ -51,6 +51,16 @@ const normalize = (value: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
 
+const buildSupplierSlug = (value: string) => {
+  const slug = normalize(value)
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  return slug || 'empresa';
+};
+
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('es-MX', {
     style: 'currency',
@@ -129,6 +139,38 @@ const buildRequestError = async (response: Response, fallback: string) => {
   const body = await readResponseBody(response);
   const backendMessage = extractBackendMessage(body);
   return translateBackendMessage(backendMessage, fallback);
+};
+
+const buildSupplierFormData = (userId: number, companyName: string, email: string) => {
+  const data = new FormData();
+  const append = (key: string, value: string) => {
+    data.append(key, value ? value.trim() : '');
+  };
+
+  append('name', companyName);
+  data.append('short_name', buildSupplierSlug(companyName));
+  append('rfc', '');
+  append('phone', '');
+  append('email', email);
+  append('city', '');
+  append('state', '');
+  append('country', 'Mexico');
+  append('short_description', '');
+  append('description', '');
+  append('address', '');
+  append('exterior_number', '');
+  append('interior_number', '');
+  append('neighborhood', '');
+  append('zip_code', '');
+  append('cp', '');
+  append('cross_street_1', '');
+  append('cross_street_2', '');
+  append('about', '');
+  data.append('user_id', String(userId));
+  data.append('is_active', 'true');
+  data.append('transfer_accepted', 'false');
+
+  return data;
 };
 
 const pickPlanArray = (data: unknown): Plan[] => {
@@ -267,12 +309,9 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
         role: 'supplier',
       });
 
-      const supplierResponse = await fetchWithAuth('/api/suppliers/', {
+      const supplierResponse = await fetchWithAuth('/api/suppliers', {
         method: 'POST',
-        body: JSON.stringify({
-          user_id: userBody.id,
-          name: formData.companyName,
-        }),
+        body: buildSupplierFormData(userBody.id, formData.companyName, formData.email),
       });
 
       if (!supplierResponse.ok) {
