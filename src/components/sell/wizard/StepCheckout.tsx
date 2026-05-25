@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
+import { fetchWithAuth } from '@/lib/api';
 import { subscriptionsService } from '@/services/subscriptionsService';
 import type { Plan } from '@/types/subscriptions';
 import { normalizePlanFeatures } from '@/components/sell/planText';
@@ -266,9 +267,8 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
         role: 'supplier',
       });
 
-      const supplierResponse = await fetch('/api/suppliers/', {
+      const supplierResponse = await fetchWithAuth('/api/suppliers/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: userBody.id,
           name: formData.companyName,
