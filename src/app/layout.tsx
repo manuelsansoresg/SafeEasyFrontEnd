@@ -46,7 +46,7 @@ export default function RootLayout({
         <ChatProvider>
           <LocationProvider />
           <Header />
-          <main className="pt-24 md:pt-28 min-h-screen">
+          <main className="min-h-screen">
             {children}
           </main>
           <Footer />

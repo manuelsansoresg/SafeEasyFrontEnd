@@ -62,7 +62,7 @@ function PaymentInfoContent() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 pt-24 md:pt-28">
       <div className="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden">
         <div className="bg-blue-600 p-6 text-white text-center">
             <h1 className="text-2xl font-bold flex items-center justify-center gap-2">

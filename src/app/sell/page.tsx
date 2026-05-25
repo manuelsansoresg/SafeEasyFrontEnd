@@ -6,7 +6,7 @@ import SellFAQ from '@/components/sell/SellFAQ';
 
 export default function SellPage() {
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen pt-24 md:pt-28">
       <SellHero />
       <SellBenefits />
       <SellTestimonials />

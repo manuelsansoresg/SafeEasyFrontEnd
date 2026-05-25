@@ -61,7 +61,7 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
       )}
     >
       {/* Navigation Items */}
-      <div className="flex-1 py-6 overflow-y-auto overflow-x-hidden scrollbar-thin">
+      <div className="flex-1 py-6 pt-24 md:pt-28 overflow-y-auto overflow-x-hidden scrollbar-thin">
         <nav className="space-y-2 px-3">
           {menuItems.map((item) => {
             const isActive = pathname === item.path || pathname.startsWith(item.path);
@@ -130,7 +130,7 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
 
       <button
         onClick={toggleSidebar}
-        className="absolute -right-3 top-20 bg-white border border-gray-200 text-gray-500 hover:text-primary p-1 rounded-full shadow-md z-50 hidden md:flex"
+        className="absolute -right-3 top-8 bg-white border border-gray-200 text-gray-500 hover:text-primary p-1 rounded-full shadow-md z-50 hidden md:flex"
         aria-label={isCollapsed ? "Expandir menú" : "Colapsar menú"}
       >
         {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}

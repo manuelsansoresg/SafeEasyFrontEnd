@@ -20,7 +20,7 @@ export default async function Home({
   const subcategorySlug = typeof resolvedSearchParams.subcategory === "string" ? resolvedSearchParams.subcategory : undefined;
 
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex flex-col w-full pt-24 md:pt-28">
       {/* Banner & Categories - White Background */}
       <div className="bg-white w-full pb-8">
          <div className="container mx-auto px-4 pt-6">

@@ -20,7 +20,7 @@ export default function RecomendadosPage({
       : DEFAULT_KIND;
 
   return (
-    <div className="container mx-auto px-4 py-6">
+    <div className="container mx-auto px-4 py-6 pt-24 md:pt-28">
       <AdsCarousel />
 
       <div className="mb-4">

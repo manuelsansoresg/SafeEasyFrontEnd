@@ -114,7 +114,7 @@ export function Header() {
                 Contacto
               </Link>
               <Link href="/sell" className="hover:text-[#7ed957] transition-colors text-white">
-                Vender en Drooopy
+                Vender
               </Link>
             </nav>
           </div>

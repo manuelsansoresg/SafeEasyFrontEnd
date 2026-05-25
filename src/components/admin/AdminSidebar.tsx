@@ -153,7 +153,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
         width: isCollapsed ? "80px" : "260px",
       }}
       className={cn(
-        "hidden md:flex relative flex-col h-[calc(100vh-5rem)] md:h-[calc(100vh-6rem)] bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-40 sticky top-20 md:top-24",
+        "hidden md:flex relative flex-col h-screen bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-40 sticky top-0",
         // Mobile behavior can be handled via parent or media queries, 
         // but typically sidebar is fixed or overlay on mobile.
         // For this requirement: "version movil que se vean por default solo iconos"
@@ -161,7 +161,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       )}
     >
       {/* Navigation Items */}
-      <div className="flex-1 py-6 overflow-y-auto overflow-x-hidden scrollbar-thin">
+      <div className="flex-1 py-6 pt-24 md:pt-28 overflow-y-auto overflow-x-hidden scrollbar-thin">
         <nav className="space-y-2 px-3">
           {filteredMenuItems.map((item) => {
             const isActive = pathname === item.path || pathname.startsWith(item.path);
@@ -231,7 +231,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       {/* Toggle Button */}
       <button
         onClick={toggleSidebar}
-        className="absolute -right-3 top-4 bg-white border border-gray-200 text-gray-500 hover:text-primary p-1 rounded-full shadow-md z-50 hidden md:flex"
+        className="absolute -right-3 top-8 bg-white border border-gray-200 text-gray-500 hover:text-primary p-1 rounded-full shadow-md z-50 hidden md:flex"
       >
         {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>

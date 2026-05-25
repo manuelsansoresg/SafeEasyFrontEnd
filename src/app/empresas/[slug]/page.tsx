@@ -694,7 +694,7 @@ export default function SupplierPage() {
   if (!supplier) return null;
 
   return (
-    <div className="min-h-screen bg-[#ffffff] font-sans selection:bg-[#168e00] selection:text-white -mt-32 pt-20 md:pt-24">
+    <div className="min-h-screen bg-[#ffffff] font-sans selection:bg-[#168e00] selection:text-white">
       
       {/* --- HERO SECTION --- */}
       <section className="relative w-full h-[90vh] bg-black overflow-hidden group">

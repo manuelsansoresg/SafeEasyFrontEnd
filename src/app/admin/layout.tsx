@@ -43,7 +43,7 @@ export default function AdminLayout({
         toggleSidebar={toggleSidebar} 
       />
       
-      <main className="flex-1 overflow-x-hidden transition-all duration-300">
+      <main className="flex-1 overflow-x-hidden transition-all duration-300 pt-24 md:pt-28">
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
             {children}
         </div>
