@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Bell, MessageSquare, User, Package, Users } from "lucide-react";
+import { Home, ShoppingCart, MessageSquare, User, Package, Users } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -31,7 +31,7 @@ export function MobileNav() {
       ] :
       [
         { href: "/", label: "Inicio", icon: Home },
-        { href: "/client/notifications", label: "Notificaciones", icon: Bell },
+        { href: "/cart", label: "Carrito", icon: ShoppingCart },
         { href: messagesHref, label: "Mensajes", icon: MessageSquare },
         { href: accountHref, label: "Mi Cuenta", icon: User },
       ];

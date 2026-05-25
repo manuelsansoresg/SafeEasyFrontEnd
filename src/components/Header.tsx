@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Search, ChevronDown, LogOut, Menu, X } from "lucide-react";
+import { Search, ChevronDown, LogOut, Menu, X, Bell } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -202,13 +202,20 @@ export function Header() {
                 </div>
               </div>
 
-              {/* Mobile Menu Toggle */}
-              <button 
-                className="md:hidden text-white hover:text-secondary transition-colors"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              >
-                {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
-              </button>
+              {/* Mobile Actions */}
+              <div className="md:hidden flex items-center gap-2">
+                {isAuthenticated && (
+                  <Link href="/client/notifications" className="relative flex items-center justify-center w-10 h-10 rounded-full text-white hover:text-[#7ed957] transition-all">
+                    <Bell size={24} />
+                  </Link>
+                )}
+                <button 
+                  className="text-white hover:text-secondary transition-colors"
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                >
+                  {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+                </button>
+              </div>
             </div>
           </div>
         </div>
