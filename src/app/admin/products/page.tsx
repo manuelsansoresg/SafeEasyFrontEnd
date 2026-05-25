@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
+import { PageHero } from "@/components/ui/PageHero";
 
 interface Product {
   id: string;
@@ -123,14 +124,11 @@ export default function AdminProductsPage() {
   return (
     <div className="space-y-6">
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Productos</h1>
-          <p className="text-gray-500 mt-1">Gestión del catálogo de productos</p>
-        </div>
-        
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+      <PageHero
+        title="Productos"
+        subtitle="Gestiona el catálogo de productos."
+        actions={
+          <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input 
@@ -150,7 +148,8 @@ export default function AdminProductsPage() {
               <span className="hidden sm:inline">Nuevo Producto</span>
             </Link>
         </div>
-      </div>
+        }
+      />
 
       {/* List */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

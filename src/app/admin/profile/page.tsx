@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
+import { PageHero } from "@/components/ui/PageHero";
 import { Loader2, CheckCircle, Eye, EyeOff, User, Mail, Lock, Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -160,16 +161,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <div className="p-3 bg-primary/10 rounded-full text-primary">
-          <User size={32} />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Mi Perfil</h1>
-          <p className="text-gray-500">Administra tu información personal y de acceso.</p>
-        </div>
-      </div>
+    <div className="w-full space-y-6 font-[family-name:var(--font-poppins)]">
+      <PageHero title="Mi Perfil" subtitle="Administra tu información personal y de acceso." />
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         {error && (

@@ -160,27 +160,6 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
         // We will rely on the `isCollapsed` state passed from layout which should be true by default on mobile.
       )}
     >
-      {/* Header / Logo */}
-      <div className="h-16 flex items-center justify-center border-b border-gray-100">
-        <Link href="/admin/dashboard" className="flex items-center gap-2 overflow-hidden px-4 w-full">
-          <div className="min-w-[32px] h-8 flex items-center justify-center text-primary">
-            {/* Simple Logo Icon */}
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <span className="font-bold text-xl text-primary">S</span>
-            </div>
-          </div>
-          
-          <motion.div
-            animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : "auto" }}
-            transition={{ duration: 0.2 }}
-            className="whitespace-nowrap overflow-hidden"
-          >
-            <span className="text-lg font-bold text-gray-800">SafeEasy</span>
-            <span className="text-xs text-gray-500 block">Admin Panel</span>
-          </motion.div>
-        </Link>
-      </div>
-
       {/* Navigation Items */}
       <div className="flex-1 py-6 overflow-y-auto overflow-x-hidden scrollbar-thin">
         <nav className="space-y-2 px-3">

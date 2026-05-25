@@ -7,6 +7,7 @@ import SupplierForm from '@/components/admin/SupplierForm';
 import StepCarousel from '@/components/sell/wizard/StepCarousel';
 import StepCertificates from '@/components/sell/wizard/StepCertificates';
 import BusinessHoursEditor from '@/components/admin/BusinessHoursEditor';
+import { PageHero } from '@/components/ui/PageHero';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 function MyCompanyContent() {
@@ -94,8 +95,8 @@ function MyCompanyContent() {
 
   if (!supplier) {
     return (
-      <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Mi Empresa</h1>
+      <div className="space-y-6">
+        <PageHero title="Mi Empresa" subtitle="Gestiona la información pública de tu empresa." />
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
             <div className="flex">
                 <div className="ml-3">
@@ -110,10 +111,12 @@ function MyCompanyContent() {
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Gestionar Mi Empresa</h1>
-        {supplier && supplier.slug && (
+    <div className="space-y-6">
+      <PageHero
+        title="Gestionar Mi Empresa"
+        subtitle="Actualiza los datos, encabezado, certificados y horarios de tu negocio."
+        actions={
+          supplier && supplier.slug ? (
             <a
                 href={`/empresas/${supplier.slug}`}
                 target="_blank"
@@ -123,11 +126,12 @@ function MyCompanyContent() {
                 Ver mi empresa
                 <ExternalLink size={18} />
             </a>
-        )}
-      </div>
+          ) : null
+        }
+      />
       
       {/* Tabs */}
-      <div className="flex space-x-4 border-b border-gray-200 mb-8">
+      <div className="flex space-x-4 border-b border-gray-200">
         <button
           onClick={() => handleTabChange('info')}
           className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 ${

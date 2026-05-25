@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import UserForm from "@/components/admin/UserForm";
+import { PageHero } from "@/components/ui/PageHero";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -98,18 +99,16 @@ export default function EditUserPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link 
-          href="/admin/users" 
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Editar Usuario</h1>
-          <p className="text-gray-500 mt-1">Modifica los datos del usuario {user.full_name || user.name || user.email}.</p>
-        </div>
-      </div>
+      <PageHero
+        title="Editar Usuario"
+        subtitle={`Modifica los datos del usuario ${user.full_name || user.name || user.email}.`}
+        actions={
+          <Link href="/admin/users" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
+            <ArrowLeft size={16} />
+            Volver
+          </Link>
+        }
+      />
 
       <UserForm initialData={user} isEditMode={true} />
     </div>

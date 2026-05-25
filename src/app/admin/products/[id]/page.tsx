@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import ProductForm from "@/components/admin/ProductForm";
+import { PageHero } from "@/components/ui/PageHero";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -106,18 +107,16 @@ export default function EditProductPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link 
-          href="/admin/products" 
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Editar Producto</h1>
-          <p className="text-gray-500 mt-1">Modifica los datos del producto {product.title}.</p>
-        </div>
-      </div>
+      <PageHero
+        title="Editar Producto"
+        subtitle={`Modifica los datos del producto ${product.title}.`}
+        actions={
+          <Link href="/admin/products" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
+            <ArrowLeft size={16} />
+            Volver
+          </Link>
+        }
+      />
 
       <ProductForm initialData={product} isEditMode={true} />
     </div>

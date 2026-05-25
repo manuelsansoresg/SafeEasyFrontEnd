@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
+import { PageHero } from "@/components/ui/PageHero";
 import { 
   Plus, 
   Search, 
@@ -137,11 +138,10 @@ export default function UsersPage() {
   return (
     <div className="space-y-6">
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Usuarios</h1>
-          <p className="text-gray-500 mt-1">Gestiona los usuarios del sistema.</p>
-        </div>
+      <PageHero
+        title="Usuarios"
+        subtitle="Gestiona los usuarios del sistema."
+        actions={
         <Link 
           href="/admin/users/create" 
           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
@@ -149,7 +149,8 @@ export default function UsersPage() {
           <Plus size={20} />
           Nuevo Usuario
         </Link>
-      </div>
+        }
+      />
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">

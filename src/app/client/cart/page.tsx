@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { fetchWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
+import { PageHero } from "@/components/ui/PageHero";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
 import {
@@ -670,14 +671,16 @@ export default function ClientCartPage() {
 
   return (
     <div className="font-[family-name:var(--font-poppins)]">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <ShoppingCart size={22} className="text-primary" />
-          <h1 className="text-2xl font-bold text-gray-900">Mi Carrito</h1>
-        </div>
-        <Link href="/" className="text-sm font-semibold text-primary hover:underline">
-          Seguir comprando
-        </Link>
+      <div className="mb-6">
+        <PageHero
+          title="Mi Carrito"
+          subtitle="Revisa tus productos seleccionados y completa tu compra."
+          actions={
+            <Link href="/" className="text-sm font-semibold text-primary hover:underline">
+              Seguir comprando
+            </Link>
+          }
+        />
       </div>
 
       {error && (

@@ -8,6 +8,7 @@ import { chatService } from "@/services/chatService";
 import { useChat } from "@/context/ChatContext";
 import FileUpload from "@/components/ui/FileUpload";
 import { Toast } from "@/components/ui/Toast";
+import { PageHero } from "@/components/ui/PageHero";
 import { 
   Loader2, 
   MessageSquare,
@@ -1079,14 +1080,12 @@ export default function AdminOrdersPage() {
   };
 
   return (
-    <div className="p-6">
+    <div className="space-y-6 font-[family-name:var(--font-poppins)]">
       {toastMessage ? <Toast type="success" message={toastMessage} onClose={() => setToastMessage(null)} /> : null}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Órdenes</h1>
-      </div>
+      <PageHero title="Órdenes" subtitle="Gestiona las órdenes y el estado de entrega." />
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-[family-name:var(--font-poppins)]">
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-[family-name:var(--font-poppins)]">
           {error}
         </div>
       )}

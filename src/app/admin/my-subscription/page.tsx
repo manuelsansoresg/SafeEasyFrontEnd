@@ -14,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
+import { PageHero } from "@/components/ui/PageHero";
 
 const RENEW_DAYS_THRESHOLD = 30;
 
@@ -82,10 +83,7 @@ export default function MySubscriptionPage() {
   if (!isSupplier) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Mi Subscripción</h1>
-          <p className="text-gray-500 mt-1">Información de tu plan activo.</p>
-        </div>
+        <PageHero title="Mi Subscripción" subtitle="Información de tu plan activo." />
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
             <CreditCard className="text-gray-400" size={28} />
@@ -99,10 +97,7 @@ export default function MySubscriptionPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">Mi Subscripción</h1>
-        <p className="text-gray-500 mt-1">Información de tu plan activo.</p>
-      </div>
+      <PageHero title="Mi Subscripción" subtitle="Información de tu plan activo." />
 
       {loading ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">

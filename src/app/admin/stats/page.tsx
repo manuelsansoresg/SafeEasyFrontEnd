@@ -31,6 +31,7 @@ import {
   X,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
+import { PageHero } from "@/components/ui/PageHero";
 
 type DateRange = "last7" | "last30" | "month";
 type StatsInterval = "day" | "week" | "month";
@@ -537,16 +538,11 @@ export default function AdminStatsPage() {
 
   return (
     <div className="space-y-6 font-[family-name:var(--font-poppins)]">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#168e00]">Panel proveedor</p>
-          <h1 className="mt-2 text-3xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
-            Estadísticas
-          </h1>
-          <p className="mt-1 text-gray-500">Ventas, pedidos y rentabilidad de {data.supplierName}.</p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
+      <PageHero
+        title="Estadísticas"
+        subtitle={`Ventas, pedidos y rentabilidad de ${data.supplierName}.`}
+        actions={
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
           {([
             ["last7", "7 días"],
             ["last30", "30 días"],
@@ -572,7 +568,8 @@ export default function AdminStatsPage() {
             <option value="month">Mes</option>
           </select>
         </div>
-      </div>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard

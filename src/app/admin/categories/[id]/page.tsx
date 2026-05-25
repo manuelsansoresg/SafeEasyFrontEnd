@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import CategoryForm from "@/components/admin/CategoryForm";
+import { PageHero } from "@/components/ui/PageHero";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -80,9 +81,6 @@ export default function EditCategoryPage() {
   if (error || !category) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <div className="bg-red-50 text-red-600 p-4 rounded-full">
-            <ArrowLeft size={32} />
-        </div>
         <h2 className="text-xl font-bold text-gray-800">Error</h2>
         <p className="text-gray-500">{error || "Categoría no encontrada"}</p>
         <Link 
@@ -96,19 +94,17 @@ export default function EditCategoryPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <Link 
-          href="/admin/categories" 
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500 hover:text-gray-900"
-        >
-          <ArrowLeft size={24} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Editar Categoría</h1>
-          <p className="text-gray-500">Modifica los datos de la categoría <span className="font-medium text-gray-900">{category.name}</span>.</p>
-        </div>
-      </div>
+    <div className="w-full space-y-6">
+      <PageHero
+        title="Editar Categoría"
+        subtitle={`Modifica los datos de la categoría ${category.name}.`}
+        actions={
+          <Link href="/admin/categories" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
+            <ArrowLeft size={16} />
+            Volver
+          </Link>
+        }
+      />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
         <CategoryForm initialData={category} />

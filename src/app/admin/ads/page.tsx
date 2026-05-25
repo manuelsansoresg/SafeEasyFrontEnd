@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { adsService, AdItem } from "@/services/adsService";
 import { Loader2, Plus, Trash2, EyeOff, Eye, Pencil } from "lucide-react";
 import FileUpload from "@/components/ui/FileUpload";
+import { PageHero } from "@/components/ui/PageHero";
 
 const PAGE_LIMIT = 10;
 
@@ -154,14 +155,7 @@ export default function AdminAdsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Anuncios</h1>
-          <p className="text-gray-500 text-sm">
-            Gestiona los banners promocionales de la plataforma.
-          </p>
-        </div>
-      </div>
+      <PageHero title="Anuncios" subtitle="Gestiona los banners promocionales de la plataforma." />
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">

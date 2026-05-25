@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Store, Image, ShieldCheck, LayoutDashboard, CheckCircle } from 'lucide-react';
+import { Store, Image, ShieldCheck, LayoutDashboard } from 'lucide-react';
+import { PageHero } from '@/components/ui/PageHero';
 
 export default function WelcomePage() {
   return (
@@ -13,18 +14,12 @@ export default function WelcomePage() {
         transition={{ duration: 0.5 }}
         className="max-w-4xl w-full text-center"
       >
-        <div className="mb-8 flex justify-center">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-            <CheckCircle className="w-10 h-10 text-green-500" />
-          </div>
+        <div className="mb-12 text-left">
+          <PageHero
+            title="Bienvenido a SafeEasy"
+            subtitle="Su cuenta ha sido creada exitosamente. Ahora personalice su espacio para comenzar a vender de manera profesional."
+          />
         </div>
-        
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          ¡Bienvenido a SafeEasy!
-        </h1>
-        <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
-          Su cuenta ha sido creada exitosamente. Ahora personalice su espacio para comenzar a vender de manera profesional.
-        </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <WelcomeCard 

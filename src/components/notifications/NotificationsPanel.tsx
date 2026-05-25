@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { notificationService, NotificationItem } from "@/services/notificationService";
+import { PageHero } from "@/components/ui/PageHero";
 
 export default function NotificationsPanel() {
   const [items, setItems] = useState<NotificationItem[]>([]);
@@ -63,13 +64,11 @@ export default function NotificationsPanel() {
   }, [items, query]);
 
   return (
-    <div className="w-full md:max-w-2xl md:mx-auto">
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-        <div className="p-4 flex items-center justify-between border-b border-gray-50">
-          <div>
-            <h2 className="font-bold text-xl text-gray-900">Notificaciones</h2>
-            <p className="text-xs text-gray-500">Tus alertas recientes</p>
-          </div>
+    <div className="w-full space-y-6 font-[family-name:var(--font-poppins)]">
+      <PageHero
+        title="Notificaciones"
+        subtitle="Revisa tus alertas recientes y mantente al día con tu actividad."
+        actions={
           <button
             onClick={() => load()}
             disabled={loading}
@@ -77,9 +76,10 @@ export default function NotificationsPanel() {
           >
             Actualizar
           </button>
-        </div>
-
-        <div className="px-4 py-2 border-b border-gray-50">
+        }
+      />
+      <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-50">
           <div className="relative">
             <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
             <input

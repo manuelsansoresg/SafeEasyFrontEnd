@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { fetchWithAuth } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { cn } from "@/lib/utils";
+import { PageHero } from "@/components/ui/PageHero";
 import { CheckCircle, Loader2 } from "lucide-react";
 
 type AdminSettings = {
@@ -177,28 +178,25 @@ export default function ShippingSettingsPage() {
 
   if (!token) {
     return (
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <h1 className="text-2xl font-bold text-gray-800">Lógica de Costo de Envío (Mérida)</h1>
-        <p className="text-gray-500 mt-2">Inicia sesión para ver esta sección.</p>
+      <div className="space-y-6">
+        <PageHero title="Lógica de Costo de Envío (Mérida)" subtitle="Configura la distancia mínima y el costo extra por kilómetro." />
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-gray-500">Inicia sesión para ver esta sección.</div>
       </div>
     );
   }
 
   if (!isAdmin) {
     return (
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <h1 className="text-2xl font-bold text-gray-800">Lógica de Costo de Envío (Mérida)</h1>
-        <p className="text-gray-500 mt-2">No autorizado.</p>
+      <div className="space-y-6">
+        <PageHero title="Lógica de Costo de Envío (Mérida)" subtitle="Configura la distancia mínima y el costo extra por kilómetro." />
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 text-gray-500">No autorizado.</div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">Lógica de Costo de Envío (Mérida)</h1>
-        <p className="text-gray-500 mt-1">Configura la distancia mínima y el costo extra por kilómetro.</p>
-      </div>
+      <PageHero title="Lógica de Costo de Envío (Mérida)" subtitle="Configura la distancia mínima y el costo extra por kilómetro." />
 
       {toast ? (
         <div

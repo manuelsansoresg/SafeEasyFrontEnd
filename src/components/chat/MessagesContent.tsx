@@ -7,6 +7,7 @@ import { chatService } from "@/services/chatService";
 import { Conversation, Message } from "@/types/chat";
 import { useChatInboxWebSocket, useChatWebSocket } from "@/hooks/useChatWebSocket";
 import { fetchWithAuth } from "@/lib/api";
+import { PageHero } from "@/components/ui/PageHero";
 import { 
   Send, Search, MessageSquare, Info, Package, CheckCheck, 
   FileText, Download, Image as ImageIcon, Loader2, Paperclip, X,
@@ -460,7 +461,9 @@ export function MessagesContent() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-100px)] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden font-sans">
+    <div className="space-y-6 font-[family-name:var(--font-poppins)]">
+      <PageHero title="Mensajes" subtitle="Continúa tus conversaciones con clientes y proveedores." />
+      <div className="flex h-[calc(100vh-180px)] min-h-[520px] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       {/* Sidebar - Conversations List */}
       <div className={`w-full md:w-[320px] lg:w-[360px] border-r border-gray-200 flex flex-col bg-white z-20 ${activeConversation ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 px-5">
@@ -971,6 +974,7 @@ export function MessagesContent() {
 
         </div>
       )}
+      </div>
     </div>
   );
 }

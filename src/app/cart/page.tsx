@@ -5,6 +5,7 @@ import Link from "next/link";
 import { fetchWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
+import { PageHero } from "@/components/ui/PageHero";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
 import { Minus, Plus, ShieldCheck, Store, Trash2, X } from "lucide-react";
@@ -807,12 +808,7 @@ export default function CartPage() {
   return (
     <div className="font-[family-name:var(--font-poppins)]">
       <div className="space-y-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="flex items-center gap-2">
-            <Store size={22} className="text-primary" />
-            <h1 className="text-2xl font-bold text-gray-900">Carrito</h1>
-          </div>
-        </div>
+        <PageHero title="Mi Carrito" subtitle="Revisa tus productos seleccionados y completa tu compra." />
 
         {loading ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

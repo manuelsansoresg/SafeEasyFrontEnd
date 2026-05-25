@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
 import FileUpload from "@/components/ui/FileUpload";
+import { PageHero } from "@/components/ui/PageHero";
 import {
   Loader2,
   Package,
@@ -1029,14 +1030,11 @@ export default function ClientOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Mis Pedidos</h1>
-          <p className="mt-1 text-gray-500 font-[family-name:var(--font-poppins)]">
-            Revisa el estado de tus compras y sube tu comprobante cuando sea necesario.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <PageHero
+        title="Mis Pedidos"
+        subtitle="Revisa el estado de tus compras y sube tu comprobante cuando sea necesario."
+        actions={
+          <>
           <span className="bg-[#004e28]/10 text-[#004e28] px-3 py-1 rounded-full text-sm font-semibold font-[family-name:var(--font-poppins)]">
             Mostrando {visibleOrdersStart}-{visibleOrdersEnd} de {regularOrders.length} pedidos
           </span>
@@ -1045,8 +1043,9 @@ export default function ClientOrdersPage() {
               {readyOrders.length} listos
             </span>
           ) : null}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {orders.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[380px] text-center p-8 bg-white rounded-2xl border border-gray-100 shadow-sm">

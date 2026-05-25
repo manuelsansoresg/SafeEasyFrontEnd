@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import SupplierForm from "@/components/admin/SupplierForm";
 import StepCarousel from "@/components/sell/wizard/StepCarousel";
 import StepCertificates from "@/components/sell/wizard/StepCertificates";
+import { PageHero } from "@/components/ui/PageHero";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -101,18 +102,16 @@ export default function EditSupplierPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link
-          href="/admin/suppliers"
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Editar Proveedor</h1>
-          <p className="text-gray-500 mt-1">Modifica los datos del proveedor {supplier.name}.</p>
-        </div>
-      </div>
+      <PageHero
+        title="Editar Proveedor"
+        subtitle={`Modifica los datos del proveedor ${supplier.name}.`}
+        actions={
+          <Link href="/admin/suppliers" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
+            <ArrowLeft size={16} />
+            Volver
+          </Link>
+        }
+      />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex space-x-4 border-b border-gray-200 mb-8">

@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import * as Icons from "lucide-react";
 import { Toast } from "@/components/ui/Toast";
+import { PageHero } from "@/components/ui/PageHero";
 
 interface Category {
   id: number;
@@ -104,11 +105,10 @@ export default function AdminCategoriesPage() {
   return (
     <div className="space-y-6">
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Categorías</h1>
-          <p className="text-gray-500 mt-1">Gestiona las categorías de productos.</p>
-        </div>
+      <PageHero
+        title="Categorías"
+        subtitle="Gestiona las categorías de productos."
+        actions={
         <Link 
           href="/admin/categories/create" 
           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
@@ -116,7 +116,8 @@ export default function AdminCategoriesPage() {
           <Plus size={20} />
           Nueva Categoría
         </Link>
-      </div>
+        }
+      />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex gap-4">

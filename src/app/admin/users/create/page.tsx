@@ -1,24 +1,23 @@
 "use client";
 
 import UserForm from "@/components/admin/UserForm";
-import Link from "next/link";
+import { PageHero } from "@/components/ui/PageHero";
 import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 export default function CreateUserPage() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link 
-          href="/admin/users" 
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Nuevo Usuario</h1>
-          <p className="text-gray-500 mt-1">Crea un nuevo usuario en el sistema.</p>
-        </div>
-      </div>
+      <PageHero
+        title="Nuevo Usuario"
+        subtitle="Crea un nuevo usuario en el sistema."
+        actions={
+          <Link href="/admin/users" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
+            <ArrowLeft size={16} />
+            Volver
+          </Link>
+        }
+      />
 
       <UserForm />
     </div>

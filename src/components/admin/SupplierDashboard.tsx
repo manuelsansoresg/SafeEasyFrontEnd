@@ -3,22 +3,23 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Store, Image, ShieldCheck, Package } from 'lucide-react';
+import { PageHero } from '@/components/ui/PageHero';
 
 export default function SupplierDashboard() {
   return (
-    <div className="flex flex-col items-center justify-center p-4">
+    <div className="w-full">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="max-w-4xl w-full text-center"
+        className="w-full"
       >
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          ¡Bienvenido a SafeEasy!
-        </h1>
-        <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
-          Gestione su empresa, personalice su sitio y administre sus productos desde aquí.
-        </p>
+        <div className="mb-12">
+          <PageHero
+            title="Bienvenido a SafeEasy"
+            subtitle="Gestione su empresa, personalice su sitio y administre sus productos desde aquí."
+          />
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <DashboardCard 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import SupplierDashboard from "@/components/admin/SupplierDashboard";
+import { PageHero } from "@/components/ui/PageHero";
 import { 
   Users, 
   Store, 
@@ -115,14 +116,11 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header & Filters */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Panel de Administración</h1>
-          <p className="text-gray-500 mt-1">Resumen general y estadísticas de la plataforma</p>
-        </div>
-        
-        <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+      <PageHero
+        title="Panel de Administración"
+        subtitle="Resumen general y estadísticas de la plataforma."
+        actions={
+          <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
           <div className="flex items-center gap-2">
             <CalendarIcon size={16} className="text-gray-400" />
             <span className="text-sm text-gray-600 font-medium">Filtrar:</span>
@@ -148,7 +146,8 @@ export default function AdminDashboardPage() {
             <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
-      </div>
+        }
+      />
 
       {loading && !stats ? (
         <div className="h-64 flex items-center justify-center text-gray-500">

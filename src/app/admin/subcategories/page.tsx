@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
+import { PageHero } from "@/components/ui/PageHero";
 
 interface Subcategory {
   id: number;
@@ -123,11 +124,10 @@ export default function AdminSubcategoriesPage() {
   return (
     <div className="space-y-6">
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Subcategorías</h1>
-          <p className="text-gray-500 mt-1">Gestiona las subcategorías de productos.</p>
-        </div>
+      <PageHero
+        title="Subcategorías"
+        subtitle="Gestiona las subcategorías de productos."
+        actions={
         <Link 
           href="/admin/subcategories/create" 
           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
@@ -135,7 +135,8 @@ export default function AdminSubcategoriesPage() {
           <Plus size={20} />
           Nueva Subcategoría
         </Link>
-      </div>
+        }
+      />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex gap-4">

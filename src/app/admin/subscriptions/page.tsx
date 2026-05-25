@@ -8,6 +8,7 @@ import { subscriptionsService } from "@/services/subscriptionsService";
 import type { Subscription } from "@/types/subscriptions";
 import EditSubscriptionModal from "@/app/admin/subscriptions/components/EditSubscriptionModal";
 import EventsModal from "@/app/admin/subscriptions/components/EventsModal";
+import { PageHero } from "@/components/ui/PageHero";
 import {
   BadgeDollarSign,
   CheckCircle,
@@ -154,11 +155,10 @@ export default function AdminSubscriptionsPage() {
         }}
       />
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Subscripciones</h1>
-          <p className="text-gray-500 mt-1">Gestiona las subscripciones de los usuarios.</p>
-        </div>
+      <PageHero
+        title="Subscripciones"
+        subtitle="Gestiona las subscripciones de los usuarios."
+        actions={
         <Link
           href="/admin/plans"
           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
@@ -166,7 +166,8 @@ export default function AdminSubscriptionsPage() {
           <BadgeDollarSign size={20} />
           Gestionar Planes
         </Link>
-      </div>
+        }
+      />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">

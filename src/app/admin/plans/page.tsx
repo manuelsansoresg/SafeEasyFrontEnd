@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { Toast } from "@/components/ui/Toast";
+import { PageHero } from "@/components/ui/PageHero";
 import {
   CheckCircle,
   Edit2,
@@ -140,11 +141,10 @@ export default function AdminPlansPage() {
     <div className="space-y-6">
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Planes</h1>
-          <p className="text-gray-500 mt-1">Gestiona los planes disponibles.</p>
-        </div>
+      <PageHero
+        title="Planes"
+        subtitle="Gestiona los planes disponibles."
+        actions={
         <Link
           href="/admin/plans/create"
           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
@@ -152,7 +152,8 @@ export default function AdminPlansPage() {
           <Plus size={20} />
           Nuevo Plan
         </Link>
-      </div>
+        }
+      />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-4 sm:items-center">

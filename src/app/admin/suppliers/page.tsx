@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
+import { PageHero } from "@/components/ui/PageHero";
 
 interface Supplier {
   id: number;
@@ -325,11 +326,10 @@ export default function AdminSuppliersPage() {
   return (
     <div className="space-y-6">
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Gestión de Proveedores</h1>
-          <p className="text-gray-500 mt-1">Administra la lista de proveedores del sistema.</p>
-        </div>
+      <PageHero
+        title="Gestión de Proveedores"
+        subtitle="Administra la lista de proveedores del sistema."
+        actions={
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -347,7 +347,8 @@ export default function AdminSuppliersPage() {
             <span>Nuevo Proveedor</span>
           </Link>
         </div>
-      </div>
+        }
+      />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
