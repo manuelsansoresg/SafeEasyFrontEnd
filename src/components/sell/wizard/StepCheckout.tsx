@@ -207,7 +207,7 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
   useEffect(() => {
     let mounted = true;
 
-    fetch('/api/plans?skip=0&limit=1000&only_active=true')
+    fetch('/api/plans/?skip=0&limit=1000&only_active=true')
       .then((response) => (response.ok ? response.json() : []))
       .then((plans: unknown) => {
         if (!mounted) return;
@@ -309,7 +309,7 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
         role: 'supplier',
       });
 
-      const supplierResponse = await fetchWithAuth('/api/suppliers', {
+      const supplierResponse = await fetchWithAuth('/api/suppliers/', {
         method: 'POST',
         body: buildSupplierFormData(userBody.id, formData.companyName, formData.email),
       });
