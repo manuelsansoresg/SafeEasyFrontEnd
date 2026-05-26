@@ -28,7 +28,8 @@ interface Supplier {
 
 export default function EditSupplierPage() {
   const params = useParams();
-  const id = params.id;
+  const idParam = params.id;
+  const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const { token } = useAuthStore();
 
   const [supplier, setSupplier] = useState<Supplier | null>(null);
@@ -38,33 +39,79 @@ export default function EditSupplierPage() {
 
   useEffect(() => {
     const fetchSupplier = async () => {
-      if (!token || !id) return;
+      if (!id) {
+        setError("Proveedor no encontrado");
+        setLoading(false);
+        return;
+      }
+
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
       try {
-        const response = await fetchWithAuth(`/api/suppliers/${id}/`);
+        setLoading(true);
+        setError(null);
+        const encodedId = encodeURIComponent(String(id));
+        const detailUrls = [
+          `/api/suppliers/${encodedId}`,
+          `/api/suppliers/${encodedId}/`,
+          `/api/v1/suppliers/${encodedId}`,
+          `/api/v1/suppliers/${encodedId}/`,
+        ];
 
-        if (response.ok) {
-          const data = await response.json();
-          setSupplier(data);
-        } else {
-          const listResponse = await fetchWithAuth(`/api/suppliers/?skip=0&limit=1000`);
+        let detailError = "";
+        for (const url of detailUrls) {
+          try {
+            const response = await fetchWithAuth(url, { headers: { Accept: "application/json" } });
 
+            if (response.ok) {
+              const data = await response.json();
+              setSupplier(data);
+              return;
+            }
+
+            const text = await response.text().catch(() => "");
+            detailError = `Error ${response.status}${text ? `: ${text}` : ""}`;
+          } catch (err: unknown) {
+            detailError =
+              err instanceof Error ? `Error de conexión: ${err.message}` : "Error de conexión desconocido";
+            console.error(`Fetch error loading supplier ${id} from ${url}:`, err);
+          }
+        }
+
+        const listUrls = [
+          `/api/suppliers/?skip=0&limit=1000`,
+          `/api/suppliers?skip=0&limit=1000`,
+        ];
+
+        for (const url of listUrls) {
+          const listResponse = await fetchWithAuth(url, { headers: { Accept: "application/json" } }).catch(
+            (err: unknown) => {
+              console.error(`Fetch error loading supplier list from ${url}:`, err);
+              return null;
+            },
+          );
+
+          if (!listResponse) continue;
           if (listResponse.ok) {
             const listData = await listResponse.json();
-            const found = Array.isArray(listData)
-              ? listData.find((s: Supplier) => String(s.id) === String(id))
-              : null;
+            const list = Array.isArray(listData)
+              ? listData
+              : listData && typeof listData === "object" && Array.isArray((listData as Record<string, unknown>).items)
+                ? ((listData as Record<string, unknown>).items as Supplier[])
+                : [];
+            const found = list.find((s: Supplier) => String(s.id) === String(id));
 
             if (found) {
               setSupplier(found);
               return;
             }
           }
-
-          const text = await response.text();
-          setError(`No se pudo cargar la información del proveedor (Error ${response.status})`);
-          console.error(`Error loading supplier ${id}:`, response.status, text);
         }
+
+        setError(detailError || "No se pudo cargar la información del proveedor");
       } catch (err: unknown) {
         if (err instanceof Error) {
           setError(`Error de conexión: ${err.message}`);
