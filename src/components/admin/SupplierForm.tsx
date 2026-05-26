@@ -1399,67 +1399,6 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
             />
           </div>
 
-          <div className="pt-6 border-t border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Datos Bancarios para Transferencias</h3>
-            
-            <div className="flex items-center gap-2 mb-4">
-                <input 
-                    type="checkbox" 
-                    id="transfer_accepted_admin"
-                    name="transfer_accepted" 
-                    checked={formData.transfer_accepted} 
-                    onChange={handleInputChange}
-                    className="h-5 w-5 text-primary border-gray-300 rounded focus:ring-primary"
-                />
-                <label htmlFor="transfer_accepted_admin" className="text-gray-700 font-medium select-none cursor-pointer">
-                    Acepto recibir pagos por transferencia bancaria
-                </label>
-            </div>
-
-            {formData.transfer_accepted && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg">
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Beneficiario</label>
-                        <input 
-                            type="text" 
-                            name="transfer_name" 
-                            value={formData.transfer_name} 
-                            onChange={handleInputChange} 
-                            className="w-full px-3 py-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                            placeholder="Nombre completo del titular de la cuenta"
-                        />
-                    </div>
-                    
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
-                        <input 
-                            type="text" 
-                            name="transfer_bank" 
-                            value={formData.transfer_bank} 
-                            onChange={handleInputChange} 
-                            className="w-full px-3 py-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                            placeholder="Ej. BBVA, Santander"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">CLABE Interbancaria</label>
-                        <input 
-                            type="text" 
-                            name="transfer_clabe" 
-                            value={formData.transfer_clabe} 
-                            onChange={(e) => {
-                                const val = e.target.value.replace(/\D/g, '').slice(0, 18);
-                                setFormData(prev => ({ ...prev, transfer_clabe: val }));
-                            }} 
-                            className="w-full px-3 py-2 border rounded-md border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
-                            placeholder="18 dígitos"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Debe contener exactamente 18 dígitos.</p>
-                    </div>
-                </div>
-            )}
-          </div>
         </div>
       </div>
 
