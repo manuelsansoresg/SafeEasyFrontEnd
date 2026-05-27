@@ -86,8 +86,8 @@ export function RecommendationsSection({
     try {
       let newProducts: Product[] = [];
 
-      if (debouncedSearch) {
-        // Search Logic: Call getProducts
+      if (debouncedSearch || category || subcategory || minPrice !== undefined || maxPrice !== undefined || bestRated) {
+        // Product listing logic: category filters must show the products in that category.
         const page = Math.floor(currentSkip / limit) + 1;
         
         // Determinar ubicación: Si no hay city/lat/long, usar "Mérida" por defecto
