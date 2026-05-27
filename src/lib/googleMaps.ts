@@ -74,6 +74,39 @@ export const parseMapLocation = (value: unknown): LatLngLiteral | null => {
   return null;
 };
 
+const isValidLocation = (location: LatLngLiteral) => {
+  return (
+    Number.isFinite(location.lat) &&
+    Number.isFinite(location.lng) &&
+    Math.abs(location.lat) <= 90 &&
+    Math.abs(location.lng) <= 180
+  );
+};
+
+const distanceKmStraightLine = (origin: LatLngLiteral, destination: LatLngLiteral) => {
+  const earthRadiusKm = 6371;
+  const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+  const lat1 = toRadians(origin.lat);
+  const lat2 = toRadians(destination.lat);
+  const deltaLat = toRadians(destination.lat - origin.lat);
+  const deltaLng = toRadians(destination.lng - origin.lng);
+
+  const a =
+    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+};
+
+const fallbackDrivingDistanceKm = (origin: LatLngLiteral, destination: LatLngLiteral) => {
+  const straightKm = distanceKmStraightLine(origin, destination);
+  if (!Number.isFinite(straightKm) || straightKm < 0) {
+    throw new Error("No se pudo calcular la distancia.");
+  }
+
+  return Number((straightKm * 1.25).toFixed(2));
+};
+
 export const loadGoogleMaps = async (libraries: string[] = ["places"]): Promise<GoogleMapsApi> => {
   if (typeof window === "undefined") throw new Error("Google Maps solo está disponible en el navegador.");
   if (window.google?.maps) return window.google;
@@ -112,9 +145,18 @@ export const loadGoogleMaps = async (libraries: string[] = ["places"]): Promise<
 };
 
 export const distanceKmDriving = async (origin: LatLngLiteral, destination: LatLngLiteral): Promise<number> => {
-  const g = await loadGoogleMaps(["places"]);
+  if (!isValidLocation(origin) || !isValidLocation(destination)) {
+    throw new Error("Coordenadas inválidas para calcular la distancia.");
+  }
 
-  return await new Promise<number>((resolve, reject) => {
+  let g: GoogleMapsApi;
+  try {
+    g = await loadGoogleMaps(["places"]);
+  } catch {
+    return fallbackDrivingDistanceKm(origin, destination);
+  }
+
+  return await new Promise<number>((resolve) => {
     const service = new g.maps.DistanceMatrixService();
     service.getDistanceMatrix(
       {
@@ -125,15 +167,15 @@ export const distanceKmDriving = async (origin: LatLngLiteral, destination: LatL
       },
       (res, status) => {
         if (status !== "OK" || !res) {
-          reject(new Error(`Google DistanceMatrix error: ${status || "unknown"}`));
+          resolve(fallbackDrivingDistanceKm(origin, destination));
           return;
         }
 
         const element = res.rows?.[0]?.elements?.[0];
         const valueMeters = element?.distance?.value;
         const value = Number(valueMeters);
-        if (!Number.isFinite(value) || value <= 0) {
-          reject(new Error("No se pudo calcular la distancia."));
+        if (!Number.isFinite(value) || value < 0) {
+          resolve(fallbackDrivingDistanceKm(origin, destination));
           return;
         }
         resolve(value / 1000);
