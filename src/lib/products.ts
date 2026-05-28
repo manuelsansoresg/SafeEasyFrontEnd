@@ -157,7 +157,7 @@ export async function getProducts(
   
   const headers: Record<string, string> = {
     'Accept': 'application/json',
-    'User-Agent': 'SafeEasyFrontEnd/1.0'
+    'User-Agent': 'DrooopyFrontEnd/1.0'
   };
 
   if (token) {

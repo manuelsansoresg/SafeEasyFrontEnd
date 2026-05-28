@@ -12,7 +12,7 @@ export function WelcomeSection() {
         ¡Hola, <span className="text-primary">{isAuthenticated ? user?.name : "Invitado"}</span>!
       </h1>
       <p className="text-muted-foreground mt-1">
-        Bienvenido a SafeEasy. {isAuthenticated ? "Nos alegra verte de nuevo." : "Encuentra los mejores productos para tu negocio."}
+        Bienvenido a Drooopy. {isAuthenticated ? "Nos alegra verte de nuevo." : "Encuentra los mejores productos para tu negocio."}
       </p>
       {!isAuthenticated && (
         <div className="mt-4">

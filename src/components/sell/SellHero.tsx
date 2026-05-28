@@ -7,7 +7,7 @@ const slides = [
   {
     id: 1,
     image: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1932&q=80',
-    title: 'Vende con SafeEasy',
+    title: 'Vende con Drooopy',
     description: 'Amplíe su negocio y globalícese con una membresía',
     buttonText: 'Empieza a vender ahora',
     link: '#plans',

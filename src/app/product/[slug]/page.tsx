@@ -665,7 +665,7 @@ export default function ProductDetailPage() {
   const getFullImageUrl = (path: string | null) => {
     if (!path) return "";
     if (path.startsWith("http")) return path;
-    const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8080').replace(/\/+$/, '');
+    const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api').replace(/\/+$/, '');
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
     return `${baseUrl}${cleanPath}`.replace(/([^:])\/{2,}/g, '$1/');
   };

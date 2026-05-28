@@ -20,7 +20,7 @@ export default function SellPage() {
             ¿Listo para expandir su negocio?
           </h2>
           <p className="text-xl md:text-2xl text-white/90 mb-10 max-w-3xl mx-auto">
-            Únase a miles de proveedores que ya confían en SafeEasy para sus ventas B2B.
+            Únase a miles de proveedores que ya confían en Drooopy para sus ventas B2B.
           </p>
           <a
             href="/sell/register"

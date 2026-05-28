@@ -14,12 +14,12 @@ const faqs = [
     answer: "Para aumentar la confianza de los compradores, ofrecemos un distintivo de 'Empresa Verificada'. Puede solicitarlo subiendo documentos oficiales (como acta constitutiva o identificación fiscal) desde su panel de control. Nuestro equipo revisará la información en menos de 48 horas."
   },
   {
-    question: "¿Puedo compartir mi tienda con clientes fuera de SafeEasy?",
-    answer: "¡Sí! Al registrarse obtiene una URL personalizada (ej. safeeasy.com/mi-empresa) que funciona como su propio sitio web. Puede compartir este enlace en sus redes sociales, correos o WhatsApp para que sus clientes vean su catálogo completo."
+    question: "¿Puedo compartir mi tienda con clientes fuera de Drooopy?",
+    answer: "¡Sí! Al registrarse obtiene una URL personalizada (ej. drooopy.com/mi-empresa) que funciona como su propio sitio web. Puede compartir este enlace en sus redes sociales, correos o WhatsApp para que sus clientes vean su catálogo completo."
   },
   {
     question: "¿Hay comisiones por venta?",
-    answer: "SafeEasy opera principalmente bajo un modelo de suscripción. El plan Básico tiene una pequeña comisión por transacción para mantener la plataforma. Los planes Profesional y Empresarial disfrutan de 0% de comisión por venta, permitiéndole maximizar sus ganancias."
+    answer: "Drooopy opera principalmente bajo un modelo de suscripción. El plan Básico tiene una pequeña comisión por transacción para mantener la plataforma. Los planes Profesional y Empresarial disfrutan de 0% de comisión por venta, permitiéndole maximizar sus ganancias."
   },
   {
     question: "¿Puedo cambiar de plan en cualquier momento?",

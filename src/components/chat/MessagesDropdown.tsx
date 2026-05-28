@@ -1,20 +1,32 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
-import { MessageSquare, Search } from "lucide-react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { LifeBuoy, MessageSquare, Search } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useChat } from "@/context/ChatContext";
 import { useChatStore } from "@/store/useChatStore";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { Conversation } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import { markSupportConversationReadLocally, supportChatService } from "@/services/supportChatService";
+import type { SupportConversation } from "@/types/support-chat";
+import { useRouter } from "next/navigation";
+
+type DropdownItem =
+  | { type: "marketplace"; conversation: Conversation; date: string; unread: number }
+  | { type: "support"; conversation: SupportConversation; date: string; unread: number };
 
 export function MessagesDropdown() {
   const { user, token } = useAuthStore();
   const { openChat } = useChat();
   const { conversations, loading, markAsRead, fetchConversations } = useChatStore();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [chatEnabled, setChatEnabled] = useState(true);
+  const [chatEnabled, setChatEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("safeeasy:chat_enabled") !== "0";
+  });
+  const [supportConversations, setSupportConversations] = useState<SupportConversation[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   useChatInboxWebSocket(chatEnabled && !!token);
 
@@ -29,23 +41,67 @@ export function MessagesDropdown() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Check if chat is enabled locally
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = window.localStorage.getItem("safeeasy:chat_enabled");
-      setChatEnabled(stored !== "0");
-    }
-  }, []);
-
   useEffect(() => {
     if (!chatEnabled || !token) return;
     fetchConversations();
   }, [chatEnabled, token, fetchConversations]);
 
+  const loadSupportConversations = useCallback(() => {
+    if (!chatEnabled || !token || !user) {
+      return () => {};
+    }
+
+    let disposed = false;
+    supportChatService
+      .getConversations()
+      .then((items) => {
+        if (!disposed) setSupportConversations(items);
+      })
+      .catch(() => {
+        if (!disposed) setSupportConversations([]);
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [chatEnabled, token, user]);
+
+  useEffect(() => loadSupportConversations(), [loadSupportConversations]);
+
+  useEffect(() => {
+    const handleRead = (event: Event) => {
+      const conversationId = (event as CustomEvent<{ conversationId?: string }>).detail?.conversationId;
+      if (!conversationId) return;
+      setSupportConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === conversationId ? { ...conversation, unread_count: 0 } : conversation
+        )
+      );
+    };
+
+    window.addEventListener("support-chat-read", handleRead);
+    return () => window.removeEventListener("support-chat-read", handleRead);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const cleanup = loadSupportConversations();
+    fetchConversations();
+    return cleanup;
+  }, [fetchConversations, isOpen, loadSupportConversations]);
+
+  useEffect(() => {
+    if (!chatEnabled || !token || !user) return;
+    const interval = window.setInterval(() => {
+      loadSupportConversations();
+    }, 30000);
+    return () => window.clearInterval(interval);
+  }, [chatEnabled, loadSupportConversations, token, user]);
+
   // Derived state for unread count
   const unreadCount = useMemo(() => {
     if (!chatEnabled || !user) return 0;
-    return conversations
+    const marketplaceUnread = conversations
       .filter(c => {
         // Filter out self-chats from unread count
         const myId = String(user.id);
@@ -60,7 +116,9 @@ export function MessagesDropdown() {
         return !(supplierId === myId && buyerId === myId);
       })
       .reduce((acc, curr) => acc + (curr.unread_count || 0), 0);
-  }, [conversations, chatEnabled, user]);
+    const supportUnread = supportConversations.reduce((acc, curr) => acc + (curr.unread_count || 0), 0);
+    return marketplaceUnread + supportUnread;
+  }, [conversations, chatEnabled, supportConversations, user]);
 
   const toggleOpen = () => setIsOpen(!isOpen);
 
@@ -96,7 +154,7 @@ export function MessagesDropdown() {
              const convUserId = String(conv.user.id);
              // CRITICAL: Only use conv.user if it is NOT me.
              if (convUserId !== myId) {
-                 const name = (conv.user as any).name || `${(conv.user as any).first_name || ''} ${(conv.user as any).last_name || ''}`.trim();
+                 const name = conv.user.name || `${conv.user.first_name || ''} ${conv.user.last_name || ''}`.trim();
                  if (name && name.toLowerCase() !== myName.toLowerCase()) return name;
              }
          }
@@ -152,8 +210,7 @@ export function MessagesDropdown() {
           user.role === "supplier" ||
           user.role === "admin"
         ) {
-            // Use 'any' cast to check properties not in strict interface
-            const userObj = conv.user as any;
+            const userObj = conv.user;
             if (userObj && String(userObj.id) !== myId) {
                 return userObj.image || userObj.avatar || conv.user_image || null;
             }
@@ -187,7 +244,7 @@ export function MessagesDropdown() {
         } else {
             return new Intl.DateTimeFormat('es', { month: 'short', day: 'numeric' }).format(date);
         }
-    } catch (e) {
+    } catch {
         return '';
     }
   };
@@ -244,6 +301,48 @@ export function MessagesDropdown() {
         })
         .slice(0, 5);
   }, [conversations, chatEnabled, user]);
+
+  const displayItems = useMemo<DropdownItem[]>(() => {
+    if (!chatEnabled || !user) return [];
+
+    const marketplaceItems: DropdownItem[] = displayConversations.map((conversation) => ({
+      type: "marketplace",
+      conversation,
+      date: conversation.updated_at || conversation.created_at || "",
+      unread: conversation.unread_count || 0,
+    }));
+
+    const supportItems: DropdownItem[] = supportConversations.map((conversation) => ({
+      type: "support",
+      conversation,
+      date: conversation.last_message_time || conversation.created_at || "",
+      unread: conversation.unread_count || 0,
+    }));
+
+    return [...supportItems, ...marketplaceItems]
+      .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+      .slice(0, 6);
+  }, [chatEnabled, displayConversations, supportConversations, user]);
+
+  const getSupportName = (conv: SupportConversation) => {
+    const role = String(user?.role || "").toLowerCase();
+    if (role === "admin" || role === "superuser") return conv.user_name || `Usuario #${conv.user_id}`;
+    return conv.admin_name || "Soporte Drooopy";
+  };
+
+  const openSupportConversation = (conv: SupportConversation) => {
+    const role = String(user?.role || "").toLowerCase();
+    const basePath = role === "admin" || role === "superuser" ? "/admin/support" : "/support";
+    markSupportConversationReadLocally(conv);
+    supportChatService.markAsRead(conv.id).catch(() => {});
+    setSupportConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === conv.id ? { ...conversation, unread_count: 0 } : conversation
+      )
+    );
+    setIsOpen(false);
+    router.push(`${basePath}/${conv.id}`);
+  };
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -317,18 +416,53 @@ export function MessagesDropdown() {
                     <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                     <span className="text-xs">Cargando...</span>
                 </div>
-             ) : displayConversations.length === 0 ? (
+             ) : displayItems.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
                     <p>No tienes mensajes recientes.</p>
                 </div>
              ) : (
-                displayConversations.map(conv => {
-                    const unread = conv.unread_count || 0;
+                displayItems.map(item => {
+                    if (item.type === "support") {
+                      const conv = item.conversation;
+                      const isNew = item.unread > 0;
+                      return (
+                        <div
+                          key={`support-${conv.id}`}
+                          onClick={() => openSupportConversation(conv)}
+                          className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors mx-2 rounded-lg group cursor-pointer"
+                        >
+                          <div className="relative shrink-0">
+                            <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center overflow-hidden border border-primary/10 text-white">
+                              <LifeBuoy size={24} />
+                            </div>
+                            <div className="absolute -bottom-0.5 -right-0.5 rounded-full bg-[#168e00] px-1.5 py-0.5 text-[9px] font-bold text-white">
+                              Soporte
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-gray-900 text-[15px] truncate flex items-center gap-1">
+                              <span className="truncate">{getSupportName(conv)}</span>
+                            </h4>
+                            <div className="flex items-center gap-1 text-[13px] text-gray-500">
+                              <p className={cn("truncate max-w-[160px]", isNew && "font-semibold text-gray-900")}>
+                                {conv.last_message || conv.subject}
+                              </p>
+                              <span>·</span>
+                              <span className="shrink-0">{formatTime(item.date)}</span>
+                            </div>
+                          </div>
+                          {isNew && <div className="w-3 h-3 bg-blue-600 rounded-full shrink-0"></div>}
+                        </div>
+                      );
+                    }
+
+                    const conv = item.conversation;
+                    const unread = item.unread;
                     const isNew = unread > 0;
 
                     return (
                     <div 
-                        key={conv.id}
+                        key={`marketplace-${conv.id}`}
                         onClick={() => {
                             openChat(conv);
                             setIsOpen(false);

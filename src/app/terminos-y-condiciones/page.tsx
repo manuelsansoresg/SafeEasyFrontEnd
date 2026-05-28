@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRight, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
+import { PublicLegalPage } from "@/components/legal/PublicLegalPage";
+import { getActiveLegalDocument } from "@/services/publicLegalService";
 
 export const metadata: Metadata = {
   title: "Términos y condiciones | Drooopy",
@@ -30,64 +31,20 @@ const sections = [
   },
 ];
 
-export default function TerminosYCondicionesPage() {
+export default async function TerminosYCondicionesPage() {
+  const document = await getActiveLegalDocument("terms_and_conditions");
+
   return (
-    <div className="bg-white">
-      <section className="bg-primary text-white">
-        <div className="container mx-auto px-4 pt-40 pb-16 md:pt-48 md:pb-24">
-          <div className="max-w-4xl">
-            <p className="font-[family-name:var(--font-varela-round)] text-lg text-[#7ed957] mb-4">
-              Términos y condiciones
-            </p>
-            <h1 className="font-[family-name:var(--font-varela-round)] text-4xl md:text-6xl leading-tight">
-              Reglas claras para usar Drooopy.
-            </h1>
-            <p className="mt-6 max-w-2xl text-base md:text-lg leading-8 text-white/85">
-              Esta sección resume los lineamientos generales de uso de la plataforma para compradores, vendedores y usuarios registrados.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-white py-16 md:py-20">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-4xl space-y-4">
-            {sections.map((section) => (
-              <article key={section.title} className="rounded-lg border border-gray-100 p-6 shadow-sm">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f2f3f4] text-primary">
-                    <FileText size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">{section.title}</h2>
-                    <p className="mt-3 text-sm leading-7 text-gray-500">{section.text}</p>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#f2f3f4] py-14">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto flex max-w-4xl flex-col gap-6 rounded-lg bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between md:p-8">
-            <div>
-              <h2 className="text-2xl font-bold text-primary">¿Tienes dudas sobre estos términos?</h2>
-              <p className="mt-2 text-sm leading-7 text-gray-500">
-                Puedes escribirnos desde la sección de contacto.
-              </p>
-            </div>
-            <Link
-              href="/contacto"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 font-semibold text-white transition hover:bg-secondary"
-            >
-              Ir a contacto
-              <ArrowRight size={18} />
-            </Link>
-          </div>
-        </div>
-      </section>
-    </div>
+    <PublicLegalPage
+      eyebrow="Términos y condiciones"
+      heroTitle="Reglas claras para usar Drooopy."
+      heroDescription="Esta sección resume los lineamientos generales de uso de la plataforma para compradores, vendedores y usuarios registrados."
+      contactTitle="¿Tienes dudas sobre estos términos?"
+      contactText="Puedes escribirnos desde la sección de contacto."
+      contactLabel="Ir a contacto"
+      icon={FileText}
+      document={document}
+      fallbackSections={sections}
+    />
   );
 }

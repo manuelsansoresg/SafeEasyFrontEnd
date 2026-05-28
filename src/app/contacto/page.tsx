@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, HelpCircle, Mail, MapPin, MessageSquare, Send, Store, UserRound } from "lucide-react";
+import { ArrowRight, HelpCircle, MapPin, MessageSquare, Send, Store, UserRound } from "lucide-react";
+import { SupportStartButton } from "@/components/support-chat/SupportStartButton";
 
 export const metadata: Metadata = {
   title: "Contacto | Drooopy",
@@ -26,8 +27,8 @@ const contactOptions = [
     icon: MessageSquare,
     title: "Soporte general",
     text: "Escríbenos si necesitas orientación para usar la plataforma o resolver una duda específica.",
-    href: "mailto:soporte@drooopy.com",
-    action: "soporte@drooopy.com",
+    href: null,
+    action: "Abrir chat de soporte",
   },
 ];
 
@@ -67,13 +68,17 @@ export default function ContactoPage() {
                 </div>
                 <h2 className="text-xl font-bold text-gray-900">{title}</h2>
                 <p className="mt-3 text-sm leading-7 text-gray-500">{text}</p>
-                <Link
-                  href={href}
-                  className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-secondary transition hover:text-primary"
-                >
-                  {action}
-                  <ArrowRight size={16} />
-                </Link>
+                {href ? (
+                  <Link
+                    href={href}
+                    className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-secondary transition hover:text-primary"
+                  >
+                    {action}
+                    <ArrowRight size={16} />
+                  </Link>
+                ) : (
+                  <SupportStartButton label={action} variant="link" />
+                )}
               </article>
             ))}
           </div>
@@ -104,13 +109,7 @@ export default function ContactoPage() {
                 ))}
               </div>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  href="mailto:soporte@drooopy.com"
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 font-semibold text-white transition hover:bg-secondary"
-                >
-                  <Mail size={18} />
-                  Escribir a soporte
-                </Link>
+                <SupportStartButton />
                 <Link
                   href="/centro-de-ayuda"
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-primary px-6 font-semibold text-primary transition hover:bg-primary hover:text-white"

@@ -7,14 +7,14 @@ const testimonials = [
     name: "Carlos Mendoza",
     role: "Director General, TechSolutions MX",
     image: null, // Placeholder or use initials
-    content: "Desde que nos unimos a SafeEasy, nuestras ventas han aumentado un 45% en el primer trimestre. La plataforma nos permite compartir nuestro catálogo digital de forma profesional y cerrar tratos más rápido.",
+    content: "Desde que nos unimos a Drooopy, nuestras ventas han aumentado un 45% en el primer trimestre. La plataforma nos permite compartir nuestro catálogo digital de forma profesional y cerrar tratos más rápido.",
     rating: 5
   },
   {
     name: "Ana Lucía Torres",
     role: "Gerente de Ventas, Textiles del Norte",
     image: null,
-    content: "Lo que más me gusta es tener mi propio espacio personalizado. Puedo enviar un enlace directo a mis clientes y ellos ven todos mis productos organizados. Es como tener mi propia web pero con el respaldo de SafeEasy.",
+    content: "Lo que más me gusta es tener mi propio espacio personalizado. Puedo enviar un enlace directo a mis clientes y ellos ven todos mis productos organizados. Es como tener mi propia web pero con el respaldo de Drooopy.",
     rating: 5
   },
   {
@@ -35,7 +35,7 @@ export default function SellTestimonials() {
             Historias de éxito de nuestros vendedores
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Descubra cómo empresas como la suya están creciendo y simplificando sus operaciones con SafeEasy.
+            Descubra cómo empresas como la suya están creciendo y simplificando sus operaciones con Drooopy.
           </p>
         </div>
 

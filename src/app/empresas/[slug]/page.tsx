@@ -954,7 +954,7 @@ export default function SupplierPage() {
                              </div>
                              <div>
                                  <p className="text-[#004e28] font-bold text-lg">Certificado de Calidad</p>
-                                 <p className="text-sm text-gray-500">Verificado por SafeEasy</p>
+                                  <p className="text-sm text-gray-500">Verificado por Drooopy</p>
                              </div>
                          </div>
                      </div>

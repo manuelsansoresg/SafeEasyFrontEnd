@@ -1,11 +1,13 @@
 "use client";
 
+import { useState, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { 
   User, 
   Users,
   Users2,
+  ChevronDown,
   Grid, 
   Layers, 
   Package, 
@@ -18,7 +20,9 @@ import {
   Truck,
   BadgeDollarSign,
   Repeat,
-  Settings
+  Settings,
+  FileText,
+  LifeBuoy
 } from "lucide-react";
 import { Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,14 +34,28 @@ interface AdminSidebarProps {
   toggleSidebar: () => void;
 }
 
+type AdminRole = "admin" | "superuser" | "supplier" | "client";
+
+type MenuChildItem = {
+  title: string;
+  path: string;
+  icon: ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  roles: AdminRole[];
+};
+
+type MenuItem = MenuChildItem & {
+  children?: MenuChildItem[];
+};
+
 export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   
   // Menu items configuration
-  const menuItems = [
+  const menuItems: MenuItem[] = [
     {
       title: "Dashboard",
       path: "/admin/dashboard",
@@ -68,23 +86,31 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       icon: Layers,
       roles: ['admin', 'superuser']
     },
-    { 
-      title: "Usuarios", 
-      path: "/admin/users", 
-      icon: Users2,
-      roles: ['admin', 'superuser']
-    },
-    { 
-      title: "Proveedores", 
-      path: "/admin/suppliers", 
-      icon: Users,
-      roles: ['admin', 'superuser']
-    },
     {
-      title: "Repartidores",
-      path: "/admin/couriers",
-      icon: Truck,
-      roles: ['admin', 'superuser']
+      title: "Usuarios",
+      path: "/admin/users",
+      icon: Users2,
+      roles: ['admin', 'superuser'],
+      children: [
+        {
+          title: "Usuarios",
+          path: "/admin/users",
+          icon: Users2,
+          roles: ['admin', 'superuser']
+        },
+        {
+          title: "Proveedores",
+          path: "/admin/suppliers",
+          icon: Users,
+          roles: ['admin', 'superuser']
+        },
+        {
+          title: "Repartidores",
+          path: "/admin/couriers",
+          icon: Truck,
+          roles: ['admin', 'superuser']
+        },
+      ],
     },
     { 
       title: "Mis Productos", 
@@ -96,6 +122,18 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       title: "Anuncios", 
       path: "/admin/ads", 
       icon: ImageIcon,
+      roles: ['admin', 'superuser']
+    },
+    {
+      title: "Legales",
+      path: "/admin/legal",
+      icon: FileText,
+      roles: ['admin', 'superuser']
+    },
+    {
+      title: "Soporte",
+      path: "/admin/support",
+      icon: LifeBuoy,
       roles: ['admin', 'superuser']
     },
     { 
@@ -142,9 +180,15 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
     }
   ];
 
-  const filteredMenuItems = menuItems.filter(item => 
-    !item.roles || (user?.role && item.roles.includes(user.role)) || (isAdmin && item.roles?.includes('admin'))
-  );
+  const canSeeItem = (item: MenuChildItem) =>
+    !item.roles || (user?.role && item.roles.includes(user.role as AdminRole)) || (isAdmin && item.roles?.includes('admin'));
+
+  const filteredMenuItems = menuItems
+    .map((item) => ({
+      ...item,
+      children: item.children?.filter(canSeeItem),
+    }))
+    .filter((item) => canSeeItem(item) && (!item.children || item.children.length > 0));
 
   return (
     <motion.aside
@@ -164,12 +208,107 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       <div className="flex-1 py-6 pt-24 md:pt-28 overflow-y-auto overflow-x-hidden scrollbar-thin">
         <nav className="space-y-2 px-3">
           {filteredMenuItems.map((item) => {
-            const isActive = pathname === item.path || pathname.startsWith(item.path);
+            const hasChildren = Boolean(item.children?.length);
+            const isActive = hasChildren
+              ? item.children?.some((child) => pathname === child.path || pathname.startsWith(child.path))
+              : pathname === item.path || pathname.startsWith(item.path);
+            const isOpen = openMenus[item.path] ?? isActive;
             
+            if (hasChildren) {
+              return (
+                <div key={item.path} className="group/menu relative">
+                  <button
+                    type="button"
+                    onClick={() => setOpenMenus((prev) => ({ ...prev, [item.path]: !isOpen }))}
+                    className={cn(
+                      "flex w-full items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative",
+                      isActive
+                        ? "bg-primary text-white shadow-md shadow-primary/20"
+                        : "text-gray-600 hover:bg-primary/5 hover:text-primary"
+                    )}
+                    title={isCollapsed ? item.title : undefined}
+                  >
+                    <div className={cn(
+                      "min-w-[24px] flex items-center justify-center transition-colors",
+                      isActive ? "text-white" : "text-gray-500 group-hover:text-primary"
+                    )}>
+                      <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                    </div>
+
+                    <motion.span
+                      animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : "auto" }}
+                      className="font-medium whitespace-nowrap overflow-hidden"
+                    >
+                      {item.title}
+                    </motion.span>
+
+                    <motion.span
+                      animate={{ opacity: isCollapsed ? 0 : 1, rotate: isOpen ? 180 : 0 }}
+                      className="ml-auto text-current"
+                    >
+                      <ChevronDown size={16} />
+                    </motion.span>
+                  </button>
+
+                  {!isCollapsed && isOpen ? (
+                    <div className="mt-1 space-y-1 pl-4">
+                      {item.children?.map((child) => {
+                        const childActive = pathname === child.path || pathname.startsWith(child.path);
+                        return (
+                          <Link
+                            key={child.path}
+                            href={child.path}
+                            onClick={() => setOpenMenus({})}
+                            className={cn(
+                              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+                              childActive
+                                ? "bg-primary/10 text-primary font-semibold"
+                                : "text-gray-500 hover:bg-primary/5 hover:text-primary"
+                            )}
+                          >
+                            <child.icon size={19} strokeWidth={childActive ? 2.5 : 2} />
+                            <span className="whitespace-nowrap">{child.title}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  {isCollapsed && (
+                    <div className="absolute left-full top-0 ml-4 hidden min-w-48 rounded-xl border border-gray-100 bg-white p-2 shadow-xl group-hover/menu:block z-50">
+                      <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        {item.title}
+                      </p>
+                      {item.children?.map((child) => {
+                        const childActive = pathname === child.path || pathname.startsWith(child.path);
+                        return (
+                          <Link
+                            key={child.path}
+                            href={child.path}
+                            onClick={() => setOpenMenus({})}
+                            className={cn(
+                              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                              childActive
+                                ? "bg-primary text-white"
+                                : "text-gray-600 hover:bg-primary/5 hover:text-primary"
+                            )}
+                          >
+                            <child.icon size={18} />
+                            <span>{child.title}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <Link
                 key={item.path}
                 href={item.path}
+                onClick={() => setOpenMenus({})}
                 className={cn(
                   "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative",
                   isActive 

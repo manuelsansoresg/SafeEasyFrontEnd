@@ -16,7 +16,7 @@ export default function SupplierDashboard() {
       >
         <div className="mb-12">
           <PageHero
-            title="Bienvenido a SafeEasy"
+            title="Bienvenido a Drooopy"
             subtitle="Gestione su empresa, personalice su sitio y administre sus productos desde aquí."
           />
         </div>

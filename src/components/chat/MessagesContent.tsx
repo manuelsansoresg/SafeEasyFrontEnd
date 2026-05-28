@@ -902,7 +902,7 @@ export function MessagesContent() {
                      )}
                 </div>
                 <h3 className="font-bold text-lg text-gray-900 text-center">{getOtherPartyName(activeConversation)}</h3>
-                <p className="text-sm text-gray-500">Usuario de SafeEasy</p>
+                <p className="text-sm text-gray-500">Usuario de Drooopy</p>
             </div>
 
             {/* 2. Current Product Context */}

@@ -55,6 +55,8 @@ export interface Conversation {
     last_name?: string;
     name?: string;
     email?: string;
+    image?: string;
+    avatar?: string;
   };
 }
 

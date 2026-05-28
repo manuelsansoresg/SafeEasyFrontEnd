@@ -16,7 +16,7 @@ export default function WelcomePage() {
       >
         <div className="mb-12 text-left">
           <PageHero
-            title="Bienvenido a SafeEasy"
+            title="Bienvenido a Drooopy"
             subtitle="Su cuenta ha sido creada exitosamente. Ahora personalice su espacio para comenzar a vender de manera profesional."
           />
         </div>
