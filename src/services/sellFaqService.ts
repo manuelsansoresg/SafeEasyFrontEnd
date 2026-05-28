@@ -37,7 +37,7 @@ const pickList = (data: unknown): SellFaq[] => {
   return [];
 };
 
-const requestWithFallback = async (urls: string[], init?: RequestInit) => {
+const requestWithFallback = async (urls: string[], init?: Parameters<typeof fetchWithAuth>[1]) => {
   let response: Response | null = null;
   for (const url of urls) {
     response = await fetchWithAuth(url, init);
