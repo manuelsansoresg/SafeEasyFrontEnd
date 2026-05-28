@@ -380,14 +380,14 @@ export function SupportChatShell({ mode }: SupportChatShellProps) {
   const canWrite = activeConversation?.status === "open" && mode !== "unassigned";
 
   return (
-    <div className="space-y-6 font-[family-name:var(--font-poppins)]">
-      <div className="rounded-lg bg-primary px-6 py-7 text-white shadow-sm md:px-8">
+    <div className="space-y-4 font-[family-name:var(--font-poppins)] md:space-y-6">
+      <div className={cn("rounded-lg bg-primary px-5 py-6 text-white shadow-sm md:px-8 md:py-7", activeConversation && "hidden md:block")}>
         <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="font-[family-name:var(--font-varela-round)] text-[#7ed957]">
               {isAdmin ? "Panel de soporte" : "Soporte"}
             </p>
-            <h1 className="mt-2 font-[family-name:var(--font-varela-round)] text-3xl md:text-4xl">
+            <h1 className="mt-2 font-[family-name:var(--font-varela-round)] text-3xl leading-tight md:text-4xl">
               {isAdmin ? "Conversaciones con usuarios" : "Chat con soporte Drooopy"}
             </h1>
           </div>
@@ -409,7 +409,7 @@ export function SupportChatShell({ mode }: SupportChatShellProps) {
       ) : null}
 
       {!isAdmin && mode === "user" ? (
-        <form onSubmit={createConversation} className="rounded-lg border border-gray-100 bg-white p-4 shadow-sm md:p-5">
+        <form onSubmit={createConversation} className={cn("rounded-lg border border-gray-100 bg-white p-4 shadow-sm md:p-5", activeConversation && "hidden md:block")}>
           <label className="text-sm font-semibold text-gray-900" htmlFor="support-subject">
             Nuevo chat de soporte
           </label>
@@ -435,7 +435,12 @@ export function SupportChatShell({ mode }: SupportChatShellProps) {
         </form>
       ) : null}
 
-      <div className="flex h-[calc(100vh-240px)] min-h-[560px] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className={cn(
+        "flex overflow-hidden rounded-lg border bg-white shadow-sm md:h-[calc(100vh-240px)] md:min-h-[560px]",
+        activeConversation
+          ? "h-[calc(100dvh-118px)] min-h-[620px] border-gray-200 shadow-none"
+          : "h-[calc(100dvh-210px)] min-h-[520px] border-gray-200"
+      )}>
         <aside className={cn("flex w-full flex-col border-r border-gray-200 bg-white md:w-[350px] lg:w-[390px]", activeConversation ? "hidden md:flex" : "flex")}>
           <div className="border-b border-gray-100 p-4">
             <div className="flex items-center justify-between">
@@ -500,18 +505,21 @@ export function SupportChatShell({ mode }: SupportChatShellProps) {
           </div>
         </aside>
 
-        <section className={cn("relative flex flex-1 flex-col bg-white", !activeConversation ? "hidden md:flex" : "flex")}>
+        <section className={cn("relative min-w-0 flex-1 flex-col bg-white", !activeConversation ? "hidden md:flex" : "flex")}>
           {activeConversation ? (
             <>
-              <div className="flex min-h-[76px] items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 shadow-sm">
-                <div className="flex min-w-0 items-center gap-3">
+              <div className="flex min-h-[76px] items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-3 shadow-sm md:gap-3 md:px-4">
+                <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
                   <button type="button" onClick={() => setActiveConversation(null)} className="rounded-full p-2 text-primary hover:bg-[#f2f3f4] md:hidden">
                     <ArrowLeft size={22} />
                   </button>
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-white">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-base font-bold text-white md:h-11 md:w-11 md:text-lg">
                     {getConversationName(activeConversation).charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
+                    <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-secondary md:hidden">
+                      Chat de soporte
+                    </p>
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="truncate font-bold text-gray-900">{getConversationName(activeConversation)}</h3>
                       <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-semibold", statusClass[activeConversation.status])}>
@@ -522,7 +530,7 @@ export function SupportChatShell({ mode }: SupportChatShellProps) {
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex min-w-0 shrink-0 items-center gap-2">
                   {mode === "unassigned" ? (
                     <button
                       type="button"
@@ -536,30 +544,32 @@ export function SupportChatShell({ mode }: SupportChatShellProps) {
                   ) : (
                     <>
                       {isAdmin && activeConversation.status === "open" ? (
-                        <button type="button" onClick={rejectConversation} disabled={submitting} className="hidden h-10 items-center gap-2 rounded-full border border-gray-200 px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 md:inline-flex">
-                          <XCircle size={16} />
-                          Liberar
-                        </button>
-                      ) : null}
-                      {activeConversation.status === "open" ? (
-                        <button type="button" onClick={() => setFinishModalOpen(true)} disabled={submitting} className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-white hover:bg-secondary disabled:opacity-60">
-                          <Lock size={16} />
-                          Finalizar chat
-                        </button>
-                      ) : null}
+	                        <button type="button" onClick={rejectConversation} disabled={submitting} className="hidden h-10 items-center gap-2 rounded-full border border-gray-200 px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 md:inline-flex">
+	                          <XCircle size={16} />
+	                          Liberar
+	                        </button>
+	                      ) : null}
+	                      {activeConversation.status === "open" ? (
+	                        <button type="button" onClick={() => setFinishModalOpen(true)} disabled={submitting} className="inline-flex h-10 min-w-10 items-center justify-center gap-2 rounded-full bg-primary px-3 text-sm font-semibold text-white hover:bg-secondary disabled:opacity-60 md:px-4">
+	                          <Lock size={16} className="shrink-0" />
+	                          <span className="hidden sm:inline">Finalizar chat</span>
+	                          <span className="sr-only sm:hidden">Finalizar chat</span>
+	                        </button>
+	                      ) : null}
                     </>
                   )}
                 </div>
               </div>
 
-              <div ref={messagesRef} className="flex-1 overflow-y-auto bg-[#f2f3f4] px-4 py-5 scrollbar-thin">
+              <div ref={messagesRef} className="relative flex-1 overflow-y-auto border-x border-gray-200 bg-[#f2f3f4] px-5 py-6 scrollbar-thin md:border-x-0 md:px-4 md:py-5">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-5 bg-gradient-to-b from-black/5 to-transparent md:hidden" />
                 {messagesLoading ? (
                   <div className="flex h-full items-center justify-center text-gray-500">
                     <Loader2 className="mr-2 animate-spin text-primary" size={20} />
                     Cargando mensajes...
                   </div>
                 ) : messages.length === 0 ? (
-                  <div className="mx-auto mt-12 max-w-md rounded-lg bg-white p-6 text-center shadow-sm">
+		                  <div className="mx-auto mt-6 max-w-md rounded-lg border border-gray-200 bg-white p-5 text-center shadow-sm md:mt-12 md:p-6">
                     <CircleHelp className="mx-auto mb-3 text-secondary" size={34} />
                     <h4 className="font-bold text-gray-900">Chat de soporte listo</h4>
                     <p className="mt-2 text-sm leading-6 text-gray-500">Envía el primer mensaje con los detalles del asunto para que el equipo pueda ayudarte.</p>
@@ -570,7 +580,7 @@ export function SupportChatShell({ mode }: SupportChatShellProps) {
                       const mine = String(message.sender_id) === String(user?.id);
                       return (
                         <div key={message.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
-                          <div className={cn("max-w-[78%] rounded-2xl px-4 py-2 shadow-sm", mine ? "rounded-br-md bg-primary text-white" : "rounded-bl-md bg-white text-gray-900")}>
+	                          <div className={cn("max-w-[86%] rounded-2xl px-4 py-2 shadow-sm md:max-w-[78%]", mine ? "rounded-br-md bg-primary text-white" : "rounded-bl-md bg-white text-gray-900")}>
                             {!mine ? <p className="mb-1 text-xs font-semibold text-secondary">{message.sender_name || "Soporte"}</p> : null}
                             <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.message}</p>
                             <p className={cn("mt-1 text-right text-[11px]", mine ? "text-white/70" : "text-gray-400")}>{formatDate(message.created_at)}</p>
@@ -582,7 +592,7 @@ export function SupportChatShell({ mode }: SupportChatShellProps) {
                 )}
               </div>
 
-              <div className="border-t border-gray-200 bg-white p-3">
+              <div className="border-t border-gray-200 bg-white p-3 pb-5 shadow-[0_-8px_20px_rgba(0,0,0,0.04)] md:pb-3 md:shadow-none">
                 <div className="mb-2 flex items-center justify-between px-1 text-xs text-gray-500">
                   <span className="inline-flex items-center gap-1">
                     {isConnected ? <ShieldCheck size={14} className="text-secondary" /> : <Clock size={14} />}
