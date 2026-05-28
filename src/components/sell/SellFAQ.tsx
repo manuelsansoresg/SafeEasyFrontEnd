@@ -1,51 +1,87 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Minus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
-const faqs = [
-  {
-    question: "¿Necesito una tarjeta de crédito para registrarme?",
-    answer: "No, puede comenzar con nuestro plan Básico totalmente gratuito sin necesidad de ingresar datos bancarios. Solo requerimos información de pago si decide actualizar a nuestros planes Profesional o Empresarial."
-  },
-  {
-    question: "¿Cómo funciona la verificación de empresa?",
-    answer: "Para aumentar la confianza de los compradores, ofrecemos un distintivo de 'Empresa Verificada'. Puede solicitarlo subiendo documentos oficiales (como acta constitutiva o identificación fiscal) desde su panel de control. Nuestro equipo revisará la información en menos de 48 horas."
-  },
-  {
-    question: "¿Puedo compartir mi tienda con clientes fuera de Drooopy?",
-    answer: "¡Sí! Al registrarse obtiene una URL personalizada (ej. drooopy.com/mi-empresa) que funciona como su propio sitio web. Puede compartir este enlace en sus redes sociales, correos o WhatsApp para que sus clientes vean su catálogo completo."
-  },
-  {
-    question: "¿Hay comisiones por venta?",
-    answer: "Drooopy opera principalmente bajo un modelo de suscripción. El plan Básico tiene una pequeña comisión por transacción para mantener la plataforma. Los planes Profesional y Empresarial disfrutan de 0% de comisión por venta, permitiéndole maximizar sus ganancias."
-  },
-  {
-    question: "¿Puedo cambiar de plan en cualquier momento?",
-    answer: "Absolutamente. Puede actualizar o degradar su plan en cualquier momento desde su panel de administración. Los cambios de actualización son inmediatos, y las cancelaciones se aplican al final del ciclo de facturación actual."
-  }
-];
+import { sellFaqService, type SellFaq } from "@/services/sellFaqService";
 
 export default function SellFAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
+  const [faqs, setFaqs] = useState<SellFaq[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadFaqs = async () => {
+      try {
+        const data = await sellFaqService.listActive();
+        if (!mounted) return;
+        setFaqs(data);
+        setOpenIndex(data.length > 0 ? 0 : null);
+      } catch (error) {
+        console.error("No se pudieron cargar las preguntas de venta:", error);
+        if (!mounted) return;
+        setFaqs([]);
+        setOpenIndex(null);
+      } finally {
+        if (!mounted) return;
+        setLoading(false);
+      }
+    };
+
+    loadFaqs();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const renderHeader = () => (
+    <div className="text-center mb-16">
+      <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+        Preguntas Frecuentes
+      </h2>
+      <p className="text-xl text-gray-600">
+        Resolvemos sus dudas para que pueda comenzar a vender con confianza.
+      </p>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-4 max-w-4xl">
+          {renderHeader()}
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="h-20 rounded-2xl border border-gray-200 bg-gray-50 animate-pulse mb-4" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (faqs.length === 0) {
+    return (
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-4 max-w-4xl">
+          {renderHeader()}
+          <div className="text-center py-12 text-gray-500">
+            <p>No hay preguntas disponibles en este momento.</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-20 bg-white">
       <div className="container mx-auto px-4 max-w-4xl">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            Preguntas Frecuentes
-          </h2>
-          <p className="text-xl text-gray-600">
-            Resolvemos sus dudas para que pueda comenzar a vender con confianza.
-          </p>
-        </div>
+        {renderHeader()}
 
         <div className="space-y-4">
           {faqs.map((faq, index) => (
             <div 
-              key={index} 
+              key={faq.id} 
               className={`border rounded-2xl transition-all duration-300 ${
                 openIndex === index ? "border-primary/30 bg-primary/5" : "border-gray-200 hover:border-primary/20"
               }`}

@@ -47,11 +47,42 @@ const requestWithFallback = async (urls: string[], init?: Parameters<typeof fetc
   return response;
 };
 
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
+const requestPublicWithFallback = async (urls: string[]) => {
+  let response: Response | null = null;
+  for (const url of urls) {
+    response = await fetch(url, { headers: { Accept: "application/json" } });
+    if (response.ok) break;
+    if (response.status !== 404 && response.status !== 405) break;
+  }
+  return response;
+};
+
 export const sellFaqService = {
+  async listActive(): Promise<SellFaq[]> {
+    const response = await requestPublicWithFallback([
+      "/api/sell-faq",
+      "/api/sell-faq/",
+      apiUrl("/api/sell-faq"),
+      apiUrl("/api/sell-faq/"),
+    ]);
+    if (!response?.ok) return [];
+    const json = await readJson<unknown>(response);
+    return pickList(json)
+      .filter((faq) => faq.is_active)
+      .sort((a, b) => a.position - b.position || a.id - b.id);
+  },
+
   async list(): Promise<SellFaq[]> {
     const response = await requestWithFallback([
       "/api/admin/sell-faq",
       "/api/admin/sell-faq/",
+      apiUrl("/api/admin/sell-faq"),
+      apiUrl("/api/admin/sell-faq/"),
     ]);
     if (!response?.ok) return [];
     const json = await readJson<unknown>(response);
@@ -60,7 +91,7 @@ export const sellFaqService = {
 
   async create(payload: SellFaqPayload): Promise<SellFaq | null> {
     const response = await requestWithFallback(
-      ["/api/admin/sell-faq", "/api/admin/sell-faq/"],
+      ["/api/admin/sell-faq", "/api/admin/sell-faq/", apiUrl("/api/admin/sell-faq"), apiUrl("/api/admin/sell-faq/")],
       {
         method: "POST",
         body: JSON.stringify(payload),
@@ -72,7 +103,7 @@ export const sellFaqService = {
 
   async update(id: number, payload: SellFaqPayload): Promise<SellFaq | null> {
     const response = await requestWithFallback(
-      [`/api/admin/sell-faq/${id}`, `/api/admin/sell-faq/${id}/`],
+      [`/api/admin/sell-faq/${id}`, `/api/admin/sell-faq/${id}/`, apiUrl(`/api/admin/sell-faq/${id}`), apiUrl(`/api/admin/sell-faq/${id}/`)],
       {
         method: "PUT",
         body: JSON.stringify(payload),
@@ -84,7 +115,7 @@ export const sellFaqService = {
 
   async delete(id: number): Promise<boolean> {
     const response = await requestWithFallback(
-      [`/api/admin/sell-faq/${id}`, `/api/admin/sell-faq/${id}/`],
+      [`/api/admin/sell-faq/${id}`, `/api/admin/sell-faq/${id}/`, apiUrl(`/api/admin/sell-faq/${id}`), apiUrl(`/api/admin/sell-faq/${id}/`)],
       { method: "DELETE" },
     );
     return Boolean(response?.ok);
