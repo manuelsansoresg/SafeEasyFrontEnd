@@ -74,17 +74,37 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       icon: User,
       roles: ['admin', 'superuser', 'supplier', 'client']
     },
-    { 
-      title: "Categorías", 
-      path: "/admin/categories", 
-      icon: Grid,
-      roles: ['admin', 'superuser']
-    },
-    { 
-      title: "Subcategorias", 
-      path: "/admin/subcategories", 
-      icon: Layers,
-      roles: ['admin', 'superuser']
+    {
+      title: "Contenido",
+      path: "/admin/content",
+      icon: FileText,
+      roles: ['admin', 'superuser'],
+      children: [
+        {
+          title: "Categorías",
+          path: "/admin/categories",
+          icon: Grid,
+          roles: ['admin', 'superuser']
+        },
+        {
+          title: "Subcategorías",
+          path: "/admin/subcategories",
+          icon: Layers,
+          roles: ['admin', 'superuser']
+        },
+        {
+          title: "Anuncios",
+          path: "/admin/ads",
+          icon: ImageIcon,
+          roles: ['admin', 'superuser']
+        },
+        {
+          title: "Legales",
+          path: "/admin/legal",
+          icon: FileText,
+          roles: ['admin', 'superuser']
+        },
+      ],
     },
     {
       title: "Usuarios",
@@ -117,18 +137,6 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
       path: "/admin/products", 
       icon: Package,
       roles: ['admin', 'superuser', 'supplier']
-    },
-    { 
-      title: "Anuncios", 
-      path: "/admin/ads", 
-      icon: ImageIcon,
-      roles: ['admin', 'superuser']
-    },
-    {
-      title: "Legales",
-      path: "/admin/legal",
-      icon: FileText,
-      roles: ['admin', 'superuser']
     },
     {
       title: "Soporte",
