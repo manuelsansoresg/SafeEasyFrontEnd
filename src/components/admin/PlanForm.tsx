@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
-import { fetchWithAuth } from "@/lib/api";
 import { CheckCircle, Loader2, X } from "lucide-react";
 
 export type PlanDuration = "monthly" | "yearly";
@@ -32,6 +31,15 @@ const initialFormData: PlanFormData = {
   duration: "yearly",
   is_active: true,
 };
+
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
+const authHeaders = (token: string) => ({
+  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
+});
 
 interface PlanFormProps {
   initialData?: Plan;
@@ -68,7 +76,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
     }
 
     try {
-      const url = initialData ? `/api/plans/${initialData.id}` : `/api/plans/`;
+      const url = initialData ? apiUrl(`/plans/${initialData.id}`) : apiUrl(`/plans/`);
       const method = initialData ? "PUT" : "POST";
 
       const payload = {
@@ -79,8 +87,12 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         is_active: formData.is_active,
       };
 
-      const response = await fetchWithAuth(url, {
+      const response = await fetch(url, {
         method,
+        headers: {
+          ...authHeaders(token),
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
 
@@ -195,4 +207,3 @@ export default function PlanForm({ initialData }: PlanFormProps) {
     </div>
   );
 }
-

@@ -234,7 +234,7 @@ export default function UsersPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full">
             <thead className="bg-gray-50/50">
               <tr>
@@ -333,6 +333,59 @@ export default function UsersPage() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="divide-y divide-gray-100 md:hidden">
+          {loading ? (
+            <div className="px-4 py-8 text-center text-gray-500">Cargando usuarios...</div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="px-4 py-8 text-center text-gray-500">No se encontraron usuarios</div>
+          ) : (
+            filteredUsers.map((user) => (
+              <article key={user.id} className="p-4">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(user.id)}
+                    onChange={() => toggleSelect(user.id)}
+                    className="mt-3 h-4 w-4 rounded border-gray-300 text-primary"
+                    aria-label={`Seleccionar usuario ${user.name || user.email}`}
+                  />
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <UserIcon size={20} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="break-words text-sm font-semibold text-gray-900">{user.name || "Sin nombre"}</h3>
+                        <p className="mt-1 break-all text-sm text-gray-500">{user.email}</p>
+                      </div>
+                      <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium capitalize border
+                        ${(user.role || '').toLowerCase() === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-100' : 
+                          (user.role || '').toLowerCase() === 'supplier' ? 'bg-blue-50 text-blue-700 border-blue-100' : 
+                          'bg-gray-50 text-gray-700 border-gray-100'}`}>
+                        {(user.role || '').toLowerCase() === 'admin' && <Shield size={12} />}
+                        {user.role || 'client'}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border
+                        ${user.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+                        {user.is_active ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
+                      </span>
+                      <div className="flex gap-2">
+                        <Link href={`/admin/users/${user.id}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary">
+                          <Edit size={18} />
+                        </Link>
+                        <button type="button" onClick={() => deleteUser(user.id)} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))
+          )}
         </div>
 
         <div className="p-4 border-t border-gray-100 flex items-center justify-between">

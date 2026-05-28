@@ -113,6 +113,12 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
           icon: FileText,
           roles: ['admin', 'superuser']
         },
+        {
+          title: "Planes",
+          path: "/admin/plans",
+          icon: BadgeDollarSign,
+          roles: ['admin', 'superuser']
+        },
       ],
     },
     {
@@ -172,21 +178,9 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
       roles: ['supplier']
     },
     {
-      title: "Envíos",
-      path: "/admin/settings/shipping",
-      icon: Truck,
-      roles: ['admin']
-    },
-    {
       title: "Configuración",
       path: "/admin/settings/configuracion",
       icon: Settings,
-      roles: ['admin', 'superuser']
-    },
-    {
-      title: "Planes",
-      path: "/admin/plans",
-      icon: BadgeDollarSign,
       roles: ['admin', 'superuser']
     },
     {
@@ -392,10 +386,13 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
 
       {/* Toggle Button */}
       <button
+        type="button"
         onClick={toggleSidebar}
-        className="absolute -right-3 top-8 bg-white border border-gray-200 text-gray-500 hover:text-primary p-1 rounded-full shadow-md z-50 hidden md:flex"
+        className="absolute -right-4 top-24 z-50 hidden h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-lg shadow-black/10 transition hover:border-primary/30 hover:text-primary md:flex"
+        aria-label={isCollapsed ? "Expandir menú lateral" : "Colapsar menú lateral"}
+        title={isCollapsed ? "Expandir menú" : "Colapsar menú"}
       >
-        {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
       </button>
     </motion.aside>
   );

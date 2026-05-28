@@ -32,7 +32,7 @@ import {
   Heart, 
   Smile
 } from "lucide-react";
-import { fetchWithAuth } from "@/lib/api";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import slugify from "slugify";
 
@@ -45,7 +45,7 @@ const AVAILABLE_ICONS = [
 ];
 
 // Map string names to components
-const ICON_COMPONENTS: Record<string, any> = {
+const ICON_COMPONENTS: Record<string, LucideIcon> = {
   Smartphone, Laptop, Headphones, Shirt, Home, Car, 
   Wrench, Watch, Camera, Gamepad, Music, Book, 
   Coffee, Utensils, Gift, ShoppingBag, Tag, Grid, 
@@ -75,6 +75,15 @@ const initialFormData: CategoryFormData = {
   icon: null,
   is_active: true,
 };
+
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
+const authHeaders = (token: string) => ({
+  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
+});
 
 interface CategoryFormProps {
   initialData?: Category;
@@ -110,8 +119,8 @@ export default function CategoryForm({ initialData }: CategoryFormProps) {
 
     try {
       const url = initialData 
-        ? `/api/categories/${initialData.id}` 
-        : `/api/categories/`;
+        ? apiUrl(`/categories/${initialData.id}`)
+        : apiUrl(`/categories/`);
       
       const method = initialData ? "PUT" : "POST";
 
@@ -124,8 +133,12 @@ export default function CategoryForm({ initialData }: CategoryFormProps) {
         is_active: formData.is_active,
       };
 
-      const response = await fetchWithAuth(url, {
+      const response = await fetch(url, {
         method,
+        headers: {
+          ...authHeaders(token),
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
 

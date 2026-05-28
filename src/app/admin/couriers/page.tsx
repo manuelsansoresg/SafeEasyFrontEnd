@@ -233,7 +233,7 @@ export default function CouriersPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full">
             <thead className="bg-gray-50/50">
               <tr>
@@ -334,6 +334,57 @@ export default function CouriersPage() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="divide-y divide-gray-100 md:hidden">
+          {loading ? (
+            <div className="px-4 py-8 text-center text-gray-500">Cargando repartidores...</div>
+          ) : filteredCouriers.length === 0 ? (
+            <div className="px-4 py-8 text-center text-gray-500">No se encontraron repartidores</div>
+          ) : (
+            filteredCouriers.map((courier) => (
+              <article key={courier.id} className="p-4">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(courier.id)}
+                    onChange={() => toggleSelect(courier.id)}
+                    className="mt-3 h-4 w-4 rounded border-gray-300 text-primary"
+                    aria-label={`Seleccionar repartidor ${courier.full_name || courier.name || courier.email}`}
+                  />
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <UserIcon size={20} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="break-words text-sm font-semibold text-gray-900">{courier.full_name || courier.name || "Sin nombre"}</h3>
+                        <p className="mt-1 break-all text-sm text-gray-500">{courier.email}</p>
+                      </div>
+                      <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                        <Truck size={12} />
+                        Courier
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border ${
+                        courier.is_active ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"
+                      }`}>
+                        {courier.is_active ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
+                      </span>
+                      <div className="flex gap-2">
+                        <Link href={`/admin/couriers/${courier.id}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary">
+                          <Edit size={18} />
+                        </Link>
+                        <button type="button" onClick={() => deleteCourier(courier.id)} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))
+          )}
         </div>
 
         <div className="p-4 border-t border-gray-100">

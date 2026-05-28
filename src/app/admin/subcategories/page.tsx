@@ -153,7 +153,7 @@ export default function AdminSubcategoriesPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -237,6 +237,71 @@ export default function AdminSubcategoriesPage() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="divide-y divide-gray-100 md:hidden">
+          {loading ? (
+            <div className="px-4 py-8 text-center text-gray-500">
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="animate-spin" size={20} />
+                Cargando subcategorías...
+              </div>
+            </div>
+          ) : filteredSubcategories.length === 0 ? (
+            <div className="px-4 py-8 text-center text-gray-500">No se encontraron subcategorías</div>
+          ) : (
+            filteredSubcategories.map((subcategory) => (
+              <article key={subcategory.id} className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
+                    {subcategory.image ? (
+                      <img src={subcategory.image} alt={subcategory.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <ImageIcon className="text-gray-400" size={22} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="break-words text-sm font-semibold text-gray-900">{subcategory.name}</h3>
+                        <p className="mt-1 break-words font-mono text-xs text-gray-400">{subcategory.slug}</p>
+                      </div>
+                      {subcategory.is_active ? (
+                        <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-green-100 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                          <CheckCircle size={12} />
+                          Activo
+                        </span>
+                      ) : (
+                        <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-gray-100 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600">
+                          <XCircle size={12} />
+                          Inactivo
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 inline-flex max-w-full rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1 text-sm font-medium text-blue-700">
+                      <span className="truncate">{categories[subcategory.category_id] || `ID: ${subcategory.category_id}`}</span>
+                    </div>
+                    <div className="mt-3 flex justify-end gap-2">
+                      <Link
+                        href={`/admin/subcategories/${subcategory.id}`}
+                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-primary/5 hover:text-primary"
+                        title="Editar"
+                      >
+                        <Edit2 size={18} />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => deleteSubcategory(subcategory.id)}
+                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))
+          )}
         </div>
       </div>
     </div>

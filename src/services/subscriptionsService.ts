@@ -35,6 +35,11 @@ const pickArray = <T>(data: unknown): T[] => {
   return [];
 };
 
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
 export const subscriptionsService = {
   async listSubscriptions(params: ListSubscriptionsParams): Promise<Subscription[]> {
     const qs = new URLSearchParams();
@@ -43,7 +48,13 @@ export const subscriptionsService = {
     if (params.status) qs.set("status", params.status);
     if (params.search && params.search.trim()) qs.set("search", params.search.trim());
 
-    const tryUrls = [`/api/subscriptions/?${qs.toString()}`, `/api/subscriptions?${qs.toString()}`];
+    const query = qs.toString();
+    const tryUrls = [
+      apiUrl(`/admin/subscriptions/?${query}`),
+      apiUrl(`/admin/subscriptions?${query}`),
+      apiUrl(`/subscriptions/?${query}`),
+      apiUrl(`/subscriptions?${query}`),
+    ];
     let response: Response | null = null;
     for (const url of tryUrls) {
       response = await fetchWithAuth(url);
@@ -67,7 +78,7 @@ export const subscriptionsService = {
   },
 
   async listPlans(): Promise<Plan[]> {
-    const tryUrls = [`/api/plans/?skip=0&limit=1000`, `/api/plans?skip=0&limit=1000`];
+    const tryUrls = [apiUrl(`/plans/?skip=0&limit=1000`), apiUrl(`/plans?skip=0&limit=1000`)];
     let response: Response | null = null;
     for (const url of tryUrls) {
       response = await fetchWithAuth(url);
@@ -90,8 +101,10 @@ export const subscriptionsService = {
 
   async getEvents(subscriptionId: number): Promise<SubscriptionEvent[]> {
     const tryUrls = [
-      `/api/subscriptions/${subscriptionId}/events`,
-      `/api/subscriptions/${subscriptionId}/events/`,
+      apiUrl(`/admin/subscriptions/${subscriptionId}/events`),
+      apiUrl(`/admin/subscriptions/${subscriptionId}/events/`),
+      apiUrl(`/subscriptions/${subscriptionId}/events`),
+      apiUrl(`/subscriptions/${subscriptionId}/events/`),
     ];
     let response: Response | null = null;
     for (const url of tryUrls) {
@@ -118,8 +131,10 @@ export const subscriptionsService = {
     const body = JSON.stringify(payload);
     const options = { method: "PUT", body };
     const tryUrls = [
-      `/api/subscriptions/${subscriptionId}/status`,
-      `/api/subscriptions/${subscriptionId}/status/`,
+      apiUrl(`/admin/subscriptions/${subscriptionId}/status`),
+      apiUrl(`/admin/subscriptions/${subscriptionId}/status/`),
+      apiUrl(`/subscriptions/${subscriptionId}/status`),
+      apiUrl(`/subscriptions/${subscriptionId}/status/`),
     ];
 
     let response: Response | null = null;
@@ -144,7 +159,7 @@ export const subscriptionsService = {
   },
 
   async getMySubscription(): Promise<Subscription | null> {
-    const tryUrls = [`/api/subscriptions/my`, `/api/subscriptions/my/`];
+    const tryUrls = [apiUrl(`/subscriptions/my`), apiUrl(`/subscriptions/my/`)];
     let response: Response | null = null;
     for (const url of tryUrls) {
       response = await fetchWithAuth(url);
@@ -169,8 +184,8 @@ export const subscriptionsService = {
     const qs = new URLSearchParams({ mp_payment_id: mpPaymentId });
     const options = { method: "POST" };
     const tryUrls = [
-      `/api/subscriptions/payments/refresh?${qs.toString()}`,
-      `/api/subscriptions/payments/refresh/?${qs.toString()}`,
+      apiUrl(`/subscriptions/payments/refresh?${qs.toString()}`),
+      apiUrl(`/subscriptions/payments/refresh/?${qs.toString()}`),
     ];
     let response: Response | null = null;
     for (const url of tryUrls) {
@@ -188,7 +203,7 @@ export const subscriptionsService = {
   async purchase(planId: number): Promise<PurchaseResponse> {
     const body = JSON.stringify({ plan_id: planId });
     const options = { method: "POST", body };
-    const tryUrls = [`/api/subscriptions/purchase`, `/api/subscriptions/purchase/`];
+    const tryUrls = [apiUrl(`/subscriptions/purchase`), apiUrl(`/subscriptions/purchase/`)];
     let response: Response | null = null;
     for (const url of tryUrls) {
       response = await fetchWithAuth(url, options);

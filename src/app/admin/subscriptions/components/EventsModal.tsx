@@ -44,24 +44,25 @@ export default function EventsModal({ open, subscriptionId, onClose }: Props) {
   useEffect(() => {
     if (!open || !subscriptionId) return;
     let mounted = true;
-    setLoading(true);
-    setError(null);
-    setEvents([]);
-    subscriptionsService
-      .getEvents(subscriptionId)
-      .then((data) => {
+    const loadEvents = async () => {
+      setLoading(true);
+      setError(null);
+      setEvents([]);
+      try {
+        const data = await subscriptionsService.getEvents(subscriptionId);
         if (!mounted) return;
         setEvents(data);
-      })
-      .catch((e) => {
+      } catch (e) {
         console.error("Failed to fetch events:", e);
         if (!mounted) return;
         setError("No se pudo cargar el historial.");
-      })
-      .finally(() => {
+      } finally {
         if (!mounted) return;
         setLoading(false);
-      });
+      }
+    };
+
+    window.setTimeout(loadEvents, 0);
     return () => {
       mounted = false;
     };
@@ -138,4 +139,3 @@ export default function EventsModal({ open, subscriptionId, onClose }: Props) {
     </div>
   );
 }
-

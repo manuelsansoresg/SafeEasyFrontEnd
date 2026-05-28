@@ -401,7 +401,8 @@ export default function AdminSuppliersPage() {
             <Loader2 className="animate-spin text-primary" size={32} />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -550,6 +551,90 @@ export default function AdminSuppliersPage() {
               </tbody>
             </table>
           </div>
+          <div className="divide-y divide-gray-100 md:hidden">
+            {filteredSuppliers.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">No se encontraron proveedores.</div>
+            ) : (
+              filteredSuppliers.map((supplier) => (
+                <article key={supplier.id} className="p-4">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(supplier.id)}
+                      onChange={() => toggleSelect(supplier.id)}
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-primary"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="break-words text-sm font-semibold text-gray-900">{supplier.name}</h3>
+                          {supplier.short_name ? <p className="mt-1 text-xs text-gray-400">{supplier.short_name}</p> : null}
+                        </div>
+                        <span className={cn(
+                          "shrink-0 inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
+                          supplier.is_active ? "bg-green-50 text-green-700 border-green-100" : "bg-gray-50 text-gray-600 border-gray-100"
+                        )}>
+                          {supplier.is_active ? "Activo" : "Inactivo"}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-xl bg-gray-50 p-2">
+                          <div className="font-semibold uppercase tracking-wide text-gray-400">RFC</div>
+                          <div className="mt-1 break-words text-gray-700">{supplier.rfc || "-"}</div>
+                        </div>
+                        <div className="rounded-xl bg-gray-50 p-2">
+                          <div className="font-semibold uppercase tracking-wide text-gray-400">Teléfono</div>
+                          <div className="mt-1 break-words text-gray-700">{supplier.phone || "-"}</div>
+                        </div>
+                        <div className="col-span-2 rounded-xl bg-gray-50 p-2">
+                          <div className="font-semibold uppercase tracking-wide text-gray-400">Email</div>
+                          <div className="mt-1 break-all text-gray-700">{supplier.email || "-"}</div>
+                        </div>
+                        <div className="col-span-2 rounded-xl bg-gray-50 p-2">
+                          <div className="font-semibold uppercase tracking-wide text-gray-400">Ubicación</div>
+                          <div className="mt-1 break-words text-gray-700">{[supplier.city, supplier.state, supplier.country].filter(Boolean).join(", ") || "-"}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <div className="text-xs text-gray-500">
+                          {supplier.is_verified ? (
+                            <span className="inline-flex items-center gap-1 text-[#168e00]">
+                              <CheckCircle size={14} />
+                              Verificado
+                            </span>
+                          ) : (
+                            "Sin verificar"
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {isAdminUser ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleVerified(supplier)}
+                              disabled={verifyingId === supplier.id}
+                              className="rounded-lg p-2 text-gray-400 hover:bg-green-50 hover:text-green-600 disabled:opacity-50"
+                              title={supplier.is_verified ? "Desverificar" : "Verificar"}
+                            >
+                              {verifyingId === supplier.id ? <Loader2 size={18} className="animate-spin" /> : supplier.is_verified ? <XCircle size={18} /> : <CheckCircle size={18} />}
+                            </button>
+                          ) : null}
+                          <Link href={`/admin/suppliers/${supplier.id}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary" title="Editar">
+                            <Edit2 size={18} />
+                          </Link>
+                          <button type="button" onClick={() => handleDelete(supplier.id)} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500" title="Eliminar">
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+          </>
         )}
         <div className="p-4 border-t border-gray-100 flex items-center justify-between">
           <div className="text-sm text-gray-500">

@@ -7,7 +7,6 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
-import { fetchWithAuth } from "@/lib/api";
 
 interface Category {
   id: number;
@@ -17,6 +16,25 @@ interface Category {
   is_active: boolean;
   slug: string;
 }
+
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
+const authHeaders = (token: string) => ({
+  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
+});
+
+const unwrapCategories = (data: unknown): Category[] => {
+  if (Array.isArray(data)) return data as Category[];
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    const items = record.items ?? record.results ?? record.data ?? record.categories;
+    if (Array.isArray(items)) return items as Category[];
+  }
+  return [];
+};
 
 export default function EditCategoryPage() {
   const params = useParams();
@@ -32,7 +50,12 @@ export default function EditCategoryPage() {
       if (!token || !id) return;
       
       try {
-        const response = await fetchWithAuth(`/api/categories/${id}`);
+        const response = await fetch(apiUrl(`/categories/${id}`), {
+          headers: {
+            ...authHeaders(token),
+            Accept: "application/json",
+          },
+        });
         
         if (response.ok) {
           const data = await response.json();
@@ -46,11 +69,17 @@ export default function EditCategoryPage() {
             // Let's assume standard REST first, if fails, try fallback.
             
             console.warn(`Direct fetch failed (${response.status}). Checking if we need to filter list...`);
-            const listResponse = await fetchWithAuth(`/api/categories/?id=${id}`);
+            const listResponse = await fetch(apiUrl(`/categories/?id=${id}`), {
+              headers: {
+                ...authHeaders(token),
+                Accept: "application/json",
+              },
+            });
             if (listResponse.ok) {
                 const listData = await listResponse.json();
-                if (Array.isArray(listData) && listData.length > 0) {
-                    setCategory(listData[0]);
+                const categories = unwrapCategories(listData);
+                if (categories.length > 0) {
+                    setCategory(categories[0]);
                 } else {
                     setError("Categoría no encontrada");
                 }
@@ -58,7 +87,7 @@ export default function EditCategoryPage() {
                 setError("No se pudo cargar la categoría");
             }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Error fetching category:", err);
         setError("Error de conexión");
       } finally {

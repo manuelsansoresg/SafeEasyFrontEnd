@@ -13,6 +13,8 @@ type AdminSettings = {
   extra_cost_per_km: number;
   commission_type: "percentage" | "fixed";
   commission_value: number;
+  seller_commission_type: "percentage" | "fixed";
+  seller_commission_value: number;
 };
 
 const parseNumber = (value: unknown, fallback: number) => {
@@ -46,17 +48,33 @@ export default function ConfiguracionPage() {
 
   const [commissionType, setCommissionType] = useState<"percentage" | "fixed">("percentage");
   const [commissionValue, setCommissionValue] = useState<string>("");
+  const [sellerCommissionType, setSellerCommissionType] = useState<"percentage" | "fixed">("percentage");
+  const [sellerCommissionValue, setSellerCommissionValue] = useState<string>("");
   const [minDistanceKm, setMinDistanceKm] = useState<string>("");
   const [extraCostPerKm, setExtraCostPerKm] = useState<string>("");
 
   const canSubmit = useMemo(() => {
     const comm = Number.parseFloat(commissionValue);
+    const sellerComm = Number.parseFloat(sellerCommissionValue);
     const min = Number.parseFloat(minDistanceKm);
     const extra = Number.parseFloat(extraCostPerKm);
     const commOk =
       Number.isFinite(comm) && comm >= 0 && (commissionType === "fixed" || (commissionType === "percentage" && comm <= 100));
-    return commOk && Number.isFinite(min) && min >= 0 && Number.isFinite(extra) && extra >= 0 && !saving && !loading;
-  }, [commissionValue, commissionType, minDistanceKm, extraCostPerKm, saving, loading]);
+    const sellerCommOk =
+      Number.isFinite(sellerComm) &&
+      sellerComm >= 0 &&
+      (sellerCommissionType === "fixed" || (sellerCommissionType === "percentage" && sellerComm <= 100));
+    return commOk && sellerCommOk && Number.isFinite(min) && min >= 0 && Number.isFinite(extra) && extra >= 0 && !saving && !loading;
+  }, [
+    commissionValue,
+    commissionType,
+    sellerCommissionValue,
+    sellerCommissionType,
+    minDistanceKm,
+    extraCostPerKm,
+    saving,
+    loading,
+  ]);
 
   useEffect(() => {
     if (!toast) return;
@@ -104,10 +122,16 @@ export default function ConfiguracionPage() {
           | "percentage"
           | "fixed",
         commission_value: Math.max(0, parseNumber(src.commission_value, 0)),
+        seller_commission_type: (String(src.seller_commission_type ?? "").trim() === "fixed" ? "fixed" : "percentage") as
+          | "percentage"
+          | "fixed",
+        seller_commission_value: Math.max(0, parseNumber(src.seller_commission_value, 0)),
       };
 
       setCommissionType(settings.commission_type);
       setCommissionValue(String(settings.commission_value));
+      setSellerCommissionType(settings.seller_commission_type);
+      setSellerCommissionValue(String(settings.seller_commission_value));
       setMinDistanceKm(String(settings.min_distance_km));
       setExtraCostPerKm(String(settings.extra_cost_per_km));
     } catch {
@@ -123,12 +147,23 @@ export default function ConfiguracionPage() {
 
   const saveSettings = async () => {
     const comm = Number.parseFloat(commissionValue);
+    const sellerComm = Number.parseFloat(sellerCommissionValue);
     const min = Number.parseFloat(minDistanceKm);
     const extra = Number.parseFloat(extraCostPerKm);
     if (!Number.isFinite(comm) || comm < 0 || (commissionType === "percentage" && comm > 100)) {
       setToast({
         type: "error",
         message: commissionType === "percentage" ? "La comisión debe estar entre 0 y 100." : "Comisión inválida.",
+      });
+      return;
+    }
+    if (!Number.isFinite(sellerComm) || sellerComm < 0 || (sellerCommissionType === "percentage" && sellerComm > 100)) {
+      setToast({
+        type: "error",
+        message:
+          sellerCommissionType === "percentage"
+            ? "La comisión por venta de suscripción debe estar entre 0 y 100."
+            : "Comisión por venta de suscripción inválida.",
       });
       return;
     }
@@ -149,6 +184,8 @@ export default function ConfiguracionPage() {
         extra_cost_per_km: extra,
         commission_type: commissionType,
         commission_value: comm,
+        seller_commission_type: sellerCommissionType,
+        seller_commission_value: sellerComm,
       };
       const res = await fetchWithAuth("/api/admin/settings", {
         method: "PUT",
@@ -217,71 +254,131 @@ export default function ConfiguracionPage() {
         {loading ? (
           <div className="text-gray-500">Cargando configuración...</div>
         ) : (
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Tipo de comisión</label>
-              <select
-                value={commissionType}
-                onChange={(e) => setCommissionType(e.target.value === "fixed" ? "fixed" : "percentage")}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none bg-white"
-              >
-                <option value="percentage">Porcentaje</option>
-                <option value="fixed">Valor fijo</option>
-              </select>
-              <p className="text-xs text-gray-500">Selecciona si la comisión se calcula como porcentaje o como monto fijo.</p>
-            </div>
+          <div className="space-y-8">
+            <section className="space-y-5">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Comisión de la plataforma</h2>
+                <p className="mt-1 text-sm text-gray-500">Porcentaje o monto que retiene Drooopy sobre operaciones generales.</p>
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Valor de comisión</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                max={commissionType === "percentage" ? 100 : undefined}
-                step="0.01"
-                value={commissionValue}
-                onChange={(e) => setCommissionValue(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                placeholder={commissionType === "percentage" ? "10" : "50.00"}
-              />
-              <p className="text-xs text-gray-500">
-                {commissionType === "percentage"
-                  ? "Porcentaje de comisión (0 a 100)."
-                  : "Monto fijo de comisión (MXN)."}
-              </p>
-            </div>
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Tipo de comisión</label>
+                  <select
+                    value={commissionType}
+                    onChange={(e) => setCommissionType(e.target.value === "fixed" ? "fixed" : "percentage")}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none bg-white"
+                  >
+                    <option value="percentage">Porcentaje</option>
+                    <option value="fixed">Valor fijo</option>
+                  </select>
+                  <p className="text-xs text-gray-500">Selecciona si se calcula como porcentaje o monto fijo.</p>
+                </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Distancia Mínima de Cobro (km)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                step="0.1"
-                value={minDistanceKm}
-                onChange={(e) => setMinDistanceKm(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                placeholder="2"
-              />
-              <p className="text-xs text-gray-500">Los kilómetros por debajo de este valor no se cobran extra.</p>
-            </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Valor de comisión</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    max={commissionType === "percentage" ? 100 : undefined}
+                    step="0.01"
+                    value={commissionValue}
+                    onChange={(e) => setCommissionValue(e.target.value)}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    placeholder={commissionType === "percentage" ? "10" : "50.00"}
+                  />
+                  <p className="text-xs text-gray-500">
+                    {commissionType === "percentage" ? "Porcentaje de comisión (0 a 100)." : "Monto fijo de comisión (MXN)."}
+                  </p>
+                </div>
+              </div>
+            </section>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Costo Extra por Kilómetro</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                step="0.01"
-                value={extraCostPerKm}
-                onChange={(e) => setExtraCostPerKm(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                placeholder="10.0"
-              />
-              <p className="text-xs text-gray-500">
-                Este monto se sumará por cada kilómetro adicional a la distancia mínima.
-              </p>
-            </div>
+            <section className="space-y-5 rounded-2xl border border-primary/10 bg-primary/5 p-5">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Comisión por venta de suscripción</h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  Monto que recibirá el vendedor cuando venda una suscripción a un proveedor.
+                </p>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Tipo de comisión del vendedor</label>
+                  <select
+                    value={sellerCommissionType}
+                    onChange={(e) => setSellerCommissionType(e.target.value === "fixed" ? "fixed" : "percentage")}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none bg-white"
+                  >
+                    <option value="percentage">Porcentaje</option>
+                    <option value="fixed">Valor fijo</option>
+                  </select>
+                  <p className="text-xs text-gray-500">Aplica sobre el precio de la suscripción vendida.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Valor de comisión del vendedor</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    max={sellerCommissionType === "percentage" ? 100 : undefined}
+                    step="0.01"
+                    value={sellerCommissionValue}
+                    onChange={(e) => setSellerCommissionValue(e.target.value)}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white"
+                    placeholder={sellerCommissionType === "percentage" ? "5" : "100.00"}
+                  />
+                  <p className="text-xs text-gray-500">
+                    {sellerCommissionType === "percentage"
+                      ? "Porcentaje que recibirá el vendedor (0 a 100)."
+                      : "Monto fijo que recibirá el vendedor (MXN)."}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-5">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Costo de envío</h2>
+                <p className="mt-1 text-sm text-gray-500">Reglas para calcular el costo adicional por distancia.</p>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Distancia Mínima de Cobro (km)</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="0.1"
+                    value={minDistanceKm}
+                    onChange={(e) => setMinDistanceKm(e.target.value)}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    placeholder="2"
+                  />
+                  <p className="text-xs text-gray-500">Los kilómetros por debajo de este valor no se cobran extra.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Costo Extra por Kilómetro</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="0.01"
+                    value={extraCostPerKm}
+                    onChange={(e) => setExtraCostPerKm(e.target.value)}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    placeholder="10.0"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Este monto se sumará por cada kilómetro adicional a la distancia mínima.
+                  </p>
+                </div>
+              </div>
+            </section>
 
             <div className="flex justify-end pt-4 border-t border-gray-100">
               <button

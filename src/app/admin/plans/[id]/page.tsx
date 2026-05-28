@@ -6,8 +6,26 @@ import { useParams } from "next/navigation";
 import { PageHero } from "@/components/ui/PageHero";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { fetchWithAuth } from "@/lib/api";
 import PlanForm, { type Plan } from "@/components/admin/PlanForm";
+
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
+const authHeaders = (token: string) => ({
+  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
+});
+
+const unwrapPlans = (data: unknown): Plan[] => {
+  if (Array.isArray(data)) return data as Plan[];
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    const items = record.items ?? record.results ?? record.data ?? record.plans;
+    if (Array.isArray(items)) return items as Plan[];
+  }
+  return [];
+};
 
 export default function EditPlanPage() {
   const params = useParams();
@@ -23,23 +41,31 @@ export default function EditPlanPage() {
       if (!token || !id) return;
 
       try {
-        const response = await fetchWithAuth(`/api/plans/${id}`);
+        const response = await fetch(apiUrl(`/plans/${id}`), {
+          headers: {
+            ...authHeaders(token),
+            Accept: "application/json",
+          },
+        });
         if (response.ok) {
           const data = await response.json();
           setPlan(data);
           return;
         }
 
-        const listResponse = await fetchWithAuth(`/api/plans/?skip=0&limit=1000`);
+        const listResponse = await fetch(apiUrl(`/plans/?skip=0&limit=1000`), {
+          headers: {
+            ...authHeaders(token),
+            Accept: "application/json",
+          },
+        });
         if (listResponse.ok) {
           const listData = await listResponse.json();
           const numericId = Number(id);
-          if (Array.isArray(listData)) {
-            const found = listData.find((p: any) => Number(p?.id) === numericId) || null;
-            if (found) {
-              setPlan(found);
-              return;
-            }
+          const found = unwrapPlans(listData).find((p) => Number(p?.id) === numericId) || null;
+          if (found) {
+            setPlan(found);
+            return;
           }
           setError("Plan no encontrado");
         } else {

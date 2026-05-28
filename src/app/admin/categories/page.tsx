@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { fetchWithAuth } from "@/lib/api";
 import { 
   Plus, 
   Edit2, 
@@ -27,6 +26,25 @@ interface Category {
   is_active: boolean;
   slug: string;
 }
+
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
+const authHeaders = (token: string) => ({
+  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
+});
+
+const unwrapCategories = (data: unknown): Category[] => {
+  if (Array.isArray(data)) return data as Category[];
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    const items = record.items ?? record.results ?? record.data ?? record.categories;
+    if (Array.isArray(items)) return items as Category[];
+  }
+  return [];
+};
 
 export default function AdminCategoriesPage() {
   const { token } = useAuthStore();
@@ -59,10 +77,15 @@ export default function AdminCategoriesPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/categories/?skip=${skip}&limit=${limit}`);
+      const response = await fetch(apiUrl(`/categories/?skip=${skip}&limit=${limit}`), {
+        headers: {
+          ...authHeaders(token),
+          Accept: "application/json",
+        },
+      });
       if (response.ok) {
         const data = await response.json();
-        setCategories(Array.isArray(data) ? data : []);
+        setCategories(unwrapCategories(data));
       }
     } catch (error) {
       console.error("Error fetching categories:", error);
@@ -75,8 +98,9 @@ export default function AdminCategoriesPage() {
     if (!confirm("¿Estás seguro de eliminar esta categoría?")) return;
     if (!token) return;
     try {
-      const response = await fetchWithAuth(`/api/categories/${id}`, {
-        method: 'DELETE'
+      const response = await fetch(apiUrl(`/categories/${id}`), {
+        method: 'DELETE',
+        headers: authHeaders(token),
       });
       if (response.ok) {
         fetchCategories();
@@ -134,7 +158,7 @@ export default function AdminCategoriesPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
@@ -213,6 +237,65 @@ export default function AdminCategoriesPage() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="divide-y divide-gray-100 md:hidden">
+          {loading ? (
+            <div className="px-4 py-8 text-center text-gray-500">
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="animate-spin" size={20} />
+                Cargando categorías...
+              </div>
+            </div>
+          ) : filteredCategories.length === 0 ? (
+            <div className="px-4 py-8 text-center text-gray-500">No se encontraron categorías</div>
+          ) : (
+            filteredCategories.map((category) => (
+              <article key={category.id} className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    {renderIcon(category.icon)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="break-words text-sm font-semibold text-gray-900">{category.name}</h3>
+                        <p className="mt-1 break-words font-mono text-xs text-gray-400">{category.slug}</p>
+                      </div>
+                      {category.is_active ? (
+                        <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-green-100 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                          <CheckCircle size={12} />
+                          Activo
+                        </span>
+                      ) : (
+                        <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-gray-100 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600">
+                          <XCircle size={12} />
+                          Inactivo
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-3 line-clamp-3 break-words text-sm leading-6 text-gray-600">{category.description || "-"}</p>
+                    <div className="mt-3 flex justify-end gap-2">
+                      <Link
+                        href={`/admin/categories/${category.id}`}
+                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-primary/5 hover:text-primary"
+                        title="Editar"
+                      >
+                        <Edit2 size={18} />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => deleteCategory(category.id)}
+                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))
+          )}
         </div>
       </div>
     </div>

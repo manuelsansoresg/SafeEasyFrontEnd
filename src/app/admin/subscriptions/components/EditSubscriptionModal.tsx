@@ -100,9 +100,9 @@ export default function EditSubscriptionModal({ open, subscription, onClose, onS
       await subscriptionsService.updateStatus(subscription.id, payload);
       onSaved();
       onClose();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Failed to update subscription:", e);
-      setError(e?.message || "Error al guardar cambios.");
+      setError(e instanceof Error ? e.message : "Error al guardar cambios.");
     } finally {
       setSaving(false);
     }
@@ -224,4 +224,3 @@ export default function EditSubscriptionModal({ open, subscription, onClose, onS
     </div>
   );
 }
-
