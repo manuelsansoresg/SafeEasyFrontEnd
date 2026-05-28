@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, Fragment, useCallback } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { fetchWithAuth } from "@/lib/api";
 import { 
   Plus, 
   Search, 
   Edit2, 
   Trash2, 
+  ChevronLeft,
+  ChevronRight,
   ChevronDown, 
   ChevronUp, 
   Loader2,
@@ -36,22 +37,31 @@ interface Supplier {
   user_id: number;
 }
 
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
+const authHeaders = (token: string) => ({
+  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
+});
+
 export default function AdminSuppliersPage() {
   const { token, user } = useAuthStore();
   const roleKey = String(user?.role || "").toLowerCase();
   const isAdminUser = roleKey === "admin" || roleKey === "superuser";
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [verifyingId, setVerifyingId] = useState<number | null>(null);
   
   // Pagination
   const [skip, setSkip] = useState(0);
-  const [limit, setLimit] = useState(50);
+  const [limit] = useState(50);
 
   // Modal & Form
-  const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
 
   useEffect(() => {
@@ -60,16 +70,16 @@ export default function AdminSuppliersPage() {
     return () => window.clearTimeout(id);
   }, [toast]);
 
-  useEffect(() => {
-    fetchSuppliers();
-  }, [skip, limit, token]);
-
-  const fetchSuppliers = async () => {
+  const fetchSuppliers = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
-      // Add trailing slash to avoid 307 redirects from backend
-      const response = await fetchWithAuth(`/api/suppliers/?skip=${skip}&limit=${limit}`);
+      const response = await fetch(apiUrl(`/suppliers/?skip=${skip}&limit=${limit}`), {
+        headers: {
+          ...authHeaders(token),
+          Accept: "application/json",
+        },
+      });
       
       if (response.ok) {
         const data = await response.json();
@@ -83,12 +93,13 @@ export default function AdminSuppliersPage() {
             return typeof preserved === "boolean" ? { ...s, is_verified: preserved } : s;
           });
         });
+        setSelectedIds((prev) => prev.filter((id) => next.some((supplier) => supplier.id === id)));
       } else {
         console.error("Failed to fetch suppliers:", response.status, response.statusText);
         try {
             const errorText = await response.text();
             console.error("Error response:", errorText);
-        } catch (e) {
+        } catch {
             // Ignore parsing error
         }
       }
@@ -97,19 +108,23 @@ export default function AdminSuppliersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [limit, skip, token]);
+
+  useEffect(() => {
+    fetchSuppliers();
+  }, [fetchSuppliers]);
 
   const updateSupplierVerified = async (supplierId: number, isVerified: boolean) => {
     const tryUrls = [`/api/suppliers/${supplierId}`, `/api/suppliers/${supplierId}/`];
     const form = new FormData();
     form.append("is_verified", isVerified ? "true" : "false");
-    const formOptions = { method: "PUT", body: form };
+    const formOptions = { method: "PUT", headers: authHeaders(token || ""), body: form };
 
     let response: Response | null = null;
     let usedUrl = "";
     for (const url of tryUrls) {
       usedUrl = url;
-      response = await fetchWithAuth(url, formOptions);
+      response = await fetch(apiUrl(url.replace(/^\/api/, "")), formOptions);
       if (response.ok) break;
     }
 
@@ -170,13 +185,27 @@ export default function AdminSuppliersPage() {
     );
   };
 
-  const allSelected = suppliers.length > 0 && selectedIds.length === suppliers.length;
+  const filteredSuppliers = suppliers.filter((supplier) => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return true;
+    return [
+      supplier.name,
+      supplier.short_name,
+      supplier.rfc,
+      supplier.phone,
+      supplier.email,
+      supplier.city,
+      supplier.state,
+    ].some((value) => value?.toLowerCase().includes(term));
+  });
+
+  const allSelected = filteredSuppliers.length > 0 && filteredSuppliers.every((supplier) => selectedIds.includes(supplier.id));
 
   const toggleSelectAll = () => {
     if (allSelected) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(suppliers.map((s) => s.id));
+      setSelectedIds(filteredSuppliers.map((s) => s.id));
     }
   };
 
@@ -194,7 +223,9 @@ export default function AdminSuppliersPage() {
         targetSlug = s?.slug;
 
         if (targetSlug) {
-          const resolve = await fetchWithAuth(`/api/suppliers/${encodeURIComponent(targetSlug)}`);
+          const resolve = await fetch(apiUrl(`/suppliers/${encodeURIComponent(targetSlug)}`), {
+            headers: authHeaders(token || ""),
+          });
           if (resolve.ok) {
             const data = await resolve.json();
             if (data?.id && Number.isFinite(Number(data.id))) {
@@ -204,9 +235,9 @@ export default function AdminSuppliersPage() {
         }
       }
 
-      const response = await fetchWithAuth(`/api/suppliers/${numericId}`, {
+      const response = await fetch(apiUrl(`/suppliers/${numericId}`), {
         method: "DELETE",
-        headers: { "X-Requested-With": "XMLHttpRequest" },
+        headers: { ...authHeaders(token || ""), "X-Requested-With": "XMLHttpRequest" },
       });
 
       if (response.ok || response.status === 404) {
@@ -278,10 +309,11 @@ export default function AdminSuppliersPage() {
     }
 
     try {
-      const response = await fetchWithAuth(`/api/suppliers/bulk-delete`, {
+      const response = await fetch(apiUrl(`/suppliers/bulk-delete`), {
         method: "POST",
         body: JSON.stringify({ ids: numericIds }),
         headers: {
+          ...authHeaders(token),
           "Content-Type": "application/json",
         },
       });
@@ -329,6 +361,7 @@ export default function AdminSuppliersPage() {
       <PageHero
         title="Gestión de Proveedores"
         subtitle="Administra la lista de proveedores del sistema."
+        eyebrow="Usuarios"
         actions={
         <div className="flex items-center gap-3">
           <button
@@ -351,6 +384,18 @@ export default function AdminSuppliersPage() {
       />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 flex gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Buscar proveedores..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            />
+          </div>
+        </div>
         {loading ? (
           <div className="p-8 flex justify-center">
             <Loader2 className="animate-spin text-primary" size={32} />
@@ -378,14 +423,14 @@ export default function AdminSuppliersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {suppliers.length === 0 ? (
+                {filteredSuppliers.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-gray-500">
-                      No hay proveedores registrados.
+                      No se encontraron proveedores.
                     </td>
                   </tr>
                 ) : (
-                  suppliers.map((supplier) => (
+                  filteredSuppliers.map((supplier) => (
                     <Fragment key={supplier.id}>
                       <tr className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-6 py-4">
@@ -506,6 +551,29 @@ export default function AdminSuppliersPage() {
             </table>
           </div>
         )}
+        <div className="p-4 border-t border-gray-100 flex items-center justify-between">
+          <div className="text-sm text-gray-500">
+            Mostrando {filteredSuppliers.length} proveedores
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSkip(Math.max(0, skip - limit))}
+              disabled={skip === 0}
+              className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setSkip(skip + limit)}
+              disabled={suppliers.length < limit}
+              className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

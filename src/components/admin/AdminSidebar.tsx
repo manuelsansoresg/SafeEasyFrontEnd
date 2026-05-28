@@ -22,7 +22,8 @@ import {
   Repeat,
   Settings,
   FileText,
-  LifeBuoy
+  LifeBuoy,
+  CircleHelp
 } from "lucide-react";
 import { Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,8 @@ import { useAuthStore } from "@/store/useAuthStore";
 interface AdminSidebarProps {
   isCollapsed: boolean;
   toggleSidebar: () => void;
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 type AdminRole = "admin" | "superuser" | "supplier" | "client";
@@ -47,7 +50,7 @@ type MenuItem = MenuChildItem & {
   children?: MenuChildItem[];
 };
 
-export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) {
+export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false, onMobileClose }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuthStore();
@@ -96,6 +99,12 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
           title: "Anuncios",
           path: "/admin/ads",
           icon: ImageIcon,
+          roles: ['admin', 'superuser']
+        },
+        {
+          title: "Preguntas",
+          path: "/admin/sell-faq",
+          icon: CircleHelp,
           roles: ['admin', 'superuser']
         },
         {
@@ -202,14 +211,11 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
     <motion.aside
       initial={false}
       animate={{ 
-        width: isCollapsed ? "80px" : "260px",
+        width: isMobileOpen ? "280px" : isCollapsed ? "80px" : "260px",
       }}
       className={cn(
-        "hidden md:flex relative flex-col h-screen bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-40 sticky top-0",
-        // Mobile behavior can be handled via parent or media queries, 
-        // but typically sidebar is fixed or overlay on mobile.
-        // For this requirement: "version movil que se vean por default solo iconos"
-        // We will rely on the `isCollapsed` state passed from layout which should be true by default on mobile.
+        "fixed inset-y-0 left-0 z-50 flex flex-col bg-white shadow-xl transition-transform duration-300 md:sticky md:top-0 md:z-40 md:h-screen md:border-r md:border-gray-200 md:shadow-sm",
+        isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}
     >
       {/* Navigation Items */}
@@ -244,21 +250,21 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
                     </div>
 
                     <motion.span
-                      animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : "auto" }}
+                      animate={{ opacity: isMobileOpen || !isCollapsed ? 1 : 0, width: isMobileOpen || !isCollapsed ? "auto" : 0 }}
                       className="font-medium whitespace-nowrap overflow-hidden"
                     >
                       {item.title}
                     </motion.span>
 
                     <motion.span
-                      animate={{ opacity: isCollapsed ? 0 : 1, rotate: isOpen ? 180 : 0 }}
+                      animate={{ opacity: isMobileOpen || !isCollapsed ? 1 : 0, rotate: isOpen ? 180 : 0 }}
                       className="ml-auto text-current"
                     >
                       <ChevronDown size={16} />
                     </motion.span>
                   </button>
 
-                  {!isCollapsed && isOpen ? (
+                  {(!isCollapsed || isMobileOpen) && isOpen ? (
                     <div className="mt-1 space-y-1 pl-4">
                       {item.children?.map((child) => {
                         const childActive = pathname === child.path || pathname.startsWith(child.path);
@@ -266,7 +272,10 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
                           <Link
                             key={child.path}
                             href={child.path}
-                            onClick={() => setOpenMenus({})}
+                            onClick={() => {
+                              setOpenMenus({});
+                              onMobileClose?.();
+                            }}
                             className={cn(
                               "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
                               childActive
@@ -282,7 +291,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
                     </div>
                   ) : null}
 
-                  {isCollapsed && (
+                  {isCollapsed && !isMobileOpen && (
                     <div className="absolute left-full top-0 ml-4 hidden min-w-48 rounded-xl border border-gray-100 bg-white p-2 shadow-xl group-hover/menu:block z-50">
                       <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                         {item.title}
@@ -293,7 +302,10 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
                           <Link
                             key={child.path}
                             href={child.path}
-                            onClick={() => setOpenMenus({})}
+                            onClick={() => {
+                              setOpenMenus({});
+                              onMobileClose?.();
+                            }}
                             className={cn(
                               "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                               childActive
@@ -316,7 +328,10 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
               <Link
                 key={item.path}
                 href={item.path}
-                onClick={() => setOpenMenus({})}
+                onClick={() => {
+                  setOpenMenus({});
+                  onMobileClose?.();
+                }}
                 className={cn(
                   "flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative",
                   isActive 
@@ -333,14 +348,14 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
                 </div>
                 
                 <motion.span
-                  animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : "auto" }}
+                  animate={{ opacity: isMobileOpen || !isCollapsed ? 1 : 0, width: isMobileOpen || !isCollapsed ? "auto" : 0 }}
                   className="font-medium whitespace-nowrap overflow-hidden"
                 >
                   {item.title}
                 </motion.span>
 
                 {/* Tooltip for collapsed mode */}
-                {isCollapsed && (
+                {isCollapsed && !isMobileOpen && (
                   <div className="absolute left-full ml-4 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
                     {item.title}
                   </div>
@@ -367,7 +382,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar }: AdminSidebarProps) 
                 <LogOut size={22} />
              </div>
              <motion.span
-                animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : "auto" }}
+                animate={{ opacity: isMobileOpen || !isCollapsed ? 1 : 0, width: isMobileOpen || !isCollapsed ? "auto" : 0 }}
                 className="font-medium whitespace-nowrap overflow-hidden"
              >
                 Cerrar Sesión

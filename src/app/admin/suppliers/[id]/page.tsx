@@ -152,6 +152,7 @@ export default function EditSupplierPage() {
       <PageHero
         title="Editar Proveedor"
         subtitle={`Modifica los datos del proveedor ${supplier.name}.`}
+        eyebrow="Usuarios"
         actions={
           <Link href="/admin/suppliers" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
             <ArrowLeft size={16} />

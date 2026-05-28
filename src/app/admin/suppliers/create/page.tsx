@@ -11,6 +11,7 @@ export default function CreateSupplierPage() {
       <PageHero
         title="Nuevo Proveedor"
         subtitle="Registra un nuevo proveedor en el sistema."
+        eyebrow="Usuarios"
         actions={
           <Link href="/admin/suppliers" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
             <ArrowLeft size={16} />

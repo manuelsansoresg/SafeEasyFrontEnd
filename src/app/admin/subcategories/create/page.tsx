@@ -11,6 +11,7 @@ export default function CreateSubcategoryPage() {
       <PageHero
         title="Nueva Subcategoría"
         subtitle="Crea una nueva subcategoría y asígnala a una categoría principal."
+        eyebrow="Contenido"
         actions={
           <Link href="/admin/subcategories" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
             <ArrowLeft size={16} />

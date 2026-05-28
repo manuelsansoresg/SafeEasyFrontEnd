@@ -18,6 +18,11 @@ interface User {
   role?: string;
 }
 
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
 export default function EditUserPage() {
   const params = useParams();
   const id = params.id;
@@ -33,7 +38,7 @@ export default function EditUserPage() {
       
       try {
         // Try to fetch specific user first
-        const response = await fetchWithAuth(`/api/users/${id}`);
+        const response = await fetchWithAuth(apiUrl(`/users/${id}`));
         
         if (response.ok) {
           const data = await response.json();
@@ -42,7 +47,7 @@ export default function EditUserPage() {
             console.warn(`Direct fetch failed (${response.status}), trying fallback via list...`);
             
             // Fallback: Fetch list and find user
-            const listResponse = await fetchWithAuth(`/api/users?skip=0&limit=1000`);
+            const listResponse = await fetchWithAuth(apiUrl(`/users/?skip=0&limit=1000`));
 
             if (listResponse.ok) {
                 const listData = await listResponse.json();
@@ -67,9 +72,13 @@ export default function EditUserPage() {
             console.warn("Direct fetch error response:", text);
             setError(`No se pudo cargar el usuario. El servidor no permite acceso directo y no se encontró en el listado.`);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(err);
-        setError(`Connection error: ${err.message}`);
+        const message =
+          err && typeof err === "object" && "message" in err && typeof (err as Record<string, unknown>).message === "string"
+            ? String((err as Record<string, unknown>).message)
+            : "Error desconocido";
+        setError(`Error de conexión: ${message}`);
       } finally {
         setLoading(false);
       }
@@ -102,6 +111,7 @@ export default function EditUserPage() {
       <PageHero
         title="Editar Usuario"
         subtitle={`Modifica los datos del usuario ${user.full_name || user.name || user.email}.`}
+        eyebrow="Usuarios"
         actions={
           <Link href="/admin/users" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
             <ArrowLeft size={16} />

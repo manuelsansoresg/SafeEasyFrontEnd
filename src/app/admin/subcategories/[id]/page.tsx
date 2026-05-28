@@ -94,6 +94,7 @@ export default function EditSubcategoryPage() {
       <PageHero
         title="Editar Subcategoría"
         subtitle={`Modifica los datos de la subcategoría ${subcategory.name}.`}
+        eyebrow="Contenido"
         actions={
           <Link href="/admin/subcategories" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
             <ArrowLeft size={16} />

@@ -98,6 +98,7 @@ export default function EditCategoryPage() {
       <PageHero
         title="Editar Categoría"
         subtitle={`Modifica los datos de la categoría ${category.name}.`}
+        eyebrow="Contenido"
         actions={
           <Link href="/admin/categories" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
             <ArrowLeft size={16} />

@@ -155,7 +155,11 @@ export default function AdminAdsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHero title="Anuncios" subtitle="Gestiona los banners promocionales de la plataforma." />
+      <PageHero
+        title="Anuncios"
+        subtitle="Gestiona los banners promocionales de la plataforma."
+        eyebrow="Contenido"
+      />
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">

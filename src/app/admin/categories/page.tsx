@@ -108,6 +108,7 @@ export default function AdminCategoriesPage() {
       <PageHero
         title="Categorías"
         subtitle="Gestiona las categorías de productos."
+        eyebrow="Contenido"
         actions={
         <Link 
           href="/admin/categories/create" 

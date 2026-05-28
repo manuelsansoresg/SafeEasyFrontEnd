@@ -11,6 +11,7 @@ export default function CreateCourierPage() {
       <PageHero
         title="Nuevo Repartidor"
         subtitle="Crea un nuevo repartidor en el sistema."
+        eyebrow="Usuarios"
         actions={
           <Link href="/admin/couriers" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
             <ArrowLeft size={16} />

@@ -28,11 +28,43 @@ interface User {
 
 const isCourier = (user: User) => (user.role || "").toLowerCase() === "courier";
 
+const unwrapUsers = (data: unknown): User[] => {
+  if (Array.isArray(data)) return data as User[];
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    const items = record.items ?? record.results ?? record.data ?? record.users;
+    if (Array.isArray(items)) return items as User[];
+  }
+  return [];
+};
+
+const readErrorMessage = async (response: Response) => {
+  const text = await response.text().catch(() => "");
+  if (!text) return `Error ${response.status}: ${response.statusText}`;
+  try {
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    const detail = parsed.detail ?? parsed.message ?? parsed.error;
+    if (typeof detail === "string") return detail;
+    if (detail) return JSON.stringify(detail);
+  } catch {}
+  return text;
+};
+
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
+const authHeaders = (token: string) => ({
+  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
+});
+
 export default function CouriersPage() {
   const { token } = useAuthStore();
   const [couriers, setCouriers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
 
@@ -52,15 +84,22 @@ export default function CouriersPage() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetchWithAuth("/api/users/?skip=0&limit=1000");
+        const params = new URLSearchParams({
+          skip: "0",
+          limit: "1000",
+        });
+        if (searchTerm.trim()) params.set("search", searchTerm.trim());
+
+        const response = await fetchWithAuth(apiUrl(`/users/?${params.toString()}`));
 
         if (response.ok) {
           const data = await response.json();
-          const users = Array.isArray(data) ? data : data && Array.isArray(data.items) ? data.items : [];
-          setCouriers(users.filter(isCourier));
+          const nextCouriers = unwrapUsers(data).filter(isCourier);
+          setCouriers(nextCouriers);
+          setSelectedIds((prev) => prev.filter((id) => nextCouriers.some((courier) => courier.id === id)));
         } else {
-          const text = await response.text();
-          setError(`Error: ${text || response.statusText}`);
+          const message = await readErrorMessage(response);
+          setError(message === "Not Found" ? "No se encontró el endpoint /users/." : message);
         }
       } catch (error) {
         console.error("Error fetching couriers:", error);
@@ -71,21 +110,25 @@ export default function CouriersPage() {
     };
 
     fetchCouriers();
-  }, [token]);
+  }, [searchTerm, token]);
 
   const deleteCourier = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este repartidor?")) return;
+    if (!token) return;
 
     try {
-      const response = await fetchWithAuth(`/api/users/${id}`, {
+      const response = await fetch(apiUrl(`/admin/users/${id}`), {
         method: "DELETE",
+        headers: authHeaders(token),
       });
 
       if (response.ok) {
         setCouriers((prev) => prev.filter((courier) => courier.id !== id));
+        setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id));
         setToast({ type: "success", message: "Repartidor eliminado correctamente." });
       } else {
-        setToast({ type: "error", message: "Error al eliminar repartidor." });
+        const message = await readErrorMessage(response);
+        setToast({ type: "error", message: message || "Error al eliminar repartidor." });
       }
     } catch (error) {
       console.error("Error deleting courier:", error);
@@ -101,6 +144,45 @@ export default function CouriersPage() {
       (courier.full_name && courier.full_name.toLowerCase().includes(term))
     );
   });
+  const allSelected = filteredCouriers.length > 0 && filteredCouriers.every((courier) => selectedIds.includes(courier.id));
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? [] : filteredCouriers.map((courier) => courier.id));
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!token) return;
+    if (!confirm(`¿Estás seguro de eliminar ${selectedIds.length} repartidor(es) seleccionados?`)) return;
+
+    try {
+      const results = await Promise.all(
+        selectedIds.map((id) =>
+          fetch(apiUrl(`/admin/users/${id}`), {
+            method: "DELETE",
+            headers: authHeaders(token),
+          })
+        )
+      );
+      const failed = results.filter((response) => !response.ok);
+
+      if (failed.length > 0) {
+        setToast({ type: "error", message: "No se pudieron eliminar todos los repartidores seleccionados." });
+        return;
+      }
+
+      setCouriers((prev) => prev.filter((courier) => !selectedIds.includes(courier.id)));
+      setSelectedIds([]);
+      setToast({ type: "success", message: "Repartidores seleccionados eliminados correctamente." });
+    } catch (error) {
+      console.error("Error deleting selected couriers:", error);
+      setToast({ type: "error", message: "Error de red al eliminar repartidores." });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -108,14 +190,25 @@ export default function CouriersPage() {
       <PageHero
         title="Repartidores"
         subtitle="Gestiona los repartidores del sistema."
+        eyebrow="Usuarios"
         actions={
-        <Link
-          href="/admin/couriers/create"
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
-        >
-          <Plus size={20} />
-          Nuevo Repartidor
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleBulkDelete}
+            disabled={selectedIds.length === 0}
+            className="cursor-pointer px-4 py-2 rounded-xl border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-40 disabled:cursor-default transition-colors"
+          >
+            Eliminar seleccionados {selectedIds.length > 0 ? `(${selectedIds.length})` : ""}
+          </button>
+          <Link
+            href="/admin/couriers/create"
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
+          >
+            <Plus size={20} />
+            Nuevo Repartidor
+          </Link>
+        </div>
         }
       />
 
@@ -144,6 +237,15 @@ export default function CouriersPage() {
           <table className="w-full">
             <thead className="bg-gray-50/50">
               <tr>
+                <th className="px-6 py-4 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-gray-300 text-primary"
+                    aria-label="Seleccionar todos los repartidores"
+                  />
+                </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Repartidor</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Rol</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
@@ -153,19 +255,28 @@ export default function CouriersPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     Cargando repartidores...
                   </td>
                 </tr>
               ) : filteredCouriers.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     No se encontraron repartidores
                   </td>
                 </tr>
               ) : (
                 filteredCouriers.map((courier) => (
                   <tr key={courier.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(courier.id)}
+                        onChange={() => toggleSelect(courier.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-primary"
+                        aria-label={`Seleccionar repartidor ${courier.full_name || courier.name || courier.email}`}
+                      />
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">

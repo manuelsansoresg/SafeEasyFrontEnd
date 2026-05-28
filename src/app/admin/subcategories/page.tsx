@@ -127,6 +127,7 @@ export default function AdminSubcategoriesPage() {
       <PageHero
         title="Subcategorías"
         subtitle="Gestiona las subcategorías de productos."
+        eyebrow="Contenido"
         actions={
         <Link 
           href="/admin/subcategories/create" 

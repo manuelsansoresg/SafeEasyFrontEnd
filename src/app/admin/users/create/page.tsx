@@ -11,6 +11,7 @@ export default function CreateUserPage() {
       <PageHero
         title="Nuevo Usuario"
         subtitle="Crea un nuevo usuario en el sistema."
+        eyebrow="Usuarios"
         actions={
           <Link href="/admin/users" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
             <ArrowLeft size={16} />

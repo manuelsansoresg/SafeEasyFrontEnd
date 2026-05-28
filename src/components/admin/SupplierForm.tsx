@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { usePathname, useRouter } from "next/navigation";
-import { Loader2, CheckCircle, UserPlus, Users, Search, Store, Truck } from "lucide-react";
+import { Loader2, CheckCircle, Users, Store, Truck } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { loadGoogleMaps, parseMapLocation, type LatLngLiteral } from "@/lib/googleMaps";
 import FileUpload from "@/components/ui/FileUpload";
@@ -67,6 +67,15 @@ function formText(value: unknown, fallback = "") {
   return trimmed.toLowerCase() === "string" ? "" : trimmed;
 }
 
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
+const authHeaders = (token: string) => ({
+  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
+});
+
 interface SupplierFormProps {
   initialData?: Supplier;
   isEditMode?: boolean;
@@ -78,18 +87,18 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
   const router = useRouter();
   const pathname = usePathname();
   
-  // User Management for Admin
-  type UserOption = { id: number; email: string; full_name?: string; name?: string };
-  const [users, setUsers] = useState<UserOption[]>([]);
-  const [userMode, setUserMode] = useState<'existing' | 'new' | 'current'>('current');
-  const [selectedUserId, setSelectedUserId] = useState<number | string>("");
-  const [userSearchTerm, setUserSearchTerm] = useState("");
-  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [userMode, setUserMode] = useState<'existing' | 'new' | 'current'>(isEditMode ? 'current' : 'new');
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
     password: ""
   });
+  const [linkedUser, setLinkedUser] = useState({
+    name: "",
+    email: "",
+    password: ""
+  });
+  const [loadingLinkedUser, setLoadingLinkedUser] = useState(false);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
 
   const isMyCompanyPage = String(pathname || "").startsWith("/admin/my-company");
@@ -111,7 +120,17 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
     }
   })();
   const effectiveRoleKey = roleKeyFromStore || roleKeyFromStorage;
+  const isAdminUser = ["admin", "superuser"].includes(effectiveRoleKey);
   const isSupplierRole = ["supplier", "proveedor", "provider", "vendor", "seller"].includes(effectiveRoleKey);
+  const showAccessSection = (isAdminUser && !isEditMode) || (isEditMode && (isAdminUser || isSupplierRole));
+  const accessUser = isEditMode ? linkedUser : newUser;
+  const setAccessUser = (patch: Partial<typeof newUser>) => {
+    if (isEditMode) {
+      setLinkedUser((prev) => ({ ...prev, ...patch }));
+    } else {
+      setNewUser((prev) => ({ ...prev, ...patch }));
+    }
+  };
 
   const showMercadoPagoSection = isMyCompanyPage && isSupplierRole;
   const canLoadMercadoPagoStatus = showMercadoPagoSection && !!token;
@@ -130,38 +149,37 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
     return () => window.clearTimeout(id);
   }, [toast]);
 
-  // Load initial user if exists
   useEffect(() => {
-    if (initialData?.user_id) {
-        // We need to fetch the specific user to show it in the select even if not in search results
-        const fetchInitialUser = async () => {
-            try {
-                // Try to get specific user. Note: standard endpoint might be /api/users/{id}
-                const response = await fetchWithAuth(`/api/users/${initialData.user_id}`);
-                if (response.ok) {
-                    const data = (await response.json().catch(() => null)) as unknown;
-                    const rec =
-                      data && typeof data === "object" ? (data as Record<string, unknown>) : null;
-                    const id = rec && typeof rec.id === "number" ? rec.id : null;
-                    if (id == null) return;
-                    const email = rec && typeof rec.email === "string" ? rec.email : "";
-                    const full_name =
-                      rec && typeof rec.full_name === "string" ? rec.full_name : undefined;
-                    const name = rec && typeof rec.name === "string" ? rec.name : undefined;
-                    const loadedUser: UserOption = { id, email, full_name, name };
-                    setUsers(prev => {
-                        if (prev.find(u => u.id === loadedUser.id)) return prev;
-                        return [loadedUser, ...prev];
-                    });
-                    setSelectedUserId(loadedUser.id);
-                }
-            } catch (e) {
-                console.error("Error loading initial user", e);
-            }
-        };
-        fetchInitialUser();
-    }
-  }, [initialData]);
+    if (!isEditMode || !token || !initialData?.user_id || !(isAdminUser || isSupplierRole)) return;
+
+    const loadLinkedUser = async () => {
+      setLoadingLinkedUser(true);
+      try {
+        const response = await fetch(apiUrl(`/users/${initialData.user_id}`), {
+          headers: {
+            ...authHeaders(token),
+            Accept: "application/json",
+          },
+        });
+        if (!response.ok) return;
+        const data = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+        setLinkedUser({
+          name:
+            (typeof data?.full_name === "string" && data.full_name) ||
+            (typeof data?.name === "string" && data.name) ||
+            "",
+          email: typeof data?.email === "string" ? data.email : "",
+          password: "",
+        });
+      } catch (error) {
+        console.error("Error loading linked supplier user:", error);
+      } finally {
+        setLoadingLinkedUser(false);
+      }
+    };
+
+    loadLinkedUser();
+  }, [initialData?.user_id, isAdminUser, isEditMode, isSupplierRole, token]);
 
   type NormalizedMpAccount = { connected: boolean; email: string | null };
 
@@ -360,76 +378,6 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
     }
   };
 
-  const fetchUsers = useCallback(async (term: string = "") => {
-      setIsSearchingUsers(true);
-      try {
-          // Construct query params
-          const params = new URLSearchParams();
-          params.append('limit', '20'); // Limit results to prevent saturation
-          if (term) {
-              params.append('search', term); // Assuming backend supports 'search'
-              // Also sending email just in case backend filters by email specifically
-              if (term.includes('@')) {
-                  params.append('email', term);
-              }
-          }
-
-          const response = await fetchWithAuth(`/api/users/?${params.toString()}`);
-          if (response.ok) {
-              const data = (await response.json().catch(() => null)) as unknown;
-              const toRecord = (value: unknown) =>
-                value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-              const toUserOption = (value: unknown): UserOption | null => {
-                const rec = toRecord(value);
-                if (!rec) return null;
-                const id = typeof rec.id === "number" ? rec.id : null;
-                if (id == null) return null;
-                const email = typeof rec.email === "string" ? rec.email : "";
-                const full_name = typeof rec.full_name === "string" ? rec.full_name : undefined;
-                const name = typeof rec.name === "string" ? rec.name : undefined;
-                return { id, email, full_name, name };
-              };
-
-              const list = Array.isArray(data)
-                ? data
-                : (() => {
-                    const rec = toRecord(data);
-                    return rec && Array.isArray(rec.items) ? rec.items : [];
-                  })();
-
-              const newUsers: UserOption[] = [];
-              for (const entry of list) {
-                const u = toUserOption(entry);
-                if (u) newUsers.push(u);
-              }
-              
-              setUsers(prev => {
-                  // Keep the selected user in the list if it exists
-                  const selected = prev.find(u => u.id === Number(selectedUserId));
-                  if (selected && !newUsers.find(u => u.id === selected.id)) {
-                      return [selected, ...newUsers];
-                  }
-                  return newUsers;
-              });
-          }
-      } catch (e) {
-          console.error("Error loading users", e);
-      } finally {
-          setIsSearchingUsers(false);
-      }
-  }, [selectedUserId]);
-
-  // Debounced Search
-  useEffect(() => {
-    if (userMode !== 'existing') return;
-
-    const delayDebounceFn = setTimeout(() => {
-      fetchUsers(userSearchTerm);
-    }, 500);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [userSearchTerm, userMode, fetchUsers]);
-
   const [formData, setFormData] = useState({
     name: formText(initialData?.name),
     short_name: formText(initialData?.short_name),
@@ -480,7 +428,7 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
   const [clearAboutMedia, setClearAboutMedia] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [mapSearchQuery, setMapSearchQuery] = useState("");
+  const [mapSearchQuery] = useState("");
 
   useEffect(() => {
     setLogoPreviewUrl(initialData?.logo || initialData?.logo_url || null);
@@ -640,15 +588,12 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
           finalUserId = initialData.user_id;
       }
 
-      if (user.role === 'admin') {
-          if (userMode === 'existing') {
-              if (!selectedUserId) {
-                  setToast({ type: "error", message: "Debes seleccionar un usuario para asignar al proveedor" });
-                  setIsSubmitting(false);
-                  return;
-              }
-              finalUserId = Number(selectedUserId);
-          } else if (userMode === 'new') {
+      if (isAdminUser) {
+          if (!isEditMode && userMode !== 'new') {
+              setUserMode('new');
+          }
+
+          if (!isEditMode || userMode === 'new') {
               if (!newUser.email || !newUser.password || !newUser.name) {
                   setToast({ type: "error", message: "Todos los campos del nuevo usuario son obligatorios" });
                   setIsSubmitting(false);
@@ -656,8 +601,12 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
               }
               // Create user first
               try {
-                  const userResponse = await fetchWithAuth('/api/users', {
+                  const userResponse = await fetch(apiUrl('/users/'), {
                       method: 'POST',
+                      headers: {
+                          ...authHeaders(token),
+                          "Content-Type": "application/json",
+                      },
                       body: JSON.stringify({
                           ...newUser,
                           role: 'supplier',
@@ -676,7 +625,11 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
                   }
                   
                   const createdUser = await userResponse.json();
-                  finalUserId = createdUser.id;
+                  const createdUserId = Number(createdUser?.id);
+                  if (!Number.isFinite(createdUserId)) {
+                      throw new Error("El backend creó el usuario, pero no devolvió un ID válido.");
+                  }
+                  finalUserId = createdUserId;
               } catch (e: unknown) {
                   const msg =
                     e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
@@ -687,8 +640,47 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
                    return;
               }
           }
-          // If userMode is 'current', we keep the finalUserId set at the beginning 
-          // (either initialData.user_id if editing, or user.id if creating)
+          // In edit mode, current keeps the existing owner.
+      }
+
+      if (isEditMode && finalUserId && (isAdminUser || isSupplierRole)) {
+          if (!linkedUser.email || !linkedUser.name) {
+              setToast({ type: "error", message: "Nombre y email del usuario vinculado son obligatorios." });
+              setIsSubmitting(false);
+              return;
+          }
+
+          const userPayload: Record<string, unknown> = {
+              name: linkedUser.name,
+              email: linkedUser.email,
+              role: "supplier",
+              is_active: true,
+          };
+
+          if (linkedUser.password.trim()) {
+              userPayload.password = linkedUser.password;
+          }
+
+          const userResponse = await fetch(apiUrl(`/users/${finalUserId}`), {
+              method: "PUT",
+              headers: {
+                  ...authHeaders(token),
+                  "Content-Type": "application/json",
+              },
+              body: JSON.stringify(userPayload),
+          });
+
+          if (!userResponse.ok) {
+              const text = await userResponse.text().catch(() => "");
+              let message = text || `Error ${userResponse.status}`;
+              try {
+                  const parsed = JSON.parse(text) as Record<string, unknown>;
+                  if (parsed.detail) {
+                      message = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
+                  }
+              } catch {}
+              throw new Error(`Error al actualizar el usuario vinculado: ${message}`);
+          }
       }
 
       const slug = formData.short_name 
@@ -698,7 +690,15 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
       const isEdit = isEditMode && initialData;
 
       let resolvedMapLocation = mapLocation;
-      if (!resolvedMapLocation) {
+      const hasAddressForMap = [
+        formData.address,
+        formData.exterior_number,
+        formData.neighborhood,
+        formData.cp || formData.zip_code,
+        formData.city,
+        formData.state,
+      ].some((value) => String(value || "").trim());
+      if (!resolvedMapLocation && hasAddressForMap) {
         resolvedMapLocation = await geocodeMapAddress();
         if (resolvedMapLocation) {
           setMapLocation(resolvedMapLocation);
@@ -815,8 +815,9 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
       } else {
         const data = buildFormData();
 
-        response = await fetchWithAuth("/api/suppliers", {
+        response = await fetch(apiUrl("/suppliers/"), {
           method: "POST",
+          headers: authHeaders(token),
           body: data,
         });
       }
@@ -939,108 +940,28 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
         </div>
       )}
 
-      {/* User Selection Section (Admin Only) */}
-      {user?.role === 'admin' && (
+      {/* User access section */}
+      {showAccessSection && (
         <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl mb-6">
           <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
             <Users size={20} />
-            Asignación de Usuario
+            Datos de acceso del proveedor
           </h3>
+          {loadingLinkedUser ? (
+            <div className="mb-4 inline-flex items-center gap-2 text-sm text-blue-700">
+              <Loader2 size={16} className="animate-spin" />
+              Cargando usuario vinculado...
+            </div>
+          ) : null}
           
-          <div className="flex flex-wrap gap-4 mb-4">
-             <button
-                type="button"
-                onClick={() => setUserMode('existing')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    userMode === 'existing' 
-                        ? 'bg-blue-600 text-white shadow-sm' 
-                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                }`}
-             >
-                Usuario Existente
-             </button>
-             <button
-                type="button"
-                onClick={() => setUserMode('new')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                    userMode === 'new' 
-                        ? 'bg-blue-600 text-white shadow-sm' 
-                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                }`}
-             >
-                <UserPlus size={16} />
-                Crear Nuevo Usuario
-             </button>
-             {isEditMode && (
-                 <button
-                    type="button"
-                    onClick={() => setUserMode('current')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        userMode === 'current' 
-                            ? 'bg-blue-600 text-white shadow-sm' 
-                            : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                    }`}
-                 >
-                    Mantener Actual
-                 </button>
-             )}
-          </div>
-
-          {userMode === 'existing' && (
-              <div className="max-w-md">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Buscar Usuario</label>
-                  <div className="mb-2 relative">
-                      <input
-                          type="text"
-                          value={userSearchTerm}
-                          onChange={(e) => setUserSearchTerm(e.target.value)}
-                          placeholder="Buscar por nombre o email..."
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 pl-9 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                      />
-                      {isSearchingUsers ? (
-                        <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500 animate-spin" size={16} />
-                      ) : (
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                      )}
-                  </div>
-                  
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Seleccionar Usuario</label>
-                  <select
-                      value={selectedUserId}
-                      onChange={(e) => setSelectedUserId(e.target.value)}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      size={5} // Show multiple items
-                  >
-                      {/* If nothing selected, show placeholder option */}
-                      {!selectedUserId && <option value="">-- Seleccionar Usuario --</option>}
-                      
-                      {users.map(u => (
-                          <option key={u.id} value={u.id}>
-                              {u.full_name || u.name || u.email} ({u.email})
-                          </option>
-                      ))}
-                      
-                      {/* Message if no results */}
-                      {!isSearchingUsers && users.length === 0 && (
-                          <option disabled>No se encontraron usuarios</option>
-                      )}
-                  </select>
-                  <p className="text-xs text-blue-600 mt-2">
-                      {selectedUserId 
-                        ? `Usuario seleccionado ID: ${selectedUserId}`
-                        : "Usa el buscador para filtrar la lista y selecciona un usuario."}
-                  </p>
-              </div>
-          )}
-
-          {userMode === 'new' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
                       <input
                           type="text"
-                          value={newUser.name}
-                          onChange={e => setNewUser({...newUser, name: e.target.value})}
+                          value={accessUser.name}
+                          onChange={e => setAccessUser({ name: e.target.value })}
+                          required
                           className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Nombre del usuario"
                       />
@@ -1049,35 +970,27 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
                       <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                       <input
                           type="email"
-                          value={newUser.email}
-                          onChange={e => setNewUser({...newUser, email: e.target.value})}
+                          value={accessUser.email}
+                          onChange={e => setAccessUser({ email: e.target.value })}
+                          required
                           className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="usuario@ejemplo.com"
                       />
                   </div>
                   <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Contraseña {isEditMode ? <span className="font-normal text-gray-500">(opcional)</span> : null}
+                      </label>
                       <input
                           type="password"
-                          value={newUser.password}
-                          onChange={e => setNewUser({...newUser, password: e.target.value})}
+                          value={accessUser.password}
+                          onChange={e => setAccessUser({ password: e.target.value })}
+                          required={!isEditMode}
                           className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Contraseña segura"
+                          placeholder={isEditMode ? "Dejar en blanco para no cambiarla" : "Contraseña segura"}
                       />
                   </div>
-                  <div className="md:col-span-2">
-                       <p className="text-xs text-blue-600">
-                           Se creará un usuario con rol <strong>Supplier</strong> y se le asignará este proveedor automáticamente.
-                       </p>
-                  </div>
               </div>
-          )}
-          
-          {userMode === 'current' && isEditMode && (
-              <div className="text-sm text-gray-600">
-                  El proveedor se mantendrá asignado al usuario actual (ID: {initialData?.user_id}).
-              </div>
-          )}
         </div>
       )}
 

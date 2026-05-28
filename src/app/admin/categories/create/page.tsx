@@ -11,6 +11,7 @@ export default function CreateCategoryPage() {
       <PageHero
         title="Nueva Categoría"
         subtitle="Crea una nueva categoría para organizar tus productos."
+        eyebrow="Contenido"
         actions={
           <Link href="/admin/categories" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
             <ArrowLeft size={16} />

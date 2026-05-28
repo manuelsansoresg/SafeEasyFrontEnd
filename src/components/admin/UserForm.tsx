@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle, Eye, EyeOff } from "lucide-react";
-import { fetchWithAuth } from "@/lib/api";
 
 interface User {
   id: number;
@@ -31,6 +30,11 @@ interface UserPayload {
   role: string;
   password?: string;
 }
+
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
 
 const initialFormData: UserFormData = {
   email: "",
@@ -95,7 +99,7 @@ export default function UserForm({
     setError(null);
 
     try {
-      const url = isEditMode && initialData ? `/api/users/${initialData.id}` : "/api/users";
+      const url = isEditMode && initialData ? apiUrl(`/users/${initialData.id}`) : apiUrl("/users/");
       const method = isEditMode ? "PUT" : "POST";
 
       const payload: UserPayload = {
@@ -112,8 +116,12 @@ export default function UserForm({
         throw new Error("La contraseña es obligatoria para nuevos usuarios");
       }
 
-      const response = await fetchWithAuth(url, {
+      const response = await fetch(url, {
         method,
+        headers: {
+          "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
 
