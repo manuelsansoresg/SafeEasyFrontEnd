@@ -214,8 +214,6 @@ export default function UserForm({
               >
                 <option value="client">Cliente</option>
                 <option value="admin">Administrador</option>
-                <option value="supplier">Proveedor</option>
-                <option value="courier">Repartidor</option>
               </select>
             </div>}
 
