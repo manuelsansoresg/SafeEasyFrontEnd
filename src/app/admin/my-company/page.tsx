@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { ExternalLink } from 'lucide-react';
 import SupplierForm from '@/components/admin/SupplierForm';
@@ -35,12 +35,14 @@ function MyCompanyContent() {
     router.replace(`/admin/my-company?tab=${tab}`);
   };
 
-  const fetchSupplier = async () => {
+  const fetchSupplier = useCallback(async (options?: { silent?: boolean }) => {
     if (!user || !token) {
         return;
     }
     
-    setLoading(true);
+    if (!options?.silent) {
+      setLoading(true);
+    }
     try {
       // Direct fetch by user_id as requested with skip and limit to match working curl
       // Adding trailing slash explicitly as backend might be strict and curl used it
@@ -81,15 +83,17 @@ function MyCompanyContent() {
     } catch (e) {
       console.error("Error fetching supplier", e);
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
-  };
+  }, [user, token]);
 
   useEffect(() => {
     if (user && token) {
         fetchSupplier();
     }
-  }, [user, token]);
+  }, [user, token, fetchSupplier]);
 
   if (loading) return <div className="p-8">Cargando...</div>;
 
@@ -177,7 +181,7 @@ function MyCompanyContent() {
       {/* Content */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         {activeTab === 'info' && (
-          <SupplierForm initialData={supplier} isEditMode={true} onSaved={fetchSupplier} />
+          <SupplierForm initialData={supplier} isEditMode={true} onSaved={() => fetchSupplier({ silent: true })} />
         )}
         
         {activeTab === 'carousel' && token && (

@@ -29,12 +29,16 @@ type CartLine = {
   image: string | null;
   price: number;
   quantity: number;
+  accepts_delivery?: boolean;
+  accepts_pickup?: boolean;
 };
 
 type CheckoutState = {
   supplier_id: number;
   supplier_name: string;
   products_subtotal: number;
+  accepts_delivery: boolean;
+  accepts_pickup: boolean;
 };
 
 function money(value: number) {
@@ -48,6 +52,20 @@ function buildImageUrl(path: string | null | undefined) {
   const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api").replace(/\/+$/, "");
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   return `${baseUrl}${cleanPath}`.replace(/([^:])\/{2,}/g, "$1/");
+}
+
+function readOptionalBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "si", "sí"].includes(normalized)) return true;
+    if (["false", "0", "no"].includes(normalized)) return false;
+  }
+  return undefined;
 }
 
 export default function ClientCartPage() {
@@ -216,7 +234,7 @@ export default function ClientCartPage() {
       const nextSupplierLocById: Record<number, LatLngLiteral> = {};
 
       const parsed: CartLine[] = list
-        .map((row) => {
+        .map<CartLine | null>((row) => {
           const r = (row && typeof row === "object" ? (row as Record<string, unknown>) : {}) as Record<string, unknown>;
           const product =
             (r.product && typeof r.product === "object" ? (r.product as Record<string, unknown>) : null) ||
@@ -239,6 +257,14 @@ export default function ClientCartPage() {
           if (supplierId && supplierMapLoc) nextSupplierLocById[supplierId] = supplierMapLoc;
           const supplierName =
             String(r.supplier_name || supplier.name || supplier.company_name || "").trim() || `Proveedor #${supplierId}`;
+          const acceptsDelivery =
+            readOptionalBoolean(r.accepts_delivery) ??
+            readOptionalBoolean(r.supplier_accepts_delivery) ??
+            readOptionalBoolean(supplier.accepts_delivery);
+          const acceptsPickup =
+            readOptionalBoolean(r.accepts_pickup) ??
+            readOptionalBoolean(r.supplier_accepts_pickup) ??
+            readOptionalBoolean(supplier.accepts_pickup);
 
           const productId = (r.product_id ?? product.id ?? "").toString();
           const title = String(r.title || product.title || "").trim() || "Producto";
@@ -251,7 +277,18 @@ export default function ClientCartPage() {
           const quantity = Math.max(1, Number(qtyRaw) || 1);
 
           if (!supplierId || !productId) return null;
-          return { supplier_id: supplierId, supplier_name: supplierName, product_id: productId, title, image, price, quantity };
+          const line: CartLine = {
+            supplier_id: supplierId,
+            supplier_name: supplierName,
+            product_id: productId,
+            title,
+            image,
+            price,
+            quantity,
+          };
+          if (acceptsDelivery !== undefined) line.accepts_delivery = acceptsDelivery;
+          if (acceptsPickup !== undefined) line.accepts_pickup = acceptsPickup;
+          return line;
         })
         .filter((v): v is CartLine => !!v);
 
@@ -292,16 +329,40 @@ export default function ClientCartPage() {
   }, []);
 
   const groups = useMemo(() => {
-    const bySupplier = new Map<number, { supplier_id: number; supplier_name: string; items: CartLine[] }>();
+    type SupplierCartGroup = {
+      supplier_id: number;
+      supplier_name: string;
+      accepts_delivery?: boolean;
+      accepts_pickup?: boolean;
+      items: CartLine[];
+    };
+
+    const bySupplier = new Map<
+      number,
+      SupplierCartGroup
+    >();
     for (const line of lines) {
       const current = bySupplier.get(line.supplier_id);
       if (current) {
         current.items.push(line);
+        if (line.accepts_delivery !== undefined) current.accepts_delivery = line.accepts_delivery;
+        if (line.accepts_pickup !== undefined) current.accepts_pickup = line.accepts_pickup;
       } else {
-        bySupplier.set(line.supplier_id, { supplier_id: line.supplier_id, supplier_name: line.supplier_name, items: [line] });
+        const group: SupplierCartGroup = {
+          supplier_id: line.supplier_id,
+          supplier_name: line.supplier_name,
+          items: [line],
+        };
+        if (line.accepts_delivery !== undefined) group.accepts_delivery = line.accepts_delivery;
+        if (line.accepts_pickup !== undefined) group.accepts_pickup = line.accepts_pickup;
+        bySupplier.set(line.supplier_id, group);
       }
     }
-    return Array.from(bySupplier.values());
+    return Array.from(bySupplier.values()).map((group) => ({
+      ...group,
+      accepts_delivery: group.accepts_delivery ?? true,
+      accepts_pickup: group.accepts_pickup ?? true,
+    }));
   }, [lines]);
 
   const getSupplierSubtotal = (supplierId: number) => {
@@ -407,6 +468,10 @@ export default function ClientCartPage() {
       }
 
       if (deliveryType === "shipping") {
+        if (!checkout?.accepts_delivery) {
+          setError("Este proveedor no tiene envío a domicilio disponible.");
+          return;
+        }
         if (!userMapLocation) {
           setError("Selecciona tu ubicación para el envío.");
           return;
@@ -420,6 +485,11 @@ export default function ClientCartPage() {
           setError("No se pudo guardar tu dirección.");
           return;
         }
+      }
+
+      if (deliveryType === "pickup" && checkout && !checkout.accepts_pickup) {
+        setError("Este proveedor no tiene recolección en tienda disponible.");
+        return;
       }
 
       const extractInitPoint = (payload: unknown) => {
@@ -556,6 +626,10 @@ export default function ClientCartPage() {
   const computeShippingQuote = async (supplierId: number, force?: boolean) => {
     setQuoteError(null);
     if (!force && deliveryType !== "shipping") return;
+    if (checkout && !checkout.accepts_delivery) {
+      setQuoteError("Este proveedor no tiene envío a domicilio disponible.");
+      return;
+    }
 
     if (!userMapLocation || addressDirtyRef.current) {
       setAddressModalOpen(true);
@@ -658,12 +732,20 @@ export default function ClientCartPage() {
     setError(null);
     setStockError(null);
     invalidateQuote();
-    setDeliveryType("pickup");
     const g = groups.find((x) => x.supplier_id === supplierId) || null;
+    const acceptsPickup = g?.accepts_pickup ?? true;
+    const acceptsDelivery = g?.accepts_delivery ?? true;
+    if (!acceptsPickup && !acceptsDelivery) {
+      setError("Este proveedor no tiene métodos de entrega disponibles por el momento.");
+      return;
+    }
+    setDeliveryType(acceptsPickup ? "pickup" : "shipping");
     setCheckout({
       supplier_id: supplierId,
       supplier_name: g?.supplier_name || "Proveedor",
       products_subtotal: getSupplierSubtotal(supplierId),
+      accepts_delivery: acceptsDelivery,
+      accepts_pickup: acceptsPickup,
     });
   };
 
@@ -862,33 +944,37 @@ export default function ClientCartPage() {
               <div className="space-y-3">
                 <p className="text-sm font-bold text-gray-900">Método de entrega</p>
                 <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDeliveryType("pickup");
-                      invalidateQuote();
-                    }}
-                    className={cn(
-                      "px-3 py-2 rounded-lg border text-sm font-semibold",
-                      deliveryType === "pickup" ? "border-primary text-primary" : "border-gray-200 text-gray-700"
-                    )}
-                  >
-                    Recojo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDeliveryType("shipping");
-                      invalidateQuote();
-                      if (checkout) computeShippingQuote(checkout.supplier_id, true).catch(() => {});
-                    }}
-                    className={cn(
-                      "px-3 py-2 rounded-lg border text-sm font-semibold",
-                      deliveryType === "shipping" ? "border-primary text-primary" : "border-gray-200 text-gray-700"
-                    )}
-                  >
-                    Envío
-                  </button>
+                  {checkout.accepts_pickup ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeliveryType("pickup");
+                        invalidateQuote();
+                      }}
+                      className={cn(
+                        "px-3 py-2 rounded-lg border text-sm font-semibold",
+                        deliveryType === "pickup" ? "border-primary text-primary" : "border-gray-200 text-gray-700"
+                      )}
+                    >
+                      Recoger en tienda
+                    </button>
+                  ) : null}
+                  {checkout.accepts_delivery ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeliveryType("shipping");
+                        invalidateQuote();
+                        if (checkout) computeShippingQuote(checkout.supplier_id, true).catch(() => {});
+                      }}
+                      className={cn(
+                        "px-3 py-2 rounded-lg border text-sm font-semibold",
+                        deliveryType === "shipping" ? "border-primary text-primary" : "border-gray-200 text-gray-700"
+                      )}
+                    >
+                      Envío a domicilio
+                    </button>
+                  ) : null}
                 </div>
               </div>
 

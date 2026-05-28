@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { usePathname, useRouter } from "next/navigation";
-import { Loader2, CheckCircle, UserPlus, Users, Search } from "lucide-react";
+import { Loader2, CheckCircle, UserPlus, Users, Search, Store, Truck } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { loadGoogleMaps, parseMapLocation, type LatLngLiteral } from "@/lib/googleMaps";
 import FileUpload from "@/components/ui/FileUpload";
@@ -48,6 +48,8 @@ interface Supplier {
   transfer_clabe?: string;
   transfer_bank?: string;
   transfer_name?: string;
+  accepts_delivery?: boolean;
+  accepts_pickup?: boolean;
   map_location?: string | LatLngLiteral | null;
 }
 
@@ -454,6 +456,8 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
     transfer_clabe: formText(initialData?.transfer_clabe),
     transfer_bank: formText(initialData?.transfer_bank),
     transfer_name: formText(initialData?.transfer_name),
+    accepts_delivery: initialData?.accepts_delivery ?? true,
+    accepts_pickup: initialData?.accepts_pickup ?? true,
   });
 
   const [mapLocation, setMapLocation] = useState<LatLngLiteral | null>(() =>
@@ -761,6 +765,8 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
         appendIfPresent("cross_street_1", formData.cross_street_1);
         appendIfPresent("cross_street_2", formData.cross_street_2);
         appendIfPresent("about", formData.about);
+        data.append("accepts_delivery", String(formData.accepts_delivery));
+        data.append("accepts_pickup", String(formData.accepts_pickup));
 
         data.append("user_id", String(finalUserId));
 
@@ -1187,6 +1193,45 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
               )}
             </div>
           )}
+
+          <div className="pt-4 mt-2 border-t border-gray-200 space-y-3">
+            <h4 className="text-base font-semibold text-gray-900">Opciones de Entrega</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  name="accepts_delivery"
+                  checked={formData.accepts_delivery}
+                  onChange={handleInputChange}
+                  className="mt-1 rounded text-primary focus:ring-primary"
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                    <Truck size={16} className="text-primary" />
+                    Envío a domicilio
+                  </span>
+                  <span className="block text-xs text-gray-500 mt-1">Mostrar esta opción en el carrito.</span>
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  name="accepts_pickup"
+                  checked={formData.accepts_pickup}
+                  onChange={handleInputChange}
+                  className="mt-1 rounded text-primary focus:ring-primary"
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                    <Store size={16} className="text-primary" />
+                    Recoger en tienda
+                  </span>
+                  <span className="block text-xs text-gray-500 mt-1">Permitir recolección en sucursal.</span>
+                </span>
+              </label>
+            </div>
+          </div>
           
            <div>
             <label className="flex items-center space-x-2 cursor-pointer mt-4">
