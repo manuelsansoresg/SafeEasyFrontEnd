@@ -8,8 +8,9 @@ import {
   Edit2, 
   Trash2, 
   Loader2,
-  Layers,
   Search,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle,
   XCircle,
   Image as ImageIcon
@@ -32,18 +33,45 @@ interface Category {
   name: string;
 }
 
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
+const unwrapList = <T,>(data: unknown, key: string): T[] => {
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    const items = record.items ?? record.results ?? record.data ?? record[key];
+    if (Array.isArray(items)) return items as T[];
+  }
+  return [];
+};
+
+const readTotal = (data: unknown): number | null => {
+  if (!data || typeof data !== "object") return null;
+  const record = data as Record<string, unknown>;
+  const value = record.total ?? record.count;
+  const total = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(total) ? total : null;
+};
+
 export default function AdminSubcategoriesPage() {
   const { token } = useAuthStore();
   
   // -- State --
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [categories, setCategories] = useState<Record<number, string>>({});
+  const [categoryOptions, setCategoryOptions] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
   
   // Pagination
   const [skip, setSkip] = useState(0);
-  const [limit] = useState(100);
+  const [limit] = useState(20);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
 
   useEffect(() => {
@@ -56,32 +84,53 @@ export default function AdminSubcategoriesPage() {
 
   async function fetchSubcategories() {
     try {
-      const response = await fetchWithAuth(`/api/subcategories/?skip=${skip}&limit=${limit}`);
-      if (response.ok) {
-        const data = await response.json();
-        setSubcategories(Array.isArray(data) ? data : []);
+      const params = new URLSearchParams({
+        skip: String(skip),
+        limit: String(limit),
+      });
+      if (selectedCategoryId) params.set("category_id", selectedCategoryId);
+      if (searchTerm.trim()) params.set("search", searchTerm.trim());
+
+      const response = await fetchWithAuth(apiUrl(`/subcategories/?${params.toString()}`));
+      if (!response.ok) {
+        setSubcategories([]);
+        setTotalCount(null);
+        setHasNextPage(false);
+        return;
       }
+
+      const data: unknown = await response.json().catch(() => null);
+      const pageItems = unwrapList<Subcategory>(data, "subcategories");
+      const total = readTotal(data);
+
+      setSubcategories(pageItems);
+      setTotalCount(total);
+      setHasNextPage(total !== null ? skip + pageItems.length < total : pageItems.length === limit);
     } catch (error) {
       console.error("Error fetching subcategories:", error);
+      setSubcategories([]);
+      setTotalCount(null);
+      setHasNextPage(false);
+      setToast({ type: "error", message: "No se pudieron cargar las subcategorías." });
     }
   }
 
   async function fetchCategories() {
     try {
-        // Fetch all categories to map IDs to names
-        const response = await fetchWithAuth(`/api/categories/?skip=0&limit=1000`);
-        if (response.ok) {
-            const data = await response.json();
-            if (Array.isArray(data)) {
-                const map: Record<number, string> = {};
-                data.forEach((cat: Category) => {
-                    map[cat.id] = cat.name;
-                });
-                setCategories(map);
-            }
-        }
+      const response = await fetchWithAuth(apiUrl(`/categories/?skip=0&limit=1000`));
+      if (!response.ok) return;
+
+      const data: unknown = await response.json().catch(() => null);
+      const categoryList = unwrapList<Category>(data, "categories");
+      const map: Record<number, string> = {};
+      categoryList.forEach((cat) => {
+        map[cat.id] = cat.name;
+      });
+      setCategories(map);
+      setCategoryOptions(categoryList);
     } catch (error) {
-        console.error("Error fetching categories:", error);
+      console.error("Error fetching categories:", error);
+      setToast({ type: "error", message: "No se pudieron cargar las categorías." });
     }
   }
 
@@ -96,7 +145,7 @@ export default function AdminSubcategoriesPage() {
     if (token) {
       init();
     }
-  }, [skip, limit, token]);
+  }, [limit, token, skip, selectedCategoryId, searchTerm]);
 
   const deleteSubcategory = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar esta subcategoría?")) return;
@@ -116,10 +165,10 @@ export default function AdminSubcategoriesPage() {
   };
 
   // Filter subcategories
-  const filteredSubcategories = subcategories.filter(sub => 
-    sub.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (categories[sub.category_id] && categories[sub.category_id].toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const currentPage = Math.floor(skip / limit) + 1;
+  const totalPages = totalCount !== null ? Math.max(1, Math.ceil(totalCount / limit)) : null;
+  const shownStart = subcategories.length === 0 ? 0 : skip + 1;
+  const shownEnd = skip + subcategories.length;
 
   return (
     <div className="space-y-6">
@@ -140,16 +189,37 @@ export default function AdminSubcategoriesPage() {
       />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex gap-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-4 border-b border-gray-100 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative w-full lg:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input 
               type="text"
               placeholder="Buscar subcategorías..." 
               className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setSkip(0);
+              }}
             />
+          </div>
+          <div className="relative w-full lg:w-72">
+            <select
+              value={selectedCategoryId}
+              onChange={(e) => {
+                setSelectedCategoryId(e.target.value);
+                setSkip(0);
+              }}
+              className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-2 pr-10 text-sm text-gray-700 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">Todas las categorías</option>
+              {categoryOptions.map((category) => (
+                <option key={category.id} value={String(category.id)}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <ChevronRight className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-gray-400" size={18} />
           </div>
         </div>
 
@@ -174,14 +244,14 @@ export default function AdminSubcategoriesPage() {
                     </div>
                   </td>
                 </tr>
-              ) : filteredSubcategories.length === 0 ? (
+              ) : subcategories.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     No se encontraron subcategorías
                   </td>
                 </tr>
               ) : (
-                filteredSubcategories.map((subcategory) => (
+                subcategories.map((subcategory) => (
                   <tr key={subcategory.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                         <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center border border-gray-200">
@@ -246,10 +316,10 @@ export default function AdminSubcategoriesPage() {
                 Cargando subcategorías...
               </div>
             </div>
-          ) : filteredSubcategories.length === 0 ? (
+          ) : subcategories.length === 0 ? (
             <div className="px-4 py-8 text-center text-gray-500">No se encontraron subcategorías</div>
           ) : (
-            filteredSubcategories.map((subcategory) => (
+            subcategories.map((subcategory) => (
               <article key={subcategory.id} className="p-4">
                 <div className="flex items-start gap-3">
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
@@ -302,6 +372,36 @@ export default function AdminSubcategoriesPage() {
               </article>
             ))
           )}
+        </div>
+        <div className="flex flex-col gap-3 border-t border-gray-100 p-4 text-sm text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            Mostrando {shownStart} - {shownEnd}
+            {totalCount !== null ? ` de ${totalCount}` : ""} subcategorías
+          </div>
+          <div className="flex items-center justify-between gap-3 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setSkip((value) => Math.max(0, value - limit))}
+              disabled={loading || skip === 0}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ChevronLeft size={18} />
+              Anterior
+            </button>
+            <span className="whitespace-nowrap">
+              Página {currentPage}
+              {totalPages !== null ? ` de ${totalPages}` : ""}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSkip((value) => value + limit)}
+              disabled={loading || !hasNextPage}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Siguiente
+              <ChevronRight size={18} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

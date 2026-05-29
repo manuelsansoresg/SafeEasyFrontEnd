@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronDown, ChevronRight, Check, X } from "lucide-react";
+import { ChevronRight, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fetchWithAuth } from "@/lib/api";
 
 interface Category {
   id: number;
@@ -17,6 +16,38 @@ interface Subcategory {
   category_id: number;
   slug: string;
 }
+
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
+const unwrapList = <T,>(data: unknown, key: string): T[] => {
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    const items = record.items ?? record.results ?? record.data ?? record[key];
+    if (Array.isArray(items)) return items as T[];
+  }
+  return [];
+};
+
+const fetchPublicList = async <T,>(urls: string[], key: string) => {
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) {
+        if (response.status === 404 || response.status === 405) continue;
+        return [];
+      }
+      const data: unknown = await response.json().catch(() => null);
+      return unwrapList<T>(data, key);
+    } catch {
+      continue;
+    }
+  }
+  return [];
+};
 
 interface RecommendationsSidebarProps {
   selectedCategory?: string;
@@ -54,23 +85,26 @@ export function RecommendationsSidebar({
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch categories
-        const catRes = await fetchWithAuth('/api/categories/?skip=0&limit=100');
-        if (catRes.ok) {
-          const text = await catRes.text();
-          const parsed = JSON.parse(text);
-          const catData = Array.isArray(parsed) ? parsed : (parsed.items || parsed.results || parsed.data || []);
-          setCategories(catData);
-        }
-
-        // Fetch subcategories
-        const subRes = await fetchWithAuth('/api/subcategories/?skip=0&limit=1000');
-        if (subRes.ok) {
-          const text = await subRes.text();
-          const parsed = JSON.parse(text);
-          const subData = Array.isArray(parsed) ? parsed : (parsed.items || parsed.results || parsed.data || []);
-          setSubcategories(subData);
-        }
+        const [catData, subData] = await Promise.all([
+          fetchPublicList<Category>(
+            [
+              "/api/categories/?skip=0&limit=100",
+              "/api/backend/categories/?skip=0&limit=100",
+              apiUrl("/categories/?skip=0&limit=100"),
+            ],
+            "categories",
+          ),
+          fetchPublicList<Subcategory>(
+            [
+              "/api/subcategories/?skip=0&limit=1000",
+              "/api/backend/subcategories/?skip=0&limit=1000",
+              apiUrl("/subcategories/?skip=0&limit=1000"),
+            ],
+            "subcategories",
+          ),
+        ]);
+        setCategories(catData);
+        setSubcategories(subData);
       } catch (error) {
         console.error("Failed to fetch sidebar data", error);
       }

@@ -65,6 +65,163 @@ body {
   line-height: 1.6;
 }
 
+.legal-editor .ql-toolbar {
+  border: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  background: #ffffff;
+  white-space: normal;
+}
+
+.legal-editor .ql-container {
+  border: 0 !important;
+  height: auto !important;
+  font-family: var(--font-poppins);
+}
+
+.legal-editor .ql-editor {
+  min-height: 360px;
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.legal-editor .ql-editor p,
+.legal-editor .ql-editor li {
+  max-width: 100%;
+}
+
+.legal-preview,
+.legal-preview * {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.legal-preview {
+  max-height: 68vh;
+  overflow-y: auto;
+}
+
+.legal-preview p,
+.legal-preview li,
+.legal-preview div {
+  white-space: normal;
+}
+
+.legal-preview table {
+  display: block;
+  overflow-x: auto;
+}
+
+.public-legal-content {
+  font-family: var(--font-poppins);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 16px;
+  line-height: 1.75;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.public-legal-content * {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: normal;
+  white-space: normal !important;
+}
+
+.public-legal-content div,
+.public-legal-content p {
+  display: block;
+  width: auto !important;
+}
+
+.public-legal-content span {
+  display: inline;
+  width: auto !important;
+}
+
+.public-legal-content h1,
+.public-legal-content h2,
+.public-legal-content h3 {
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  color: var(--primary);
+  font-family: var(--font-varela-round);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.public-legal-content h1 {
+  font-size: 1.65rem;
+}
+
+.public-legal-content h2 {
+  font-size: 1.35rem;
+}
+
+.public-legal-content h3 {
+  font-size: 1.1rem;
+}
+
+.public-legal-content p {
+  margin: 0 0 1rem;
+}
+
+.public-legal-content ul,
+.public-legal-content ol {
+  margin: 0 0 1.25rem 1.25rem;
+  padding: 0;
+}
+
+.public-legal-content ul {
+  list-style: disc;
+}
+
+.public-legal-content ol {
+  list-style: decimal;
+}
+
+.public-legal-content li {
+  margin: 0.25rem 0;
+  padding-left: 0.15rem;
+}
+
+.public-legal-content a {
+  color: var(--secondary);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.public-legal-content blockquote {
+  margin: 1rem 0;
+  border-left: 3px solid var(--secondary);
+  padding-left: 1rem;
+  color: #4b5563;
+}
+
+.public-legal-content table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.public-legal-content img,
+.public-legal-content video,
+.public-legal-content iframe {
+  height: auto;
+  max-width: 100%;
+}
+
+.public-legal-content strong {
+  color: #111827;
+  font-weight: 700;
+}
+
 /* Cursor de mano para todos los botones globalmente */
 button,
 [type="button"],

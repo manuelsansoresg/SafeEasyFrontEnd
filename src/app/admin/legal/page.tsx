@@ -1,16 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
+import { FormEvent, useEffect, useState } from "react";
 import { CheckCircle, FileText, Loader2, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
 import { legalService, LegalDocument, LegalSectionType } from "@/services/legalService";
 import { cn } from "@/lib/utils";
-import { sanitizeLegalHtml } from "@/lib/sanitizeLegalHtml";
-import "react-quill-new/dist/quill.snow.css";
-
-const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
 
 const sectionOptions: Array<{
   type: LegalSectionType;
@@ -68,8 +63,6 @@ export default function AdminLegalPage() {
   const currentDocument = documents[activeType];
   const isEditing = Boolean(currentDocument);
 
-  const sanitizedPreview = useMemo(() => sanitizeLegalHtml(form.content), [form.content]);
-
   const loadDocuments = async () => {
     setLoading(true);
     try {
@@ -112,11 +105,9 @@ export default function AdminLegalPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const sanitizedContent = sanitizeLegalHtml(form.content.trim());
-    const readableContent = sanitizedContent.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
 
-    if (!form.title.trim() || !form.subtitle.trim() || !readableContent) {
-      setToast({ type: "error", message: "Completa título, subtítulo y contenido." });
+    if (!form.title.trim() || !form.subtitle.trim()) {
+      setToast({ type: "error", message: "Completa título y subtítulo." });
       return;
     }
 
@@ -125,7 +116,7 @@ export default function AdminLegalPage() {
       const payload = {
         title: form.title.trim(),
         subtitle: form.subtitle.trim(),
-        content: sanitizedContent,
+        content: currentDocument?.content || "<p>Contenido estático administrado desde el frontend.</p>",
         is_active: true,
       };
       const saved = currentDocument
@@ -229,7 +220,7 @@ export default function AdminLegalPage() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <div className="w-full">
           <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
             <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 md:flex-row md:items-start md:justify-between">
               <div>
@@ -294,29 +285,11 @@ export default function AdminLegalPage() {
               </label>
             </div>
 
-            <div className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Contenido *</span>
-              <div className="bg-white">
-                <ReactQuill
-                  theme="snow"
-                  value={form.content}
-                  onChange={(content) => setForm((prev) => ({ ...prev, content }))}
-                  style={{ height: "360px", marginBottom: "50px" }}
-                  modules={{
-                    toolbar: [
-                      [{ header: [1, 2, 3, false] }],
-                      ["bold", "italic", "underline", "strike", "blockquote"],
-                      [{ list: "ordered" }, { list: "bullet" }, { indent: "-1" }, { indent: "+1" }],
-                      [{ align: [] }],
-                      ["link", "image"],
-                      ["clean"],
-                    ],
-                  }}
-                />
-              </div>
+            <div className="rounded-xl border border-primary/10 bg-primary/5 p-4 text-sm leading-6 text-gray-600">
+              El contenido legal público ahora está fijo en el frontend. Desde aquí solo se administra el título y subtítulo que quieras conservar en el registro administrativo.
             </div>
 
-            <div className="flex justify-end">
+            <div className="sticky bottom-0 z-10 flex justify-end border-t border-gray-100 bg-white/95 pt-4 backdrop-blur">
               <button
                 type="submit"
                 disabled={saving || deleting}
@@ -327,30 +300,6 @@ export default function AdminLegalPage() {
               </button>
             </div>
           </form>
-
-          <aside className="space-y-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Vista previa</h2>
-              <p className="mt-1 text-sm text-gray-500">Así se leerá el contenido HTML guardado.</p>
-            </div>
-
-            <div className="rounded-xl border border-gray-100 bg-[#f2f3f4] p-4">
-              <p className="font-[family-name:var(--font-varela-round)] text-2xl font-bold text-primary">
-                {form.title || currentOption.title}
-              </p>
-              <p className="mt-2 text-sm font-semibold text-[#168e00]">
-                {form.subtitle || "Subtítulo del documento"}
-              </p>
-            </div>
-
-            <div className="prose prose-sm max-w-none rounded-xl border border-gray-100 p-4 text-gray-700 prose-headings:text-primary prose-a:text-[#168e00]">
-              {form.content.trim() ? (
-                <div dangerouslySetInnerHTML={{ __html: sanitizedPreview }} />
-              ) : (
-                <p className="text-gray-400">Escribe el contenido para ver la vista previa.</p>
-              )}
-            </div>
-          </aside>
         </div>
       )}
     </div>

@@ -35,7 +35,7 @@ export function PublicLegalPage({
   const content = document?.content ? sanitizeLegalHtml(document.content) : "";
 
   return (
-    <div className="bg-white">
+    <div className="overflow-x-hidden bg-white">
       <section className="bg-primary text-white">
         <div className="container mx-auto px-4 pt-40 pb-16 md:pt-48 md:pb-24">
           <div className="max-w-4xl">
@@ -52,18 +52,12 @@ export function PublicLegalPage({
         </div>
       </section>
 
-      <section className="bg-white py-16 md:py-20">
+      <section className="bg-[#f8faf9] py-10 md:py-14">
         <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-4xl">
+          <div className="mx-auto w-full max-w-5xl min-w-0">
             {document ? (
-              <article className="prose prose-lg max-w-none text-gray-600 prose-headings:text-primary prose-a:text-[#168e00]">
-                <div className="ql-snow">
-                  <div
-                    className="ql-editor"
-                    style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
-                    dangerouslySetInnerHTML={{ __html: content }}
-                  />
-                </div>
+              <article className="public-legal-content min-w-0 bg-white text-gray-700">
+                <div className="min-w-0" dangerouslySetInnerHTML={{ __html: content }} />
               </article>
             ) : (
               <div className="space-y-4">
