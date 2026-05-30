@@ -19,6 +19,8 @@ type CheckoutPlan = {
 
 type FormState = {
   name: string;
+  lastName: string;
+  secondLastName: string;
   email: string;
   companyName: string;
   password: string;
@@ -194,6 +196,8 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
   const [serverPlans, setServerPlans] = useState<Plan[]>([]);
   const [formData, setFormData] = useState<FormState>({
     name: '',
+    lastName: '',
+    secondLastName: '',
     email: '',
     companyName: '',
     password: '',
@@ -258,8 +262,10 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
+          name: formData.name.trim(),
+          last_name: formData.lastName.trim(),
+          second_last_name: formData.secondLastName.trim(),
+          email: formData.email.trim(),
           password: formData.password,
           role: 'supplier',
           is_active: true,
@@ -305,13 +311,13 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
       login(loginData.access_token, loginData.refresh_token || null, {
         id: userBody.id,
         name: userBody.name || userBody.full_name || formData.name,
-        email: userBody.email || formData.email,
+        email: userBody.email || formData.email.trim(),
         role: 'supplier',
       });
 
       const supplierResponse = await fetchWithAuth('/api/suppliers/', {
         method: 'POST',
-        body: buildSupplierFormData(userBody.id, formData.companyName, formData.email),
+        body: buildSupplierFormData(userBody.id, formData.companyName, formData.email.trim()),
       });
 
       if (!supplierResponse.ok) {
@@ -388,7 +394,7 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="mb-2 block text-sm font-semibold text-gray-700">Nombre completo</label>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">Nombre</label>
             <input
               type="text"
               name="name"
@@ -396,8 +402,36 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
               value={formData.name}
               onChange={handleChange}
               className="h-12 w-full rounded-lg border border-gray-200 px-4 text-gray-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-              placeholder="Juan Pérez"
+              placeholder="Juan"
             />
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">Apellido paterno</label>
+              <input
+                type="text"
+                name="lastName"
+                required
+                value={formData.lastName}
+                onChange={handleChange}
+                className="h-12 w-full rounded-lg border border-gray-200 px-4 text-gray-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                placeholder="Pérez"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">Apellido materno</label>
+              <input
+                type="text"
+                name="secondLastName"
+                required
+                value={formData.secondLastName}
+                onChange={handleChange}
+                className="h-12 w-full rounded-lg border border-gray-200 px-4 text-gray-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                placeholder="López"
+              />
+            </div>
           </div>
 
           <div>

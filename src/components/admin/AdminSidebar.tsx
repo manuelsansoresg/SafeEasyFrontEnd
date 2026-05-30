@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   ShoppingCart,
   BarChart3,
+  Store,
   Truck,
   BadgeDollarSign,
   Repeat,
@@ -137,6 +138,12 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
           title: "Proveedores",
           path: "/admin/suppliers",
           icon: Users,
+          roles: ['admin', 'superuser']
+        },
+        {
+          title: "Vendedores",
+          path: "/admin/sellers",
+          icon: Store,
           roles: ['admin', 'superuser']
         },
         {

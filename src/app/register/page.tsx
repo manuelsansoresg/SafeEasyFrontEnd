@@ -7,6 +7,8 @@ import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [secondLastName, setSecondLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -21,8 +23,10 @@ export default function RegisterPage() {
 
     try {
       const payload = {
-        name,
-        email,
+        name: name.trim(),
+        last_name: lastName.trim(),
+        second_last_name: secondLastName.trim(),
+        email: email.trim(),
         password,
         is_active: true
       };
@@ -41,14 +45,18 @@ export default function RegisterPage() {
         let errorData = {};
         try {
             errorData = JSON.parse(errorText);
-        } catch (e) {
+        } catch {
             console.error('No se pudo parsear error JSON:', errorText);
             errorData = { message: errorText || `Error ${response.status}` };
         }
         
-        const serverMessage = (errorData as any)?.detail || (errorData as any)?.message;
+        const serverError = errorData as { detail?: unknown; message?: unknown };
+        const serverMessage = serverError.detail || serverError.message;
         if (serverMessage) {
             const msg = typeof serverMessage === 'object' ? JSON.stringify(serverMessage) : serverMessage;
+            if (typeof msg !== "string") {
+                 throw new Error('Error al registrar usuario. Intenta más tarde.');
+            }
             if (msg.includes("already exists")) {
                  throw new Error('Este correo electrónico ya está registrado.');
             }
@@ -121,19 +129,53 @@ export default function RegisterPage() {
           <div className="rounded-md shadow-sm space-y-4">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                Nombre completo
+                Nombre
               </label>
               <input
                 id="name"
                 name="name"
                 type="text"
-                autoComplete="name"
+                autoComplete="given-name"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
-                placeholder="Tu nombre completo"
+                placeholder="Tu nombre"
               />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="last-name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Apellido paterno
+                </label>
+                <input
+                  id="last-name"
+                  name="last_name"
+                  type="text"
+                  autoComplete="family-name"
+                  required
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                  placeholder="Apellido paterno"
+                />
+              </div>
+              <div>
+                <label htmlFor="second-last-name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Apellido materno
+                </label>
+                <input
+                  id="second-last-name"
+                  name="second_last_name"
+                  type="text"
+                  autoComplete="additional-name"
+                  required
+                  value={secondLastName}
+                  onChange={(e) => setSecondLastName(e.target.value)}
+                  className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                  placeholder="Apellido materno"
+                />
+              </div>
             </div>
             <div>
               <label htmlFor="email-address" className="block text-sm font-medium text-gray-700 mb-1">
