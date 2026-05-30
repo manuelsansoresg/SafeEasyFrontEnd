@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import DOMPurify from 'isomorphic-dompurify';
 import { useAuthStore } from '@/store/useAuthStore';
 import { fetchWithAuth } from '@/lib/api';
 import { subscriptionsService } from '@/services/subscriptionsService';
 import type { Plan } from '@/types/subscriptions';
 import { normalizePlanFeatures } from '@/components/sell/planText';
-import { Check, CreditCard, Eye, EyeOff, LockKeyhole, ReceiptText, ShieldCheck } from 'lucide-react';
+import { Check, CreditCard, Eye, EyeOff, Loader2, LockKeyhole, ReceiptText, ShieldCheck } from 'lucide-react';
 
 type CheckoutPlan = {
   id: number;
@@ -144,6 +145,26 @@ const buildRequestError = async (response: Response, fallback: string) => {
   return translateBackendMessage(backendMessage, fallback);
 };
 
+const sanitizeInput = (value: string): string => {
+  const trimmed = value.trim().slice(0, 255);
+  const sanitized = DOMPurify.sanitize(trimmed, {
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: [],
+    KEEP_CONTENT: true,
+  });
+  return sanitized
+    .replace(/[<>]/g, '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+};
+
+const isValidCompanyName = (value: string): boolean => {
+  const regex = /^[a-zA-Z0-9\s.\-]+$/;
+  return regex.test(value) && value.trim().length > 0;
+};
+
 const buildSupplierFormData = (userId: number, companyName: string, email: string, sellerCode: string) => {
   const data = new FormData();
   const append = (key: string, value: string) => {
@@ -213,6 +234,19 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [checkingCompanyName, setCheckingCompanyName] = useState(false);
+  const [companyNameError, setCompanyNameError] = useState<string | null>(null);
+  const [createdUserId, setCreatedUserId] = useState<number | null>(null);
+  const [createdUserEmail, setCreatedUserEmail] = useState<string | null>(null);
+  const [originalUserFields, setOriginalUserFields] = useState<{
+    name: string;
+    lastName: string;
+    secondLastName: string;
+    email: string;
+    password: string;
+  } | null>(null);
+  const [rateLimited, setRateLimited] = useState(false);
+  const [rateLimitReset, setRateLimitReset] = useState<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -249,46 +283,221 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
   }, [fallbackPlan, selectedKey, serverPlans]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData((current) => ({ ...current, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    const sanitizedValue = sanitizeInput(value);
+    setFormData((current) => ({ ...current, [name]: sanitizedValue }));
+    if (name === 'companyName') {
+      setCompanyNameError(null);
+      if (rateLimited) {
+        setRateLimited(false);
+        setRateLimitReset(null);
+      }
+    }
+  };
+
+  const checkCompanyNameAvailability = async (name: string): Promise<boolean> => {
+    if (!name.trim()) return false;
+    
+    if (rateLimited) {
+      const resetTime = rateLimitReset ? new Date(rateLimitReset * 1000) : null;
+      const waitMessage = resetTime 
+        ? `Demasiados intentos. Podés verificar nuevamente en ${Math.ceil((resetTime.getTime() - Date.now()) / 1000)} segundos.`
+        : 'Demasiados intentos. Esperá un momento antes de verificar nuevamente.';
+      setCompanyNameError(waitMessage);
+      return true;
+    }
+    
+    setCheckingCompanyName(true);
+    setCompanyNameError(null);
+    
+    try {
+      const sanitizedName = sanitizeInput(name);
+      const response = await fetch(`/api/suppliers/check-name?name=${encodeURIComponent(sanitizedName)}`);
+      
+      if (response.status === 429) {
+        const resetHeader = response.headers.get('X-RateLimit-Reset');
+        const resetTimestamp = resetHeader ? parseInt(resetHeader, 10) : null;
+        
+        setRateLimited(true);
+        setRateLimitReset(resetTimestamp);
+        
+        const waitMessage = resetTimestamp 
+          ? `Demasiados intentos. Podés verificar nuevamente en ${Math.ceil((new Date(resetTimestamp * 1000).getTime() - Date.now()) / 1000)} segundos.`
+          : 'Demasiados intentos. Esperá un momento antes de verificar nuevamente.';
+        
+        setCompanyNameError(waitMessage);
+        return true;
+      }
+      
+      if (!response.ok) {
+        setCompanyNameError('No pudimos verificar la disponibilidad del nombre. Intenta nuevamente.');
+        return true;
+      }
+      
+      const data = await response.json() as { exists?: boolean };
+      
+      if (typeof data.exists !== 'boolean') {
+        setCompanyNameError('Respuesta inesperada del servidor. Intenta nuevamente.');
+        return true;
+      }
+      
+      if (data.exists) {
+        setCompanyNameError('Ya existe una empresa registrada con ese nombre. Por favor, elige un nombre diferente para tu empresa.');
+        return true;
+      }
+      
+      setRateLimited(false);
+      setRateLimitReset(null);
+      return false;
+    } catch {
+      setCompanyNameError('No pudimos verificar la disponibilidad del nombre. Intenta nuevamente.');
+      return true;
+    } finally {
+      setCheckingCompanyName(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setCompanyNameError(null);
 
     if (formData.password !== formData.confirmPassword) {
       setError('Las contraseñas no coinciden.');
       return;
     }
 
+    if (formData.password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Por favor ingresa un correo electrónico válido.');
+      return;
+    }
+
+    if (!isValidCompanyName(formData.companyName)) {
+      setCompanyNameError('El nombre de la empresa solo puede contener letras, números, espacios, puntos y guiones.');
+      return;
+    }
+
+    if (loading || checkingCompanyName) {
+      return;
+    }
+
+    const nameExists = await checkCompanyNameAvailability(formData.companyName);
+    if (nameExists) {
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const userResponse = await fetch('/api/users/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let userId: number;
+
+      if (createdUserId) {
+        userId = createdUserId;
+        
+        if (formData.email.trim() !== createdUserEmail) {
+          throw new Error('No se puede modificar el correo electrónico después de crear la cuenta. Por favor, inicia un nuevo registro.');
+        }
+        
+        const userFieldsChanged = 
+          formData.name.trim() !== (originalUserFields?.name ?? '') ||
+          formData.lastName.trim() !== (originalUserFields?.lastName ?? '') ||
+          formData.secondLastName.trim() !== (originalUserFields?.secondLastName ?? '') ||
+          formData.password !== (originalUserFields?.password ?? '');
+
+        if (userFieldsChanged) {
+          const updatePayload: Record<string, string> = {};
+          
+          if (formData.name.trim() !== originalUserFields?.name) {
+            updatePayload.name = formData.name.trim();
+          }
+          if (formData.lastName.trim() !== originalUserFields?.lastName) {
+            updatePayload.last_name = formData.lastName.trim();
+          }
+          if (formData.secondLastName.trim() !== originalUserFields?.secondLastName) {
+            updatePayload.second_last_name = formData.secondLastName.trim();
+          }
+          if (formData.password !== originalUserFields?.password) {
+            updatePayload.password = formData.password;
+          }
+          
+          updatePayload.role = 'supplier';
+          updatePayload.is_active = 'true';
+
+          const updateResponse = await fetch(`/api/users/${userId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatePayload),
+          });
+
+          if (!updateResponse.ok) {
+            const updateBody = await readResponseBody(updateResponse);
+            const updateMessage = extractBackendMessage(updateBody);
+            const safeMessage = DOMPurify.sanitize(updateMessage || '', {
+              ALLOWED_TAGS: [],
+              KEEP_CONTENT: true,
+            });
+            throw new Error(translateBackendMessage(safeMessage, 'No pudimos actualizar tu cuenta de usuario.'));
+          }
+
+          setOriginalUserFields({
+            name: formData.name.trim(),
+            lastName: formData.lastName.trim(),
+            secondLastName: formData.secondLastName.trim(),
+            email: formData.email.trim(),
+            password: formData.password,
+          });
+        }
+      } else {
+        const userResponse = await fetch('/api/users/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name.trim(),
+            last_name: formData.lastName.trim(),
+            second_last_name: formData.secondLastName.trim(),
+            email: formData.email.trim(),
+            password: formData.password,
+            role: 'supplier',
+            is_active: true,
+          }),
+        });
+
+        const userBody = await readResponseBody(userResponse) as {
+          id?: number;
+          name?: string;
+          full_name?: string;
+          email?: string;
+          role?: string;
+          detail?: string;
+        } | null;
+
+        if (!userResponse.ok || !userBody?.id) {
+          const userMessage = extractBackendMessage(userBody);
+          const safeMessage = DOMPurify.sanitize(userMessage || '', {
+            ALLOWED_TAGS: [],
+            KEEP_CONTENT: true,
+          });
+          throw new Error(translateBackendMessage(safeMessage, 'No pudimos crear la cuenta de usuario.'));
+        }
+
+        userId = userBody.id;
+        
+        setCreatedUserId(userId);
+        setCreatedUserEmail(formData.email.trim());
+        
+        setOriginalUserFields({
           name: formData.name.trim(),
-          last_name: formData.lastName.trim(),
-          second_last_name: formData.secondLastName.trim(),
+          lastName: formData.lastName.trim(),
+          secondLastName: formData.secondLastName.trim(),
           email: formData.email.trim(),
           password: formData.password,
-          role: 'supplier',
-          is_active: true,
-        }),
-      });
-
-      const userBody = await readResponseBody(userResponse) as {
-        id?: number;
-        name?: string;
-        full_name?: string;
-        email?: string;
-        role?: string;
-        detail?: string;
-      } | null;
-
-      if (!userResponse.ok || !userBody?.id) {
-        throw new Error(translateBackendMessage(extractBackendMessage(userBody), 'No pudimos crear la cuenta de usuario.'));
+        });
       }
 
       const loginBody = new URLSearchParams();
@@ -302,7 +511,7 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
       });
 
       if (!loginResponse.ok) {
-        throw new Error(await buildRequestError(loginResponse, 'Cuenta creada, pero no pudimos iniciar sesión para continuar con el pago.'));
+        throw new Error(await buildRequestError(loginResponse, 'No pudimos iniciar sesión para continuar con el pago.'));
       }
 
       const loginData = await loginResponse.json() as {
@@ -315,21 +524,40 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
       }
 
       login(loginData.access_token, loginData.refresh_token || null, {
-        id: userBody.id,
-        name: userBody.name || userBody.full_name || formData.name,
-        email: userBody.email || formData.email.trim(),
+        id: userId,
+        name: formData.name,
+        email: formData.email.trim(),
         role: 'supplier',
       });
 
       const supplierResponse = await fetchWithAuth('/api/suppliers/', {
         method: 'POST',
-        body: buildSupplierFormData(userBody.id, formData.companyName, formData.email.trim(), formData.sellerCode),
+        body: buildSupplierFormData(userId, formData.companyName, formData.email.trim(), formData.sellerCode),
       });
 
       if (!supplierResponse.ok) {
         const supplierBody = await readResponseBody(supplierResponse);
-        throw new Error(translateBackendMessage(extractBackendMessage(supplierBody), 'Cuenta creada, pero no pudimos registrar tu empresa.'));
+        const backendMessage = extractBackendMessage(supplierBody);
+        const lowerMessage = String(backendMessage || '').toLowerCase();
+        
+        if (lowerMessage.includes('supplier with this name already exists') || 
+            lowerMessage.includes('a supplier with this name')) {
+          setCompanyNameError('Ya existe una empresa registrada con ese nombre. Por favor, elige un nombre diferente para tu empresa.');
+          setLoading(false);
+          return;
+        }
+        
+        const safeMessage = DOMPurify.sanitize(backendMessage || '', {
+          ALLOWED_TAGS: [],
+          KEEP_CONTENT: true,
+        });
+        
+        throw new Error(translateBackendMessage(safeMessage, 'Cuenta creada, pero no pudimos registrar tu empresa.'));
       }
+
+      setCreatedUserId(null);
+      setCreatedUserEmail(null);
+      setOriginalUserFields(null);
 
       let purchase;
       try {
@@ -338,8 +566,13 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
         throw new Error(translateBackendMessage(getMessage(purchaseError), 'No pudimos crear la ficha de pago. La cuenta fue creada pero el pago no se pudo iniciar. Contactá soporte si el problema persiste.'));
       }
       window.location.href = purchase.init_point;
+
     } catch (submitError) {
-      setError(getMessage(submitError));
+      const safeError = DOMPurify.sanitize(getMessage(submitError), {
+        ALLOWED_TAGS: [],
+        KEEP_CONTENT: true,
+      });
+      setError(safeError);
       setLoading(false);
     }
   };
@@ -462,9 +695,19 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
               maxLength={255}
               value={formData.companyName}
               onChange={handleChange}
-              className="h-12 w-full rounded-lg border border-gray-200 px-4 text-gray-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+              className={`h-12 w-full rounded-lg border px-4 text-gray-900 outline-none transition focus:ring-4 ${
+                companyNameError 
+                  ? 'border-red-300 focus:border-red-400 focus:ring-red-100' 
+                  : 'border-gray-200 focus:border-primary focus:ring-primary/10'
+              }`}
               placeholder="Mi Negocio S.A."
+              aria-describedby={companyNameError ? 'companyName-error' : undefined}
             />
+            {companyNameError && (
+              <p id="companyName-error" className="mt-1.5 text-xs text-red-600" role="alert">
+                {companyNameError}
+              </p>
+            )}
           </div>
 
           <div>
@@ -539,11 +782,26 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || checkingCompanyName}
             className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 font-bold text-white transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+            aria-busy={loading || checkingCompanyName}
           >
-            <CreditCard size={20} />
-            {loading ? 'Preparando pago...' : 'Pagar'}
+            {checkingCompanyName ? (
+              <>
+                <Loader2 size={20} className="animate-spin" aria-hidden="true" />
+                Verificando...
+              </>
+            ) : loading ? (
+              <>
+                <CreditCard size={20} aria-hidden="true" />
+                Preparando pago...
+              </>
+            ) : (
+              <>
+                <CreditCard size={20} aria-hidden="true" />
+                Pagar
+              </>
+            )}
           </button>
         </form>
       </section>
