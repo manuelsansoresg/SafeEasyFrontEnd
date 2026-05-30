@@ -23,6 +23,7 @@ type FormState = {
   secondLastName: string;
   email: string;
   companyName: string;
+  sellerCode: string;
   password: string;
   confirmPassword: string;
 };
@@ -143,7 +144,7 @@ const buildRequestError = async (response: Response, fallback: string) => {
   return translateBackendMessage(backendMessage, fallback);
 };
 
-const buildSupplierFormData = (userId: number, companyName: string, email: string) => {
+const buildSupplierFormData = (userId: number, companyName: string, email: string, sellerCode: string) => {
   const data = new FormData();
   const append = (key: string, value: string) => {
     data.append(key, value ? value.trim() : '');
@@ -171,6 +172,10 @@ const buildSupplierFormData = (userId: number, companyName: string, email: strin
   data.append('user_id', String(userId));
   data.append('is_active', 'true');
   data.append('transfer_accepted', 'false');
+
+  if (sellerCode.trim()) {
+    data.append('seller_code', sellerCode.trim());
+  }
 
   return data;
 };
@@ -200,6 +205,7 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
     secondLastName: '',
     email: '',
     companyName: '',
+    sellerCode: '',
     password: '',
     confirmPassword: '',
   });
@@ -317,7 +323,7 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
 
       const supplierResponse = await fetchWithAuth('/api/suppliers/', {
         method: 'POST',
-        body: buildSupplierFormData(userBody.id, formData.companyName, formData.email.trim()),
+        body: buildSupplierFormData(userBody.id, formData.companyName, formData.email.trim(), formData.sellerCode),
       });
 
       if (!supplierResponse.ok) {
@@ -459,6 +465,21 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
               className="h-12 w-full rounded-lg border border-gray-200 px-4 text-gray-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
               placeholder="Mi Negocio S.A."
             />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">Código de referido</label>
+            <input
+              type="text"
+              name="sellerCode"
+              value={formData.sellerCode}
+              onChange={handleChange}
+              className="h-12 w-full rounded-lg border border-gray-200 px-4 text-gray-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+              placeholder="Código de referido (opcional)"
+            />
+            <p className="mt-1.5 text-xs text-gray-500">
+              Si un vendedor te compartió un código, ingresalo aquí para vincular tu cuenta.
+            </p>
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">

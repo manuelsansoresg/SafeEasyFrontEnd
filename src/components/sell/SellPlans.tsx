@@ -87,7 +87,6 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => ({
 export default function SellPlans() {
   const [serverPlans, setServerPlans] = useState<SellPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasLoadError, setHasLoadError] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -97,20 +96,16 @@ export default function SellPlans() {
         const response = await fetch('/api/plans/?skip=0&limit=1000&only_active=true', {
           cache: 'no-store',
         });
-        if (!response.ok) throw new Error('No se pudieron cargar los planes.');
 
-        const data: unknown = await response.json();
-        const plans = pickArray(data).map(mapApiPlan);
-        if (mounted) {
-          setServerPlans(plans);
-          setHasLoadError(false);
+        if (response.ok) {
+          const data: unknown = await response.json();
+          const plans = pickArray(data).map(mapApiPlan);
+          if (mounted) {
+            setServerPlans(plans);
+          }
         }
       } catch (error) {
         console.error('[SellPlans] Error loading plans:', error);
-        if (mounted) {
-          setServerPlans([]);
-          setHasLoadError(true);
-        }
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -123,7 +118,7 @@ export default function SellPlans() {
     };
   }, []);
 
-  const plans = useMemo(() => (hasLoadError ? fallbackPlans : serverPlans), [hasLoadError, serverPlans]);
+  const plans = useMemo(() => (serverPlans.length > 0 ? serverPlans : fallbackPlans), [serverPlans]);
 
   return (
     <section id="plans" className="py-20 bg-gray-50">
