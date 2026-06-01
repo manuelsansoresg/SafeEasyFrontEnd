@@ -86,7 +86,7 @@ const readResponseBody = async (response: Response): Promise<unknown> => {
   return text;
 };
 
-const extractErrorMessage = (body: unknown, fallback: string) => {
+const extractErrorMessage = (body: unknown, fallback: string): string => {
   if (!body) return fallback;
   if (typeof body === "string") return body;
   if (Array.isArray(body)) {
