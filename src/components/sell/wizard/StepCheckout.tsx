@@ -565,6 +565,9 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
       } catch (purchaseError) {
         throw new Error(translateBackendMessage(getMessage(purchaseError), 'No pudimos crear la ficha de pago. La cuenta fue creada pero el pago no se pudo iniciar. Contactá soporte si el problema persiste.'));
       }
+      if (!purchase.init_point) {
+        throw new Error('No pudimos generar el enlace de pago. Contactá soporte.');
+      }
       window.location.href = purchase.init_point;
 
     } catch (submitError) {
