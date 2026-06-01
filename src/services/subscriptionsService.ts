@@ -200,10 +200,14 @@ export const subscriptionsService = {
     return readJson<unknown>(response);
   },
 
-  async purchase(planId: number): Promise<PurchaseResponse> {
-    const body = JSON.stringify({ plan_id: planId });
+  async purchase(planId: number, paymentMethod?: "card" | "card_terminal", supplierId?: number): Promise<PurchaseResponse> {
+    const body = JSON.stringify({
+      plan_id: planId,
+      ...(paymentMethod ? { payment_method: paymentMethod } : {}),
+      ...(typeof supplierId === "number" ? { supplier_id: supplierId } : {}),
+    });
     const options = { method: "POST", body };
-    const tryUrls = [apiUrl(`/subscriptions/purchase`), apiUrl(`/subscriptions/purchase/`)];
+    const tryUrls = [`/api/subscriptions/purchase`, `/api/subscriptions/purchase/`, apiUrl(`/subscriptions/purchase`), apiUrl(`/subscriptions/purchase/`)];
     let response: Response | null = null;
     for (const url of tryUrls) {
       response = await fetchWithAuth(url, options);

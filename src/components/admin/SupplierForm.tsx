@@ -79,10 +79,18 @@ const authHeaders = (token: string) => ({
 interface SupplierFormProps {
   initialData?: Supplier;
   isEditMode?: boolean;
-  onSaved?: () => void;
+  onSaved?: () => void | Promise<void>;
+  returnPath?: string;
+  redirectOnCreate?: boolean;
 }
 
-export default function SupplierForm({ initialData, isEditMode = false, onSaved }: SupplierFormProps) {
+export default function SupplierForm({
+  initialData,
+  isEditMode = false,
+  onSaved,
+  returnPath = "/admin/suppliers",
+  redirectOnCreate = true,
+}: SupplierFormProps) {
   const { token, user } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -913,9 +921,9 @@ export default function SupplierForm({ initialData, isEditMode = false, onSaved 
 
       setSuccess(true);
       console.log("[SupplierForm] Save successful, calling onSaved");
-      onSaved?.();
-      if (!isEditMode) {
-        router.push("/admin/suppliers");
+      await onSaved?.();
+      if (!isEditMode && redirectOnCreate) {
+        router.push(returnPath);
       }
     } catch (err: unknown) {
       console.error(err);

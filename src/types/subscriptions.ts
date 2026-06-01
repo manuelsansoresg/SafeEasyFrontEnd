@@ -44,7 +44,10 @@ export interface UpdateSubscriptionStatusPayload {
 }
 
 export interface PurchaseResponse {
-  init_point: string;
-  preference_id: string;
-  subscription_payment_id: number;
+  init_point?: string;
+  preference_id?: string;
+  subscription_payment_id?: number;
+  id?: number;
+  status?: string;
+  message?: string;
 }

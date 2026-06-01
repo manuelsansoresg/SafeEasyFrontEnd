@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
+import SellerDashboard from "@/components/admin/SellerDashboard";
 import SupplierDashboard from "@/components/admin/SupplierDashboard";
 import { PageHero } from "@/components/ui/PageHero";
 import { 
@@ -57,7 +58,7 @@ export default function AdminDashboardPage() {
     setMounted(true);
   }, []);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -85,19 +86,19 @@ export default function AdminDashboardPage() {
       
       const data = await response.json();
       setStats(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "Error desconocido");
+      setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange.end, dateRange.start]);
 
   useEffect(() => {
     if (mounted && user?.role === 'admin') {
       fetchStats();
     }
-  }, [mounted, user, dateRange]);
+  }, [fetchStats, mounted, user]);
 
   if (!mounted) {
     return <div className="p-8 text-center text-gray-500">Cargando panel...</div>;
@@ -105,6 +106,10 @@ export default function AdminDashboardPage() {
 
   if (user?.role === 'supplier') {
     return <SupplierDashboard />;
+  }
+
+  if (user?.role === 'seller') {
+    return <SellerDashboard />;
   }
 
   const formatCurrency = (amount: number) => {
@@ -240,7 +245,7 @@ export default function AdminDashboardPage() {
                     <Tooltip 
                       cursor={{ fill: '#f9fafb' }}
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                      formatter={(value: any) => [formatCurrency(value), 'Ventas Totales']}
+                      formatter={(value: unknown) => [formatCurrency(Number(value || 0)), 'Ventas Totales']}
                     />
                     <Legend />
                     <Bar 

@@ -38,7 +38,7 @@ interface AdminSidebarProps {
   onMobileClose?: () => void;
 }
 
-type AdminRole = "admin" | "superuser" | "supplier" | "client";
+type AdminRole = "admin" | "superuser" | "supplier" | "seller" | "client";
 
 type MenuChildItem = {
   title: string;
@@ -64,7 +64,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
       title: "Dashboard",
       path: "/admin/dashboard",
       icon: LayoutDashboard,
-      roles: ['admin', 'superuser', 'supplier']
+      roles: ['admin', 'superuser', 'supplier', 'seller']
     },
     { 
       title: "Mi Empresa", 
@@ -76,7 +76,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
       title: "Perfil", 
       path: "/admin/profile", 
       icon: User,
-      roles: ['admin', 'superuser', 'supplier', 'client']
+      roles: ['admin', 'superuser', 'supplier', 'seller', 'client']
     },
     {
       title: "Contenido",
