@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { subscriptionsService } from "@/services/subscriptionsService";
-import type { Subscription } from "@/types/subscriptions";
+import type { Plan, Subscription } from "@/types/subscriptions";
 import {
   BadgeDollarSign,
   Calendar,
@@ -13,7 +13,6 @@ import {
   Loader2,
   XCircle,
 } from "lucide-react";
-import Link from "next/link";
 import { PageHero } from "@/components/ui/PageHero";
 
 const RENEW_DAYS_THRESHOLD = 30;
@@ -50,6 +49,14 @@ const formatDate = (iso: string) => {
   }).format(d);
 };
 
+const isSubscriptionActive = (subscription: Subscription | null) => subscription?.status === "active";
+
+const statusLabel = (subscription: Subscription | null) => {
+  if (!subscription) return "Sin pago";
+  if (subscription.status === "active") return "Activo";
+  return "Pago no registrado";
+};
+
 export default function MySubscriptionPage() {
   const { token, user } = useAuthStore();
   const isSupplier = user?.role === "supplier";
@@ -58,8 +65,12 @@ export default function MySubscriptionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshingPayment, setRefreshingPayment] = useState(false);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+  const [loadingPlans, setLoadingPlans] = useState(false);
+  const [paying, setPaying] = useState(false);
 
-  const fetchMySubscription = async () => {
+  const fetchMySubscription = useCallback(async () => {
     if (!token || !isSupplier) {
       setLoading(false);
       return;
@@ -75,11 +86,74 @@ export default function MySubscriptionPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isSupplier, token]);
 
   useEffect(() => {
     fetchMySubscription();
-  }, [token, isSupplier]);
+  }, [fetchMySubscription]);
+
+  useEffect(() => {
+    if (!token || !isSupplier) return;
+    let mounted = true;
+
+    const loadPlans = async () => {
+      setLoadingPlans(true);
+      try {
+        const items = await subscriptionsService.listPlans();
+        if (!mounted) return;
+        const activePlans = items.filter((plan) => plan.is_active);
+        setPlans(activePlans);
+      } catch (e) {
+        console.error("Error loading subscription plans:", e);
+      } finally {
+        if (mounted) setLoadingPlans(false);
+      }
+    };
+
+    loadPlans();
+    return () => {
+      mounted = false;
+    };
+  }, [fetchMySubscription, token, isSupplier]);
+
+  useEffect(() => {
+    if (selectedPlanId || plans.length === 0) return;
+    const currentPlanId = subscription?.plan_id;
+    const currentPlanIsAvailable = plans.some((plan) => plan.id === currentPlanId);
+    setSelectedPlanId(currentPlanIsAvailable ? currentPlanId : plans[0]?.id ?? null);
+  }, [plans, selectedPlanId, subscription?.plan_id]);
+
+  const selectedPlan = useMemo(
+    () => plans.find((plan) => plan.id === selectedPlanId) ?? null,
+    [plans, selectedPlanId]
+  );
+
+  const shouldShowPaymentAction =
+    !subscription ||
+    !isSubscriptionActive(subscription) ||
+    daysRemaining(subscription.end_date) <= RENEW_DAYS_THRESHOLD;
+
+  const handlePaySelectedPlan = async () => {
+    if (!selectedPlan) {
+      setError("Selecciona un plan para continuar con el pago.");
+      return;
+    }
+
+    setPaying(true);
+    setError(null);
+    try {
+      const purchase = await subscriptionsService.purchase(selectedPlan.id);
+      if (!purchase.init_point) {
+        throw new Error("Mercado Pago no devolvió una liga de pago.");
+      }
+      window.location.href = purchase.init_point;
+    } catch (e) {
+      console.error("Error creating subscription payment:", e);
+      setError(e instanceof Error ? e.message : "No pudimos crear la ficha de pago.");
+    } finally {
+      setPaying(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -107,7 +181,7 @@ export default function MySubscriptionPage() {
     return () => {
       mounted = false;
     };
-  }, [token, isSupplier]);
+  }, [fetchMySubscription, token, isSupplier]);
 
   if (!isSupplier) {
     return (
@@ -126,7 +200,7 @@ export default function MySubscriptionPage() {
 
   return (
     <div className="space-y-6">
-      <PageHero title="Mi Subscripción" subtitle="Información de tu plan activo." />
+      <PageHero title="Mi Subscripción" subtitle="Información de tu plan y pagos." />
 
       {loading ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
@@ -157,22 +231,16 @@ export default function MySubscriptionPage() {
           </button>
         </div>
       ) : !subscription ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
-          <div className="w-20 h-20 rounded-full bg-primary/5 flex items-center justify-center mx-auto mb-6">
-            <BadgeDollarSign className="text-primary" size={36} />
-          </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Sin subscripción activa</h2>
-          <p className="text-gray-500 mb-8 max-w-md mx-auto">
-            Actualmente no tienes un plan contratado. Adquiere uno para disfrutar de todos los beneficios de la plataforma.
-          </p>
-          <Link
-            href="/sell"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 font-medium"
-          >
-            <CreditCard size={20} />
-            Ver planes disponibles
-          </Link>
-        </div>
+        <PaymentPlanPanel
+          plans={plans}
+          selectedPlanId={selectedPlanId}
+          loadingPlans={loadingPlans}
+          paying={paying}
+          title="No se registró un pago"
+          description="El proveedor ya existe. Elige un plan y genera la ficha de pago sin registrarte otra vez."
+          onSelectPlan={setSelectedPlanId}
+          onPay={handlePaySelectedPlan}
+        />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Plan Info Card */}
@@ -190,15 +258,15 @@ export default function MySubscriptionPage() {
                         <span className="text-sm text-gray-500">
                           {subscription.plan?.duration === "yearly" ? "Anual" : subscription.plan?.duration === "monthly" ? "Mensual" : "-"}
                         </span>
-                        {subscription.status === "active" ? (
+                        {isSubscriptionActive(subscription) ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">
                             <CheckCircle size={12} />
                             Activo
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100">
-                            <XCircle size={12} />
-                            Expirado
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                            <Clock size={12} />
+                            Pago no registrado
                           </span>
                         )}
                       </div>
@@ -220,36 +288,39 @@ export default function MySubscriptionPage() {
 
             {/* Progress & Dates */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-5">Progreso</h3>
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-5">
+                {isSubscriptionActive(subscription) ? "Progreso" : "Estado del pago"}
+              </h3>
 
-              <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
-                <Calendar size={16} className="text-gray-400" />
-                Expira: {formatDate(subscription.end_date)}
-              </div>
+              {isSubscriptionActive(subscription) ? (
+                <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                  <Calendar size={16} className="text-gray-400" />
+                  Expira: {formatDate(subscription.end_date)}
+                </div>
+              ) : (
+                <div className="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-100 p-4 text-sm text-amber-800">
+                  <Clock size={18} className="mt-0.5 shrink-0" />
+                  Este plan todavía no está activo porque no se registró un pago aprobado. Puedes elegir un plan y pagar sin crear otra cuenta.
+                </div>
+              )}
 
-              <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden mt-4">
-                <div
-                  className={`h-full rounded-full transition-all duration-700 ${
-                    subscription.status === "expired"
-                      ? "bg-red-400"
-                      : daysRemaining(subscription.end_date) <= RENEW_DAYS_THRESHOLD
-                        ? "bg-amber-400"
-                        : "bg-primary"
-                  }`}
-                  style={{ width: `${subscription.status === "expired" ? 100 : progressPercent(subscription)}%` }}
-                />
-              </div>
+              {isSubscriptionActive(subscription) ? (
+                <>
+                  <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden mt-4">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        daysRemaining(subscription.end_date) <= RENEW_DAYS_THRESHOLD ? "bg-amber-400" : "bg-primary"
+                      }`}
+                      style={{ width: `${progressPercent(subscription)}%` }}
+                    />
+                  </div>
 
-              <div className="flex items-center justify-between mt-3 text-sm">
-                <span className="text-gray-500">
-                  {subscription.status === "active"
-                    ? `${daysRemaining(subscription.end_date)} días restantes`
-                    : "Vencido"}
-                </span>
-                <span className="text-gray-400">
-                  {Math.round(progressPercent(subscription))}%
-                </span>
-              </div>
+                  <div className="flex items-center justify-between mt-3 text-sm">
+                    <span className="text-gray-500">{daysRemaining(subscription.end_date)} días restantes</span>
+                    <span className="text-gray-400">{Math.round(progressPercent(subscription))}%</span>
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
 
@@ -265,15 +336,15 @@ export default function MySubscriptionPage() {
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-50">
                   <span className="text-sm text-gray-600">Estado</span>
-                  {subscription.status === "active" ? (
+                  {isSubscriptionActive(subscription) ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">
                       <CheckCircle size={10} />
                       Activo
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100">
-                      <XCircle size={10} />
-                      Expirado
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                      <Clock size={10} />
+                      {statusLabel(subscription)}
                     </span>
                   )}
                 </div>
@@ -294,36 +365,108 @@ export default function MySubscriptionPage() {
               </div>
             </div>
 
-            {/* Renew / Expired Actions */}
-            {(subscription.status === "expired" || daysRemaining(subscription.end_date) <= RENEW_DAYS_THRESHOLD) && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
-                    <Clock size={20} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">
-                      {subscription.status === "expired" ? "Subscripción vencida" : "Próximo a vencer"}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      {subscription.status === "expired"
-                        ? "Tu plan ya no está activo."
-                        : `Te quedan ${daysRemaining(subscription.end_date)} días.`}
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  href="/sell"
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 font-medium"
-                >
-                  <CreditCard size={18} />
-                  Renovar ahora
-                </Link>
-              </div>
-            )}
+            {shouldShowPaymentAction ? (
+              <PaymentPlanPanel
+                compact
+                plans={plans}
+                selectedPlanId={selectedPlanId}
+                loadingPlans={loadingPlans}
+                paying={paying}
+                title={isSubscriptionActive(subscription) ? "Próximo a vencer" : "Pago no registrado"}
+                description={
+                  isSubscriptionActive(subscription)
+                    ? `Te quedan ${daysRemaining(subscription.end_date)} días. Puedes pagar otro periodo.`
+                    : "El plan no está activo porque no hay un pago aprobado. Elige un plan y paga ahora."
+                }
+                onSelectPlan={setSelectedPlanId}
+                onPay={handlePaySelectedPlan}
+              />
+            ) : null}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PaymentPlanPanel({
+  plans,
+  selectedPlanId,
+  loadingPlans,
+  paying,
+  title,
+  description,
+  compact = false,
+  onSelectPlan,
+  onPay,
+}: {
+  plans: Plan[];
+  selectedPlanId: number | null;
+  loadingPlans: boolean;
+  paying: boolean;
+  title: string;
+  description: string;
+  compact?: boolean;
+  onSelectPlan: (planId: number) => void;
+  onPay: () => void;
+}) {
+  return (
+    <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 ${compact ? "p-6" : "p-8"}`}>
+      <div className={`flex gap-4 ${compact ? "items-start" : "items-center justify-center text-center flex-col"}`}>
+        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+          <CreditCard size={24} />
+        </div>
+        <div className={compact ? "" : "max-w-xl"}>
+          <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+          <p className="mt-1 text-sm text-gray-500">{description}</p>
+        </div>
+      </div>
+
+      <div className={`mt-6 grid gap-3 ${compact ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"}`}>
+        {loadingPlans ? (
+          <div className="rounded-xl bg-[#f2f3f4] p-4 text-sm text-gray-500 flex items-center gap-2">
+            <Loader2 className="animate-spin text-primary" size={18} />
+            Cargando planes...
+          </div>
+        ) : plans.length === 0 ? (
+          <div className="rounded-xl bg-[#f2f3f4] p-4 text-sm text-gray-500">No hay planes activos disponibles.</div>
+        ) : (
+          plans.map((plan) => {
+            const active = plan.id === selectedPlanId;
+            return (
+              <button
+                key={plan.id}
+                type="button"
+                onClick={() => onSelectPlan(plan.id)}
+                className={`rounded-xl border p-4 text-left transition-all ${
+                  active
+                    ? "border-primary bg-primary/5 shadow-sm shadow-primary/10"
+                    : "border-gray-100 hover:border-primary/30 hover:bg-[#f2f3f4]"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-gray-950">{plan.title}</div>
+                    <div className="mt-1 text-sm text-gray-500">{plan.duration === "yearly" ? "Anual" : "Mensual"}</div>
+                  </div>
+                  {active ? <CheckCircle className="text-[#168e00]" size={18} /> : null}
+                </div>
+                <div className="mt-3 text-2xl font-bold text-primary">${plan.price}</div>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={onPay}
+        disabled={paying || loadingPlans || !selectedPlanId}
+        className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {paying ? <Loader2 className="animate-spin" size={18} /> : <CreditCard size={18} />}
+        {paying ? "Creando ficha de pago..." : "Pagar ahora"}
+      </button>
     </div>
   );
 }
