@@ -120,7 +120,8 @@ export default function MySubscriptionPage() {
     if (selectedPlanId || plans.length === 0) return;
     const currentPlanId = subscription?.plan_id;
     const currentPlanIsAvailable = plans.some((plan) => plan.id === currentPlanId);
-    setSelectedPlanId(currentPlanIsAvailable ? currentPlanId : plans[0]?.id ?? null);
+    const nextPlanId = currentPlanIsAvailable && typeof currentPlanId === "number" ? currentPlanId : plans[0]?.id ?? null;
+    setSelectedPlanId(nextPlanId);
   }, [plans, selectedPlanId, subscription?.plan_id]);
 
   const selectedPlan = useMemo(
