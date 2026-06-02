@@ -14,12 +14,16 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
-  MapPin
+  MapPin,
+  CreditCard,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
+import { subscriptionsService } from "@/services/subscriptionsService";
+import type { Plan, Subscription } from "@/types/subscriptions";
 
 interface Supplier {
   id: number;
@@ -46,6 +50,16 @@ const authHeaders = (token: string) => ({
   "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
 });
 
+const subscriptionBadge = (subscription?: Subscription) => {
+  if (!subscription) {
+    return { label: "Sin pago", className: "bg-gray-50 text-gray-600 border-gray-100" };
+  }
+  if (subscription.status === "active") {
+    return { label: "Activa", className: "bg-green-50 text-green-700 border-green-100" };
+  }
+  return { label: "Pago pendiente", className: "bg-amber-50 text-amber-700 border-amber-100" };
+};
+
 export default function AdminSuppliersPage() {
   const { token, user } = useAuthStore();
   const roleKey = String(user?.role || "").toLowerCase();
@@ -56,6 +70,12 @@ export default function AdminSuppliersPage() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [verifyingId, setVerifyingId] = useState<number | null>(null);
+  const [subscriptionsBySupplier, setSubscriptionsBySupplier] = useState<Record<number, Subscription>>({});
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [subscriptionSupplier, setSubscriptionSupplier] = useState<Supplier | null>(null);
+  const [subscriptionPlanId, setSubscriptionPlanId] = useState<number | null>(null);
+  const [subscriptionPaymentMethod, setSubscriptionPaymentMethod] = useState<"card" | "card_terminal">("card_terminal");
+  const [savingSubscription, setSavingSubscription] = useState(false);
   
   // Pagination
   const [skip, setSkip] = useState(0);
@@ -113,6 +133,96 @@ export default function AdminSuppliersPage() {
   useEffect(() => {
     fetchSuppliers();
   }, [fetchSuppliers]);
+
+  useEffect(() => {
+    if (!token || !isAdminUser) return;
+    let mounted = true;
+
+    const loadSubscriptionData = async () => {
+      try {
+        const [subs, nextPlans] = await Promise.all([
+          subscriptionsService.listSubscriptions({ skip: 0, limit: 1000 }),
+          subscriptionsService.listPlans(),
+        ]);
+        if (!mounted) return;
+
+        const bySupplier: Record<number, Subscription> = {};
+        for (const sub of subs) {
+          if (typeof sub.supplier_id !== "number") continue;
+          bySupplier[sub.supplier_id] = sub;
+        }
+        setSubscriptionsBySupplier(bySupplier);
+        setPlans(nextPlans.filter((plan) => plan.is_active));
+      } catch (error) {
+        console.error("Error loading supplier subscriptions:", error);
+      }
+    };
+
+    loadSubscriptionData();
+    return () => {
+      mounted = false;
+    };
+  }, [isAdminUser, token]);
+
+  const openSubscriptionModal = (supplier: Supplier) => {
+    const current = subscriptionsBySupplier[supplier.id];
+    const currentPlanId = current?.plan_id;
+    const fallbackPlanId = plans[0]?.id ?? null;
+    setSubscriptionSupplier(supplier);
+    setSubscriptionPlanId(plans.some((plan) => plan.id === currentPlanId) ? currentPlanId : fallbackPlanId);
+    setSubscriptionPaymentMethod("card_terminal");
+  };
+
+  const closeSubscriptionModal = () => {
+    if (savingSubscription) return;
+    setSubscriptionSupplier(null);
+  };
+
+  const refreshSubscriptions = async () => {
+    const subs = await subscriptionsService.listSubscriptions({ skip: 0, limit: 1000 });
+    const bySupplier: Record<number, Subscription> = {};
+    for (const sub of subs) {
+      if (typeof sub.supplier_id === "number") bySupplier[sub.supplier_id] = sub;
+    }
+    setSubscriptionsBySupplier(bySupplier);
+  };
+
+  const handleSubscriptionPurchase = async () => {
+    if (!subscriptionSupplier || !subscriptionPlanId) {
+      setToast({ type: "error", message: "Selecciona proveedor y plan." });
+      return;
+    }
+
+    setSavingSubscription(true);
+    try {
+      const purchase = await subscriptionsService.purchase(
+        subscriptionPlanId,
+        subscriptionPaymentMethod === "card_terminal" ? "card_terminal" : undefined,
+        subscriptionSupplier.id
+      );
+
+      if (subscriptionPaymentMethod === "card") {
+        if (!purchase.init_point) {
+          throw new Error("Mercado Pago no devolvió una liga de pago.");
+        }
+        window.open(purchase.init_point, "_blank", "noopener,noreferrer");
+        setToast({ type: "success", message: "Liga de pago generada. Se abrió Mercado Pago en una nueva pestaña." });
+      } else {
+        setToast({ type: "success", message: "Suscripción por terminal registrada correctamente." });
+      }
+
+      await refreshSubscriptions();
+      setSubscriptionSupplier(null);
+    } catch (error) {
+      const message =
+        error && typeof error === "object" && "message" in error && typeof (error as Record<string, unknown>).message === "string"
+          ? String((error as Record<string, unknown>).message)
+          : "No se pudo gestionar la suscripción.";
+      setToast({ type: "error", message });
+    } finally {
+      setSavingSubscription(false);
+    }
+  };
 
   const updateSupplierVerified = async (supplierId: number, isVerified: boolean) => {
     const tryUrls = [`/api/suppliers/${supplierId}`, `/api/suppliers/${supplierId}/`];
@@ -358,6 +468,98 @@ export default function AdminSuppliersPage() {
   return (
     <div className="space-y-6">
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
+      {subscriptionSupplier ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-100 p-5">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#168e00]">Suscripción</p>
+                <h2 className="font-[family-name:var(--font-varela-round)] text-2xl font-bold text-gray-950">
+                  {subscriptionSupplier.name}
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">Elige cómo registrar o generar el pago del proveedor.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeSubscriptionModal}
+                className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-700"
+                aria-label="Cerrar modal"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-700">Plan</label>
+                <select
+                  value={subscriptionPlanId ?? ""}
+                  onChange={(event) => setSubscriptionPlanId(Number(event.target.value))}
+                  className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+                >
+                  {plans.length === 0 ? <option value="">No hay planes activos</option> : null}
+                  {plans.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.title} · ${plan.price} · {plan.duration === "yearly" ? "Anual" : "Mensual"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-semibold text-gray-700">Método de pago</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setSubscriptionPaymentMethod("card_terminal")}
+                    className={cn(
+                      "rounded-xl border p-4 text-left transition-all",
+                      subscriptionPaymentMethod === "card_terminal"
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-gray-100 hover:border-primary/30 hover:bg-[#f2f3f4]"
+                    )}
+                  >
+                    <div className="font-semibold">Terminal</div>
+                    <div className="mt-1 text-xs text-gray-500">Registra pago por terminal.</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSubscriptionPaymentMethod("card")}
+                    className={cn(
+                      "rounded-xl border p-4 text-left transition-all",
+                      subscriptionPaymentMethod === "card"
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-gray-100 hover:border-primary/30 hover:bg-[#f2f3f4]"
+                    )}
+                  >
+                    <div className="font-semibold">Tarjeta</div>
+                    <div className="mt-1 text-xs text-gray-500">Genera liga de Mercado Pago.</div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeSubscriptionModal}
+                  className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:border-primary/30 hover:text-primary"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={savingSubscription || !subscriptionPlanId || plans.length === 0}
+                  onClick={handleSubscriptionPurchase}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingSubscription ? <Loader2 className="animate-spin" size={18} /> : <CreditCard size={18} />}
+                  {subscriptionPaymentMethod === "card" ? "Generar liga" : "Registrar terminal"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <PageHero
         title="Gestión de Proveedores"
         subtitle="Administra la lista de proveedores del sistema."
@@ -419,6 +621,7 @@ export default function AdminSuppliersPage() {
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Teléfono</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Email</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Estado</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Suscripción</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Verificado</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
                 </tr>
@@ -426,7 +629,7 @@ export default function AdminSuppliersPage() {
               <tbody className="divide-y divide-gray-100">
                 {filteredSuppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-gray-500">
+                    <td colSpan={9} className="p-8 text-center text-gray-500">
                       No se encontraron proveedores.
                     </td>
                   </tr>
@@ -463,6 +666,16 @@ export default function AdminSuppliersPage() {
                           )}>
                             {supplier.is_active ? "Activo" : "Inactivo"}
                           </span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {(() => {
+                            const badge = subscriptionBadge(subscriptionsBySupplier[supplier.id]);
+                            return (
+                              <span className={cn("inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border", badge.className)}>
+                                {badge.label}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-6 py-4 text-center">
                           {supplier.is_verified ? (
@@ -508,6 +721,16 @@ export default function AdminSuppliersPage() {
                                 )}
                               </button>
                             ) : null}
+                            {isAdminUser ? (
+                              <button
+                                type="button"
+                                onClick={() => openSubscriptionModal(supplier)}
+                                className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                                title="Gestionar suscripción"
+                              >
+                                <CreditCard size={18} />
+                              </button>
+                            ) : null}
                             <Link 
                               href={`/admin/suppliers/${supplier.id}`}
                               className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
@@ -528,7 +751,7 @@ export default function AdminSuppliersPage() {
                       </tr>
                       {expandedRows.has(supplier.id) && (
                         <tr className="bg-gray-50/50">
-                          <td colSpan={8} className="p-4">
+                          <td colSpan={9} className="p-4">
                             <div className="flex flex-wrap gap-6 text-sm text-gray-600 pl-4 border-l-2 border-primary/20">
                               <div className="flex items-center gap-2">
                                 <MapPin size={16} className="text-gray-400" />
@@ -595,6 +818,19 @@ export default function AdminSuppliersPage() {
                           <div className="font-semibold uppercase tracking-wide text-gray-400">Ubicación</div>
                           <div className="mt-1 break-words text-gray-700">{[supplier.city, supplier.state, supplier.country].filter(Boolean).join(", ") || "-"}</div>
                         </div>
+                        <div className="col-span-2 rounded-xl bg-gray-50 p-2">
+                          <div className="font-semibold uppercase tracking-wide text-gray-400">Suscripción</div>
+                          <div className="mt-1">
+                            {(() => {
+                              const badge = subscriptionBadge(subscriptionsBySupplier[supplier.id]);
+                              return (
+                                <span className={cn("inline-flex rounded-full border px-2.5 py-1 text-xs font-medium", badge.className)}>
+                                  {badge.label}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="mt-3 flex items-center justify-between gap-3">
@@ -618,6 +854,16 @@ export default function AdminSuppliersPage() {
                               title={supplier.is_verified ? "Desverificar" : "Verificar"}
                             >
                               {verifyingId === supplier.id ? <Loader2 size={18} className="animate-spin" /> : supplier.is_verified ? <XCircle size={18} /> : <CheckCircle size={18} />}
+                            </button>
+                          ) : null}
+                          {isAdminUser ? (
+                            <button
+                              type="button"
+                              onClick={() => openSubscriptionModal(supplier)}
+                              className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary"
+                              title="Gestionar suscripción"
+                            >
+                              <CreditCard size={18} />
                             </button>
                           ) : null}
                           <Link href={`/admin/suppliers/${supplier.id}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary" title="Editar">

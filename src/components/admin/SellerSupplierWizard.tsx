@@ -196,6 +196,7 @@ export default function SellerSupplierWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
+  const [createdEmail, setCreatedEmail] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -288,6 +289,7 @@ export default function SellerSupplierWizard() {
 
       const password = generatePassword(form);
       setCreatedPassword(null);
+      setCreatedEmail(null);
       const userResponse = await fetch(apiUrl("/users/"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -344,6 +346,7 @@ export default function SellerSupplierWizard() {
       }
 
       setCreatedPassword(password);
+      setCreatedEmail(form.email.trim());
       setStep("done");
     } catch (submitError) {
       setError(getErrorMessage(submitError));
@@ -582,12 +585,23 @@ export default function SellerSupplierWizard() {
           </p>
           {createdPassword ? (
             <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-primary/15 bg-primary/5 p-4 text-left">
-              <p className="text-sm font-semibold text-primary">Contraseña temporal del proveedor</p>
-              <div className="mt-2 rounded-xl border border-primary/15 bg-white px-4 py-3 font-mono text-lg font-bold text-gray-950">
-                {createdPassword}
+              <p className="text-sm font-semibold text-primary">Datos para iniciar sesión</p>
+              <div className="mt-3 grid gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Correo</p>
+                  <div className="mt-1 rounded-xl border border-primary/15 bg-white px-4 py-3 font-mono text-base font-bold text-gray-950">
+                    {createdEmail || form.email}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Contraseña temporal</p>
+                  <div className="mt-1 rounded-xl border border-primary/15 bg-white px-4 py-3 font-mono text-base font-bold text-gray-950">
+                    {createdPassword}
+                  </div>
+                </div>
               </div>
               <p className="mt-2 text-xs leading-5 text-gray-500">
-                Compártela con el proveedor y pídele cambiarla cuando pueda entrar a su cuenta.
+                Compártelos con el proveedor y pídele cambiar la contraseña cuando pueda entrar a su cuenta.
               </p>
             </div>
           ) : null}
