@@ -19,6 +19,36 @@ const SupplierLocationMap = dynamic(() => import("@/components/supplier/Supplier
   loading: () => <div className="h-full w-full bg-[#eef2ef]" />,
 });
 
+const pickSupplierImage = (source: Supplier | null, keys: string[]) => {
+  if (!source || typeof source !== "object") return null;
+  const record = source as unknown as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+};
+
+const pickSupplierMapLocation = (source: Supplier | null) => {
+  if (!source || typeof source !== "object") return null;
+  const record = source as unknown as Record<string, unknown>;
+  const address = record.address && typeof record.address === "object" ? (record.address as Record<string, unknown>) : null;
+
+  return (
+    parseMapLocation(record.map_location) ||
+    parseMapLocation(record.location) ||
+    parseMapLocation(record.supplier_map_location) ||
+    parseMapLocation(record.supplierLocation) ||
+    parseMapLocation(record.coordinates) ||
+    parseMapLocation(address?.map_location) ||
+    parseMapLocation(address?.location) ||
+    parseMapLocation({
+      lat: record.lat ?? record.latitude ?? record.map_lat ?? record.mapLatitude,
+      lng: record.lng ?? record.longitude ?? record.map_lng ?? record.mapLongitude,
+    })
+  );
+};
+
 // --- THEME CONSTANTS (From user request) ---
 const THEME = {
   primaryDark: "#004e28", // Barra principal, Titulos
@@ -288,7 +318,8 @@ export default function SupplierPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [ratings, setRatings] = useState<SupplierRating[]>([]);
 
-  const mapLocation = parseMapLocation(supplier?.map_location ?? null);
+  const mapLocation = pickSupplierMapLocation(supplier);
+  const supplierLogo = pickSupplierImage(supplier, ["logo", "logo_url", "image", "image_url", "logo_path"]);
   
   const [ratingsTotal, setRatingsTotal] = useState(0);
   const [ratingsSkip, setRatingsSkip] = useState(0);
@@ -720,9 +751,9 @@ export default function SupplierPage() {
          {/* Content */}
          <div className="absolute inset-0 z-20 flex flex-col justify-center px-6 md:px-20 lg:px-32 items-center md:items-start text-center md:text-left pb-28 md:pb-0">
              <div className="animate-in fade-in slide-in-from-left-10 duration-1000 w-full max-w-4xl">
-                {supplier.logo && (
+                {supplierLogo && (
                     <div className="mb-8 w-24 h-24 md:w-32 md:h-32 bg-white/10 backdrop-blur-md rounded-3xl p-4 border border-white/20 shadow-2xl mx-auto md:mx-0">
-                        <img src={supplier.logo} alt={supplier.name} className="w-full h-full object-contain drop-shadow-md" />
+                        <img src={getImageUrl(supplierLogo)} alt={supplier.name} className="w-full h-full object-contain drop-shadow-md" />
                     </div>
                 )}
                 
