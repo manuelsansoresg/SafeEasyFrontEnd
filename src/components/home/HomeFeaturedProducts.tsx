@@ -90,13 +90,13 @@ export function HomeFeaturedProducts() {
                   key={product.id}
                   className="flex-shrink-0 w-[45%] md:w-auto bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all group border border-gray-100 h-full flex flex-col snap-center"
                 >
-                  <div className="relative h-24 md:h-48 w-full bg-gray-50">
+                  <div className="relative aspect-[4/3] w-full bg-gray-50">
                     {product.image ? (
                       <Image
                         src={product.image}
                         alt={product.title}
                         fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="object-cover object-center group-hover:scale-105 transition-transform duration-300"
                       />
                     ) : (
                       <div className="flex items-center justify-center h-full text-gray-400">
