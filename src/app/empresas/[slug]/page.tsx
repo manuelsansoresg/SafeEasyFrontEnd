@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Supplier, CarouselImage, Certificate } from "@/lib/products";
 import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play, Clock, ArrowDown, Volume2, VolumeX, Search } from "lucide-react";
@@ -10,8 +11,13 @@ import { ProductCard } from "@/components/ProductCard";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
-import MapPicker from "@/components/ui/MapPicker";
+import { parseMapLocation } from "@/lib/googleMaps";
 import DOMPurify from "isomorphic-dompurify";
+
+const SupplierLocationMap = dynamic(() => import("@/components/supplier/SupplierLocationMap"), {
+  ssr: false,
+  loading: () => <div className="h-full w-full bg-[#eef2ef]" />,
+});
 
 // --- THEME CONSTANTS (From user request) ---
 const THEME = {
@@ -282,15 +288,7 @@ export default function SupplierPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [ratings, setRatings] = useState<SupplierRating[]>([]);
 
-  const mapLocation = supplier?.map_location ? (() => {
-    try {
-      return typeof supplier.map_location === 'string' 
-        ? JSON.parse(supplier.map_location) 
-        : supplier.map_location;
-    } catch {
-      return null;
-    }
-  })() : null;
+  const mapLocation = parseMapLocation(supplier?.map_location ?? null);
   
   const [ratingsTotal, setRatingsTotal] = useState(0);
   const [ratingsSkip, setRatingsSkip] = useState(0);
@@ -1154,31 +1152,28 @@ export default function SupplierPage() {
 
               {/* MIDDLE ROW: Map (Full Width) */}
               <div className="w-full h-[400px] bg-white/5 backdrop-blur-md rounded-[2rem] overflow-hidden border border-white/10 relative shadow-2xl mb-12 group">
-                  <a 
+                  {mapLocation ? (
+                      <SupplierLocationMap
+                          location={mapLocation}
+                          supplierName={supplier.name}
+                      />
+                  ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white/30 bg-black/20">
+                          <div className="text-center">
+                              <MapPin size={48} className="mx-auto mb-2 opacity-50" />
+                              <p>Ubicación no disponible</p>
+                          </div>
+                      </div>
+                  )}
+
+                  {/* Floating Location Badge */}
+                  <a
                     href={mapLocation ? `https://www.google.com/maps/search/?api=1&query=${mapLocation.lat},${mapLocation.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(supplier.address || '')}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full h-full relative"
+                    className="absolute bottom-4 left-4 z-[500] bg-white/90 backdrop-blur text-[#004e28] px-4 py-2 rounded-xl text-sm font-bold shadow-lg flex items-center gap-2 group-hover:scale-105 transition-transform"
                   >
-                      {mapLocation ? (
-                          <MapPicker
-                              location={mapLocation}
-                              readOnly={true}
-                              height="100%"
-                              className="w-full h-full max-w-none grayscale-[50%] group-hover:grayscale-0 transition-all duration-500 pointer-events-none" 
-                          />
-                      ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white/30 bg-black/20">
-                              <div className="text-center">
-                                  <MapPin size={48} className="mx-auto mb-2 opacity-50" />
-                                  <p>Ubicación no disponible</p>
-                              </div>
-                          </div>
-                      )}
-                      {/* Floating Location Badge */}
-                      <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur text-[#004e28] px-4 py-2 rounded-xl text-sm font-bold shadow-lg flex items-center gap-2 group-hover:scale-105 transition-transform">
-                          <MapPin size={16} /> Ver Ubicación Exacta
-                      </div>
+                      <MapPin size={16} /> Ver Ubicación Exacta
                   </a>
               </div>
 

@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'drooopy-storage.s3.us-east-1.amazonaws.com',
+        port: '',
+        pathname: '/**',
+      },
       ...(isLocalhost ? [{
         protocol: 'http' as const,
         hostname: '127.0.0.1',
