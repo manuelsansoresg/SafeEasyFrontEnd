@@ -21,7 +21,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [openChats, setOpenChats] = useState<OpenChat[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load from localStorage on mount
+  // Load from localStorage after mount to avoid server/client hydration mismatch.
   useEffect(() => {
     if (typeof window !== 'undefined') {
         const stored = localStorage.getItem('safeeasy_open_chats');
@@ -46,10 +46,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const openChat = (conversation: Conversation) => {
     setOpenChats(prev => {
       // Check if already open
-      if (prev.find(c => c.id === conversation.id)) {
+      if (prev.find(c => String(c.id) === String(conversation.id))) {
         // If minimized, maximize it
         // Also update the conversation data with new info (e.g. new product context)
-        return prev.map(c => c.id === conversation.id ? { ...c, ...conversation, isMinimized: false } : c);
+        return prev.map(c => String(c.id) === String(conversation.id) ? { ...c, ...conversation, isMinimized: false } : c);
       }
       // Limit to say 3 chats to avoid clutter
       const newChats = [...prev, { ...conversation, isMinimized: false }];

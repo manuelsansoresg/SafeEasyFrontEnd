@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { chatService } from "@/services/chatService";
@@ -15,6 +15,7 @@ import StarRating from "../StarRating";
 import { fetchWithAuth } from "@/lib/api";
 
 interface ChatWindowProps {
+  initialConversation?: Conversation;
   productId: string | number | null;
   supplierId: number;
   supplierName?: string;
@@ -39,7 +40,7 @@ interface ChatWindowProps {
   mode?: 'modal' | 'docked';
 }
 
-export default function ChatWindow({ productId, supplierId, supplierName, supplierSlug, isOwner, productData, supplierTransferData, onClose, onMinimize, isOpen, mode = 'modal' }: ChatWindowProps) {
+export default function ChatWindow({ initialConversation, productId, supplierId, supplierName, supplierSlug, isOwner, productData, supplierTransferData, onClose, onMinimize, isOpen, mode = 'modal' }: ChatWindowProps) {
   const router = useRouter();
   const { user } = useAuthStore();
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
@@ -101,11 +102,19 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const readConversationIdsRef = useRef<Set<string>>(new Set());
+  const lastInboxReloadRef = useRef<Record<string, number>>({});
+  const initialConversationId = initialConversation?.id;
+  const isDockedChat = mode === "docked";
 
   // Determine if current user is the supplier (Vendor Mode)
   // Ensure strict string comparison to avoid type mismatch
   // Use state to allow auto-detection to override mismatched IDs
   const [isVendorMode, setIsVendorMode] = useState(() => {
+    if (initialConversation?.my_role === "supplier") return true;
+    if (initialConversation?.my_role === "client") return false;
     // If explicitly told it's owner, or IDs match
     if (isOwner) return true;
     return !!(user?.id && supplierId && String(user.id) === String(supplierId));
@@ -113,10 +122,18 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
 
   // Sync isVendorMode with props if they change and match strictly
   useEffect(() => {
+    if (initialConversation?.my_role === "supplier") {
+      setIsVendorMode(true);
+      return;
+    }
+    if (initialConversation?.my_role === "client") {
+      setIsVendorMode(false);
+      return;
+    }
     if (isOwner || (user?.id && supplierId && String(user.id) === String(supplierId))) {
         setIsVendorMode(true);
     }
-  }, [user, supplierId, isOwner]);
+  }, [user, supplierId, isOwner, initialConversation]);
 
   // Track if we sent the initial context message for this session
   const contextSentRef = useRef(false);
@@ -281,7 +298,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
 
   const { status, messages: wsMessages, sendMessage: wsSendMessage, lastMessage, error: wsError, url: wsUrl } = useChatWebSocket(
     activeConversation?.id,
-    isOpen && chatEnabled
+    isOpen && chatEnabled && !isDockedChat
   );
 
   const {
@@ -477,41 +494,80 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   };
 
   // Scroll to bottom helper
-  const scrollToBottom = () => {
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
     if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        messagesEndRef.current.scrollIntoView({ behavior });
     }
   };
 
+  const isNearBottom = () => {
+    const el = messagesScrollRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 96;
+  };
+
+  const handleMessagesScroll = () => {
+    shouldStickToBottomRef.current = isNearBottom();
+  };
+
   // Helper to load messages
-  const loadMessages = async (conversationId: number | string) => {
+  const loadMessages = useCallback(async (
+    conversationId: number | string,
+    options: { markRead?: boolean; scroll?: "always" | "if-near-bottom" | "never"; behavior?: ScrollBehavior } = {}
+  ) => {
     try {
+      const shouldScroll = options.scroll ?? "if-near-bottom";
+      const wasNearBottom = isNearBottom();
       const history = await chatService.getMessages(conversationId);
       setMessages(history);
-      setTimeout(scrollToBottom, 100);
-      try {
-        await chatService.markAsRead(conversationId);
-      } catch (err) {
-        console.error("Failed to mark conversation as read", err);
+      if (shouldScroll === "always" || (shouldScroll === "if-near-bottom" && wasNearBottom)) {
+        setTimeout(() => scrollToBottom(options.behavior ?? "auto"), 100);
+      }
+
+      const readKey = String(conversationId);
+      if (options.markRead && !readConversationIdsRef.current.has(readKey)) {
+        readConversationIdsRef.current.add(readKey);
+        try {
+          await chatService.markAsRead(conversationId);
+        } catch (err) {
+          readConversationIdsRef.current.delete(readKey);
+          console.error("Failed to mark conversation as read", err);
+        }
       }
     } catch (err) {
       console.error("Failed to load messages:", err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || !initialConversation) return;
+
+    setError(null);
+    setLoading(true);
+    setActiveConversation(initialConversation);
+    setConversations([initialConversation]);
+    shouldStickToBottomRef.current = true;
+    loadMessages(initialConversation.id, { markRead: true, scroll: "always", behavior: "auto" }).finally(() => setLoading(false));
+  }, [isOpen, initialConversation, initialConversationId, loadMessages]);
 
   useEffect(() => {
     if (!isOpen || !activeConversation) return;
     if (!inboxEvent || typeof inboxEvent !== "object") return;
     const type = (inboxEvent as any).type;
-    if (type !== "new_message" && type !== "conversation_updated") return;
+    if (type !== "new_message") return;
     const convId = (inboxEvent as any).conversation_id;
     if (!convId) return;
     if (String(convId) !== String(activeConversation.id)) return;
-    loadMessages(activeConversation.id);
-  }, [inboxEvent, activeConversation, isOpen]);
+    const now = Date.now();
+    const reloadKey = String(convId);
+    if (now - (lastInboxReloadRef.current[reloadKey] || 0) < 1200) return;
+    lastInboxReloadRef.current[reloadKey] = now;
+    loadMessages(activeConversation.id, { markRead: false, scroll: "if-near-bottom" });
+  }, [inboxEvent, activeConversation?.id, isOpen, loadMessages]);
 
   // 1. Initialize Chat (Vendor vs Buyer Logic)
   useEffect(() => {
+    if (initialConversation) return;
     if (isOpen && user) {
       const initChat = async () => {
         setLoading(true);
@@ -687,7 +743,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
       
       initChat();
     }
-  }, [isOpen, productId, supplierId, user]); // Removed isVendor from dep array to avoid loops, relying on calculated currentIsVendor
+  }, [isOpen, productId, supplierId, user, initialConversationId]); // Removed isVendor from dep array to avoid loops, relying on calculated currentIsVendor
 
   // 2. Sync real-time messages
   useEffect(() => {
@@ -731,7 +787,9 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
               console.log("[ChatWindow] Appending new message:", lastMessage);
               return [...prev, lastMessage];
            });
-           scrollToBottom();
+           if (shouldStickToBottomRef.current) {
+             setTimeout(() => scrollToBottom(), 50);
+           }
        } else {
            console.warn("[ChatWindow] Message conversation mismatch:", {
                msgConvId: lastMessage.conversation_id,
@@ -745,6 +803,7 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
   // Ensures that if WebSocket fails, messages are still synced automatically.
   useEffect(() => {
     if (!activeConversation || !isOpen) return;
+    if (isDockedChat) return;
 
     const pollInterval = setInterval(() => {
         // Only poll if we are not already loading (though loadMessages handles its own state usually, we want to be silent)
@@ -767,12 +826,13 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     }, 5000); // Poll every 5 seconds
 
     return () => clearInterval(pollInterval);
-  }, [activeConversation, isOpen]);
+  }, [activeConversation, isOpen, isDockedChat]);
 
   // 4. Poll for CONVERSATIONS list (Vendor Mode only)
   // This ensures the vendor sees new clients without refreshing
   useEffect(() => {
     if (!isOpen || !isVendorMode) return;
+    if (isDockedChat) return;
     
     const pollConvos = setInterval(async () => {
         try {
@@ -846,11 +906,13 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     }, 5000);
     
     return () => clearInterval(pollConvos);
-  }, [isOpen, isVendorMode, productId]);
+  }, [isOpen, isVendorMode, productId, isDockedChat]);
 
   // Scroll on initial load
   useEffect(() => {
-    scrollToBottom();
+    if (shouldStickToBottomRef.current) {
+      scrollToBottom("auto");
+    }
   }, [messages]);
 
   const handleSend = async () => {
@@ -1177,7 +1239,11 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
           ) : (
              <>
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 bg-[#F5F5F5]">
+                <div
+                  ref={messagesScrollRef}
+                  onScroll={handleMessagesScroll}
+                  className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 bg-[#F5F5F5]"
+                >
                     {loading ? (
                     <div className="flex items-center justify-center h-full text-gray-400">
                         Cargando historial...
@@ -1487,4 +1553,3 @@ export default function ChatWindow({ productId, supplierId, supplierName, suppli
     </div>
   );
 }
-

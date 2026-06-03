@@ -1,6 +1,6 @@
 "use client";
 
-import { useChat } from "@/context/ChatContext";
+import { OpenChat, useChat } from "@/context/ChatContext";
 import ChatWindow from "./ChatWindow";
 import { useAuthStore } from "@/store/useAuthStore";
 import { X } from "lucide-react";
@@ -9,7 +9,7 @@ export function ChatOverlay() {
   const { openChats, closeChat, toggleChat } = useChat();
   const { user } = useAuthStore();
 
-  const getDisplayName = (chat: any) => {
+  const getDisplayName = (chat: OpenChat) => {
      // Safety check
      if (!user) return chat.user_name || chat.buyer_name || `Usuario #${chat.user_id}`;
 
@@ -103,6 +103,7 @@ export function ChatOverlay() {
                  </div>
              ) : (
                  <ChatWindow 
+                    initialConversation={chat}
                     productId={chat.product_id || null}
                     supplierId={chat.supplier_id}
                     supplierName={chat.supplier_name || chat.other_party_name}
