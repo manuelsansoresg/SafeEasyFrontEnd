@@ -92,12 +92,22 @@ export function HomeFeaturedSuppliers() {
                 >
                   <div className="relative h-24 md:h-48 w-full bg-gray-200">
                     {supplier.logo ? (
-                      <Image
-                        src={supplier.logo}
-                        alt={supplier.name}
-                        fill
-                        className="object-cover"
-                      />
+                      <>
+                        <Image
+                          src={supplier.logo}
+                          alt=""
+                          fill
+                          aria-hidden="true"
+                          className="object-cover blur-xl scale-110 opacity-25"
+                        />
+                        <div className="absolute inset-0 bg-white/80" />
+                        <Image
+                          src={supplier.logo}
+                          alt={supplier.name}
+                          fill
+                          className="object-contain p-4 md:p-6"
+                        />
+                      </>
                     ) : (
                       <div className="flex items-center justify-center h-full text-gray-400">
                         <span className="text-2xl md:text-4xl font-bold opacity-20">{supplier.name.charAt(0)}</span>

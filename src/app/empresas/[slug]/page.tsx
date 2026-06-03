@@ -181,11 +181,17 @@ function Carousel({ images }: { images: CarouselImage[] }) {
           >
             <img
               src={getImageUrl(img.image)}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full scale-110 object-cover opacity-45 blur-2xl"
+            />
+            <img
+              src={getImageUrl(img.image)}
               alt={`Slide ${index + 1}`}
-              className="w-full h-full object-cover"
+              className="relative z-10 h-full w-full object-contain px-4 py-10 md:px-14 md:py-16"
             />
             {/* Dark overlay specifically for carousel images to ensure text readability */}
-            <div className="absolute inset-0 bg-black/40" />
+            <div className="absolute inset-0 z-20 bg-gradient-to-r from-black/70 via-black/25 to-[#004e28]/45" />
           </div>
         ))}
         

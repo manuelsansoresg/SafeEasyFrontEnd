@@ -34,6 +34,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
   const [headerVideo, setHeaderVideo] = useState<File | null>(null);
   const [savedVideoUrl, setSavedVideoUrl] = useState<string | null>(null);
   const [isVideoLoading, setIsVideoLoading] = useState(false);
+  const [isDeletingVideo, setIsDeletingVideo] = useState(false);
 
   // Form State (Carousel)
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -187,10 +188,46 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
 
             throw new Error(errorMessage);
         }
-    } catch (e: any) {
-        setError(e.message);
+    } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Error al subir video");
     } finally {
         setIsVideoLoading(false);
+    }
+  };
+
+  const handleDeleteHeaderVideo = async () => {
+    if (!savedVideoUrl) return;
+    if (!window.confirm("¿Deseas eliminar el video de encabezado actual?")) return;
+
+    setIsDeletingVideo(true);
+    setError(null);
+    try {
+      const res = await fetchWithAuth(`/api/suppliers/${supplierId}/header-video`, {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+      });
+
+      if (!res.ok) {
+        const data: unknown = await res.json().catch(() => ({}));
+        const rec = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+        const message =
+          (typeof rec.detail === "string" && rec.detail) ||
+          (typeof rec.message === "string" && rec.message) ||
+          `Error al eliminar video (${res.status})`;
+        throw new Error(message);
+      }
+
+      setSavedVideoUrl(null);
+      setHeaderVideo(null);
+      await fetchItems();
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === "object" && "message" in err && typeof (err as Record<string, unknown>).message === "string"
+          ? String((err as Record<string, unknown>).message)
+          : "No se pudo eliminar el video.";
+      setError(message);
+    } finally {
+      setIsDeletingVideo(false);
     }
   };
 
@@ -302,8 +339,8 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
       // Reset formulario y salir de edición para permitir seguir editando otros
       handleCancelEdit();
       
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Ocurrió un error al guardar");
     } finally {
       setLoading(false);
     }
@@ -368,7 +405,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                 Video de Encabezado
              </h3>
              <p className="text-gray-600 mb-6 text-sm">
-                Sube un video corto para mostrar en el encabezado de tu perfil. Se recomienda un video ligero y sin audio o con audio suave.
+                Sube un video corto para mostrar en el encabezado de tu perfil. Resolución recomendada: 1920x1080 px (16:9), con el contenido principal centrado para adaptarse a escritorio y móvil.
              </p>
 
              {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
@@ -379,16 +416,30 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                     value={headerVideo}
                     onChange={setHeaderVideo}
                     accept="video/*"
-                    helperText="Formatos recomendados: MP4, WEBM. Máximo 10MB."
+                    helperText="Formatos recomendados: MP4, WEBM. Máximo 10MB. Duración sugerida: 8 a 15 segundos."
                 />
                 
                 {savedVideoUrl && !headerVideo && (
                     <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                        <p className="text-sm text-blue-800 font-medium mb-2">Video Actual:</p>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
+                          <div>
+                            <p className="text-sm text-blue-800 font-medium">Video Actual:</p>
+                            <p className="text-xs text-blue-700/70">Hero recomendado: 1920x1080 px, archivo ligero y sujeto principal centrado.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleDeleteHeaderVideo}
+                            disabled={isDeletingVideo}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+                          >
+                            {isDeletingVideo ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                            Eliminar video
+                          </button>
+                        </div>
                         <video 
                             src={getImageUrl(savedVideoUrl)} 
                             controls 
-                            className="w-full max-h-64 rounded-lg bg-black"
+                            className="w-full max-h-64 rounded-lg bg-black object-contain"
                         />
                     </div>
                 )}
