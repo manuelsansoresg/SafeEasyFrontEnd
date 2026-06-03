@@ -367,7 +367,7 @@ export function MessagesDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] md:w-96 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+        <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] md:w-96 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-[10050] animate-in fade-in zoom-in-95 duration-100 origin-top-right">
           <div className="p-4 flex items-center justify-between border-b border-gray-50">
             <div>
               <h3 className="font-bold text-xl text-gray-900">Chats</h3>
@@ -410,7 +410,7 @@ export function MessagesDropdown() {
              </div>
           </div>
 
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-[min(400px,calc(100vh-260px))] overflow-y-auto">
              {loading ? (
                 <div className="p-8 text-center text-gray-400">
                     <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />

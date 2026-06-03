@@ -82,7 +82,7 @@ export function Header() {
   }, [pathname]);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 flex flex-col font-sans">
+    <header className="fixed top-0 left-0 right-0 z-[10040] flex flex-col font-sans">
       {/* Main Header */}
       <div className="bg-primary text-white shadow-md transition-all duration-300">
         <div className="container mx-auto px-4 h-20 md:h-24 flex items-center justify-between">
