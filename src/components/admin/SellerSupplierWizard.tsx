@@ -139,6 +139,7 @@ const buildSupplierFormData = (userId: number, sellerId: number, form: SupplierR
   data.append("transfer_accepted", "false");
   data.append("accepts_delivery", "false");
   data.append("accepts_pickup", "true");
+  data.append("accepts_courier", "false");
 
   return data;
 };

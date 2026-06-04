@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Truck, Store } from 'lucide-react';
 import FileUpload from '@/components/ui/FileUpload';
 import MapPicker from '@/components/ui/MapPicker';
 import dynamic from 'next/dynamic';
@@ -44,6 +44,9 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     transfer_clabe: '',
     transfer_bank: '',
     transfer_name: '',
+    accepts_delivery: true,
+    accepts_pickup: true,
+    accepts_courier: false,
   });
 
   const [mapLocation, setMapLocation] = useState<{lat: number, lng: number} | null>(null);
@@ -163,6 +166,10 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
       append('cross_street_1', formData.cross_street_1);
       append('cross_street_2', formData.cross_street_2);
       append('about', formData.about);
+
+      data.append('accepts_delivery', String(formData.accepts_delivery));
+      data.append('accepts_pickup', String(formData.accepts_pickup));
+      data.append('accepts_courier', String(formData.accepts_courier));
 
       if (mapLocation) {
         data.append('map_location', JSON.stringify(mapLocation));
@@ -336,17 +343,63 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
               />
             </div>
 
-            <div>
-              <label className="flex items-center space-x-2 cursor-pointer mt-4">
-                <input
-                  type="checkbox"
-                  name="is_active"
-                  checked={formData.is_active}
-                  onChange={handleChange}
-                  className="rounded text-primary focus:ring-primary"
-                />
-                <span className="text-sm font-medium text-gray-700">Cuenta Activa</span>
-              </label>
+            <div className="pt-4 mt-2 border-t border-gray-200 space-y-3">
+              <h4 className="text-base font-semibold text-gray-900">Opciones de Entrega</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    name="accepts_delivery"
+                    checked={formData.accepts_delivery}
+                    onChange={handleChange}
+                    className="mt-1 rounded text-primary focus:ring-primary"
+                  />
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                      <Truck size={16} className="text-primary" />
+                      Envío a domicilio
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-1">Mostrar esta opción en el carrito.</span>
+                  </span>
+                </label>
+
+                <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    name="accepts_pickup"
+                    checked={formData.accepts_pickup}
+                    onChange={handleChange}
+                    className="mt-1 rounded text-primary focus:ring-primary"
+                  />
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                      <Store size={16} className="text-primary" />
+                      Recoger en tienda
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-1">Permitir recolección en sucursal.</span>
+                  </span>
+                </label>
+              </div>
+
+              {formData.accepts_delivery && (
+                <div className="mt-3">
+                  <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="checkbox"
+                      name="accepts_courier"
+                      checked={formData.accepts_courier}
+                      onChange={handleChange}
+                      className="mt-1 rounded text-primary focus:ring-primary"
+                    />
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                        Aceptar envíos
+                      </span>
+                      <span className="block text-xs text-gray-500 mt-1">Habilitar envíos para productos de este estilo.</span>
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
           </div>
 

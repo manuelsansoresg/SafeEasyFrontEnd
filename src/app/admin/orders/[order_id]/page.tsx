@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
+import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { downloadPickupTicket, downloadShippingLabel } from "@/lib/pickupTicket";
 import type { LatLngLiteral } from "@/lib/googleMaps";
 import {
@@ -13,7 +15,6 @@ import {
   getOrderSupplierCoordinates,
   getSupplierAddress,
 } from "@/lib/orderLocation";
-import OrderRouteMap from "@/components/orders/OrderRouteMap";
 import FileUpload from "@/components/ui/FileUpload";
 import { Toast } from "@/components/ui/Toast";
 import {
@@ -24,6 +25,7 @@ import {
   CheckCircle,
   Clock,
   FileText,
+  KeyRound,
   Loader2,
   MapPin,
   PackageCheck,
@@ -33,6 +35,11 @@ import {
   Truck,
   X,
 } from "lucide-react";
+
+const OrderRouteMap = dynamic(() => import("@/components/orders/OrderRouteMap"), {
+  ssr: false,
+  loading: () => <div className="h-[360px] rounded-2xl border border-slate-200 bg-[#f2f3f4] lg:h-[420px]" />,
+});
 
 type ToastState = null | { type: "success" | "error" | "info"; message: string };
 type DeliveryTypeKey = "shipping" | "pickup";
@@ -64,12 +71,21 @@ function normalizeStatusKey(value: string) {
   if (v === "refund_approved" || v === "reembolso_aprobado") return "refund_approved";
   if (v === "refund_rejected" || v === "reembolso_rechazado") return "refund_rejected";
 
-  if (v === "preparing" || v === "in_preparation" || v === "en_preparacion" || v === "en_preparación") return "preparing";
+  if (
+    v === "preparing" ||
+    v === "start_preparing" ||
+    v === "started_preparing" ||
+    v === "in_preparation" ||
+    v === "en_preparacion" ||
+    v === "en_preparación"
+  )
+    return "preparing";
   if (v === "ready_for_pickup" || v === "ready_pickup" || v === "listo_para_recoger" || v === "listo_para_recojer")
     return "ready_for_pickup";
   if (v === "en_route_to_pickup" || v === "going_to_pickup" || v === "camino_a_recoger") return "en_route_to_pickup";
   if (v === "picked_up" || v === "pickup_completed" || v === "recogido") return "picked_up";
-  if (v === "in_transit" || v === "transit" || v === "en_camino") return "in_transit";
+  if (v === "in_transit" || v === "transit" || v === "out_for_delivery" || v === "en_camino" || v === "en_reparto")
+    return "in_transit";
 
   return v;
 }
@@ -313,7 +329,9 @@ export default function AdminOrderDetailPage() {
   const router = useRouter();
   const { user, token } = useAuthStore();
   const roleKey = String(user?.role || "").toLowerCase();
-  const canViewOrdersPage = roleKey === "admin" || roleKey === "superuser" || roleKey === "supplier";
+  const isAdminUser = isAdminRole(roleKey);
+  const isSupplierUser = isSupplierRole(roleKey) && !isAdminUser;
+  const canViewOrdersPage = isAdminUser || isSupplierUser;
 
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<ToastState>(null);
@@ -324,6 +342,9 @@ export default function AdminOrderDetailPage() {
   const [buyerAddress, setBuyerAddress] = useState<string>("");
   const [supplierAddress, setSupplierAddress] = useState<string>("");
   const [supplierCoordsFromApi, setSupplierCoordsFromApi] = useState<LatLngLiteral | null>(null);
+  const [acceptsCourier, setAcceptsCourier] = useState(false);
+  const [courierNotified, setCourierNotified] = useState(false);
+  const [deliveryCode, setDeliveryCode] = useState("");
 
   const [refundApproveOpen, setRefundApproveOpen] = useState(false);
   const [refundRejectOpen, setRefundRejectOpen] = useState(false);
@@ -361,6 +382,13 @@ export default function AdminOrderDetailPage() {
     setLoading(true);
     try {
       const ord = await orderService.getOrderById(orderId);
+      if (isSupplierUser) {
+        const supplier = await resolveCurrentSupplier(user);
+        const orderSupplierId = Number(ord.supplier?.id ?? ord.supplier_id);
+        if (!supplier?.id || Number(supplier.id) !== orderSupplierId) {
+          throw new Error("No puedes ver una orden que pertenece a otro proveedor.");
+        }
+      }
       setOrder(ord);
       const [h, r] = await Promise.allSettled([
         orderService.getOrderHistory(orderId),
@@ -378,6 +406,7 @@ export default function AdminOrderDetailPage() {
         const supplierLocation = await fetchSupplierLocation(supplierId);
         if (supplierLocation.address) setSupplierAddress(supplierLocation.address);
         if (supplierLocation.coordinates) setSupplierCoordsFromApi(supplierLocation.coordinates);
+        setAcceptsCourier(supplierLocation.acceptsCourier);
       }
     } catch (e) {
       const msg = getErrorMessage(e, "No se pudo cargar la orden.");
@@ -388,10 +417,11 @@ export default function AdminOrderDetailPage() {
       setBuyerAddress("");
       setSupplierAddress("");
       setSupplierCoordsFromApi(null);
+      setAcceptsCourier(false);
     } finally {
       setLoading(false);
     }
-  }, [orderId, token]);
+  }, [isSupplierUser, orderId, token, user]);
 
   useEffect(() => {
     load();
@@ -466,16 +496,29 @@ export default function AdminOrderDetailPage() {
     }
     setActionLoading("mark-ready");
     try {
-      await orderService.markOrderReady(orderId);
+      if (acceptsCourier) {
+        await orderService.markOrderReadyForCourierPickup(orderId);
+      } else if (mode === "shipping") {
+        await orderService.startSupplierOrderPreparing(orderId);
+      } else {
+        await orderService.markOrderReady(orderId);
+      }
       if (order) {
         setOrder({
           ...order,
-          fulfillment_status: "ready_for_pickup",
+          fulfillment_status: mode === "shipping" && !acceptsCourier ? "preparing" : "ready_for_pickup",
         });
       }
-      const msg = mode === "shipping"
-        ? "Orden marcada como lista para envío."
-        : "Orden marcada como lista para recoger.";
+      if (acceptsCourier) {
+        setCourierNotified(true);
+      } else if (mode === "shipping") {
+        setCourierNotified(true);
+      }
+      const msg = acceptsCourier
+        ? "Orden marcada como lista para recolección del courier."
+        : mode === "shipping"
+          ? "Orden marcada como lista para envío."
+          : "Orden marcada como lista para recoger.";
       setToast({ type: "success", message: msg });
     } catch (e) {
       const errorText = e instanceof Error ? e.message : String(e);
@@ -516,6 +559,55 @@ export default function AdminOrderDetailPage() {
       await refresh();
     } catch (e) {
       const msg = getErrorMessage(e, "No se pudo completar la orden.");
+      setToast({ type: "error", message: msg });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleStartDelivery = async () => {
+    if (!orderId) return;
+    if (!isPaymentPaid) {
+      setToast({ type: "error", message: "Solo puedes iniciar la entrega cuando el pago esté confirmado." });
+      return;
+    }
+    if (!courierNotified && !isReadyToSend) {
+      setToast({ type: "error", message: "Primero marca la orden como lista para enviar." });
+      return;
+    }
+    setActionLoading("out-for-delivery");
+    try {
+      await orderService.markSupplierOrderOutForDelivery(orderId);
+      if (order) {
+        setOrder({
+          ...order,
+          fulfillment_status: "in_transit",
+        });
+      }
+      setToast({ type: "success", message: "Entrega iniciada. Ahora ingresa el código del cliente para finalizar." });
+    } catch (e) {
+      const msg = getErrorMessage(e, "No se pudo iniciar la entrega.");
+      setToast({ type: "error", message: msg });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleVerifyDeliveryCode = async () => {
+    if (!orderId) return;
+    const code = deliveryCode.replace(/[^a-zA-Z0-9]/g, "").trim();
+    if (!code) {
+      setToast({ type: "error", message: "Ingresa el código que te proporcionó el cliente." });
+      return;
+    }
+    setActionLoading("verify-delivery-code");
+    try {
+      await orderService.verifyDeliveryCode(orderId, code);
+      setToast({ type: "success", message: "Código validado. Orden marcada como entregada." });
+      setDeliveryCode("");
+      await refresh();
+    } catch (e) {
+      const msg = getErrorMessage(e, "No se pudo validar el código de entrega.");
       setToast({ type: "error", message: msg });
     } finally {
       setActionLoading(null);
@@ -615,6 +707,27 @@ export default function AdminOrderDetailPage() {
     return k === "ready_for_pickup";
   }, [effectiveKey]);
 
+  const isOwnHomeDelivery = mode === "shipping" && !acceptsCourier;
+  const isReadyToSend = useMemo(() => {
+    const k = normalizeStatusKey(effectiveKey);
+    return k === "preparing" || k === "ready_for_pickup";
+  }, [effectiveKey]);
+  const isDeliveryInProgress = useMemo(() => {
+    const k = normalizeStatusKey(effectiveKey);
+    return k === "picked_up" || k === "in_transit" || k === "shipped";
+  }, [effectiveKey]);
+  const canStartOwnDelivery = isOwnHomeDelivery && isPaymentPaid && (courierNotified || isReadyToSend) && !isDeliveryInProgress;
+  const showDeliveryCodeEntry = isOwnHomeDelivery && isPaymentPaid && isDeliveryInProgress;
+
+  useEffect(() => {
+    if (!showDeliveryCodeEntry) return;
+    const normalizedCode = normalizeStatusKey(deliveryCode);
+    const normalizedStatus = normalizeStatusKey(effectiveKey);
+    if (normalizedCode && normalizedCode === normalizedStatus) {
+      setDeliveryCode("");
+    }
+  }, [deliveryCode, effectiveKey, showDeliveryCodeEntry]);
+
   const canMarkShipped = useMemo(() => {
     const k = normalizeStatusKey(effectiveKey);
     if (k === "completed" || k === "verified" || k === "cancelled" || k === "refund_refunded") return false;
@@ -684,7 +797,7 @@ export default function AdminOrderDetailPage() {
 
   const shippingHeaderStatus = useMemo(() => {
     const k = normalizeStatusKey(effectiveKey);
-    if (k === "in_transit" || k === "shipped") return "Enviando";
+    if (k === "in_transit" || k === "shipped") return "En camino";
     if (k === "ready_for_pickup") return "Paquete listo";
     if (k === "preparing") return "En preparación";
     if (k === "paid") return "Pago confirmado";
@@ -1295,43 +1408,173 @@ export default function AdminOrderDetailPage() {
 
                   <div className="space-y-5">
                     <div className="rounded-2xl border border-gray-100 bg-white p-6">
-                      <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Gestión de orden</div>
+                      <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                        {!acceptsCourier && mode === "shipping" ? "Acciones de entrega" : "Gestión de orden"}
+                      </div>
                       <div className="mt-4 space-y-3">
-                        {isReadyForPickup ? (
-                          <div className="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2 bg-[#16a34a]">
-                            <CheckCircle className="h-4 w-4" />
-                            Repartidor notificado
-                          </div>
+                        {acceptsCourier ? (
+                          <>
+                            {isReadyForPickup ? (
+                              <div className="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2 bg-[#16a34a]">
+                                <CheckCircle className="h-4 w-4" />
+                                Repartidor notificado
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={actionLoading !== null || !canMarkShipped}
+                                onClick={handleMarkReady}
+                                className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 bg-[#0b6b3a]"
+                              >
+                                <Truck className="h-4 w-4 mr-2" />
+                                {acceptsCourier ? "Notificar paquete listo" : "Marcar como listo"}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={actionLoading !== null || !canMarkDelivered}
+                              onClick={() => handleComplete()}
+                              title={completeDisabledMessage || undefined}
+                              className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                              style={{ backgroundColor: "#004e28" }}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Marcar como Entregado
+                            </button>
+                            {canMarkDelivered ? (
+                              <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
+                                La orden puede marcarse como entregada.
+                              </div>
+                            ) : completeDisabledMessage ? (
+                              <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
+                                {completeDisabledMessage}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : mode === "shipping" ? (
+                          <>
+                            {courierNotified || isReadyToSend || isDeliveryInProgress ? (
+                              <div className="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2 bg-[#16a34a]">
+                                <CheckCircle className="h-4 w-4" />
+                                Listo para enviar
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={actionLoading !== null || !isPaymentPaid || isReadyToSend}
+                                onClick={handleMarkReady}
+                                className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                                style={{ backgroundColor: "#0b6b3a" }}
+                              >
+                                <Truck className="h-4 w-4 mr-2" />
+                                Marcar como listo para enviar
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={actionLoading !== null || !canStartOwnDelivery}
+                              onClick={handleStartDelivery}
+                              title={!canStartOwnDelivery ? "Primero marca la orden como lista para enviar." : undefined}
+                              className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                              style={{ backgroundColor: "#004e28" }}
+                            >
+                              <Truck className="h-4 w-4 mr-2" />
+                              {isDeliveryInProgress ? "Entrega en camino" : "Iniciar entrega"}
+                            </button>
+                            {!courierNotified && isPaymentPaid && !isReadyToSend && !isDeliveryInProgress ? (
+                              <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
+                                Primero marca la orden como lista para enviar.
+                              </div>
+                            ) : null}
+                            {showDeliveryCodeEntry ? (
+                              <div className="rounded-2xl border border-[#004e28]/15 bg-[#f2f3f4] p-4">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-bold text-[#004e28]">
+                                  <Truck className="h-3.5 w-3.5" />
+                                  Entrega en curso
+                                </div>
+                                <div className="mt-3 text-sm font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
+                                  Código de entrega
+                                </div>
+                                <p className="mt-1 text-xs font-semibold text-gray-600">
+                                  Ingresa el código que te proporcionará el cliente al recibir su pedido.
+                                </p>
+                                <div className="mt-4 flex flex-col gap-2">
+                                  <label htmlFor="delivery-code" className="sr-only">
+                                    Código de entrega
+                                  </label>
+                                  <div className="flex items-center gap-2 rounded-xl border border-[#004e28]/15 bg-white px-3 py-2">
+                                    <KeyRound className="h-4 w-4 shrink-0 text-[#004e28]" />
+                                    <input
+                                      id="delivery-code"
+                                      type="text"
+                                      value={deliveryCode}
+                                      onChange={(event) => {
+                                        const nextCode = event.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+                                        setDeliveryCode(nextCode);
+                                      }}
+                                      onFocus={() => {
+                                        if (normalizeStatusKey(deliveryCode) === normalizeStatusKey(effectiveKey)) {
+                                          setDeliveryCode("");
+                                        }
+                                      }}
+                                      placeholder="Código del cliente"
+                                      className="min-w-0 flex-1 bg-transparent text-sm font-bold text-gray-900 outline-none placeholder:text-gray-400"
+                                      autoComplete="off"
+                                      inputMode="text"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    disabled={actionLoading !== null || !deliveryCode.trim()}
+                                    onClick={handleVerifyDeliveryCode}
+                                    className="w-full inline-flex items-center justify-center rounded-xl bg-[#004e28] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                                  >
+                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                    Validar código y entregar
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </>
                         ) : (
-                          <button
-                            type="button"
-                            disabled={actionLoading !== null || !canMarkShipped}
-                            onClick={handleMarkReady}
-                            className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 bg-[#0b6b3a]"
-                          >
-                            <Truck className="h-4 w-4 mr-2" />
-                            Notificar paquete listo
-                          </button>
+                          <>
+                            {isReadyForPickup ? (
+                              <div className="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2 bg-[#16a34a]">
+                                <CheckCircle className="h-4 w-4" />
+                                Repartidor notificado
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={actionLoading !== null || !canMarkShipped}
+                                onClick={handleMarkReady}
+                                className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 bg-[#0b6b3a]"
+                              >
+                                <Truck className="h-4 w-4 mr-2" />
+                                {acceptsCourier ? "Notificar paquete listo" : "Marcar como listo"}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await downloadShippingLabel(order);
+                              }}
+                              className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold"
+                              style={{ backgroundColor: "#ffffff", color: "#0b6b3a", border: "1px solid #0b6b3a33" }}
+                            >
+                              Descargar etiqueta
+                            </button>
+                            <button
+                              type="button"
+                              disabled={actionLoading !== null || !canCancel}
+                              onClick={() => applyStatus("cancelled")}
+                              className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold"
+                              style={{ backgroundColor: "#ffffff", color: "#ef4444", border: "1px solid #ef444433" }}
+                            >
+                              Cancelar orden
+                            </button>
+                          </>
                         )}
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await downloadShippingLabel(order);
-                          }}
-                          className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold"
-                          style={{ backgroundColor: "#ffffff", color: "#0b6b3a", border: "1px solid #0b6b3a33" }}
-                        >
-                          Descargar etiqueta
-                        </button>
-                        <button
-                          type="button"
-                          disabled={actionLoading !== null || !canCancel}
-                          onClick={() => applyStatus("cancelled")}
-                          className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold"
-                          style={{ backgroundColor: "#ffffff", color: "#ef4444", border: "1px solid #ef444433" }}
-                        >
-                          Cancelar orden
-                        </button>
                       </div>
                     </div>
 

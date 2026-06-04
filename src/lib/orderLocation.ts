@@ -5,6 +5,7 @@ import type { Order } from "@/services/orderService";
 type LocationDetails = {
   address: string;
   coordinates: LatLngLiteral | null;
+  acceptsCourier: boolean;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -147,12 +148,15 @@ export async function fetchSupplierLocation(supplierId: number): Promise<Locatio
     const record = asRecord(data) || {};
     const nested = asRecord(record.supplier) || asRecord(record.data) || record;
     const mapAddress = pickAddressText(nested.map_location || nested.location);
+    const acceptsCourierRaw = nested.accepts_courier;
+    const acceptsCourier = typeof acceptsCourierRaw === "boolean" ? acceptsCourierRaw : false;
 
     return {
       address: mapAddress || buildAddressFromRecord(nested) || pickString(nested, ["name"]),
       coordinates: extractCoordinates(nested.map_location || nested.location || nested.coordinates),
+      acceptsCourier,
     };
   }
 
-  return { address: "", coordinates: null };
+  return { address: "", coordinates: null, acceptsCourier: false };
 }

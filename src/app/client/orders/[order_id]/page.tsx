@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
 import type { LatLngLiteral } from "@/lib/googleMaps";
@@ -11,7 +12,6 @@ import {
   getOrderSupplierCoordinates,
   getSupplierAddress,
 } from "@/lib/orderLocation";
-import OrderRouteMap from "@/components/orders/OrderRouteMap";
 import FileUpload from "@/components/ui/FileUpload";
 import { Toast } from "@/components/ui/Toast";
 import {
@@ -28,6 +28,11 @@ import {
   Truck,
   X,
 } from "lucide-react";
+
+const OrderRouteMap = dynamic(() => import("@/components/orders/OrderRouteMap"), {
+  ssr: false,
+  loading: () => <div className="h-[360px] rounded-2xl border border-slate-200 bg-[#f2f3f4]" />,
+});
 
 type ToastState = null | { type: "success" | "error" | "info"; message: string };
 
@@ -62,7 +67,15 @@ function normalizeStatusKey(value: string) {
   if (v === "refund_approved" || v === "reembolso_aprobado") return "refund_approved";
   if (v === "refund_rejected" || v === "reembolso_rechazado") return "refund_rejected";
 
-  if (v === "preparing" || v === "in_preparation" || v === "en_preparacion" || v === "en_preparación") return "preparing";
+  if (
+    v === "preparing" ||
+    v === "start_preparing" ||
+    v === "started_preparing" ||
+    v === "in_preparation" ||
+    v === "en_preparacion" ||
+    v === "en_preparación"
+  )
+    return "preparing";
   if (v === "ready_for_pickup" || v === "ready_pickup" || v === "listo_para_recoger" || v === "listo_para_recojer")
     return "ready_for_pickup";
   if (v === "en_route_to_pickup" || v === "going_to_pickup" || v === "camino_a_recoger") return "en_route_to_pickup";
@@ -224,8 +237,8 @@ function getProgressRank(mode: DeliveryTypeKey, statusKey: string) {
 function Stepper({ steps, rank, cancelled }: { steps: ProgressStep[]; rank: number; cancelled: boolean }) {
   const muted = cancelled ? "#9ca3af" : "#004e28";
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white px-5 py-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="rounded-2xl border border-gray-100 bg-white px-3 py-3 sm:px-5 sm:py-4">
+      <div className="grid grid-cols-4 gap-2 sm:flex sm:items-center sm:justify-between sm:gap-3">
         {steps.map((s, idx) => {
           const stepRank = idx + 1;
           const done = !cancelled && rank > stepRank;
@@ -234,22 +247,22 @@ function Stepper({ steps, rank, cancelled }: { steps: ProgressStep[]; rank: numb
           const baseColor = cancelled ? muted : done ? "#004e28" : active ? "#16a34a" : "#cbd5e1";
           const bg = cancelled ? "#f3f4f6" : done || active ? `${baseColor}14` : "#f3f4f6";
           return (
-            <div key={s.key} className="flex-1 min-w-0">
+            <div key={s.key} className="min-w-0 sm:flex-1">
               <div className="flex items-center justify-center">
                 <div
-                  className="h-10 w-10 rounded-full flex items-center justify-center border"
+                  className="h-9 w-9 rounded-full flex items-center justify-center border sm:h-10 sm:w-10"
                   style={{
                     backgroundColor: bg,
                     borderColor: cancelled ? "#e5e7eb" : done || active ? `${baseColor}55` : "#e5e7eb",
                   }}
                 >
-                  <Icon className="h-5 w-5" style={{ color: baseColor }} />
+                  <Icon className="h-4 w-4 sm:h-5 sm:w-5" style={{ color: baseColor }} />
                 </div>
               </div>
-              <div className="mt-2 text-center text-xs font-semibold text-gray-900 font-[family-name:var(--font-poppins)] truncate">
+              <div className="mt-2 text-center text-[10px] font-semibold leading-tight text-gray-900 font-[family-name:var(--font-poppins)] sm:text-xs sm:truncate">
                 {s.label}
               </div>
-              <div className="mt-0.5 text-center text-[11px] text-gray-400 font-[family-name:var(--font-poppins)]">
+              <div className="mt-0.5 text-center text-[10px] text-gray-400 font-[family-name:var(--font-poppins)] sm:text-[11px]">
                 {cancelled ? "Cancelado" : done ? "Listo" : active ? "Actual" : "Pendiente"}
               </div>
             </div>
@@ -520,7 +533,7 @@ export default function ClientOrderDetailPage() {
 
   return (
     <div className="pb-16 font-[family-name:var(--font-poppins)]">
-      <div className="container mx-auto px-4 space-y-5">
+      <div className="container mx-auto px-3 space-y-4 sm:px-4 sm:space-y-5">
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -535,12 +548,12 @@ export default function ClientOrderDetailPage() {
           <>
             <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
               <div
-                className="px-6 py-5 text-white"
+                className="px-5 py-5 text-white sm:px-6"
                 style={{ background: "linear-gradient(135deg, #004e28 0%, #0b6b3a 100%)" }}
               >
-                <div className="flex items-center gap-3 mb-3">
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                   <span
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+                    className="inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
                     style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
                   >
                     {mode === "shipping" ? (
@@ -549,7 +562,7 @@ export default function ClientOrderDetailPage() {
                       <><Store className="h-3.5 w-3.5" /> Recoger en tienda</>
                     )}
                   </span>
-                  <span className="text-xs font-semibold text-white/60">
+                  <span className="text-xs font-semibold leading-relaxed text-white/70">
                     #{order.id} • {formatDate(order.created_at)}
                   </span>
                 </div>
@@ -562,9 +575,9 @@ export default function ClientOrderDetailPage() {
                       {formatMoney(order.total_amount ?? order.product?.price ?? 0)}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:justify-end">
                     <span
-                      className="inline-flex items-center rounded-full px-3 py-1.5 text-sm font-bold"
+                      className="inline-flex w-fit items-center rounded-full px-3 py-1.5 text-sm font-bold"
                       style={{
                         backgroundColor: isExpired ? "#f2f3f4" : cancelled ? "rgba(0,0,0,0.18)" : "rgba(255,255,255,0.15)",
                         color: isExpired ? "#000000" : "#ffffff",
@@ -572,11 +585,11 @@ export default function ClientOrderDetailPage() {
                     >
                       {toSpanishStatusLabel(effectiveKey)}
                     </span>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <div className="text-xs text-white/60">
                         {mode === "shipping" ? "Entrega estimada" : "Recolección"}
                       </div>
-                      <div className="flex items-center gap-1.5 justify-end mt-0.5">
+                      <div className="mt-0.5 flex items-center gap-1.5 sm:justify-end">
                         <Clock className="h-3.5 w-3.5 text-white/70" />
                         <div className="text-sm font-bold text-white">{formatEtaLabel(order, mode)}</div>
                       </div>
@@ -584,7 +597,7 @@ export default function ClientOrderDetailPage() {
                   </div>
                 </div>
               </div>
-              <div className="px-6 py-4 bg-white">
+              <div className="bg-white px-3 py-4 sm:px-6">
                 {isExpired ? (
                   <div className="rounded-2xl border border-[#004e28]/25 bg-[#f2f3f4] px-5 py-4 text-black">
                     <div className="flex items-start gap-3">
@@ -603,7 +616,7 @@ export default function ClientOrderDetailPage() {
                     {showDeliveryCodeCard ? (
                       <div
                         ref={deliveryCodeRef}
-                        className={`rounded-2xl border bg-[#f2f3f4] p-5 transition-all duration-300 ${
+                        className={`rounded-2xl border bg-[#f2f3f4] p-4 transition-all duration-300 sm:p-5 ${
                           deliveryCodeHighlighted
                             ? "border-[#168e00] shadow-lg shadow-[#004e28]/20 ring-4 ring-[#168e00]/15"
                             : "border-[#004e28]/20"
@@ -618,7 +631,7 @@ export default function ClientOrderDetailPage() {
                             <div className="mt-3 text-sm font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
                               Código de entrega
                             </div>
-                            <p className="mt-1 text-sm text-gray-600">
+                            <p className="mt-1 text-sm leading-relaxed text-gray-600">
                               {mode === "shipping"
                                 ? "Compartilo con el repartidor solo cuando recibas tu pedido."
                                 : "Mostralo en tienda para retirar tu pedido."}
@@ -626,14 +639,14 @@ export default function ClientOrderDetailPage() {
                           </div>
 
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                            <div className="rounded-2xl border border-[#004e28]/15 bg-white px-5 py-3 text-center min-w-[180px]">
+                            <div className="w-full rounded-2xl border border-[#004e28]/15 bg-white px-4 py-3 text-center sm:min-w-[180px]">
                               {deliveryCodeLoading ? (
                                 <div className="flex items-center justify-center gap-2 text-sm font-semibold text-gray-500">
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                   Cargando...
                                 </div>
                               ) : deliveryCode ? (
-                                <div className="font-mono text-3xl font-black tracking-[0.18em] text-[#004e28]">
+                                <div className="font-mono text-2xl font-black tracking-[0.16em] text-[#004e28] sm:text-3xl sm:tracking-[0.18em]">
                                   {formatDeliveryCode(deliveryCode)}
                                 </div>
                               ) : (
@@ -646,7 +659,7 @@ export default function ClientOrderDetailPage() {
                               type="button"
                               onClick={copyDeliveryCode}
                               disabled={!deliveryCode || deliveryCodeLoading}
-                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#168e00] disabled:cursor-not-allowed disabled:opacity-50"
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[#168e00] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                             >
                               <Copy className="h-4 w-4" />
                               Copiar código
@@ -682,25 +695,36 @@ export default function ClientOrderDetailPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-gray-100 bg-white p-6">
-                  <div className="flex items-start justify-between gap-3">
+                <div className="rounded-2xl border border-gray-100 bg-white p-5 sm:p-6">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                     <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
                       Resumen del producto
                     </div>
                     <div className="text-sm font-bold text-[#004e28]">{formatMoney(order.total_amount ?? order.product?.price ?? 0)}</div>
                   </div>
                   <div className="mt-4 overflow-hidden rounded-xl border border-gray-100">
-                    <div className="grid grid-cols-12 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-500">
+                    <div className="hidden grid-cols-12 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-500 sm:grid">
                       <div className="col-span-6">PRODUCTO</div>
                       <div className="col-span-2 text-center">CANT.</div>
                       <div className="col-span-2 text-right">PRECIO</div>
                       <div className="col-span-2 text-right">TOTAL</div>
                     </div>
-                    <div className="grid grid-cols-12 px-4 py-4 text-sm text-gray-900">
-                      <div className="col-span-6 font-semibold">{order.product?.title || "Producto"}</div>
-                      <div className="col-span-2 text-center">1</div>
-                      <div className="col-span-2 text-right">{formatMoney(order.product?.price ?? order.total_amount ?? 0)}</div>
-                      <div className="col-span-2 text-right font-bold">{formatMoney(order.total_amount ?? order.product?.price ?? 0)}</div>
+                    <div className="px-4 py-4 text-sm text-gray-900 sm:grid sm:grid-cols-12">
+                      <div className="font-semibold sm:col-span-6">{order.product?.title || "Producto"}</div>
+                      <div className="mt-4 space-y-3 rounded-xl bg-gray-50 p-3 sm:col-span-6 sm:mt-0 sm:contents sm:space-y-0 sm:bg-transparent sm:p-0">
+                        <div className="flex items-center justify-between gap-4 sm:col-span-4 sm:block sm:text-center">
+                          <div className="text-[10px] font-bold uppercase text-gray-400 sm:hidden">Cant.</div>
+                          <div className="font-semibold sm:mt-0 sm:font-normal">1</div>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 sm:col-span-4 sm:block sm:text-right">
+                          <div className="text-[10px] font-bold uppercase text-gray-400 sm:hidden">Precio</div>
+                          <div className="min-w-0 text-right font-semibold sm:mt-0 sm:font-normal">{formatMoney(order.product?.price ?? order.total_amount ?? 0)}</div>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 border-t border-gray-200 pt-3 sm:col-span-4 sm:block sm:border-0 sm:pt-0 sm:text-right">
+                          <div className="text-[10px] font-bold uppercase text-gray-400 sm:hidden">Total</div>
+                          <div className="min-w-0 text-right font-bold sm:mt-0">{formatMoney(order.total_amount ?? order.product?.price ?? 0)}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

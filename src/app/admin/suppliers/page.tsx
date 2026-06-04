@@ -9,12 +9,9 @@ import {
   Trash2, 
   ChevronLeft,
   ChevronRight,
-  ChevronDown, 
-  ChevronUp, 
   Loader2,
   CheckCircle,
   XCircle,
-  MapPin,
   CreditCard,
   X,
 } from "lucide-react";
@@ -50,7 +47,13 @@ const authHeaders = (token: string) => ({
   "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
 });
 
-const subscriptionBadge = (subscription?: Subscription) => {
+const subscriptionBadge = (subscription?: Subscription, options?: { loading?: boolean; error?: boolean }) => {
+  if (options?.loading) {
+    return { label: "Cargando...", className: "bg-gray-50 text-gray-500 border-gray-100" };
+  }
+  if (options?.error) {
+    return { label: "No cargó", className: "bg-red-50 text-red-700 border-red-100" };
+  }
   if (!subscription) {
     return { label: "Sin pago", className: "bg-gray-50 text-gray-600 border-gray-100" };
   }
@@ -60,6 +63,16 @@ const subscriptionBadge = (subscription?: Subscription) => {
   return { label: "Pago pendiente", className: "bg-amber-50 text-amber-700 border-amber-100" };
 };
 
+const getSubscriptionSupplierId = (subscription: Subscription) => {
+  const record = subscription as unknown as Record<string, unknown>;
+  const nestedSupplier = record.supplier && typeof record.supplier === "object"
+    ? (record.supplier as Record<string, unknown>)
+    : null;
+  const raw = record.supplier_id ?? record.supplierId ?? nestedSupplier?.id;
+  const id = Number(raw);
+  return Number.isFinite(id) ? id : null;
+};
+
 export default function AdminSuppliersPage() {
   const { token, user } = useAuthStore();
   const roleKey = String(user?.role || "").toLowerCase();
@@ -67,10 +80,11 @@ export default function AdminSuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [verifyingId, setVerifyingId] = useState<number | null>(null);
   const [subscriptionsBySupplier, setSubscriptionsBySupplier] = useState<Record<number, Subscription>>({});
+  const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
+  const [subscriptionsError, setSubscriptionsError] = useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscriptionSupplier, setSubscriptionSupplier] = useState<Supplier | null>(null);
   const [subscriptionPlanId, setSubscriptionPlanId] = useState<number | null>(null);
@@ -139,22 +153,31 @@ export default function AdminSuppliersPage() {
     let mounted = true;
 
     const loadSubscriptionData = async () => {
+      setLoadingSubscriptions(true);
+      setSubscriptionsError(false);
       try {
         const [subs, nextPlans] = await Promise.all([
-          subscriptionsService.listSubscriptions({ skip: 0, limit: 1000 }),
+          subscriptionsService.listSubscriptions({ skip: 0, limit: 500 }),
           subscriptionsService.listPlans(),
         ]);
         if (!mounted) return;
 
         const bySupplier: Record<number, Subscription> = {};
         for (const sub of subs) {
-          if (typeof sub.supplier_id !== "number") continue;
-          bySupplier[sub.supplier_id] = sub;
+          const supplierId = getSubscriptionSupplierId(sub);
+          if (!supplierId) continue;
+          bySupplier[supplierId] = sub;
         }
         setSubscriptionsBySupplier(bySupplier);
         setPlans(nextPlans.filter((plan) => plan.is_active));
       } catch (error) {
         console.error("Error loading supplier subscriptions:", error);
+        if (mounted) {
+          setSubscriptionsError(true);
+          setSubscriptionsBySupplier({});
+        }
+      } finally {
+        if (mounted) setLoadingSubscriptions(false);
       }
     };
 
@@ -179,10 +202,11 @@ export default function AdminSuppliersPage() {
   };
 
   const refreshSubscriptions = async () => {
-    const subs = await subscriptionsService.listSubscriptions({ skip: 0, limit: 1000 });
+    const subs = await subscriptionsService.listSubscriptions({ skip: 0, limit: 500 });
     const bySupplier: Record<number, Subscription> = {};
     for (const sub of subs) {
-      if (typeof sub.supplier_id === "number") bySupplier[sub.supplier_id] = sub;
+      const supplierId = getSubscriptionSupplierId(sub);
+      if (supplierId) bySupplier[supplierId] = sub;
     }
     setSubscriptionsBySupplier(bySupplier);
   };
@@ -277,16 +301,6 @@ export default function AdminSuppliersPage() {
     } finally {
       setVerifyingId(null);
     }
-  };
-
-  const toggleRow = (id: number) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedRows(newExpanded);
   };
 
   const toggleSelect = (id: number) => {
@@ -669,7 +683,10 @@ export default function AdminSuppliersPage() {
                         </td>
                         <td className="px-6 py-4 text-center">
                           {(() => {
-                            const badge = subscriptionBadge(subscriptionsBySupplier[supplier.id]);
+                            const badge = subscriptionBadge(subscriptionsBySupplier[supplier.id], {
+                              loading: loadingSubscriptions,
+                              error: subscriptionsError,
+                            });
                             return (
                               <span className={cn("inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border", badge.className)}>
                                 {badge.label}
@@ -678,22 +695,19 @@ export default function AdminSuppliersPage() {
                           })()}
                         </td>
                         <td className="px-6 py-4 text-center">
-                          {supplier.is_verified ? (
-                            <span className="inline-flex items-center" title="Empresa verificada">
-                              <CheckCircle size={16} className="text-[#168e00]" />
-                            </span>
-                          ) : null}
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                              supplier.is_verified
+                                ? "border-green-100 bg-green-50 text-green-700"
+                                : "border-gray-100 bg-gray-50 text-gray-600"
+                            )}
+                          >
+                            {supplier.is_verified ? "Verificado" : "Sin verificar"}
+                          </span>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => toggleRow(supplier.id)}
-                              className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                              title="Ver más detalles"
-                            >
-                              {expandedRows.has(supplier.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                            </button>
                             {isAdminUser ? (
                               <button
                                 type="button"
@@ -749,25 +763,6 @@ export default function AdminSuppliersPage() {
                           </div>
                         </td>
                       </tr>
-                      {expandedRows.has(supplier.id) && (
-                        <tr className="bg-gray-50/50">
-                          <td colSpan={9} className="p-4">
-                            <div className="flex flex-wrap gap-6 text-sm text-gray-600 pl-4 border-l-2 border-primary/20">
-                              <div className="flex items-center gap-2">
-                                <MapPin size={16} className="text-gray-400" />
-                                <span className="font-medium">Ubicación:</span>
-                                <span>
-                                  {[supplier.city, supplier.state, supplier.country].filter(Boolean).join(", ")}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 lg:hidden">
-                                <span className="font-medium">Email:</span>
-                                <span>{supplier.email || '-'}</span>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
                     </Fragment>
                   ))
                 )}
@@ -822,7 +817,10 @@ export default function AdminSuppliersPage() {
                           <div className="font-semibold uppercase tracking-wide text-gray-400">Suscripción</div>
                           <div className="mt-1">
                             {(() => {
-                              const badge = subscriptionBadge(subscriptionsBySupplier[supplier.id]);
+                              const badge = subscriptionBadge(subscriptionsBySupplier[supplier.id], {
+                                loading: loadingSubscriptions,
+                                error: subscriptionsError,
+                              });
                               return (
                                 <span className={cn("inline-flex rounded-full border px-2.5 py-1 text-xs font-medium", badge.className)}>
                                   {badge.label}

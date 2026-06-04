@@ -50,6 +50,7 @@ interface Supplier {
   transfer_name?: string;
   accepts_delivery?: boolean;
   accepts_pickup?: boolean;
+  accepts_courier?: boolean;
   map_location?: string | LatLngLiteral | null;
 }
 
@@ -413,7 +414,8 @@ export default function SupplierForm({
     transfer_bank: formText(initialData?.transfer_bank),
     transfer_name: formText(initialData?.transfer_name),
     accepts_delivery: initialData?.accepts_delivery ?? true,
-    accepts_pickup: initialData?.accepts_pickup ?? true,
+    accepts_pickup: initialData?.accepts_delivery === false ? true : false,
+    accepts_courier: initialData?.accepts_delivery === false ? false : (initialData?.accepts_courier ?? false),
   });
 
   const [mapLocation, setMapLocation] = useState<LatLngLiteral | null>(() =>
@@ -538,6 +540,18 @@ export default function SupplierForm({
       }
       if (name === 'zip_code') {
         return { ...prev, zip_code: String(val), cp: String(val) };
+      }
+      if (name === "delivery_option") {
+        const isDelivery = value === "delivery";
+        return {
+          ...prev,
+          accepts_delivery: isDelivery,
+          accepts_pickup: !isDelivery,
+          accepts_courier: isDelivery ? prev.accepts_courier : false,
+        };
+      }
+      if (name === "accepts_courier" && !prev.accepts_delivery) {
+        return prev;
       }
       return { ...prev, [name]: val };
     });
@@ -775,6 +789,7 @@ export default function SupplierForm({
         appendIfPresent("about", formData.about);
         data.append("accepts_delivery", String(formData.accepts_delivery));
         data.append("accepts_pickup", String(formData.accepts_pickup));
+        data.append("accepts_courier", String(formData.accepts_courier));
 
         data.append("user_id", String(finalUserId));
 
@@ -1118,10 +1133,17 @@ export default function SupplierForm({
           <div className="pt-4 mt-2 border-t border-gray-200 space-y-3">
             <h4 className="text-base font-semibold text-gray-900">Opciones de Entrega</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+              <label
+                className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${
+                  formData.accepts_delivery
+                    ? "border-primary bg-primary/5"
+                    : "border-gray-200 bg-white hover:bg-gray-50"
+                }`}
+              >
                 <input
-                  type="checkbox"
-                  name="accepts_delivery"
+                  type="radio"
+                  name="delivery_option"
+                  value="delivery"
                   checked={formData.accepts_delivery}
                   onChange={handleInputChange}
                   className="mt-1 rounded text-primary focus:ring-primary"
@@ -1135,10 +1157,17 @@ export default function SupplierForm({
                 </span>
               </label>
 
-              <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+              <label
+                className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${
+                  formData.accepts_pickup
+                    ? "border-primary bg-primary/5"
+                    : "border-gray-200 bg-white hover:bg-gray-50"
+                }`}
+              >
                 <input
-                  type="checkbox"
-                  name="accepts_pickup"
+                  type="radio"
+                  name="delivery_option"
+                  value="pickup"
                   checked={formData.accepts_pickup}
                   onChange={handleInputChange}
                   className="mt-1 rounded text-primary focus:ring-primary"
@@ -1152,20 +1181,42 @@ export default function SupplierForm({
                 </span>
               </label>
             </div>
+
+            {formData.accepts_delivery && (
+              <div className="mt-3">
+                <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="checkbox"
+                      name="accepts_courier"
+                      checked={formData.accepts_courier}
+                      onChange={handleInputChange}
+                    className="mt-1 rounded text-primary focus:ring-primary"
+                  />
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                      Aceptar envíos
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-1">Habilitar envíos para productos de este estilo.</span>
+                  </span>
+                </label>
+              </div>
+            )}
           </div>
           
-           <div>
-            <label className="flex items-center space-x-2 cursor-pointer mt-4">
-              <input
-                type="checkbox"
-                name="is_active"
-                checked={formData.is_active}
-                onChange={handleInputChange}
-                className="rounded text-primary focus:ring-primary"
-              />
-              <span className="text-sm font-medium text-gray-700">Cuenta Activa</span>
-            </label>
-          </div>
+           {isAdminUser && (
+             <div>
+              <label className="flex items-center space-x-2 cursor-pointer mt-4">
+                <input
+                  type="checkbox"
+                  name="is_active"
+                  checked={formData.is_active}
+                  onChange={handleInputChange}
+                  className="rounded text-primary focus:ring-primary"
+                />
+                <span className="text-sm font-medium text-gray-700">Cuenta Activa</span>
+              </label>
+            </div>
+           )}
         </div>
 
         {/* Right Column: Address */}

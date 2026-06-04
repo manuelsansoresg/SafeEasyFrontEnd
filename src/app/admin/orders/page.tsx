@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
+import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { chatService } from "@/services/chatService";
 import { useChat } from "@/context/ChatContext";
 import FileUpload from "@/components/ui/FileUpload";
@@ -47,6 +48,29 @@ function normalizeStatusKey(value: string) {
     return "receipt_uploaded";
   if (v === "completed" || v === "completado" || v === "delivered" || v === "entregado") return "completed";
   if (v === "shipped" || v === "enviado") return "shipped";
+  if (
+    v === "preparing" ||
+    v === "start_preparing" ||
+    v === "started_preparing" ||
+    v === "in_preparation" ||
+    v === "en_preparacion" ||
+    v === "en_preparación"
+  )
+    return "preparing";
+  if (v === "ready_for_pickup" || v === "ready_pickup" || v === "listo_para_recoger" || v === "listo_para_recojer")
+    return "ready_for_pickup";
+  if (v === "en_route_to_pickup" || v === "going_to_pickup" || v === "camino_a_recoger") return "en_route_to_pickup";
+  if (v === "picked_up" || v === "pickup_completed" || v === "recogido") return "picked_up";
+  if (
+    v === "in_transit" ||
+    v === "transit" ||
+    v === "en_route_to_delivery" ||
+    v === "out_for_delivery" ||
+    v === "camino_a_entregar" ||
+    v === "en_camino" ||
+    v === "en_reparto"
+  )
+    return "in_transit";
   if (v === "rejected" || v === "rechazado" || v === "payment_rejected" || v === "pago_rechazado")
     return "payment_rejected";
   if (v === "cancelled" || v === "cancelado") return "cancelled";
@@ -77,6 +101,11 @@ function toSpanishStatusLabel(value: string) {
     verified: "Verificado",
     completed: "Completado",
     shipped: "Enviado",
+    preparing: "En preparación",
+    ready_for_pickup: "Listo para recoger",
+    en_route_to_pickup: "En camino a recoger",
+    picked_up: "Producto recogido",
+    in_transit: "En camino",
     receipt_uploaded: "Comprobante subido",
     payment_rejected: "Pago rechazado",
     rejected: "Pago rechazado",
@@ -393,7 +422,8 @@ export default function AdminOrdersPage() {
   const { user, token } = useAuthStore();
   const { openChat } = useChat();
   const roleKey = String(user?.role || "").toLowerCase();
-  const isAdminUser = roleKey === "admin" || roleKey === "superuser";
+  const isAdminUser = isAdminRole(roleKey);
+  const isSupplierUser = isSupplierRole(roleKey) && !isAdminUser;
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -426,7 +456,7 @@ export default function AdminOrdersPage() {
       return;
     }
     fetchOrders();
-  }, [page, user?.role, token]);
+  }, [page, user?.id, user?.role, token]);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -444,7 +474,18 @@ export default function AdminOrdersPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await orderService.getOrders(page, limit);
+      let supplierId: number | undefined;
+      if (isSupplierUser) {
+        const supplier = await resolveCurrentSupplier(user);
+        if (!supplier?.id) {
+          setOrders([]);
+          setError("No se encontró el proveedor asociado a tu cuenta.");
+          return;
+        }
+        supplierId = supplier.id;
+      }
+
+      const data = await orderService.getOrders(page, limit, supplierId);
       setOrders(data);
     } catch (error) {
       console.error("Error fetching orders:", error);

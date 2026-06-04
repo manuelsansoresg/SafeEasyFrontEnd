@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/store/useAuthStore";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
 import FileUpload from "@/components/ui/FileUpload";
 import { PageHero } from "@/components/ui/PageHero";
@@ -83,7 +84,15 @@ function normalizeStatusKey(value: string) {
     return "receipt_uploaded";
   if (v === "completed" || v === "completado" || v === "delivered" || v === "entregado") return "completed";
   if (v === "shipped" || v === "enviado") return "shipped";
-  if (v === "preparing" || v === "in_preparation" || v === "en_preparacion" || v === "en_preparación") return "preparing";
+  if (
+    v === "preparing" ||
+    v === "start_preparing" ||
+    v === "started_preparing" ||
+    v === "in_preparation" ||
+    v === "en_preparacion" ||
+    v === "en_preparación"
+  )
+    return "preparing";
   if (v === "ready_for_pickup" || v === "ready_pickup" || v === "listo_para_recoger" || v === "listo_para_recojer")
     return "ready_for_pickup";
   if (v === "en_route_to_pickup" || v === "going_to_pickup" || v === "camino_a_recoger") return "en_route_to_pickup";
@@ -540,6 +549,7 @@ function Timeline({ items, loading }: { items: OrderHistoryItem[]; loading: bool
 
 export default function ClientOrdersPage() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -585,7 +595,7 @@ export default function ClientOrdersPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await orderService.getMyOrders();
+      const data = await orderService.getMyOrders(user?.id);
       setOrders(data);
     } catch (e: unknown) {
       setError(getErrorMessage(e, "No se pudieron cargar tus pedidos."));
@@ -685,7 +695,7 @@ export default function ClientOrdersPage() {
 
   useEffect(() => {
     loadOrders();
-  }, []);
+  }, [user?.id]);
 
   const handleCopy = async (text: string) => {
     if (!text) return;
@@ -708,7 +718,7 @@ export default function ClientOrdersPage() {
     try {
       await orderService.uploadOrderReceipt(selectedOrder.id, file);
       setModalSuccess("Comprobante enviado con éxito.");
-      const updatedOrders = await orderService.getMyOrders();
+      const updatedOrders = await orderService.getMyOrders(user?.id);
       setOrders(updatedOrders);
       const updatedOrder = updatedOrders.find((o) => o.id === selectedOrder.id) || null;
       if (updatedOrder) setSelectedOrder(updatedOrder);
@@ -817,7 +827,7 @@ export default function ClientOrdersPage() {
         return next;
       });
 
-      const updatedOrders = await orderService.getMyOrders();
+      const updatedOrders = await orderService.getMyOrders(user?.id);
       setOrders(updatedOrders);
       const updatedOrder = updatedOrders.find((o) => o.id === selectedOrder.id) || null;
       if (updatedOrder) setSelectedOrder(updatedOrder);

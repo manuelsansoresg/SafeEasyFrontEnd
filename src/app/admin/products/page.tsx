@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
+import { getSupplierSlug, isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
 import DOMPurify from "isomorphic-dompurify";
 import { 
   Plus, 
@@ -32,12 +33,26 @@ interface Product {
   thumbnail_url?: string;
 }
 
+function unwrapProducts(data: unknown): Product[] {
+  if (Array.isArray(data)) return data as Product[];
+  if (!data || typeof data !== "object") return [];
+  const record = data as Record<string, unknown>;
+  const candidates = [record.items, record.results, record.data, record.products];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate as Product[];
+  }
+  return [];
+}
+
 export default function AdminProductsPage() {
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const isAdminUser = isAdminRole(user?.role);
+  const isSupplierUser = isSupplierRole(user?.role) && !isAdminUser;
   
   // -- State --
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Search
   const [search, setSearch] = useState("");
@@ -57,7 +72,7 @@ export default function AdminProductsPage() {
 
   useEffect(() => {
     fetchProducts();
-  }, [skip, limit, token]); // Removed search from dependency array to avoid auto-fetch on every keystroke if we want manual or debounced. 
+  }, [skip, limit, token, user?.id, user?.role]); // Removed search from dependency array to avoid auto-fetch on every keystroke if we want manual or debounced. 
   // However, for simplicity and UX, often debounce is better. 
   // Let's stick to manual search or debounced. 
   // User didn't specify, but I'll add a search handler or just put it in the dependency if I use a debounce.
@@ -82,6 +97,7 @@ export default function AdminProductsPage() {
   const fetchProducts = async () => {
     if (!token) return;
     setLoading(true);
+    setError(null);
     try {
       const queryParams = new URLSearchParams({
         skip: skip.toString(),
@@ -90,14 +106,41 @@ export default function AdminProductsPage() {
       if (search) {
         queryParams.append('search', search);
       }
-      
-      const response = await fetchWithAuth(`/api/products/?${queryParams.toString()}`);
+
+      let url = `/api/products/?${queryParams.toString()}`;
+      let supplierId: number | null = null;
+
+      if (isSupplierUser) {
+        const supplier = await resolveCurrentSupplier(user);
+        supplierId = supplier?.id ?? null;
+        const supplierSlug = getSupplierSlug(supplier);
+        if (!supplierId || !supplierSlug) {
+          setProducts([]);
+          setError("No se encontró el proveedor asociado a tu cuenta.");
+          return;
+        }
+        url = `/api/products/by-supplier/${encodeURIComponent(supplierSlug)}?${queryParams.toString()}`;
+      }
+
+      let response = await fetchWithAuth(url);
+
+      if (!response.ok && supplierId) {
+        response = await fetchWithAuth(`/api/products/?${queryParams.toString()}`);
+      }
+
       if (response.ok) {
         const data = await response.json();
-        setProducts(Array.isArray(data) ? data : []);
+        const items = unwrapProducts(data);
+        setProducts(supplierId ? items.filter((product) => Number(product.supplier_id) === Number(supplierId)) : items);
+      } else {
+        const text = await response.text().catch(() => "");
+        setError(`No se pudieron cargar los productos (${response.status}). ${text}`.trim());
+        setProducts([]);
       }
     } catch (error) {
       console.error("Error fetching products:", error);
+      setError("No se pudieron cargar los productos.");
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -150,6 +193,12 @@ export default function AdminProductsPage() {
         </div>
         }
       />
+
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {error}
+        </div>
+      ) : null}
 
       {/* List */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

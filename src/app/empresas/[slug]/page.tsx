@@ -495,24 +495,7 @@ export default function SupplierPage() {
       });
 
       if (!res.ok) {
-        // Fallback: Try with ID if slug failed, or vice versa (basic retry logic could go here)
-        console.error("Error fetching supplier products by slug, trying ID", res.status);
-        if (supplier?.id) {
-             const resId = await fetch(`/proxy/products/by-supplier/${supplier.id}?${params.toString()}`, {
-                cache: "no-store",
-              });
-             if (resId.ok) {
-                 const dataId = await resId.json();
-                 const itemsId = Array.isArray(dataId) ? dataId : (dataId.items || dataId.results || []);
-                 const newProductsId = itemsId as SupplierProduct[];
-                 syncFavorites(newProductsId);
-                 setProducts(prev => append ? [...prev, ...newProductsId] : newProductsId);
-                 setHasMore(Array.isArray(itemsId) && itemsId.length === limit);
-                 setProductsLoading(false);
-                 return;
-             }
-        }
-        
+        console.warn("No se pudieron cargar productos por slug", res.status);
         if (!append) setProducts([]);
         setHasMore(false);
         setProductsError("No se pudieron cargar los productos.");
@@ -1117,27 +1100,27 @@ export default function SupplierPage() {
                       </h3>
                       <div className="space-y-4">
                           {supplier.phone && (
-                              <div className="flex items-center gap-4 group">
-                                  <div className="w-10 h-10 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
+                              <div className="flex min-w-0 items-center gap-4 group">
+                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
                                       <Phone size={18} className="text-[#168e00] group-hover:text-white" />
                                   </div>
-                                  <span className="font-medium text-lg">{supplier.phone}</span>
+                                  <span className="min-w-0 break-words text-base font-medium sm:text-lg">{supplier.phone}</span>
                               </div>
                           )}
                           {supplier.email && (
-                              <div className="flex items-center gap-4 group">
-                                  <div className="w-10 h-10 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
+                              <div className="flex min-w-0 items-center gap-4 group">
+                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
                                       <Mail size={18} className="text-[#168e00] group-hover:text-white" />
                                   </div>
-                                  <span className="font-medium text-lg">{supplier.email}</span>
+                                  <span className="min-w-0 break-all text-base font-medium leading-snug sm:text-lg">{supplier.email}</span>
                               </div>
                           )}
                           {supplier.address && (
-                              <div className="flex items-center gap-4 group">
-                                  <div className="w-10 h-10 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
+                              <div className="flex min-w-0 items-center gap-4 group">
+                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
                                       <MapPin size={18} className="text-[#168e00] group-hover:text-white" />
                                   </div>
-                                  <span className="font-medium text-lg">{supplier.address}</span>
+                                  <span className="min-w-0 break-words text-base font-medium sm:text-lg">{supplier.address}</span>
                               </div>
                           )}
                       </div>

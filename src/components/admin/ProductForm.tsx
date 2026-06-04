@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { fetchWithAuth } from "@/lib/api";
+import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { 
   Loader2, 
   CheckCircle, 
@@ -40,6 +41,7 @@ interface Supplier {
   id: number;
   name: string;
   short_name?: string;
+  slug?: string;
   rfc?: string;
   user_id: number; 
 }
@@ -103,6 +105,8 @@ interface ProductFormProps {
 export default function ProductForm({ initialData, isEditMode = false }: ProductFormProps) {
   const { token, user } = useAuthStore();
   const router = useRouter();
+  const isAdminUser = isAdminRole(user?.role);
+  const isSupplierUser = isSupplierRole(user?.role) && !isAdminUser;
   
   // Form State
   const [formData, setFormData] = useState<ProductFormData>(
@@ -158,6 +162,28 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   useEffect(() => {
     fetchCategories();
   }, [token]);
+
+  useEffect(() => {
+    if (!token || !isSupplierUser) return;
+    let cancelled = false;
+
+    const setOwnSupplier = async () => {
+      try {
+        const supplier = await resolveCurrentSupplier(user);
+        if (cancelled || !supplier?.id) return;
+        setSuppliers([supplier as Supplier]);
+        setFormData((prev) => ({ ...prev, supplier_id: supplier.id }));
+        setSelectedSupplierDisplay(supplier.name);
+      } catch (error) {
+        console.error("Error resolving supplier:", error);
+      }
+    };
+
+    setOwnSupplier();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSupplierUser, token, user]);
 
   // Initial Data Setup
   useEffect(() => {
@@ -225,6 +251,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
   const fetchSuppliers = async () => {
     if (!token) return;
+    if (isSupplierUser) return;
     setLoadingSuppliers(true);
     try {
       const response = await fetchWithAuth(`/api/suppliers/?skip=${supplierSkip}&limit=${supplierLimit}`);
@@ -553,13 +580,15 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
               <div className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 truncate">
                 {selectedSupplierDisplay || <span className="text-gray-400">Seleccionar proveedor...</span>}
               </div>
-              <button
-                type="button"
-                onClick={() => setIsSupplierModalOpen(true)}
-                className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
-              >
-                Buscar
-              </button>
+              {isAdminUser ? (
+                <button
+                  type="button"
+                  onClick={() => setIsSupplierModalOpen(true)}
+                  className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
+                >
+                  Buscar
+                </button>
+              ) : null}
             </div>
           </div>
 

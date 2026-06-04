@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, Suspense, useCallback } from 'react';
+import type { ComponentProps } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
+import { resolveCurrentSupplier } from '@/lib/currentSupplier';
 import { ExternalLink } from 'lucide-react';
 import SupplierForm from '@/components/admin/SupplierForm';
 import StepCarousel from '@/components/sell/wizard/StepCarousel';
@@ -9,6 +11,8 @@ import StepCertificates from '@/components/sell/wizard/StepCertificates';
 import BusinessHoursEditor from '@/components/admin/BusinessHoursEditor';
 import { PageHero } from '@/components/ui/PageHero';
 import { useSearchParams, useRouter } from 'next/navigation';
+
+type SupplierForForm = NonNullable<ComponentProps<typeof SupplierForm>['initialData']> & { slug?: string };
 
 function MyCompanyContent() {
   const { user, token } = useAuthStore();
@@ -21,7 +25,7 @@ function MyCompanyContent() {
   };
   const initialTab = normalizeTab(searchParams.get('tab'));
   
-  const [supplier, setSupplier] = useState<any>(null);
+  const [supplier, setSupplier] = useState<SupplierForForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'info' | 'carousel' | 'certificates' | 'hours'>(initialTab);
 
@@ -44,42 +48,8 @@ function MyCompanyContent() {
       setLoading(true);
     }
     try {
-      // Direct fetch by user_id as requested with skip and limit to match working curl
-      // Adding trailing slash explicitly as backend might be strict and curl used it
-      const urlUserId = `/api/suppliers/?skip=0&limit=100&user_id=${user.id}`;
-     
-      
-      const res = await fetch(urlUserId, {
-        headers: { 
-            Authorization: `Bearer ${token}`,
-            'Cache-Control': 'no-cache',
-            'Accept': 'application/json'
-        },
-        cache: 'no-store'
-      });
-
-      console.log('Supplier fetch status:', res.status);
-      
-      if (res.ok) {
-        const data = await res.json();
-        console.log('Supplier data received:', data);
-        
-        let mySupplier = null;
-        if (Array.isArray(data)) {
-            // If it returns an array, look for the matching user_id
-            mySupplier = data.find((s: any) => Number(s.user_id) === Number(user.id));
-        } else if (data && (data.items || Array.isArray(data.items))) {
-             // Handle pagination structure { items: [], ... }
-             mySupplier = data.items.find((s: any) => Number(s.user_id) === Number(user.id));
-        } else if (data && data.id && Number(data.user_id) === Number(user.id)) {
-            // If it returns a single object
-            mySupplier = data;
-        }
-
-        if (mySupplier) {
-            setSupplier(mySupplier);
-        }
-      }
+      const mySupplier = await resolveCurrentSupplier(user);
+      setSupplier(mySupplier as SupplierForForm | null);
     } catch (e) {
       console.error("Error fetching supplier", e);
     } finally {

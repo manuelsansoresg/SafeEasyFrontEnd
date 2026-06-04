@@ -44,16 +44,19 @@ export const subscriptionsService = {
   async listSubscriptions(params: ListSubscriptionsParams): Promise<Subscription[]> {
     const qs = new URLSearchParams();
     if (typeof params.skip === "number") qs.set("skip", String(params.skip));
-    if (typeof params.limit === "number") qs.set("limit", String(params.limit));
+    if (typeof params.limit === "number") qs.set("limit", String(Math.min(params.limit, 500)));
     if (params.status) qs.set("status", params.status);
     if (params.search && params.search.trim()) qs.set("search", params.search.trim());
 
     const query = qs.toString();
+    const suffix = query ? `?${query}` : "";
     const tryUrls = [
-      apiUrl(`/admin/subscriptions/?${query}`),
-      apiUrl(`/admin/subscriptions?${query}`),
-      apiUrl(`/subscriptions/?${query}`),
-      apiUrl(`/subscriptions?${query}`),
+      `/api/subscriptions/${suffix}`,
+      `/api/subscriptions${suffix}`,
+      apiUrl(`/subscriptions/${suffix}`),
+      apiUrl(`/subscriptions${suffix}`),
+      apiUrl(`/admin/subscriptions/${suffix}`),
+      apiUrl(`/admin/subscriptions${suffix}`),
     ];
     let response: Response | null = null;
     for (const url of tryUrls) {

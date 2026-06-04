@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, MapPin } from "lucide-react";
+import { ExternalLink, Loader2, MapPin } from "lucide-react";
 import L from "leaflet";
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -223,6 +223,21 @@ export default function OrderRouteMap({
     return [originPoint, destinationPoint].filter(Boolean) as RoutePoint[];
   }, [destinationPoint, originPoint, route]);
 
+  const googleMapsUrl = useMemo(() => {
+    const target = isShipping ? resolvedDestination : resolvedOrigin || resolvedDestination;
+    if (target && Number.isFinite(target.lat) && Number.isFinite(target.lng)) {
+      return `https://www.google.com/maps/search/?api=1&query=${target.lat},${target.lng}`;
+    }
+
+    const query = isShipping ? destinationAddress || label : originAddress || label;
+    return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : "";
+  }, [destinationAddress, isShipping, label, originAddress, resolvedDestination, resolvedOrigin]);
+
+  const openGoogleMaps = () => {
+    if (!googleMapsUrl) return;
+    window.open(googleMapsUrl, "_blank", "noopener,noreferrer");
+  };
+
   const destinationIcon = useMemo(() => makeMarkerIcon("#16a34a", "rgba(22,163,74,.22)"), []);
   const originIcon = useMemo(() => makeMarkerIcon("#64748b", "rgba(100,116,139,.2)"), []);
   const mapStatus = !isShipping && markerPoint
@@ -267,6 +282,18 @@ export default function OrderRouteMap({
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-24 bg-gradient-to-b from-white/35 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-36 bg-gradient-to-t from-slate-950/18 to-transparent" />
+
+      <button
+        type="button"
+        onClick={openGoogleMaps}
+        disabled={!googleMapsUrl}
+        className="absolute right-3 top-3 z-[1000] inline-flex items-center gap-2 rounded-full border border-[#004e28]/15 bg-white px-3 py-2 text-xs font-bold text-[#004e28] shadow-[0_10px_24px_rgba(15,23,42,.22)] transition-colors hover:bg-[#f2f3f4] disabled:cursor-not-allowed disabled:opacity-60"
+        aria-label={isShipping ? "Abrir dirección del cliente en Google Maps" : "Abrir punto de recolección en Google Maps"}
+        title={isShipping ? "Abrir dirección del cliente en Google Maps" : "Abrir punto de recolección en Google Maps"}
+      >
+        <ExternalLink className="h-3.5 w-3.5" />
+        Abrir en Maps
+      </button>
 
       <div className="absolute bottom-4 left-4 right-4 z-20 sm:right-auto sm:max-w-[360px]">
         <div className="rounded-2xl border border-white/80 bg-white/95 px-4 py-3 shadow-[0_14px_32px_rgba(15,23,42,.18)] backdrop-blur">

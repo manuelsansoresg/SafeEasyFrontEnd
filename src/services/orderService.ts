@@ -24,12 +24,12 @@ export interface Order {
   updated_at: string;
   supplier: {
     name: string;
-    // ... other supplier fields if needed
     id?: number;
     slug?: string;
     transfer_clabe?: string | null;
     transfer_bank?: string | null;
     transfer_name?: string | null;
+    accepts_courier?: boolean;
   };
   buyer: {
     id: number;
@@ -139,7 +139,17 @@ export const orderService = {
     supplierId?: number,
     productId?: string
   ): Promise<Order[]> => {
-    const tryUrls = [`/api/orders/`, `/api/orders`];
+    const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : 10;
+    const safePage = Number.isFinite(page) && page > 0 ? page : 1;
+    const query = new URLSearchParams({
+      skip: String((safePage - 1) * safeLimit),
+      limit: String(safeLimit),
+    });
+    if (supplierId && Number.isFinite(supplierId)) query.set("supplier_id", String(supplierId));
+    if (productId) query.set("product_id", String(productId));
+
+    const queryString = query.toString();
+    const tryUrls = [`/api/orders/?${queryString}`, `/api/orders?${queryString}`];
     let response: Response | null = null;
     let usedUrl = "";
     for (const url of tryUrls) {
@@ -174,11 +184,7 @@ export const orderService = {
       filtered = filtered.filter((o) => String(o.product_id) === String(productId));
     }
 
-    const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : filtered.length;
-    const safePage = Number.isFinite(page) && page > 0 ? page : 1;
-    const start = (safePage - 1) * safeLimit;
-    const end = start + safeLimit;
-    return filtered.slice(start, end);
+    return filtered;
   },
 
   getOrderHistory: async (orderId: number): Promise<OrderHistoryItem[]> => {
@@ -278,17 +284,20 @@ export const orderService = {
     return null;
   },
 
-  getMyOrders: async (): Promise<Order[]> => {
-    const tryUrls = [
-      `/api/users/me/orders`,
-      `/api/users/me/orders/`,
-      `/api/orders/me`,
-      `/api/orders/me/`,
-      `/api/orders/my`,
-      `/api/orders/my/`,
-      `/api/v1/users/me/orders`,
-      `/api/v1/users/me/orders/`,
-    ];
+  getMyOrders: async (buyerId?: number): Promise<Order[]> => {
+    const tryUrls = buyerId
+      ? [
+          `/api/orders?buyer_id=${buyerId}`,
+          `/api/orders/?buyer_id=${buyerId}`,
+          `/api/v1/orders?buyer_id=${buyerId}`,
+          `/api/v1/orders/?buyer_id=${buyerId}`,
+        ]
+      : [
+          `/api/users/me/orders`,
+          `/api/users/me/orders/`,
+          `/api/v1/users/me/orders`,
+          `/api/v1/users/me/orders/`,
+        ];
 
     let response: Response | null = null;
     let usedUrl = "";
@@ -551,6 +560,70 @@ export const orderService = {
     if (!response.ok) {
       const errorText = await response.text().catch(() => "") ?? "";
       throw new Error(`Failed to mark order ready: ${response.status} ${errorText}`.trim());
+    }
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) return response.json();
+    return null;
+  },
+
+  markOrderReadyForCourierPickup: async (orderId: number) => {
+    const response = await fetchWithAuth(`/api/orders/${orderId}/mark-ready/courier-pickup`, { method: "POST" });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "") ?? "";
+      throw new Error(`Failed to mark order ready for courier pickup: ${response.status} ${errorText}`.trim());
+    }
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) return response.json();
+    return null;
+  },
+
+  startSupplierOrderPreparing: async (orderId: number) => {
+    const response = await fetchWithAuth(`/api/suppliers/orders/${orderId}/start-preparing`, { method: "POST" });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "") ?? "";
+      throw new Error(`Failed to start supplier order preparing: ${response.status} ${errorText}`.trim());
+    }
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) return response.json();
+    return null;
+  },
+
+  markSupplierOrderOutForDelivery: async (orderId: number) => {
+    const response = await fetchWithAuth(`/api/suppliers/orders/${orderId}/out-for-delivery`, { method: "POST" });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "") ?? "";
+      throw new Error(`Failed to mark supplier order out for delivery: ${response.status} ${errorText}`.trim());
+    }
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) return response.json();
+    return null;
+  },
+
+  verifyDeliveryCode: async (orderId: number, code: string) => {
+    const payload = JSON.stringify({ code: code.trim(), delivery_code: code.trim() });
+    const options = { method: "POST" as const, body: payload };
+    const tryUrls = [
+      `/api/orders/${orderId}/verify-code`,
+      `/api/orders/${orderId}/verify-code/`,
+      `/api/v1/orders/${orderId}/verify-code`,
+      `/api/v1/orders/${orderId}/verify-code/`,
+    ];
+
+    let response: Response | null = null;
+    let usedUrl = "";
+    for (const url of tryUrls) {
+      usedUrl = url;
+      response = await fetchWithAuth(url, options);
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+
+    if (!response || !response.ok) {
+      const errorText = await response?.text().catch(() => "") ?? "";
+      throw new Error(`Failed to verify delivery code: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
     }
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return response.json();

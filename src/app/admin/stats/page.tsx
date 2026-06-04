@@ -31,6 +31,8 @@ import {
   X,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
+import { resolveCurrentSupplier } from "@/lib/currentSupplier";
+import { useAuthStore } from "@/store/useAuthStore";
 import { PageHero } from "@/components/ui/PageHero";
 
 type DateRange = "last7" | "last30" | "month";
@@ -341,6 +343,7 @@ function EmptyPanel({ label }: { label: string }) {
 }
 
 export default function AdminStatsPage() {
+  const { user } = useAuthStore();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -353,16 +356,7 @@ export default function AdminStatsPage() {
     setError(null);
 
     try {
-      const me = asRecord(await fetchJson("/api/users/me"));
-      const nestedUser = asRecord(me.user ?? me.data);
-      const userSource = Object.keys(nestedUser).length > 0 ? nestedUser : me;
-      const userId = toNumber(userSource.id);
-
-      if (!userId) throw new Error("No se pudo identificar al usuario actual.");
-
-      const suppliersResponse = await fetchJson(`/api/suppliers?user_id=${encodeURIComponent(String(userId))}`);
-      const suppliers = unwrapList(suppliersResponse).map(asRecord);
-      const supplier = suppliers.find((item) => toNumber(item.user_id ?? item.userId) === userId) ?? suppliers[0];
+      const supplier = await resolveCurrentSupplier(user);
       const supplierId = toNumber(supplier?.id);
 
       if (!supplierId) throw new Error("No se encontró una empresa asociada a tu usuario.");
@@ -376,12 +370,12 @@ export default function AdminStatsPage() {
 
       const [statsResponse, ordersResponse] = await Promise.all([
         fetchJson(`/api/suppliers/${supplierId}/stats?${params.toString()}`),
-        fetchJson(`/api/orders?supplier_id=${supplierId}&limit=100&start_date=${encodeURIComponent(range.start.toISOString())}&end_date=${encodeURIComponent(range.end.toISOString())}`),
+        fetchJson(`/api/orders/?supplier_id=${supplierId}&limit=100&start_date=${encodeURIComponent(range.start.toISOString())}&end_date=${encodeURIComponent(range.end.toISOString())}`),
       ]);
 
       setData({
         supplierId,
-        supplierName: String(supplier.name ?? supplier.short_name ?? `Proveedor #${supplierId}`),
+        supplierName: String(supplier?.name ?? supplier?.short_name ?? `Proveedor #${supplierId}`),
         stats: asRecord(statsResponse) as SupplierStatsResponse,
         orders: unwrapList(ordersResponse).map(asRecord),
       });
@@ -392,7 +386,7 @@ export default function AdminStatsPage() {
     } finally {
       setLoading(false);
     }
-  }, [dateRange, interval]);
+  }, [dateRange, interval, user]);
 
   useEffect(() => {
     void loadDashboard();
