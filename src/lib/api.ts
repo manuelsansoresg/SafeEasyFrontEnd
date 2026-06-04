@@ -61,9 +61,10 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
 
       if (refreshResponse.ok) {
         const refreshData = await refreshResponse.json();
-        if (refreshData.access_token) {
-          token = refreshData.access_token;
-          setTokens(token, refreshData.refresh_token ?? refreshToken);
+        const newToken = typeof refreshData.access_token === "string" ? refreshData.access_token : null;
+        if (newToken) {
+          token = newToken;
+          setTokens(newToken, refreshData.refresh_token ?? refreshToken);
         }
       }
     } catch (e) {
