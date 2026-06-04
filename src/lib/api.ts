@@ -4,6 +4,18 @@ type FetchOptions = RequestInit & {
   headers?: Record<string, string>;
 };
 
+function isTokenExpired(token: string | null): boolean {
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const expiry = payload.exp * 1000;
+    const now = Date.now();
+    return (expiry - now) < (2 * 60 * 1000); // Expired or less than 2 minutes
+  } catch {
+    return true;
+  }
+}
+
 export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => {
   const getAuthToken = () => useAuthStore.getState().token;
   const getRefreshToken = () => useAuthStore.getState().refreshToken;
@@ -32,15 +44,38 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
   };
 
   const persisted = readPersistedAuth();
-  const token = getAuthToken() || persisted?.token || null;
+  let token = getAuthToken() || persisted?.token || null;
+  const refreshToken = getRefreshToken() || persisted?.refreshToken || null;
+
+  // Proactively refresh if token is expired or about to expire
+  if (token && refreshToken && isTokenExpired(token)) {
+    try {
+      const cleanedRefreshToken = stripBearer(refreshToken);
+      const refreshResponse = await fetch('/api/login/refresh-token', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${cleanedRefreshToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (refreshResponse.ok) {
+        const refreshData = await refreshResponse.json();
+        if (refreshData.access_token) {
+          token = refreshData.access_token;
+          setTokens(token, refreshData.refresh_token ?? refreshToken);
+        }
+      }
+    } catch (e) {
+      console.warn("Proactive token refresh failed:", e);
+    }
+  }
   
   const getHeaders = (t: string | null) => {
     const headers: Record<string, string> = { ...options.headers };
     const hasAuthHeader = Object.keys(headers).some((k) => k.toLowerCase() === "authorization");
     const cleaned = stripBearer(t);
     if (cleaned && !hasAuthHeader) headers["Authorization"] = `Bearer ${cleaned}`;
-    // Only set Content-Type to json if body is string and it's not set
-    // If body is FormData, browser sets Content-Type with boundary automatically
     if (!headers['Content-Type'] && typeof options.body === 'string') {
         headers['Content-Type'] = 'application/json';
     }
@@ -56,19 +91,15 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
   const initialStatus = response.status;
 
   if (shouldAttemptRefresh) {
-    // Try to refresh
     try {
-      // Use the raw fetch here to avoid infinite recursion
-      const refreshToken = getRefreshToken() || persisted?.refreshToken || null;
-      const tokenToUse = refreshToken || token;
-      const cleanedTokenToUse = stripBearer(tokenToUse);
+      const cleanedRefreshToken = stripBearer(refreshToken);
 
-      console.log(`[fetchWithAuth] Refreshing token. Has RefreshToken: ${!!refreshToken}`);
+      console.log(`[fetchWithAuth] Refreshing token after 401. Has RefreshToken: ${!!refreshToken}`);
 
       const refreshResponse = await fetch('/api/login/refresh-token', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${cleanedTokenToUse}`, 
+          'Authorization': `Bearer ${cleanedRefreshToken}`, 
           'Content-Type': 'application/json'
         }
       });
@@ -95,11 +126,9 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
               }
             }
         } else {
-            // Refresh succeeded but no token? Weird.
             throw new Error("No access_token in refresh response");
         }
       } else {
-        // Refresh failed (token too old, invalid, or route not found)
         console.warn("Token refresh failed with status:", refreshResponse.status);
         if (initialStatus === 401) {
           logout();
@@ -110,10 +139,6 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
       }
     } catch (e) {
       console.error("Token refresh failed exception", e);
-      // In case of network error on refresh, we might want to logout too?
-      // For now, let's play safe and only logout on explicit rejection.
-      // But if route is 404 (not found), refreshResponse.ok is false, so we hit the else block above.
-      // If network error (fetch throws), we are here.
     }
   }
 
