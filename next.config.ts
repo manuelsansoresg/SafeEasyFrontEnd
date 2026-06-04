@@ -5,6 +5,7 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/
 const isLocalhost = apiBaseUrl.includes("127.0.0.1") || apiBaseUrl.includes("localhost");
 
 const nextConfig: NextConfig = {
+  trailingSlash: true,
   env: {
     NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:
       process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY,

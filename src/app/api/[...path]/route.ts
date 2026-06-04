@@ -76,11 +76,13 @@ const sanitizeBaseUrl = (value: string | undefined) => {
   return unwrapped.replace(/\/+$/, "");
 };
 
-const ensureApiRootPath = (baseUrl: string) => {
+const ensureApiRootPath = (baseUrl: string, isProd: boolean) => {
   const normalized = sanitizeBaseUrl(baseUrl);
   if (!normalized) return normalized;
-  if (normalized.endsWith("/api")) return normalized;
-  return `${normalized}/api`;
+  // Solo agregar /api en producción (Cloudflare lo maneja)
+  // En local, el backend no tiene prefijo /api
+  if (isProd && !normalized.endsWith("/api")) return `${normalized}/api`;
+  return normalized;
 };
 
 const isLocalHostname = (hostname: string) => {
@@ -98,16 +100,17 @@ const getBaseUrlCandidates = () => {
   const candidates: string[] = [];
 
   if (internal) {
-    candidates.push(ensureApiRootPath(internal));
+    candidates.push(ensureApiRootPath(internal, isProd));
   }
 
   if (publicUrl && !publicUrl.startsWith("/") && (!isProd || !isLocalPublic)) {
-    candidates.push(ensureApiRootPath(publicUrl));
+    candidates.push(ensureApiRootPath(publicUrl, isProd));
   }
 
   if (!isProd) {
-    candidates.push("http://localhost:8000/api", "http://127.0.0.1:8000/api");
-    if (publicUrl && !publicUrl.startsWith("/") && isLocalPublic) candidates.unshift(ensureApiRootPath(publicUrl));
+    // Local: backend no tiene prefijo /api
+    candidates.push("http://localhost:8000", "http://127.0.0.1:8000");
+    if (publicUrl && !publicUrl.startsWith("/") && isLocalPublic) candidates.unshift(ensureApiRootPath(publicUrl, isProd));
   }
 
   candidates.push("https://drooopy.com/api");
@@ -118,6 +121,7 @@ const getBaseUrlCandidates = () => {
 async function handler(request: NextRequest) {
   // Use pathname directly to avoid params ambiguity
   const pathname = request.nextUrl.pathname;
+  console.log(`[Generic Proxy] Received request: ${pathname}`);
   
   // Remove /api prefix
   let relativePath = pathname.replace(/^\/api/, '');
@@ -132,8 +136,44 @@ async function handler(request: NextRequest) {
       relativePath = '/' + relativePath;
   }
 
-  if (relativePath === '/notifications') {
-      relativePath = '/notifications/';
+  // Next.js trailingSlash: true ensures all paths have trailing slashes
+  // We need to remove trailing slashes from resource endpoints before forwarding to backend
+  if (relativePath) {
+      const segments = relativePath.split('/').filter(Boolean);
+      const lastSegment = segments[segments.length - 1] || '';
+      
+      // Resource/action endpoints that should NOT have trailing slashes
+      const resourceEndpoints = [
+          'me', 'has-role', 'map-location', 'stats', 'business-hours', 
+          'carousel', 'certificates', 'header-video', 'ratings', 'views', 
+          'earnings', 'availability', 'location', 'mp-status', 
+          'active-delivery', 'deliveries', 'payouts', 'manual', 
+          'offers', 'current', 'accept', 'reject', 'cancel', 
+          'mark-picked-up', 'status', 'history', 'payment-info', 
+          'receipt', 'refresh-preference', 'refunds', 'approve', 
+          'mark-refunded', 'verify-code', 'delivery-code', 'complete', 
+          'mark-ready', 'customer-pickup', 'courier-pickup', 
+          'start-checkout', 'shipping-quote', 'add', 'update', 
+          'clear', 'item', 'read', 'claim', 'close', 'mark-read', 
+          'resolve', 'unassigned', 'connect', 'disconnect', 'callback', 
+          'events', 'purchase', 'payments', 'refresh', 'device-token', 
+          'recommendations', 'similar', 'by-supplier', 'featured', 
+          'recommended', 'media', 'dashboard', 'legal', 'sell-faq',
+          'settings'
+      ];
+      
+      // Admin endpoints should NOT have trailing slashes
+      const isAdminEndpoint = segments[0] === 'admin';
+      
+      // Check if path contains a numeric ID or UUID
+      const hasResourceId = segments.some(seg => 
+          /^\d+$/.test(seg) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)
+      );
+      
+      // Remove trailing slash for resource endpoints, paths with resource IDs, or admin endpoints
+      if (resourceEndpoints.includes(lastSegment) || hasResourceId || isAdminEndpoint) {
+          relativePath = relativePath.replace(/\/+$/, '');
+      }
   }
   
   const baseUrlCandidates = getBaseUrlCandidates();
