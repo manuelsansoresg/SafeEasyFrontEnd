@@ -271,6 +271,17 @@ interface SupplierRatingsResponse {
   ratings: SupplierRating[];
 }
 
+const unwrapSupplierProducts = (data: unknown): SupplierProduct[] => {
+  if (Array.isArray(data)) return data as SupplierProduct[];
+  if (!data || typeof data !== "object") return [];
+  const record = data as Record<string, unknown>;
+  const candidates = [record.items, record.results, record.data, record.products];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate as SupplierProduct[];
+  }
+  return [];
+};
+
 
 
 import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCarousel";
@@ -490,26 +501,53 @@ export default function SupplierPage() {
       params.set("skip", String(skip));
       params.set("limit", String(limit));
 
-      const res = await fetch(`/proxy/products/by-supplier/${supplierSlug}?${params.toString()}`, {
+      const res = await fetch(`/proxy/products/by-supplier/${encodeURIComponent(supplierSlug)}?${params.toString()}`, {
         cache: "no-store",
       });
 
       if (!res.ok) {
-        console.warn("No se pudieron cargar productos por slug", res.status);
-        if (!append) setProducts([]);
-        setHasMore(false);
-        setProductsError("No se pudieron cargar los productos.");
+        const supplierId = Number(supplier?.id);
+        if (!Number.isFinite(supplierId)) {
+          if (!append) setProducts([]);
+          setHasMore(false);
+          setProductsError("No se pudieron cargar los productos.");
+          return;
+        }
+
+        const fallbackParams = new URLSearchParams();
+        fallbackParams.set("skip", "0");
+        fallbackParams.set("limit", "500");
+        fallbackParams.set("supplier_id", String(supplierId));
+
+        const fallback = await fetch(`/proxy/products/?${fallbackParams.toString()}`, {
+          cache: "no-store",
+        });
+
+        if (!fallback.ok) {
+          if (!append) setProducts([]);
+          setHasMore(false);
+          setProductsError("No se pudieron cargar los productos.");
+          return;
+        }
+
+        const fallbackData = await fallback.json();
+        const ownProducts = unwrapSupplierProducts(fallbackData).filter((product) => Number(product.supplier_id) === supplierId);
+        const pageStart = (currentPage - 1) * limit;
+        const pageItems = ownProducts.slice(pageStart, pageStart + limit);
+
+        syncFavorites(pageItems);
+        setProducts((prev) => (append ? [...prev, ...pageItems] : pageItems));
+        setHasMore(ownProducts.length > pageStart + limit);
         return;
       }
 
       const data = await res.json();
-      const items = Array.isArray(data) ? data : (data.items || data.results || []);
-      const newProducts = items as SupplierProduct[];
+      const newProducts = unwrapSupplierProducts(data);
       
       syncFavorites(newProducts);
 
       setProducts(prev => append ? [...prev, ...newProducts] : newProducts);
-      setHasMore(Array.isArray(items) && items.length === limit);
+      setHasMore(newProducts.length === limit);
     } catch (error) {
       console.error("Error fetching supplier products", error);
       setProductsError("Error de conexión.");
@@ -733,9 +771,9 @@ export default function SupplierPage() {
              </div>
          )}
 
-         {/* Gradient Overlay - Theme Based */}
-         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-[#004e28]/90 z-10" />
-         <div className="absolute inset-0 bg-gradient-to-r from-[#004e28]/80 to-transparent z-10" />
+         {/* Soft readability overlay without tinting the media */}
+         <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-transparent z-10" />
+         <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/45 to-transparent z-10" />
 
          {/* Content */}
          <div className="absolute inset-0 z-20 flex flex-col justify-center px-6 md:px-20 lg:px-32 items-center md:items-start text-center md:text-left pb-28 md:pb-0">

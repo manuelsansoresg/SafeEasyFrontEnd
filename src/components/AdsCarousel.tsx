@@ -34,7 +34,7 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
         console.log(`AdsCarousel: status ${res.status}`);
         
         if (!res.ok) {
-          console.error(`AdsCarousel: Failed to fetch ads (${res.status})`);
+          console.warn(`AdsCarousel: Failed to fetch ads (${res.status})`);
           setAds([]);
           return;
         }
@@ -50,7 +50,7 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
         try {
             data = JSON.parse(text);
         } catch (e) {
-            console.error("AdsCarousel: JSON parse error", e, text.substring(0, 100));
+            console.warn("AdsCarousel: JSON parse error", e, text.substring(0, 100));
             setAds([]);
             return;
         }
@@ -71,7 +71,7 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
         console.log(`AdsCarousel: Found ${activeAds.length} active ads`);
         setAds(activeAds);
       } catch (e) {
-        console.error("AdsCarousel: Error fetching ads", e);
+        console.warn("AdsCarousel: Error fetching ads", e);
         setAds([]);
       } finally {
         setLoading(false);
