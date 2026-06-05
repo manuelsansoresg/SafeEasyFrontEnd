@@ -1,12 +1,22 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
+import { refreshAccessToken } from '@/lib/authRefresh';
 
 const REFRESH_INTERVAL = 20 * 60 * 1000; // 20 minutes (token expires in 30)
+
+function decodeJwtPayload(token: string) {
+  const payload = token.split(".")[1];
+  if (!payload) return null;
+  const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  return JSON.parse(atob(padded));
+}
 
 function isTokenExpired(token: string | null): boolean {
   if (!token) return true;
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const payload = decodeJwtPayload(token);
+    if (!payload?.exp) return true;
     const expiry = payload.exp * 1000; // Convert to milliseconds
     const now = Date.now();
     // Refresh if less than 5 minutes remaining
@@ -18,35 +28,24 @@ function isTokenExpired(token: string | null): boolean {
 
 export function useTokenRefresh() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const { token, refreshToken, setToken, logout } = useAuthStore();
+  const { token, refreshToken, logout } = useAuthStore();
 
-  const refreshTokens = async () => {
-    if (!token || !refreshToken) return;
+  const refreshTokens = useCallback(async () => {
+    const currentToken = useAuthStore.getState().token;
+    const currentRefreshToken = useAuthStore.getState().refreshToken;
+
+    if (!currentToken || !currentRefreshToken) return;
 
     try {
-      const response = await fetch('/api/login/refresh-token', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${refreshToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.access_token) {
-          setToken(data.access_token, data.refresh_token ?? null);
-        } else {
-          logout();
-        }
-      } else {
+      const refreshed = await refreshAccessToken(currentRefreshToken);
+      if (!refreshed) {
         logout();
       }
     } catch {
       // Don't logout on network error, just retry later
       console.warn('Token refresh failed, will retry');
     }
-  };
+  }, [logout]);
 
   useEffect(() => {
     // Check on mount if token needs refresh
@@ -70,7 +69,7 @@ export function useTokenRefresh() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [token, refreshToken]);
+  }, [refreshTokens, token, refreshToken]);
 
   // Refresh when user becomes active (returns to tab)
   useEffect(() => {
@@ -82,5 +81,5 @@ export function useTokenRefresh() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [token, refreshToken]);
+  }, [refreshTokens, token, refreshToken]);
 }

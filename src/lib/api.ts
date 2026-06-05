@@ -1,13 +1,23 @@
 import { useAuthStore } from "@/store/useAuthStore";
+import { refreshAccessToken, stripBearer } from "@/lib/authRefresh";
 
 type FetchOptions = RequestInit & {
   headers?: Record<string, string>;
 };
 
+function decodeJwtPayload(token: string) {
+  const payload = token.split(".")[1];
+  if (!payload) return null;
+  const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  return JSON.parse(atob(padded));
+}
+
 function isTokenExpired(token: string | null): boolean {
   if (!token) return true;
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const payload = decodeJwtPayload(token);
+    if (!payload?.exp) return true;
     const expiry = payload.exp * 1000;
     const now = Date.now();
     return (expiry - now) < (2 * 60 * 1000); // Expired or less than 2 minutes
@@ -16,27 +26,25 @@ function isTokenExpired(token: string | null): boolean {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => {
   const getAuthToken = () => useAuthStore.getState().token;
   const getRefreshToken = () => useAuthStore.getState().refreshToken;
-  const setTokens = (token: string, refreshToken: string | null) => useAuthStore.getState().setToken(token, refreshToken);
   const logout = () => useAuthStore.getState().logout();
-
-  const stripBearer = (value: string | null) => {
-    const raw = String(value || "").trim();
-    if (!raw) return "";
-    return raw.replace(/^bearer\s+/i, "").trim();
-  };
 
   const readPersistedAuth = (): { token: string | null; refreshToken: string | null } | null => {
     if (typeof window === "undefined") return null;
     try {
       const raw = window.localStorage.getItem("auth-storage");
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as any;
-      const state = parsed?.state ?? parsed;
-      const token = typeof state?.token === "string" ? state.token : null;
-      const refreshToken = typeof state?.refreshToken === "string" ? state.refreshToken : null;
+      const parsed: unknown = JSON.parse(raw);
+      if (!isRecord(parsed)) return null;
+      const state = isRecord(parsed.state) ? parsed.state : parsed;
+      const token = typeof state.token === "string" ? state.token : null;
+      const refreshToken = typeof state.refreshToken === "string" ? state.refreshToken : null;
       return { token, refreshToken };
     } catch {
       return null;
@@ -45,27 +53,15 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
 
   const persisted = readPersistedAuth();
   let token = getAuthToken() || persisted?.token || null;
-  const refreshToken = getRefreshToken() || persisted?.refreshToken || null;
+  let refreshToken = getRefreshToken() || persisted?.refreshToken || null;
 
   // Proactively refresh if token is expired or about to expire
   if (token && refreshToken && isTokenExpired(token)) {
     try {
-      const cleanedRefreshToken = stripBearer(refreshToken);
-      const refreshResponse = await fetch('/api/login/refresh-token', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${cleanedRefreshToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (refreshResponse.ok) {
-        const refreshData = await refreshResponse.json();
-        const newToken = typeof refreshData.access_token === "string" ? refreshData.access_token : null;
-        if (newToken) {
-          token = newToken;
-          setTokens(newToken, refreshData.refresh_token ?? refreshToken);
-        }
+      const refreshed = await refreshAccessToken(refreshToken);
+      if (refreshed) {
+        token = refreshed.accessToken;
+        refreshToken = refreshed.refreshToken;
       }
     } catch (e) {
       console.warn("Proactive token refresh failed:", e);
@@ -93,44 +89,25 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
 
   if (shouldAttemptRefresh) {
     try {
-      const cleanedRefreshToken = stripBearer(refreshToken);
-
       console.log(`[fetchWithAuth] Refreshing token after 401. Has RefreshToken: ${!!refreshToken}`);
 
-      const refreshResponse = await fetch('/api/login/refresh-token', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${cleanedRefreshToken}`, 
-          'Content-Type': 'application/json'
-        }
-      });
+      const refreshed = await refreshAccessToken(refreshToken);
+      if (refreshed) {
+        response = await fetch(url, {
+          ...options,
+          headers: getHeaders(refreshed.accessToken),
+        });
 
-      if (refreshResponse.ok) {
-        const refreshData = await refreshResponse.json();
-        const newToken = refreshData.access_token;
-        const newRefreshToken = refreshData.refresh_token ?? null;
-        
-        if (newToken) {
-            setTokens(newToken, newRefreshToken);
-            
-            response = await fetch(url, {
-              ...options,
-              headers: getHeaders(newToken),
-            });
-
-            const retryIsAuthError = response.status === 401 || response.status === 403;
-            if (retryIsAuthError) {
-              console.warn("Retried request failed with auth error after 401. Logging out.");
-              logout();
-              if (typeof window !== "undefined") {
-                window.location.href = "/login";
-              }
-            }
-        } else {
-            throw new Error("No access_token in refresh response");
+        const retryIsAuthError = response.status === 401 || response.status === 403;
+        if (retryIsAuthError) {
+          console.warn("Retried request failed with auth error after 401. Logging out.");
+          logout();
+          if (typeof window !== "undefined") {
+            window.location.href = "/login";
+          }
         }
       } else {
-        console.warn("Token refresh failed with status:", refreshResponse.status);
+        console.warn("Token refresh failed.");
         if (initialStatus === 401) {
           logout();
           if (typeof window !== "undefined") {
