@@ -889,7 +889,7 @@ export default function SupplierPage() {
                         </div>
                         <input
                             type="text"
-                            placeholder="Buscar en este proveedor..."
+                            placeholder="Buscar productos..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="block w-full pl-11 pr-4 py-4 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#168e00]/20 focus:border-[#168e00] transition-all shadow-sm hover:shadow-md"
@@ -1115,7 +1115,7 @@ export default function SupplierPage() {
               ) : (
                   <div className="text-center py-16 bg-[#f9fafb] rounded-[3rem]">
                       <MessageCircle size={48} className="mx-auto text-gray-300 mb-4" />
-                      <p className="text-gray-500 text-lg">Aún no hay reseñas para este proveedor.</p>
+                      <p className="text-gray-500 text-lg">Aún no hay reseñas.</p>
                       <p className="text-gray-400 text-sm">¡Sé el primero en compartir tu experiencia!</p>
                   </div>
               )}
