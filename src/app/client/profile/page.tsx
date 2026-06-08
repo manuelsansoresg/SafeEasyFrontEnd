@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
 import { PageHero } from "@/components/ui/PageHero";
 import { LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
-import { Loader2, CheckCircle, Eye, EyeOff, User, Mail, Lock, Shield } from "lucide-react";
+import { Loader2, CheckCircle, Eye, EyeOff, User, Mail, Lock, Shield, Store, ArrowRight } from "lucide-react";
 
 export default function ProfilePage() {
   const { user, token } = useAuthStore();
@@ -177,6 +178,31 @@ export default function ProfilePage() {
   return (
     <div className="w-full space-y-6 font-[family-name:var(--font-poppins)]">
       <PageHero title="Mi Perfil" subtitle="Administra tu información personal y de acceso." />
+
+      <section className="overflow-hidden rounded-2xl border border-primary/10 bg-white shadow-sm">
+        <div className="grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-center md:p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Store size={24} />
+            </div>
+            <div>
+              <p className="font-[family-name:var(--font-varela-round)] text-xl font-bold text-gray-950">
+                ¿Quieres vender en Drooopy?
+              </p>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500">
+                Activa tu empresa con tu misma cuenta. Solo elige un paquete, registra el nombre de tu empresa y continúa al pago.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/client/become-supplier"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-bold text-white transition hover:bg-secondary"
+          >
+            Volverme proveedor
+            <ArrowRight size={18} />
+          </Link>
+        </div>
+      </section>
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         {error && (

@@ -8,6 +8,7 @@ import {
   Heart,
   ShoppingCart,
   PackageCheck,
+  Store,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -28,7 +29,7 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
   // Menu items configuration
   const menuItems = [
     { 
-      title: "Mi Perfil", 
+      title: "Panel Admin", 
       path: "/client/profile", 
       icon: User,
     },
@@ -46,6 +47,11 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
       title: "Favoritos",
       path: "/client/favorites",
       icon: Heart,
+    },
+    {
+      title: "Volverme proveedor",
+      path: "/client/become-supplier",
+      icon: Store,
     },
     // Mis Mensajes item removed
   ];

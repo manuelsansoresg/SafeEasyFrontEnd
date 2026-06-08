@@ -175,10 +175,13 @@ export function Header() {
                           {user?.role === "client" && (
                             <>
                               <Link href="/client/profile" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
-                                <span>👤</span> Mi Perfil
+                                <span>🛡️</span> Panel Admin
                               </Link>
                               <Link href="/client/orders" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
                                 <span>📦</span> Mis Pedidos
+                              </Link>
+                              <Link href="/client/become-supplier" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
+                                <span>🏪</span> Volverme proveedor
                               </Link>
                             </>
                           )}

@@ -131,6 +131,12 @@ function toSpanishStatusLabel(value: string) {
   return map[key] || raw;
 }
 
+function toOrderStatusLabel(value: string, mode: DeliveryTypeKey) {
+  const key = normalizeStatusKey(value);
+  if (mode === "pickup" && key === "preparing") return "Listo para recoger";
+  return toSpanishStatusLabel(value);
+}
+
 function formatMoney(value: string | number | null | undefined) {
   const numberValue =
     typeof value === "number" ? value : typeof value === "string" ? Number(String(value).replace(/[^\d.-]/g, "")) : 0;
@@ -198,38 +204,57 @@ function formatEtaLabel(order: Order, mode: DeliveryTypeKey) {
 
 type ProgressStep = { key: string; label: string; Icon: typeof Check };
 
-function getSteps(mode: DeliveryTypeKey): ProgressStep[] {
-  return mode === "shipping"
-    ? [
-        { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
-        { key: "preparing", label: "En preparación", Icon: FileText },
-        { key: "in_transit", label: "En camino", Icon: Truck },
-        { key: "delivered", label: "Entregado", Icon: PackageCheck },
-      ]
-    : [
-        { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
-        { key: "preparing", label: "En preparación", Icon: FileText },
-        { key: "ready_for_pickup", label: "Listo para recoger", Icon: Store },
-        { key: "picked", label: "Entregado", Icon: PackageCheck },
-      ];
-}
-
-function getProgressRank(mode: DeliveryTypeKey, statusKey: string) {
-  const k = normalizeStatusKey(statusKey);
-  if (k === "cancelled") return 0;
-  if (k === "refund_refunded") return 4;
-  if (k === "refund_requested" || k === "refund_approved" || k === "refund_rejected") return 3;
-  if (k === "completed" || k === "verified") return 4;
+function getSteps(mode: DeliveryTypeKey, acceptsCourier: boolean): ProgressStep[] {
+  if (mode === "shipping" && acceptsCourier) {
+    return [
+      { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
+      { key: "preparing", label: "En preparación", Icon: FileText },
+      { key: "en_route_to_pickup", label: "A recoger", Icon: Truck },
+      { key: "in_transit", label: "En camino", Icon: Truck },
+      { key: "delivered", label: "Entregado", Icon: PackageCheck },
+    ];
+  }
 
   if (mode === "shipping") {
-    if (k === "in_transit" || k === "shipped") return 3;
+    return [
+      { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
+      { key: "preparing", label: "En preparación", Icon: FileText },
+      { key: "in_transit", label: "En camino", Icon: Truck },
+      { key: "delivered", label: "Entregado", Icon: PackageCheck },
+    ];
+  }
+
+  return [
+    { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
+    { key: "ready_for_pickup", label: "Listo para recoger", Icon: Store },
+    { key: "picked", label: "Entregado", Icon: PackageCheck },
+  ];
+}
+
+function getProgressRank(mode: DeliveryTypeKey, statusKey: string, acceptsCourier: boolean) {
+  const k = normalizeStatusKey(statusKey);
+  const shippingRankCount = acceptsCourier ? 5 : 4;
+  if (k === "cancelled") return 0;
+  if (k === "refund_refunded") return mode === "shipping" ? shippingRankCount : 3;
+  if (k === "refund_requested" || k === "refund_approved" || k === "refund_rejected") return mode === "shipping" ? shippingRankCount - 1 : 2;
+  if (k === "completed" || k === "verified") return mode === "shipping" ? shippingRankCount : 3;
+
+  if (mode === "shipping") {
+    if (!acceptsCourier) {
+      if (k === "in_transit" || k === "shipped" || k === "picked_up") return 3;
+      if (k === "ready_for_pickup" || k === "preparing") return 2;
+      if (k === "paid" || k === "created" || k === "pending") return 1;
+      return 1;
+    }
+    if (k === "in_transit" || k === "shipped" || k === "picked_up") return 4;
+    if (k === "en_route_to_pickup") return 3;
     if (k === "ready_for_pickup" || k === "preparing") return 2;
     if (k === "paid" || k === "created" || k === "pending") return 1;
     return 1;
   }
 
-  if (k === "ready_for_pickup" || k === "shipped" || k === "en_route_to_pickup" || k === "picked_up") return 3;
-  if (k === "preparing") return 2;
+  if (k === "shipped" || k === "en_route_to_pickup" || k === "picked_up") return 3;
+  if (k === "ready_for_pickup" || k === "preparing") return 2;
   if (k === "paid" || k === "created" || k === "pending") return 1;
   return 1;
 }
@@ -327,12 +352,13 @@ function pickLatestRefund(items: OrderRefund[]) {
 export default function AdminOrderDetailPage() {
   const params = useParams<{ order_id?: string }>();
   const router = useRouter();
-  const { user, token } = useAuthStore();
+  const { user } = useAuthStore();
   const roleKey = String(user?.role || "").toLowerCase();
   const isAdminUser = isAdminRole(roleKey);
   const isSupplierUser = isSupplierRole(roleKey) && !isAdminUser;
   const canViewOrdersPage = isAdminUser || isSupplierUser;
 
+  const [authHydrated, setAuthHydrated] = useState(() => useAuthStore.persist.hasHydrated());
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<ToastState>(null);
   const [order, setOrder] = useState<Order | null>(null);
@@ -368,10 +394,15 @@ export default function AdminOrderDetailPage() {
     return () => window.clearTimeout(id);
   }, [toast]);
 
+  useEffect(() => {
+    const unsubscribe = useAuthStore.persist.onFinishHydration(() => setAuthHydrated(true));
+    if (useAuthStore.persist.hasHydrated()) setAuthHydrated(true);
+    return unsubscribe;
+  }, []);
+
   const load = useCallback(async () => {
-    if (!token) {
-      setToast({ type: "error", message: "Sesión no válida." });
-      setLoading(false);
+    if (!authHydrated) {
+      setLoading(true);
       return;
     }
     if (!orderId) {
@@ -421,7 +452,7 @@ export default function AdminOrderDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [isSupplierUser, orderId, token, user]);
+  }, [authHydrated, isSupplierUser, orderId, user]);
 
   useEffect(() => {
     load();
@@ -430,7 +461,7 @@ export default function AdminOrderDetailPage() {
   const latestHistoryKey = useMemo(() => pickLatestHistoryKey(history), [history]);
   const paymentMethod = useMemo(() => getPaymentMethodKey(order), [order]);
   const mode = useMemo(() => (order ? getDeliveryTypeKey(order) : "pickup"), [order]);
-  const steps = useMemo(() => getSteps(mode), [mode]);
+  const steps = useMemo(() => getSteps(mode, acceptsCourier), [acceptsCourier, mode]);
   const fulfillmentStatusKey = order ? normalizeStatusKey(String(order.fulfillment_status || order.visual_status || "")) : "";
   const orderStatusKey = order ? normalizeStatusKey(String(order.status || order.payment_status || "")) : "";
   const hasFulfillmentProgress = Boolean(
@@ -441,7 +472,7 @@ export default function AdminOrderDetailPage() {
     paymentMethod === "card" ? toEffectiveCardStatusKey(mergedKey) : normalizeStatusKey(mergedKey);
   const effectiveKey = rawEffective || "paid";
   const cancelled = normalizeStatusKey(effectiveKey) === "cancelled";
-  const rank = getProgressRank(mode, effectiveKey);
+  const rank = getProgressRank(mode, effectiveKey, acceptsCourier);
   const activeRefund = useMemo(() => pickLatestRefund(refunds), [refunds]);
 
   const address = useMemo(() => {
@@ -554,7 +585,8 @@ export default function AdminOrderDetailPage() {
     }
     setActionLoading("complete");
     try {
-      await orderService.completeOrder(orderId, note);
+      const completionNote = note?.trim() || (mode === "pickup" ? "Entregado en tienda" : undefined);
+      await orderService.completeOrder(orderId, completionNote);
       setToast({ type: "success", message: "Orden completada." });
       await refresh();
     } catch (e) {
@@ -687,24 +719,31 @@ export default function AdminOrderDetailPage() {
   const canMarkDelivered = useMemo(() => {
     const k = normalizeStatusKey(effectiveKey);
     if (k === "completed" || k === "verified" || k === "cancelled" || k === "refund_refunded") return false;
+    if (mode === "shipping" && acceptsCourier) return false;
     if (mode === "shipping") {
       return k === "ready_for_pickup" || k === "en_route_to_pickup" || k === "picked_up" || k === "in_transit" || k === "shipped";
     }
-    return k === "ready_for_pickup";
-  }, [effectiveKey, mode]);
+    return k === "ready_for_pickup" || k === "preparing";
+  }, [acceptsCourier, effectiveKey, mode]);
 
   const completeDisabledMessage = useMemo(() => {
     if (canMarkDelivered) return "";
     const k = normalizeStatusKey(effectiveKey);
     if (k === "completed" || k === "verified" || k === "cancelled" || k === "refund_refunded") return "";
+    if (mode === "shipping" && acceptsCourier) return "La entrega con repartidor debe cerrarse validando el código de entrega.";
     return mode === "shipping"
       ? "Primero marca la orden como lista para envío."
       : "Primero marca la orden como lista para recoger.";
-  }, [canMarkDelivered, effectiveKey, mode]);
+  }, [acceptsCourier, canMarkDelivered, effectiveKey, mode]);
 
   const isReadyForPickup = useMemo(() => {
     const k = normalizeStatusKey(effectiveKey);
-    return k === "ready_for_pickup";
+    return k === "ready_for_pickup" || (mode === "pickup" && k === "preparing");
+  }, [effectiveKey, mode]);
+
+  const isCourierFlowStarted = useMemo(() => {
+    const k = normalizeStatusKey(effectiveKey);
+    return k === "ready_for_pickup" || k === "en_route_to_pickup" || k === "picked_up" || k === "in_transit" || k === "shipped";
   }, [effectiveKey]);
 
   const isOwnHomeDelivery = mode === "shipping" && !acceptsCourier;
@@ -732,7 +771,7 @@ export default function AdminOrderDetailPage() {
     const k = normalizeStatusKey(effectiveKey);
     if (k === "completed" || k === "verified" || k === "cancelled" || k === "refund_refunded") return false;
     if (k === "shipped" || k === "in_transit") return false;
-    if (k === "ready_for_pickup") return false;
+    if (k === "ready_for_pickup" || k === "en_route_to_pickup" || k === "picked_up") return false;
     return true;
   }, [effectiveKey]);
 
@@ -797,6 +836,8 @@ export default function AdminOrderDetailPage() {
 
   const shippingHeaderStatus = useMemo(() => {
     const k = normalizeStatusKey(effectiveKey);
+    if (k === "en_route_to_pickup") return "En camino a recoger";
+    if (k === "picked_up") return "Producto recogido";
     if (k === "in_transit" || k === "shipped") return "En camino";
     if (k === "ready_for_pickup") return "Paquete listo";
     if (k === "preparing") return "En preparación";
@@ -870,15 +911,15 @@ export default function AdminOrderDetailPage() {
           </div>
         </div>
 
-        {!canViewOrdersPage ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-red-700 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            No tienes permisos para ver esta página.
-          </div>
-        ) : loading ? (
+        {!authHydrated || loading ? (
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" />
             Cargando orden...
+          </div>
+        ) : !canViewOrdersPage ? (
+          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-red-700 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            No tienes permisos para ver esta página.
           </div>
         ) : !order ? (
           <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-red-700 flex items-center gap-2">
@@ -926,7 +967,7 @@ export default function AdminOrderDetailPage() {
                         <div className="flex items-center gap-1.5 lg:justify-end">
                           <Clock className="h-3.5 w-3.5 text-white/70" />
                           <div className="text-sm font-bold text-white">
-                            {completeDisabledMessage || toSpanishStatusLabel(effectiveKey)}
+                            {completeDisabledMessage || toOrderStatusLabel(effectiveKey, mode)}
                           </div>
                         </div>
                       </div>
@@ -1098,7 +1139,7 @@ export default function AdminOrderDetailPage() {
                           style={{ backgroundColor: "#0b6b3a" }}
                         >
                           <Store className="h-4 w-4 mr-2" />
-                          Marcar como listo para recoger
+                          Marcar listo para recoger
                         </button>
                         <button
                           type="button"
@@ -1141,7 +1182,7 @@ export default function AdminOrderDetailPage() {
                       <div className="mt-4 space-y-3">
                         <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                           <div className="text-xs font-semibold text-gray-500">Estado</div>
-                          <div className="mt-1 text-sm font-semibold text-gray-900">{toSpanishStatusLabel(effectiveKey)}</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{toOrderStatusLabel(effectiveKey, mode)}</div>
                         </div>
                         <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                           <div className="text-xs font-semibold text-gray-500">Punto de recolección</div>
@@ -1414,7 +1455,7 @@ export default function AdminOrderDetailPage() {
                       <div className="mt-4 space-y-3">
                         {acceptsCourier ? (
                           <>
-                            {isReadyForPickup ? (
+                            {isCourierFlowStarted ? (
                               <div className="w-full rounded-xl px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2 bg-[#16a34a]">
                                 <CheckCircle className="h-4 w-4" />
                                 Repartidor notificado
@@ -1430,26 +1471,11 @@ export default function AdminOrderDetailPage() {
                                 {acceptsCourier ? "Notificar paquete listo" : "Marcar como listo"}
                               </button>
                             )}
-                            <button
-                              type="button"
-                              disabled={actionLoading !== null || !canMarkDelivered}
-                              onClick={() => handleComplete()}
-                              title={completeDisabledMessage || undefined}
-                              className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-                              style={{ backgroundColor: "#004e28" }}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Marcar como Entregado
-                            </button>
-                            {canMarkDelivered ? (
-                              <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
-                                La orden puede marcarse como entregada.
-                              </div>
-                            ) : completeDisabledMessage ? (
-                              <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
-                                {completeDisabledMessage}
-                              </div>
-                            ) : null}
+                            <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
+                              {mode === "shipping"
+                                ? "La entrega con repartidor se completa desde la aplicación del repartidor."
+                                : "La orden se completará cuando se confirme la entrega."}
+                            </div>
                           </>
                         ) : mode === "shipping" ? (
                           <>
@@ -1633,60 +1659,62 @@ export default function AdminOrderDetailPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-gray-100 bg-white p-6">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
-                          Información del repartidor
+                    {acceptsCourier ? (
+                      <div className="rounded-2xl border border-gray-100 bg-white p-6">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="text-base font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                            Información del repartidor
+                          </div>
+                          <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#16a34a14", color: "#16a34a", border: "1px solid #16a34a33" }}>
+                            ESPERANDO REPARTIDOR
+                          </span>
                         </div>
-                        <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#16a34a14", color: "#16a34a", border: "1px solid #16a34a33" }}>
-                          ESPERANDO REPARTIDOR
-                        </span>
-                      </div>
-                      <div className="mt-5 space-y-3 text-sm">
-                        <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-                          <div className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400">
-                            <Truck className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <div className="text-xs font-semibold text-gray-400">REPARTIDOR</div>
-                            <div className="font-bold text-gray-900">{courierMeta.name}</div>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
-                            <div className="text-xs font-semibold text-gray-400">Vehículo</div>
-                            <div className="mt-1 font-semibold text-gray-900">{courierMeta.vehicle}</div>
-                          </div>
-                          <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
-                            <div className="text-xs font-semibold text-gray-400">Placa</div>
-                            <div className="mt-1 font-semibold text-gray-900">{courierMeta.plate}</div>
-                          </div>
-                          <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
-                            <div className="text-xs font-semibold text-gray-400">Rating</div>
-                            <div className="mt-1 font-semibold text-gray-900 flex items-center gap-1">
-                              <Star className="h-4 w-4 text-yellow-500" />
-                              {courierMeta.rating.toFixed(1)}
+                        <div className="mt-5 space-y-3 text-sm">
+                          <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                            <div className="h-10 w-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400">
+                              <Truck className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-semibold text-gray-400">REPARTIDOR</div>
+                              <div className="font-bold text-gray-900">{courierMeta.name}</div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            className="flex-1 h-10 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 inline-flex items-center justify-center gap-2 text-sm font-semibold text-[#004e28]"
-                          >
-                            <Phone className="h-4 w-4" />
-                            Llamar
-                          </button>
-                          <button
-                            type="button"
-                            className="flex-1 h-10 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 inline-flex items-center justify-center gap-2 text-sm font-semibold text-[#004e28]"
-                          >
-                            <FileText className="h-4 w-4" />
-                            Mensaje
-                          </button>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+                              <div className="text-xs font-semibold text-gray-400">Vehículo</div>
+                              <div className="mt-1 font-semibold text-gray-900">{courierMeta.vehicle}</div>
+                            </div>
+                            <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+                              <div className="text-xs font-semibold text-gray-400">Placa</div>
+                              <div className="mt-1 font-semibold text-gray-900">{courierMeta.plate}</div>
+                            </div>
+                            <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+                              <div className="text-xs font-semibold text-gray-400">Rating</div>
+                              <div className="mt-1 font-semibold text-gray-900 flex items-center gap-1">
+                                <Star className="h-4 w-4 text-yellow-500" />
+                                {courierMeta.rating.toFixed(1)}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="flex-1 h-10 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 inline-flex items-center justify-center gap-2 text-sm font-semibold text-[#004e28]"
+                            >
+                              <Phone className="h-4 w-4" />
+                              Llamar
+                            </button>
+                            <button
+                              type="button"
+                              className="flex-1 h-10 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 inline-flex items-center justify-center gap-2 text-sm font-semibold text-[#004e28]"
+                            >
+                              <FileText className="h-4 w-4" />
+                              Mensaje
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ) : null}
 
                     {showRefundPanel ? (
                       <div className="rounded-2xl border border-gray-100 bg-white p-6">
