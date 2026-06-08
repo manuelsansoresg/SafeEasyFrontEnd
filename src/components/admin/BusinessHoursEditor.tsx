@@ -94,56 +94,78 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
           return res.json().catch(() => null);
         };
 
-        const pickSupplierPayload = (payload: unknown): Record<string, unknown> | null => {
-          if (Array.isArray(payload)) {
-            const found = payload.find((x) => {
-              const rec = toRecord(x);
-              return rec && Number(rec.id) === Number(supplierId);
-            });
-            return toRecord(found ?? payload[0] ?? null);
-          }
+        const normalizeHour = (raw: unknown): BusinessHour | null => {
+          const rec = toRecord(raw);
+          if (!rec) return null;
 
-          const root = toRecord(payload);
-          if (!root) return null;
+          const dayValue =
+            rec.day_of_week ??
+            rec.dayOfWeek ??
+            rec.weekday ??
+            rec.week_day ??
+            rec.day ??
+            rec.dia;
+          const day = Number(dayValue);
+          if (!Number.isFinite(day) || day < 0 || day > 6) return null;
 
-          if (Number(root.id) === Number(supplierId)) return root;
+          const openValue = rec.open_time ?? rec.openTime ?? rec.opening_time ?? rec.opens_at ?? rec.from;
+          const closeValue = rec.close_time ?? rec.closeTime ?? rec.closing_time ?? rec.closes_at ?? rec.to;
+          const openTime = typeof openValue === "string" && openValue.trim() ? openValue : null;
+          const closeTime = typeof closeValue === "string" && closeValue.trim() ? closeValue : null;
+          const closedValue = rec.is_closed ?? rec.isClosed ?? rec.closed;
+          const isClosed =
+            typeof closedValue === "boolean"
+              ? closedValue
+              : typeof closedValue === "number"
+                ? closedValue !== 0
+                : typeof closedValue === "string"
+                  ? ["true", "1", "yes", "y", "cerrado", "closed"].includes(closedValue.trim().toLowerCase())
+                  : openTime == null && closeTime == null;
 
-          const dataRec = toRecord(root.data);
-          if (dataRec && Number(dataRec.id) === Number(supplierId)) return dataRec;
-
-          const items = root.items ?? root.results;
-          if (Array.isArray(items)) {
-            const found = items.find((x) => {
-              const rec = toRecord(x);
-              return rec && Number(rec.id) === Number(supplierId);
-            });
-            return toRecord(found ?? items[0] ?? null);
-          }
-
-          return root;
+          return {
+            ...(rec as unknown as BusinessHour),
+            day_of_week: day,
+            open_time: openTime,
+            close_time: closeTime,
+            is_closed: isClosed,
+          };
         };
 
-        const parseBusinessHours = (payload: unknown): BusinessHour[] => {
-          if (Array.isArray(payload)) {
-            const first = toRecord(payload[0]);
-            const looksLikeBusinessHour = first && "day_of_week" in first && "is_closed" in first;
-            if (looksLikeBusinessHour) return payload as BusinessHour[];
-          }
+        const normalizeHoursArray = (value: unknown): BusinessHour[] => {
+          if (!Array.isArray(value)) return [];
+          return value.map(normalizeHour).filter((h): h is BusinessHour => h !== null);
+        };
 
-          const root = pickSupplierPayload(payload);
+        const parseBusinessHours = (payload: unknown, depth = 0): BusinessHour[] => {
+          if (depth > 4 || payload == null) return [];
+
+          const directArray = normalizeHoursArray(payload);
+          if (directArray.length > 0) return directArray;
+
+          const root = toRecord(payload);
           if (!root) return [];
 
-          const direct = root.business_hours;
-          if (Array.isArray(direct)) return direct as BusinessHour[];
+          const knownKeys = [
+            "business_hours",
+            "businessHours",
+            "hours",
+            "horarios",
+            "schedule",
+            "data",
+            "result",
+            "supplier",
+          ];
+          for (const key of knownKeys) {
+            const found = parseBusinessHours(root[key], depth + 1);
+            if (found.length > 0) return found;
+          }
 
-          const nested = toRecord(root.data)?.business_hours ?? toRecord(root.result)?.business_hours;
-          if (Array.isArray(nested)) return nested as BusinessHour[];
-
-          const items = root.items ?? root.results;
-          if (Array.isArray(items) && items.length > 0) {
-            const first = toRecord(items[0]);
-            const bh = first?.business_hours;
-            if (Array.isArray(bh)) return bh as BusinessHour[];
+          const list = root.items ?? root.results ?? root.suppliers;
+          if (Array.isArray(list)) {
+            const supplierRecord =
+              list.find((item) => Number(toRecord(item)?.id) === Number(supplierId)) ?? list[0];
+            const found = parseBusinessHours(supplierRecord, depth + 1);
+            if (found.length > 0) return found;
           }
 
           return [];
@@ -152,6 +174,8 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
         const businessHoursUrlsToTry = [
           `/api/suppliers/${supplierId}/business-hours/`,
           `/api/suppliers/${supplierId}/business-hours`,
+          `/api/backend/suppliers/${supplierId}/business-hours/`,
+          `/api/backend/suppliers/${supplierId}/business-hours`,
         ];
 
         const supplierUrlsToTry = [
@@ -161,6 +185,8 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
           `/api/suppliers?id=${supplierId}`,
           `/api/suppliers/?skip=0&limit=100&id=${supplierId}`,
           `/api/suppliers?skip=0&limit=100&id=${supplierId}`,
+          `/api/backend/suppliers/${supplierId}/`,
+          `/api/backend/suppliers/${supplierId}`,
         ];
 
         let payload: unknown = null;
@@ -184,14 +210,15 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
         }
 
         if (businessHours.length === 0) {
-          setError("No se encontraron horarios en la respuesta del API.");
+          setError(null);
           setHours(initializeHours([]));
           return;
         }
 
+        setError(null);
         setHours(initializeHours(businessHours));
       } catch (err) {
-        console.error("Error fetching business hours:", err);
+        console.warn("Error fetching business hours:", err);
         setError("Error al cargar los horarios");
         setHours([]);
       } finally {
@@ -238,19 +265,38 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
         is_closed: Boolean(is_closed),
       }));
 
-      await fetchWithAuth(`/api/suppliers/${supplierId}/business-hours`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const saveUrls = [
+        `/api/suppliers/${supplierId}/business-hours`,
+        `/api/suppliers/${supplierId}/business-hours/`,
+        `/api/backend/suppliers/${supplierId}/business-hours`,
+        `/api/backend/suppliers/${supplierId}/business-hours/`,
+      ];
+      let saved = false;
+      let lastStatus = 0;
+      for (const url of saveUrls) {
+        const response = await fetchWithAuth(url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+        lastStatus = response.status;
+        if (response.ok) {
+          saved = true;
+          break;
+        }
+      }
+
+      if (!saved) {
+        throw new Error(`No se pudieron guardar los horarios (${lastStatus})`);
+      }
 
       setSuccess(true);
       // Hide success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
-      console.error("Error saving business hours:", err);
+      console.warn("Error saving business hours:", err);
       setError("Error al guardar los horarios. Inténtalo de nuevo.");
     } finally {
       setSaving(false);
