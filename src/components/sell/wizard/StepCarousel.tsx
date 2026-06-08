@@ -43,25 +43,118 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
   const [image, setImage] = useState<File | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
 
+  const toRecord = (value: unknown) =>
+    value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+
+  const pickCarouselImageUrl = (item: CarouselItem) =>
+    item.thumbnail || item.image_url || item.url || item.path || item.image || null;
+
+  const normalizeCarouselItem = (value: unknown): CarouselItem | null => {
+    const rec = toRecord(value);
+    if (!rec) return null;
+
+    const imageValue =
+      rec.image_url ??
+      rec.imageUrl ??
+      rec.image ??
+      rec.url ??
+      rec.path ??
+      rec.thumbnail ??
+      rec.file_url ??
+      rec.fileUrl;
+    if (typeof imageValue !== "string" || !imageValue.trim()) return null;
+
+    return {
+      id: Number(rec.id ?? rec.carousel_id ?? rec.carouselId ?? Date.now()),
+      title: typeof rec.title === "string" ? rec.title : "",
+      description: typeof rec.description === "string" ? rec.description : "",
+      image_url: typeof rec.image_url === "string" ? rec.image_url : undefined,
+      url: typeof rec.url === "string" ? rec.url : undefined,
+      path: typeof rec.path === "string" ? rec.path : undefined,
+      image: typeof rec.image === "string" ? rec.image : undefined,
+      thumbnail: typeof rec.thumbnail === "string" ? rec.thumbnail : undefined,
+    };
+  };
+
+  const parseCarouselItems = (payload: unknown, depth = 0): CarouselItem[] => {
+    if (depth > 4 || payload == null) return [];
+
+    if (Array.isArray(payload)) {
+      return payload
+        .map(normalizeCarouselItem)
+        .filter((item): item is CarouselItem => item !== null);
+    }
+
+    const root = toRecord(payload);
+    if (!root) return [];
+
+    const keys = [
+      "carousel_images",
+      "carouselImages",
+      "carousel",
+      "images",
+      "items",
+      "results",
+      "data",
+      "result",
+      "supplier",
+    ];
+
+    for (const key of keys) {
+      const found = parseCarouselItems(root[key], depth + 1);
+      if (found.length > 0) return found;
+    }
+
+    const single = normalizeCarouselItem(root);
+    return single ? [single] : [];
+  };
+
+  const parseSupplierHeader = (payload: unknown) => {
+    const root = toRecord(payload);
+    const data = toRecord(root?.data) ?? toRecord(root?.supplier) ?? root;
+    return {
+      headerMediaType: typeof data?.header_media_type === "string" ? data.header_media_type : null,
+      headerVideo: typeof data?.header_video === "string" ? data.header_video : null,
+    };
+  };
+
   const fetchItems = async () => {
     setFetching(true);
     try {
-      const identifier = slug || supplierId;
-      const res = await fetchWithAuth(`/api/suppliers/${identifier}`);
-      if (res.ok) {
-        const data = await res.json();
-        setItems(Array.isArray(data.carousel_images) ? data.carousel_images : []);
-        
-        // Set initial media type and video url
-        if (data.header_media_type === 'video') {
-            setActiveTab('video');
-        } else {
-            setActiveTab('image');
+      const urls = [
+        `/api/suppliers/${supplierId}`,
+        `/api/suppliers/${supplierId}/`,
+        `/api/backend/suppliers/${supplierId}`,
+        `/api/backend/suppliers/${supplierId}/`,
+        ...(slug
+          ? [
+              `/api/suppliers/${encodeURIComponent(slug)}`,
+              `/api/suppliers/${encodeURIComponent(slug)}/`,
+              `/api/backend/suppliers/${encodeURIComponent(slug)}`,
+              `/api/backend/suppliers/${encodeURIComponent(slug)}/`,
+            ]
+          : []),
+      ];
+
+      for (const url of urls) {
+        const res = await fetchWithAuth(url);
+        if (!res.ok) continue;
+
+        const data: unknown = await res.json().catch(() => null);
+        const carouselItems = parseCarouselItems(data);
+        setItems(carouselItems);
+
+        const { headerMediaType, headerVideo } = parseSupplierHeader(data);
+        if (headerMediaType === 'video') {
+          setActiveTab('video');
+        } else if (headerMediaType === 'image') {
+          setActiveTab('image');
         }
-        setSavedVideoUrl(data.header_video || null);
+        setSavedVideoUrl(headerVideo);
+        return;
       }
     } catch (e) {
-      console.error("Error fetching carousel items", e);
+      console.warn("Error fetching carousel items", e);
     } finally {
       setFetching(false);
     }
@@ -104,7 +197,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
             body: formData
         });
     } catch (e) {
-        console.error("Error updating media type preference", e);
+        console.warn("Error updating media type preference", e);
     }
   };
 
@@ -136,7 +229,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                 debugEntries.push({ key: k, value: v });
             }
         });
-        console.log("[StepCarousel] Video Upload FormData debug", debugEntries);
+        console.debug("[StepCarousel] Video Upload FormData debug", debugEntries);
 
         const res = await fetchWithAuth(`/api/suppliers/${supplierId}`, {
             method: 'PUT',
@@ -151,7 +244,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
             await fetchItems();
         } else {
             const errorData = await res.json().catch(() => ({}));
-            console.error("Video upload error data:", errorData);
+            console.warn("Video upload error data:", errorData);
             
             let errorMessage = 'Error al subir video';
 
@@ -235,7 +328,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
     setEditingId(item.id);
     setTitle(item.title || '');
     setDescription(item.description || '');
-    setCurrentImageUrl(getImageUrl(item.thumbnail || item.image_url || item.url || item.path || item.image || null));
+    setCurrentImageUrl(getImageUrl(pickCarouselImageUrl(item)));
     setImage(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -250,9 +343,9 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
 
   const handleImageChange = (file: File | null) => {
     if (file) {
-      // Validate file size (e.g., 2MB limit)
-      if (file.size > 2 * 1024 * 1024) {
-        setError("La imagen es demasiado grande. El tamaño máximo permitido es 2MB.");
+      // Validate file size (e.g., 4MB limit)
+      if (file.size > 4 * 1024 * 1024) {
+        setError("La imagen es demasiado grande. El tamaño máximo permitido es 4MB.");
         return;
       }
     }
@@ -274,6 +367,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
       const formData = new FormData();
       formData.append('title', title);
       formData.append('description', description);
+      formData.append('header_media_type', 'image');
       if (image) {
         formData.append('image', image);
       }
@@ -293,7 +387,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
         let errorMessage = `Error al ${editingId ? 'actualizar' : 'crear'} elemento`;
         try {
           const errorData = await res.json();
-          console.log("Error response data:", errorData); // Debug log
+          console.warn("Error response data:", errorData);
 
           // Check for proxy debug info first
           if (errorData.backend_response) {
@@ -333,7 +427,19 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
         throw new Error(errorMessage);
       }
 
-      // Siempre refrescamos desde el backend para tener lo mismo que /suppliers/{slug}
+      const savedPayload: unknown = await res.json().catch(() => null);
+      const savedItems = parseCarouselItems(savedPayload);
+      if (savedItems.length > 0) {
+        setItems((prev) => {
+          if (editingId) {
+            return prev.map((item) => (item.id === editingId ? { ...item, ...savedItems[0] } : item));
+          }
+          const exists = prev.some((item) => item.id === savedItems[0].id);
+          return exists ? prev : [...prev, savedItems[0]].slice(0, 3);
+        });
+      }
+
+      // Siempre refrescamos desde el backend para tener lo mismo que /suppliers/{id}
       await fetchItems();
       
       // Reset formulario y salir de edición para permitir seguir editando otros
@@ -362,7 +468,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
         }
       }
     } catch (e) {
-      console.error("Error deleting", e);
+      console.warn("Error deleting", e);
     }
   };
 
@@ -467,6 +573,10 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                     </button>
                 )}
                 </div>
+
+                <p className="text-gray-600 mb-6 text-sm">
+                    Sube una imagen horizontal para el banner principal. Resolución recomendada: 2100x740 px, con el contenido principal centrado para que se adapte bien a escritorio y móvil.
+                </p>
                 
                 {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
                 
@@ -488,7 +598,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                         value={image}
                         onChange={handleImageChange}
                         currentImageUrl={currentImageUrl}
-                        helperText="1920x600px recomendado. Máx 2MB. Formatos: JPG, PNG, WEBP."
+                        helperText="Imagen horizontal recomendada. El sitio la adapta automáticamente para escritorio y móvil. Máx 4MB. Formatos: JPG, PNG, WEBP."
                     />
                 </div>
                 <div className="md:col-span-2">
@@ -532,7 +642,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                     >
                         <div className="h-48 bg-gray-100 relative overflow-hidden">
                         <img 
-                            src={getImageUrl(item.thumbnail || item.image_url || item.url || item.path || item.image || null)} 
+                            src={getImageUrl(pickCarouselImageUrl(item))} 
                             alt={item.title} 
                             className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500" 
                         />

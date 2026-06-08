@@ -171,7 +171,7 @@ function Carousel({ images }: { images: CarouselImage[] }) {
     if (!images || images.length === 0) return null;
   
     return (
-      <div className="relative w-full h-full overflow-hidden">
+      <div className="relative w-full h-full overflow-hidden bg-black">
         {images.map((img, index) => (
           <div
             key={index}
@@ -179,19 +179,21 @@ function Carousel({ images }: { images: CarouselImage[] }) {
               index === currentIndex ? "opacity-100" : "opacity-0"
             }`}
           >
+            <div className="absolute inset-0 bg-black" />
             <img
               src={getImageUrl(img.image)}
               alt=""
               aria-hidden="true"
-              className="absolute inset-0 h-full w-full scale-110 object-cover opacity-45 blur-2xl"
+              className="absolute inset-0 h-full w-full scale-125 object-cover opacity-70 blur-3xl saturate-125"
             />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-black/35" />
             <img
               src={getImageUrl(img.image)}
               alt={`Slide ${index + 1}`}
-              className="relative z-10 h-full w-full object-contain px-4 py-10 md:px-14 md:py-16"
+              className="relative z-10 h-full w-full object-contain drop-shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
             />
-            {/* Dark overlay specifically for carousel images to ensure text readability */}
-            <div className="absolute inset-0 z-20 bg-gradient-to-r from-black/70 via-black/25 to-[#004e28]/45" />
+            <div className="absolute inset-0 z-20 bg-gradient-to-r from-black/75 via-black/15 to-black/20" />
+            <div className="absolute inset-x-0 bottom-0 z-20 h-1/2 bg-gradient-to-t from-black/45 to-transparent" />
           </div>
         ))}
         
@@ -753,7 +755,7 @@ export default function SupplierPage() {
     <div className="min-h-screen bg-[#ffffff] font-sans selection:bg-[#168e00] selection:text-white">
       
       {/* --- HERO SECTION --- */}
-      <section className="relative w-full h-[90vh] bg-black overflow-hidden group">
+      <section className="relative w-full h-[92svh] min-h-[760px] md:h-[90vh] md:min-h-[680px] bg-black overflow-hidden group">
          {/* Media Background */}
          {supplier.header_media_type === 'video' && supplier.header_video ? (
              <video 
