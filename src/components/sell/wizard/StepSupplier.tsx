@@ -54,10 +54,10 @@ type ErrorPayload = {
 };
 
 const pickSupplierItems = (payload: unknown): SupplierListItem[] => {
-  const items = Array.isArray(payload)
+  const items: unknown[] = Array.isArray(payload)
     ? payload
     : payload && typeof payload === "object" && Array.isArray((payload as Record<string, unknown>).items)
-      ? (payload as Record<string, unknown>).items
+      ? ((payload as Record<string, unknown>).items as unknown[])
       : [];
 
   return items.filter((item): item is SupplierListItem => {

@@ -102,7 +102,8 @@ export default function EditProductPage() {
             return;
           }
         } else {
-            console.warn(`Direct fetch failed (${response.status}), trying fallback via list...`);
+            const directStatus = response?.status ?? "sin respuesta";
+            console.warn(`Direct fetch failed (${directStatus}), trying fallback via list...`);
             
             const listUrl = currentSupplier?.id
               ? `/api/products/by-supplier/${encodeURIComponent(getSupplierSlug(currentSupplier))}?skip=0&limit=1000`
@@ -136,11 +137,11 @@ export default function EditProductPage() {
 
             // If we are here, both direct and fallback failed.
             // We don't use console.error to avoid Next.js overlay for expected API limitations
-            const text = await response.text();
+            const text = response ? await response.text() : "";
             console.warn("Direct fetch error response:", text); 
             
             // Set a user-friendly error
-            setError(`No se pudo cargar el producto. El servidor no permite acceso directo (${response.status}) y no se encontró en el listado.`);
+            setError(`No se pudo cargar el producto. El servidor no permite acceso directo (${directStatus}) y no se encontró en el listado.`);
         }
       } catch (err: unknown) {
         console.error(err);
