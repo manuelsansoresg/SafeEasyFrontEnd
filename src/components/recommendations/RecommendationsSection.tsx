@@ -4,9 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { RecommendationsSidebar } from "./RecommendationsSidebar";
 import { getRecommendations, RecommendationsParams } from "@/lib/recommendations";
-import { getProducts } from "@/lib/products";
 import { Product } from "@/lib/products";
-import { Search, Filter, X } from "lucide-react";
+import { Search, Filter } from "lucide-react";
 import { useLocationStore } from "@/store/useLocationStore";
 
 // Simple debounce hook implementation if not present
@@ -86,50 +85,24 @@ export function RecommendationsSection({
     try {
       let newProducts: Product[] = [];
 
-      if (debouncedSearch || category || subcategory || minPrice !== undefined || maxPrice !== undefined || bestRated) {
-        // Product listing logic: category filters must show the products in that category.
-        const page = Math.floor(currentSkip / limit) + 1;
-        
-        // Determinar ubicación: Si no hay city/lat/long, usar "Mérida" por defecto
-        let locationParam = null;
-        if (city || (latitude && longitude)) {
-            locationParam = { latitude, longitude, city, state };
-        } else {
-             // Fallback por defecto solicitado por usuario
-             locationParam = { city: "Mérida", state: "Yucatán" };
-             console.log("⚠️ No location detected, using default: Mérida");
-        }
-        
-        console.log('[RecommendationsSection] Search location params:', locationParam);
-        
-        newProducts = await getProducts(
-            page,
-            limit,
-            debouncedSearch,
-            category,
-            subcategory,
-            minPrice,
-            maxPrice,
-            bestRated,
-            undefined, // token
-            locationParam
-        );
-      } else {
-        // Recommendations Logic
-        const params: RecommendationsParams = {
-            skip: currentSkip,
-            limit,
-            category,
-            subcategory,
-            min_price: minPrice,
-            max_price: maxPrice,
-            best_rated: bestRated,
-            // search is removed here because we use getProducts for searching
-            location: (city || (latitude && longitude)) ? { latitude, longitude, city, state } : null
-        };
-        console.log('[RecommendationsSection] Recommendations location params:', params.location);
-        newProducts = await getRecommendations(params);
-      }
+      const locationParam =
+        city || (latitude && longitude)
+          ? { latitude, longitude, city, state }
+          : { city: "Mérida", state: "Yucatán" };
+
+      const params: RecommendationsParams = {
+          skip: currentSkip,
+          limit,
+          search: debouncedSearch || undefined,
+          category,
+          subcategory,
+          min_price: minPrice,
+          max_price: maxPrice,
+          best_rated: bestRated,
+          location: locationParam
+      };
+      console.log('[RecommendationsSection] Product results params:', params);
+      newProducts = await getRecommendations(params);
       
       if (reset) {
         setProducts(newProducts);

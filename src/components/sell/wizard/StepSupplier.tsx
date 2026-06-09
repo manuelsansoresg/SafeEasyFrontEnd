@@ -4,10 +4,26 @@ import { useState, useEffect, type ClipboardEvent } from 'react';
 import { Loader2, Truck, Store } from 'lucide-react';
 import FileUpload from '@/components/ui/FileUpload';
 import MapPicker from '@/components/ui/MapPicker';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { supplierCatalogService, type SupplierCatalogOption } from '@/services/supplierCatalogService';
 import dynamic from 'next/dynamic';
 import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
+const DEFAULT_COUNTRY_ID = 1;
+const DEFAULT_COUNTRY_NAME = 'Mexico';
+const DEFAULT_COUNTRY_OPTION: SupplierCatalogOption = {
+  id: DEFAULT_COUNTRY_ID,
+  name: DEFAULT_COUNTRY_NAME,
+};
+
+function normalizeCatalogText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
 
 const pasteAsPlainText = (event: ClipboardEvent<HTMLDivElement>) => {
   const text = event.clipboardData.getData("text/plain");
@@ -22,9 +38,49 @@ interface StepSupplierProps {
   onSuccess: (supplierId: number) => void;
 }
 
+type SupplierListItem = {
+  id: number;
+  user_id?: number | string | null;
+};
+
+type ValidationError = {
+  loc?: Array<string | number>;
+  msg?: string;
+};
+
+type ErrorPayload = {
+  detail?: string | ValidationError[] | unknown;
+  backend_response?: string | unknown;
+};
+
+const pickSupplierItems = (payload: unknown): SupplierListItem[] => {
+  const items = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === "object" && Array.isArray((payload as Record<string, unknown>).items)
+      ? (payload as Record<string, unknown>).items
+      : [];
+
+  return items.filter((item): item is SupplierListItem => {
+    if (!item || typeof item !== "object") return false;
+    const record = item as Record<string, unknown>;
+    return Number.isFinite(Number(record.id));
+  });
+};
+
 export default function StepSupplier({ userId, token, onSuccess }: StepSupplierProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState({
+    countries: false,
+    states: false,
+    cities: false,
+  });
+  const [countries, setCountries] = useState<SupplierCatalogOption[]>([DEFAULT_COUNTRY_OPTION]);
+  const [states, setStates] = useState<SupplierCatalogOption[]>([]);
+  const [cities, setCities] = useState<SupplierCatalogOption[]>([]);
+  const [selectedCountryId, setSelectedCountryId] = useState<number | null>(DEFAULT_COUNTRY_ID);
+  const [selectedStateId, setSelectedStateId] = useState<number | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -34,7 +90,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     email: '',
     city: '',
     state: '',
-    country: 'Mexico',
+    country: DEFAULT_COUNTRY_NAME,
     is_active: true,
     short_description: '',
     description: '',
@@ -63,6 +119,8 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
   const [logo, setLogo] = useState<File | null>(null);
   const [aboutImage, setAboutImage] = useState<File | null>(null);
 
+  const inputClassName = "h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500";
+
   useEffect(() => {
     // Check if supplier already exists for this user to avoid 500 Duplicate Key errors
     const checkExisting = async () => {
@@ -73,9 +131,9 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        let data = await res.json();
-        let items = Array.isArray(data) ? data : data.items || [];
-        let existing = items.find((s: any) => Number(s.user_id) === Number(userId));
+        let data: unknown = await res.json();
+        let items = pickSupplierItems(data);
+        let existing = items.find((supplier) => Number(supplier.user_id) === Number(userId));
 
         if (!existing) {
              // Fallback to fetching list with higher limit
@@ -84,8 +142,8 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
              });
              if (res.ok) {
                 data = await res.json();
-                items = Array.isArray(data) ? data : data.items || [];
-                existing = items.find((s: any) => Number(s.user_id) === Number(userId));
+                items = pickSupplierItems(data);
+                existing = items.find((supplier) => Number(supplier.user_id) === Number(userId));
              }
         }
           
@@ -101,6 +159,100 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     checkExisting();
   }, [userId, token, onSuccess]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadCountries = async () => {
+      setCatalogLoading((prev) => ({ ...prev, countries: true }));
+      try {
+        const items = await supplierCatalogService.countries();
+        if (!active) return;
+        const countryOptions = items.length > 0 ? items : [DEFAULT_COUNTRY_OPTION];
+        setCountries(countryOptions);
+        setCatalogError(null);
+        const defaultCountry = countryOptions.find((item) => item.name.toLowerCase() === DEFAULT_COUNTRY_NAME.toLowerCase()) ?? DEFAULT_COUNTRY_OPTION;
+        setSelectedCountryId(defaultCountry.id);
+        setFormData((prev) => ({ ...prev, country: defaultCountry.name }));
+      } catch (e) {
+        console.error("Error loading supplier countries", e);
+        if (active) {
+          setCountries([DEFAULT_COUNTRY_OPTION]);
+          setSelectedCountryId(DEFAULT_COUNTRY_ID);
+          setFormData((prev) => ({ ...prev, country: DEFAULT_COUNTRY_NAME }));
+          setCatalogError(null);
+        }
+      } finally {
+        if (active) setCatalogLoading((prev) => ({ ...prev, countries: false }));
+      }
+    };
+
+    loadCountries();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCountryId) {
+      setStates([]);
+      setCities([]);
+      return;
+    }
+
+    let active = true;
+
+    const loadStates = async () => {
+      setCatalogLoading((prev) => ({ ...prev, states: true }));
+      try {
+        const items = await supplierCatalogService.states(selectedCountryId);
+        if (!active) return;
+        setStates(items);
+        if (items.length === 0) setCatalogError("No encontramos estados para el país seleccionado.");
+      } catch (e) {
+        console.error("Error loading supplier states", e);
+        if (active) setStates([]);
+        if (active) setCatalogError("No pudimos cargar los estados.");
+      } finally {
+        if (active) setCatalogLoading((prev) => ({ ...prev, states: false }));
+      }
+    };
+
+    loadStates();
+    return () => {
+      active = false;
+    };
+  }, [selectedCountryId]);
+
+  useEffect(() => {
+    if (!selectedStateId) {
+      setCities([]);
+      return;
+    }
+
+    let active = true;
+
+    const loadCities = async () => {
+      setCatalogLoading((prev) => ({ ...prev, cities: true }));
+      try {
+        const items = await supplierCatalogService.cities(selectedStateId);
+        if (!active) return;
+        setCities(items);
+        if (items.length === 0) setCatalogError("No encontramos ciudades para el estado seleccionado.");
+      } catch (e) {
+        console.error("Error loading supplier cities", e);
+        if (active) setCities([]);
+        if (active) setCatalogError("No pudimos cargar las ciudades.");
+      } finally {
+        if (active) setCatalogLoading((prev) => ({ ...prev, cities: false }));
+      }
+    };
+
+    loadCities();
+    return () => {
+      active = false;
+    };
+  }, [selectedStateId]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const target = e.target;
     const value = target.type === 'checkbox' ? (target as HTMLInputElement).checked : target.value;
@@ -115,10 +267,40 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     setFormData({ ...formData, [target.name]: value });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (f: File | null) => void) => {
-    if (e.target.files && e.target.files[0]) {
-      setter(e.target.files[0]);
-    }
+  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const rawCountryId = e.target.value;
+    const countryId = Number(rawCountryId);
+    const country = countries.find((item) => item.id === countryId);
+    setCatalogError(null);
+    setSelectedCountryId(rawCountryId && Number.isFinite(countryId) ? countryId : null);
+    setSelectedStateId(null);
+    setStates([]);
+    setCities([]);
+    setFormData((prev) => ({
+      ...prev,
+      country: country?.name ?? "",
+      state: "",
+      city: "",
+    }));
+  };
+
+  const handleStateSelectChange = (state: SupplierCatalogOption | null) => {
+    setCatalogError(null);
+    setSelectedStateId(state?.id ?? null);
+    setCities([]);
+    setFormData((prev) => ({
+      ...prev,
+      state: state?.name ?? "",
+      city: "",
+    }));
+  };
+
+  const handleCitySelectChange = (city: SupplierCatalogOption | null) => {
+    setCatalogError(null);
+    setFormData((prev) => ({
+      ...prev,
+      city: city?.name ?? "",
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -249,7 +431,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
       });
 
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
+        const errData: ErrorPayload = await response.json().catch(() => ({}));
         let errorMessage = `Error ${response.status}: ${response.statusText}`;
         
         if (errData.detail) {
@@ -257,7 +439,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                 errorMessage = errData.detail;
             } else if (Array.isArray(errData.detail)) {
                 // Pydantic/FastAPI validation errors
-                errorMessage = errData.detail.map((err: any) => `${err.loc.join('.')} : ${err.msg}`).join(', ');
+                errorMessage = errData.detail.map((err) => `${err.loc?.join('.') ?? 'campo'} : ${err.msg ?? 'valor inválido'}`).join(', ');
             } else {
                 errorMessage = JSON.stringify(errData.detail);
             }
@@ -277,9 +459,9 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
       const result = await response.json();
       onSuccess(result.id);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error submitting supplier:", err);
-      setError(err.message || "Ocurrió un error inesperado");
+      setError(err instanceof Error ? err.message : "Ocurrió un error inesperado");
       setLoading(false);
     }
   };
@@ -417,39 +599,57 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
           {/* Right Column: Address */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Ubicación</h3>
+            {catalogError ? (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {catalogError}
+              </p>
+            ) : null}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">País</label>
-                <input 
-                  type="text" 
-                  name="country" 
-                  value={formData.country} 
-                  onChange={handleChange} 
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
-                />
+                <select
+                  name="country"
+                  value={selectedCountryId ?? ""}
+                  onChange={handleCountryChange}
+                  disabled={catalogLoading.countries}
+                  className={inputClassName}
+                >
+                  <option value="">{catalogLoading.countries ? "Cargando países..." : "Selecciona un país"}</option>
+                  {countries.map((country) => (
+                    <option key={country.id} value={country.id}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                  <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                 <input 
-                   type="text" 
-                   name="state" 
-                   value={formData.state} 
-                   onChange={handleChange} 
-                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                 <SearchableSelect
+                   id="wizard-supplier-state"
+                   value={states.find((state) => state.id === selectedStateId) ?? null}
+                   options={states}
+                   onChange={handleStateSelectChange}
+                   placeholder={catalogLoading.states ? "Cargando estados..." : selectedCountryId ? "Selecciona un estado" : "Selecciona un país primero"}
+                   searchPlaceholder="Buscar estado..."
+                   emptyLabel="No hay estados"
+                   disabled={!selectedCountryId || catalogLoading.states}
                  />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
-                <input 
-                  type="text" 
-                  name="city" 
-                  value={formData.city} 
-                  onChange={handleChange} 
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                <SearchableSelect
+                  id="wizard-supplier-city"
+                  value={cities.find((city) => normalizeCatalogText(city.name) === normalizeCatalogText(formData.city)) ?? null}
+                  options={cities}
+                  onChange={handleCitySelectChange}
+                  placeholder={catalogLoading.cities ? "Cargando ciudades..." : selectedStateId ? "Selecciona una ciudad" : "Selecciona un estado primero"}
+                  searchPlaceholder="Buscar ciudad..."
+                  emptyLabel="No hay ciudades"
+                  disabled={!selectedStateId || catalogLoading.cities}
                 />
               </div>
                <div>

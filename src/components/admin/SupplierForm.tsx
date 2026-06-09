@@ -8,11 +8,19 @@ import { fetchWithAuth } from "@/lib/api";
 import { loadGoogleMaps, parseMapLocation, type LatLngLiteral } from "@/lib/googleMaps";
 import FileUpload from "@/components/ui/FileUpload";
 import MapPicker from "@/components/ui/MapPicker";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Toast } from "@/components/ui/Toast";
+import { supplierCatalogService, type SupplierCatalogOption } from "@/services/supplierCatalogService";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
 
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
+const DEFAULT_COUNTRY_ID = 1;
+const DEFAULT_COUNTRY_NAME = "Mexico";
+const DEFAULT_COUNTRY_OPTION: SupplierCatalogOption = {
+  id: DEFAULT_COUNTRY_ID,
+  name: DEFAULT_COUNTRY_NAME,
+};
 
 const pasteAsPlainText = (event: ClipboardEvent<HTMLDivElement>) => {
   const text = event.clipboardData.getData("text/plain");
@@ -75,6 +83,14 @@ function formText(value: unknown, fallback = "") {
   if (typeof value !== "string") return fallback;
   const trimmed = value.trim();
   return trimmed.toLowerCase() === "string" ? "" : trimmed;
+}
+
+function normalizeCatalogText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 }
 
 const apiUrl = (path: string) => {
@@ -450,6 +466,18 @@ export default function SupplierForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [mapSearchQuery] = useState("");
+  const [catalogLoading, setCatalogLoading] = useState({
+    countries: false,
+    states: false,
+    cities: false,
+  });
+  const [countries, setCountries] = useState<SupplierCatalogOption[]>([DEFAULT_COUNTRY_OPTION]);
+  const [states, setStates] = useState<SupplierCatalogOption[]>([]);
+  const [cities, setCities] = useState<SupplierCatalogOption[]>([]);
+  const [selectedCountryId, setSelectedCountryId] = useState<number | null>(DEFAULT_COUNTRY_ID);
+  const [selectedStateId, setSelectedStateId] = useState<number | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const inputClassName = "h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500";
 
   useEffect(() => {
     setLogoPreviewUrl(initialData?.logo || initialData?.logo_url || null);
@@ -465,6 +493,129 @@ export default function SupplierForm({
     console.log("[SupplierForm] initialData.map_location parsed:", parsed);
     setMapLocation(parsed);
   }, [initialData]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCountries = async () => {
+      setCatalogLoading((prev) => ({ ...prev, countries: true }));
+      try {
+        const items = await supplierCatalogService.countries();
+        if (!active) return;
+
+        const countryOptions = items.length > 0 ? items : [DEFAULT_COUNTRY_OPTION];
+        setCountries(countryOptions);
+        const currentCountry = formText(initialData?.country, DEFAULT_COUNTRY_NAME) || DEFAULT_COUNTRY_NAME;
+        const selectedCountry =
+          countryOptions.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(currentCountry)) ??
+          countryOptions.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(DEFAULT_COUNTRY_NAME)) ??
+          DEFAULT_COUNTRY_OPTION;
+
+        setSelectedCountryId(selectedCountry.id);
+        setFormData((prev) => ({ ...prev, country: selectedCountry.name }));
+        setCatalogError(null);
+      } catch (error) {
+        console.error("Error loading supplier countries", error);
+        if (active) {
+          setCountries([DEFAULT_COUNTRY_OPTION]);
+          setSelectedCountryId(DEFAULT_COUNTRY_ID);
+          setFormData((prev) => ({ ...prev, country: DEFAULT_COUNTRY_NAME }));
+          setCatalogError(null);
+        }
+      } finally {
+        if (active) setCatalogLoading((prev) => ({ ...prev, countries: false }));
+      }
+    };
+
+    loadCountries();
+    return () => {
+      active = false;
+    };
+  }, [initialData?.country]);
+
+  useEffect(() => {
+    if (!selectedCountryId) {
+      setStates([]);
+      setCities([]);
+      return;
+    }
+
+    let active = true;
+
+    const loadStates = async () => {
+      setCatalogLoading((prev) => ({ ...prev, states: true }));
+      try {
+        const items = await supplierCatalogService.states(selectedCountryId);
+        if (!active) return;
+
+        setStates(items);
+        const selectedState = formData.state
+          ? items.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(formData.state))
+          : null;
+
+        if (selectedState) {
+          setSelectedStateId(selectedState.id);
+          setFormData((prev) => ({ ...prev, state: selectedState.name }));
+        } else if (items.length === 0) {
+          setCatalogError("No encontramos estados para el país seleccionado.");
+        }
+      } catch (error) {
+        console.error("Error loading supplier states", error);
+        if (active) {
+          setStates([]);
+          setCatalogError("No pudimos cargar los estados.");
+        }
+      } finally {
+        if (active) setCatalogLoading((prev) => ({ ...prev, states: false }));
+      }
+    };
+
+    loadStates();
+    return () => {
+      active = false;
+    };
+  }, [selectedCountryId, formData.state]);
+
+  useEffect(() => {
+    if (!selectedStateId) {
+      setCities([]);
+      return;
+    }
+
+    let active = true;
+
+    const loadCities = async () => {
+      setCatalogLoading((prev) => ({ ...prev, cities: true }));
+      try {
+        const items = await supplierCatalogService.cities(selectedStateId);
+        if (!active) return;
+
+        setCities(items);
+        const selectedCity = formData.city
+          ? items.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(formData.city))
+          : null;
+
+        if (selectedCity) {
+          setFormData((prev) => ({ ...prev, city: selectedCity.name }));
+        } else if (items.length === 0) {
+          setCatalogError("No encontramos ciudades para el estado seleccionado.");
+        }
+      } catch (error) {
+        console.error("Error loading supplier cities", error);
+        if (active) {
+          setCities([]);
+          setCatalogError("No pudimos cargar las ciudades.");
+        }
+      } finally {
+        if (active) setCatalogLoading((prev) => ({ ...prev, cities: false }));
+      }
+    };
+
+    loadCities();
+    return () => {
+      active = false;
+    };
+  }, [selectedStateId, formData.city]);
 
   const buildMapAddressQuery = () => {
     const street = String(formData.address || "").trim();
@@ -566,6 +717,38 @@ export default function SupplierForm({
       }
       return { ...prev, [name]: val };
     });
+  };
+
+  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const countryId = Number(e.target.value);
+    const country = countries.find((item) => item.id === countryId);
+    setCatalogError(null);
+    setSelectedCountryId(e.target.value && Number.isFinite(countryId) ? countryId : null);
+    setSelectedStateId(null);
+    setStates([]);
+    setCities([]);
+    setFormData((prev) => ({
+      ...prev,
+      country: country?.name ?? "",
+      state: "",
+      city: "",
+    }));
+  };
+
+  const handleStateSelectChange = (state: SupplierCatalogOption | null) => {
+    setCatalogError(null);
+    setSelectedStateId(state?.id ?? null);
+    setCities([]);
+    setFormData((prev) => ({
+      ...prev,
+      state: state?.name ?? "",
+      city: "",
+    }));
+  };
+
+  const handleCitySelectChange = (city: SupplierCatalogOption | null) => {
+    setCatalogError(null);
+    setFormData((prev) => ({ ...prev, city: city?.name ?? "" }));
   };
 
   const handleLogoChange = (file: File | null) => {
@@ -990,43 +1173,49 @@ export default function SupplierForm({
             </div>
           ) : null}
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
-                      <input
-                          type="text"
-                          value={accessUser.name}
-                          onChange={e => setAccessUser({ name: e.target.value })}
-                          required
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Nombre del usuario"
-                      />
-                  </div>
-                  <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                      <input
-                          type="email"
-                          value={accessUser.email}
-                          onChange={e => setAccessUser({ email: e.target.value })}
-                          required
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="usuario@ejemplo.com"
-                      />
-                  </div>
-                  <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Contraseña {isEditMode ? <span className="font-normal text-gray-500">(opcional)</span> : null}
-                      </label>
-                      <input
-                          type="password"
-                          value={accessUser.password}
-                          onChange={e => setAccessUser({ password: e.target.value })}
-                          required={!isEditMode}
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder={isEditMode ? "Dejar en blanco para no cambiarla" : "Contraseña segura"}
-                      />
-                  </div>
+	          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
+                <input
+                  type="text"
+                  name="supplier_access_full_name"
+                  autoComplete="off"
+                  value={accessUser.name}
+                  onChange={e => setAccessUser({ name: e.target.value })}
+                  required
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nombre del usuario"
+                />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  name="supplier_access_email"
+                  autoComplete="off"
+                  value={accessUser.email}
+                  onChange={e => setAccessUser({ email: e.target.value })}
+                  required
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="usuario@ejemplo.com"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Contraseña {isEditMode ? <span className="font-normal text-gray-500">(opcional)</span> : null}
+                </label>
+                <input
+                  type="password"
+                  name="supplier_access_password"
+                  autoComplete="new-password"
+                  value={accessUser.password}
+                  onChange={e => setAccessUser({ password: e.target.value })}
+                  required={!isEditMode}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder={isEditMode ? "Dejar en blanco para no cambiarla" : "Contraseña segura"}
+                />
+              </div>
+            </div>
         </div>
       )}
 
@@ -1235,39 +1424,57 @@ export default function SupplierForm({
         {/* Right Column: Address */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Ubicación</h3>
+          {catalogError ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {catalogError}
+            </p>
+          ) : null}
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">País</label>
-              <input
-                type="text"
+              <select
                 name="country"
-                value={formData.country}
-                onChange={handleInputChange}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
+                value={selectedCountryId ?? ""}
+                onChange={handleCountryChange}
+                disabled={catalogLoading.countries}
+                className={inputClassName}
+              >
+                <option value="">{catalogLoading.countries ? "Cargando países..." : "Selecciona un país"}</option>
+                {countries.map((country) => (
+                  <option key={country.id} value={country.id}>
+                    {country.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-              <input
-                type="text"
-                name="state"
-                value={formData.state}
-                onChange={handleInputChange}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              <SearchableSelect
+                id="supplier-state"
+                value={states.find((state) => state.id === selectedStateId) ?? null}
+                options={states}
+                onChange={handleStateSelectChange}
+                placeholder={catalogLoading.states ? "Cargando estados..." : selectedCountryId ? "Selecciona un estado" : "Selecciona un país primero"}
+                searchPlaceholder="Buscar estado..."
+                emptyLabel="No hay estados"
+                disabled={!selectedCountryId || catalogLoading.states}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
-              <input
-                type="text"
-                name="city"
-                value={formData.city}
-                onChange={handleInputChange}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              <SearchableSelect
+                id="supplier-city"
+                value={cities.find((city) => normalizeCatalogText(city.name) === normalizeCatalogText(formData.city)) ?? null}
+                options={cities}
+                onChange={handleCitySelectChange}
+                placeholder={catalogLoading.cities ? "Cargando ciudades..." : selectedStateId ? "Selecciona una ciudad" : "Selecciona un estado primero"}
+                searchPlaceholder="Buscar ciudad..."
+                emptyLabel="No hay ciudades"
+                disabled={!selectedStateId || catalogLoading.cities}
               />
             </div>
             <div>

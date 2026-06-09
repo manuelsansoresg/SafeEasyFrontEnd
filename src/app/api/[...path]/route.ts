@@ -159,7 +159,7 @@ async function handler(request: NextRequest) {
           'events', 'purchase', 'payments', 'refresh', 'device-token', 
           'recommendations', 'similar', 'by-supplier', 'featured', 
           'recommended', 'media', 'dashboard', 'legal', 'sell-faq',
-          'settings'
+          'settings', 'results', 'countries', 'states', 'cities', 'catalogs'
       ];
       
       // Admin endpoints should NOT have trailing slashes

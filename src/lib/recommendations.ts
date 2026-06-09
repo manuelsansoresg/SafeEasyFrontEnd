@@ -1,6 +1,6 @@
 import { Product } from "./products";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+import { fetchWithAuth } from "@/lib/api";
+import { getDeviceId } from "@/utils/device";
 
 export interface RecommendationsParams {
   skip?: number;
@@ -13,6 +13,16 @@ export interface RecommendationsParams {
   search?: string;
   location?: { latitude?: number | null; longitude?: number | null; city?: string | null; state?: string | null } | null;
 }
+
+const unwrapProducts = (data: unknown): Product[] => {
+  if (Array.isArray(data)) return data as Product[];
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    const items = record.items ?? record.results ?? record.products ?? record.data;
+    if (Array.isArray(items)) return items as Product[];
+  }
+  return [];
+};
 
 export async function getRecommendations(params: RecommendationsParams): Promise<Product[]> {
   const queryParams = new URLSearchParams();
@@ -49,18 +59,26 @@ export async function getRecommendations(params: RecommendationsParams): Promise
   }
 
   try {
-    console.log("🔍 Fetching recommendations with params:", queryParams.toString());
-    console.log("📍 Reco Location param sent:", queryParams.get("location") || "None");
-    const response = await fetch(`${API_BASE_URL}/interactions/recommendations?${queryParams.toString()}`);
+    const deviceId = getDeviceId();
+    const url = `/api/products/results?${queryParams.toString()}`;
+
+    console.log("🔍 Fetching product results with params:", queryParams.toString());
+    console.log("📍 Results location param sent:", queryParams.get("location") || "None");
+    const response = await fetchWithAuth(url, {
+      headers: {
+        Accept: "application/json",
+        ...(deviceId ? { "X-Device-ID": deviceId } : {}),
+      },
+    });
     
     if (!response.ok) {
-      throw new Error(`Error fetching recommendations: ${response.statusText}`);
+      throw new Error(`Error fetching product results: ${response.statusText}`);
     }
 
     const data = await response.json();
-    return data;
+    return unwrapProducts(data);
   } catch (error) {
-    console.error("Failed to fetch recommendations:", error);
+    console.error("Failed to fetch product results:", error);
     return [];
   }
 }

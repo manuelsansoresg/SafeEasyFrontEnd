@@ -184,7 +184,7 @@ export default function SubcategoryForm({ initialData }: SubcategoryFormProps) {
           <label className="text-sm font-medium text-gray-700">Categoría Principal</label>
           <select
             required
-            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none bg-white"
+            className="h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
             value={formData.category_id}
             onChange={(e) => setFormData({ ...formData, category_id: Number(e.target.value) })}
           >

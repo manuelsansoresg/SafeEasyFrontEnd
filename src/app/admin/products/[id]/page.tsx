@@ -25,6 +25,19 @@ interface Product {
   thumbnail_url?: string;
 }
 
+const EDIT_PRODUCT_CACHE_KEY = "admin-edit-product";
+
+function unwrapProducts(data: unknown): Product[] {
+  if (Array.isArray(data)) return data as Product[];
+  if (!data || typeof data !== "object") return [];
+  const record = data as Record<string, unknown>;
+  const candidates = [record.items, record.results, record.data, record.products];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate as Product[];
+  }
+  return [];
+}
+
 export default function EditProductPage() {
   const params = useParams();
   const id = params.id;
@@ -56,13 +69,38 @@ export default function EditProductPage() {
           return item;
         };
 
+        const readCachedProduct = () => {
+          try {
+            const raw = window.sessionStorage.getItem(EDIT_PRODUCT_CACHE_KEY);
+            if (!raw) return null;
+            const cached = JSON.parse(raw) as Product;
+            const matches = String(cached.id) === String(id) || String(cached.slug) === String(id);
+            return matches ? cached : null;
+          } catch {
+            return null;
+          }
+        };
+
         // Try to fetch specific product first
-        const response = await fetchWithAuth(`/api/products/${id}/`);
+        const encodedId = encodeURIComponent(String(id));
+        let response: Response | null = null;
+        const detailUrls = [
+          `/api/products/${encodedId}`,
+          `/api/products/${encodedId}/`,
+        ];
+
+        for (const url of detailUrls) {
+          response = await fetchWithAuth(url);
+          if (response.ok) break;
+        }
         
-        if (response.ok) {
+        if (response?.ok) {
           const data = await response.json();
           const allowedProduct = assertCanEdit(data);
-          if (allowedProduct) setProduct(allowedProduct);
+          if (allowedProduct) {
+            setProduct(allowedProduct);
+            return;
+          }
         } else {
             console.warn(`Direct fetch failed (${response.status}), trying fallback via list...`);
             
@@ -74,15 +112,7 @@ export default function EditProductPage() {
 
             if (listResponse.ok) {
                 const listData = await listResponse.json();
-                const listItems: Product[] = Array.isArray(listData)
-                    ? listData
-                    : Array.isArray(listData?.items)
-                      ? listData.items
-                      : Array.isArray(listData?.results)
-                        ? listData.results
-                        : Array.isArray(listData?.data)
-                          ? listData.data
-                          : [];
+                const listItems = unwrapProducts(listData);
                 const found = listItems.length > 0
                     ? listItems.find((p: Product) => String(p.id) === String(id) || String(p.slug) === String(id))
                     : null;
@@ -96,6 +126,12 @@ export default function EditProductPage() {
                 }
             } else {
                 console.warn(`Fallback list fetch failed: ${listResponse.status}`);
+            }
+
+            const cachedProduct = assertCanEdit(readCachedProduct());
+            if (cachedProduct) {
+              setProduct(cachedProduct);
+              return;
             }
 
             // If we are here, both direct and fallback failed.

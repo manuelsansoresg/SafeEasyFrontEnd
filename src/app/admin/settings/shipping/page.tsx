@@ -223,7 +223,7 @@ export default function ShippingSettingsPage() {
               <select
                 value={commissionType}
                 onChange={(e) => setCommissionType(e.target.value === "fixed" ? "fixed" : "percentage")}
-                className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none bg-white"
+                className="h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               >
                 <option value="percentage">Porcentaje</option>
                 <option value="fixed">Valor fijo</option>

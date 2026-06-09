@@ -210,7 +210,7 @@ export default function AdminSubcategoriesPage() {
                 setSelectedCategoryId(e.target.value);
                 setSkip(0);
               }}
-              className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-2 pr-10 text-sm text-gray-700 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 pr-10 text-sm text-gray-700 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="">Todas las categorías</option>
               {categoryOptions.map((category) => (

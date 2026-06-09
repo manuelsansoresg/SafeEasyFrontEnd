@@ -21,6 +21,8 @@ import { Toast } from "@/components/ui/Toast";
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
 const MAX_IMAGES = 6; // Variable para controlar el número máximo de imágenes
+const fieldClassName = "h-11 w-full rounded-xl border border-gray-200 px-4 text-gray-900 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+const selectClassName = `${fieldClassName} bg-white`;
 
 const pasteAsPlainText = (event: ClipboardEvent<HTMLDivElement>) => {
   const text = event.clipboardData.getData("text/plain");
@@ -546,7 +548,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
               required
               value={formData.sku}
               onChange={handleInputChange}
-              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              className={fieldClassName}
             />
           </div>
 
@@ -562,7 +564,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                 step="0.01"
                 value={formData.price}
                 onChange={handleInputChange}
-                className="w-full pl-8 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                className="h-11 w-full rounded-xl border border-gray-200 pl-8 pr-4 text-gray-900 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
           </div>
@@ -577,21 +579,21 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
               step="1"
               value={formData.stock}
               onChange={handleInputChange}
-              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              className={fieldClassName}
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Proveedor *</label>
             <div className="flex gap-2">
-              <div className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-700 truncate">
+              <div className="flex h-11 flex-1 items-center rounded-xl border border-gray-200 bg-gray-50 px-4 text-gray-700 truncate">
                 {selectedSupplierDisplay || <span className="text-gray-400">Seleccionar proveedor...</span>}
               </div>
               {isAdminUser ? (
                 <button
                   type="button"
                   onClick={() => setIsSupplierModalOpen(true)}
-                  className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
+                  className="h-11 rounded-xl bg-gray-100 px-4 text-gray-600 transition-colors hover:bg-gray-200"
                 >
                   Buscar
                 </button>
@@ -606,7 +608,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
               required
               value={formData.category_id || ""}
               onChange={handleInputChange}
-              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white"
+              className={selectClassName}
             >
               <option value="">Seleccionar categoría</option>
               {categories.map(cat => (
@@ -623,7 +625,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
               value={formData.subcategory_id || ""}
               onChange={handleInputChange}
               disabled={!formData.category_id}
-              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white disabled:bg-gray-50 disabled:text-gray-400"
+              className={`${selectClassName} disabled:bg-gray-50 disabled:text-gray-400`}
             >
               <option value="">Seleccionar subcategoría</option>
               {subcategories.map(sub => (

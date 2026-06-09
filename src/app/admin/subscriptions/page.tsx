@@ -187,7 +187,7 @@ export default function AdminSubscriptionsPage() {
 
           <div className="flex items-center gap-3">
             <select
-              className="px-4 py-2 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              className="h-11 rounded-xl border border-gray-200 bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as "" | "active" | "expired")}
             >

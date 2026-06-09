@@ -44,6 +44,8 @@ function unwrapProducts(data: unknown): Product[] {
   return [];
 }
 
+const EDIT_PRODUCT_CACHE_KEY = "admin-edit-product";
+
 export default function AdminProductsPage() {
   const { token, user } = useAuthStore();
   const isAdminUser = isAdminRole(user?.role);
@@ -164,6 +166,14 @@ export default function AdminProductsPage() {
     }
   };
 
+  const cacheProductForEdit = (product: Product) => {
+    try {
+      window.sessionStorage.setItem(EDIT_PRODUCT_CACHE_KEY, JSON.stringify(product));
+    } catch {
+      // If sessionStorage is unavailable, the edit page will use its API fallbacks.
+    }
+  };
+
   return (
     <div className="space-y-6">
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
@@ -265,7 +275,8 @@ export default function AdminProductsPage() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Link 
-                            href={`/admin/products/${product.id}`}
+                            href={`/admin/products/${product.slug || product.id}`}
+                            onClick={() => cacheProductForEdit(product)}
                             className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                             title="Editar"
                           >
@@ -347,7 +358,8 @@ export default function AdminProductsPage() {
 
                       <div className="mt-3 flex justify-end gap-2">
                         <Link
-                          href={`/admin/products/${product.id}`}
+                          href={`/admin/products/${product.slug || product.id}`}
+                          onClick={() => cacheProductForEdit(product)}
                           className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-primary/5 hover:text-primary"
                           title="Editar"
                         >
