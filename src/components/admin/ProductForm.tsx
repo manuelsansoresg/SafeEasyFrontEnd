@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ClipboardEvent } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
@@ -21,6 +21,13 @@ import { Toast } from "@/components/ui/Toast";
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
 const MAX_IMAGES = 6; // Variable para controlar el número máximo de imágenes
+
+const pasteAsPlainText = (event: ClipboardEvent<HTMLDivElement>) => {
+  const text = event.clipboardData.getData("text/plain");
+  if (!text) return;
+  event.preventDefault();
+  document.execCommand("insertText", false, text);
+};
 
 // --- Interfaces ---
 
@@ -511,7 +518,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
           <div className="col-span-2 space-y-2">
             <label className="text-sm font-medium text-gray-700">Descripción *</label>
-            <div className="bg-white">
+            <div className="bg-white" onPasteCapture={pasteAsPlainText}>
                 <ReactQuill 
                   theme="snow"
                   value={formData.description} 
