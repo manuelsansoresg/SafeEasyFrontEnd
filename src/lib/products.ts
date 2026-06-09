@@ -38,6 +38,8 @@ export interface Supplier {
   is_active: boolean;
   is_verified?: boolean;
   about: string | null;
+  title_about?: string | null;
+  subtitle_about?: string | null;
   short_description: string | null;
   description: string | null;
   address: string | null;

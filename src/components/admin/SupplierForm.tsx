@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ClipboardEvent } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2, CheckCircle, Users, Store, Truck } from "lucide-react";
@@ -13,6 +13,13 @@ import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
 
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
+
+const pasteAsPlainText = (event: ClipboardEvent<HTMLDivElement>) => {
+  const text = event.clipboardData.getData("text/plain");
+  if (!text) return;
+  event.preventDefault();
+  document.execCommand("insertText", false, text);
+};
 
 interface Supplier {
   id: number;
@@ -40,6 +47,8 @@ interface Supplier {
   logo?: string;
   logo_url?: string;
   about?: string;
+  title_about?: string;
+  subtitle_about?: string;
   about_media?: string;
   about_media_url?: string;
   about_image?: string;
@@ -408,6 +417,8 @@ export default function SupplierForm({
     cp: formText(initialData?.cp) || formText(initialData?.zip_code),
     cross_street_1: formText(initialData?.cross_street_1),
     cross_street_2: formText(initialData?.cross_street_2),
+    title_about: formText(initialData?.title_about),
+    subtitle_about: formText(initialData?.subtitle_about),
     about: formText(initialData?.about),
     transfer_accepted: initialData?.transfer_accepted || false,
     transfer_clabe: formText(initialData?.transfer_clabe),
@@ -786,6 +797,8 @@ export default function SupplierForm({
         appendIfPresent("cp", formData.cp);
         appendIfPresent("cross_street_1", formData.cross_street_1);
         appendIfPresent("cross_street_2", formData.cross_street_2);
+        appendIfPresent("title_about", formData.title_about);
+        appendIfPresent("subtitle_about", formData.subtitle_about);
         appendIfPresent("about", formData.about);
         data.append("accepts_delivery", String(formData.accepts_delivery));
         data.append("accepts_pickup", String(formData.accepts_pickup));
@@ -1367,7 +1380,7 @@ export default function SupplierForm({
 
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Completa (HTML)</label>
-            <div className="border border-gray-300 rounded-md overflow-hidden bg-white">
+            <div className="border border-gray-300 rounded-md overflow-hidden bg-white" onPasteCapture={pasteAsPlainText}>
               <ReactQuill
                 theme="snow"
                 value={formData.description}
@@ -1381,20 +1394,48 @@ export default function SupplierForm({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sobre Nosotros (Historia, HTML)</label>
-            <div className="border border-gray-300 rounded-md overflow-hidden bg-white">
-              <ReactQuill
-                theme="snow"
-                value={formData.about}
-                onChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    about: value,
-                  }))
-                }
-              />
-            </div>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
+              <h4 className="mb-4 text-sm font-semibold text-[#004e28]">Sobre Nosotros</h4>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                  <input
+                    type="text"
+                    name="title_about"
+                    value={formData.title_about}
+                    onChange={handleInputChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="Ej. Más que un proveedor"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subtítulo</label>
+                  <input
+                    type="text"
+                    name="subtitle_about"
+                    value={formData.subtitle_about}
+                    onChange={handleInputChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="Ej. Tu aliado estratégico"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Historia (HTML)</label>
+                <div className="border border-gray-300 rounded-md overflow-hidden bg-white" onPasteCapture={pasteAsPlainText}>
+                  <ReactQuill
+                    theme="snow"
+                    value={formData.about}
+                    onChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        about: value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">

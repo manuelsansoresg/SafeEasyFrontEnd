@@ -991,8 +991,9 @@ export default function SupplierPage() {
                     
                     <div className="order-1 md:order-2">
                         <h2 className="text-3xl md:text-5xl font-black text-[#004e28] mb-8 font-[family-name:var(--font-varela-round)] leading-tight">
-                            Más que un proveedor,<br/>
-                            <span className="text-[#168e00]">tu aliado estratégico.</span>
+                            {supplier.title_about || "Más que un proveedor,"}
+                            <br/>
+                            <span className="text-[#168e00]">{supplier.subtitle_about || "tu aliado estratégico."}</span>
                         </h2>
                         <div className="text-gray-600 w-full">
                           <div className="ql-snow w-full">
@@ -1006,6 +1007,7 @@ export default function SupplierPage() {
                           </div>
                         </div>
                          
+                         {supplier.is_verified ? (
                          <div className="mt-10 flex items-center gap-4">
                              <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-[#168e00] shadow-md">
                                  <Award size={32} />
@@ -1015,6 +1017,7 @@ export default function SupplierPage() {
                                   <p className="text-sm text-gray-500">Verificado por Drooopy</p>
                              </div>
                          </div>
+                         ) : null}
                      </div>
                  </div>
              </div>
