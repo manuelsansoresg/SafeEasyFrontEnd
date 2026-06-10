@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { LatLngLiteral, loadGoogleMaps } from "@/lib/googleMaps";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 
 type Props = {
   location?: LatLngLiteral | null;
@@ -12,6 +12,7 @@ type Props = {
   height?: string;
   zoom?: number;
   className?: string;
+  addressLabel?: string;
 };
 
 type RemovableListener = { remove?: () => void };
@@ -49,6 +50,7 @@ export default function GoogleMapPicker({
   height = "300px",
   zoom = 15,
   className,
+  addressLabel,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,6 +62,7 @@ export default function GoogleMapPicker({
   const onChangeRef = useRef<Props["onChange"]>(onChange);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [query, setQuery] = useState(() => addressLabel?.trim() || "");
 
   const defaultCenter = useMemo<LatLngLiteral>(() => {
     return { lat: 20.96737, lng: -89.592585 };
@@ -68,6 +71,10 @@ export default function GoogleMapPicker({
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    setQuery(addressLabel?.trim() || "");
+  }, [addressLabel]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,6 +115,7 @@ export default function GoogleMapPicker({
             const lat = Number(loc.lat?.());
             const lng = Number(loc.lng?.());
             if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+            setQuery(place.formatted_address || input.value || "");
             onChangeRef.current?.({ lat, lng });
           });
         }
@@ -185,10 +193,26 @@ export default function GoogleMapPicker({
             <input
               ref={inputRef}
               type="text"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar dirección"
-              className="w-full rounded-md border border-gray-300 bg-white px-9 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-10 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
               disabled={!ready || readOnly}
             />
+            {query && !readOnly ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  inputRef.current?.focus();
+                }}
+                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                aria-label="Limpiar dirección"
+                title="Limpiar dirección"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
           </div>
         </div>
         <div ref={containerRef} className="h-full w-full" />

@@ -7,7 +7,24 @@ import { fetchWithAuth } from "@/lib/api";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
 import { PageHero } from "@/components/ui/PageHero";
 import { LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { supplierCatalogService, type SupplierCatalogOption } from "@/services/supplierCatalogService";
 import { Loader2, CheckCircle, Eye, EyeOff, User, Mail, Lock, Shield, Store, ArrowRight } from "lucide-react";
+
+const DEFAULT_COUNTRY_ID = 1;
+const DEFAULT_COUNTRY_NAME = "Mexico";
+const DEFAULT_COUNTRY_OPTION: SupplierCatalogOption = {
+  id: DEFAULT_COUNTRY_ID,
+  name: DEFAULT_COUNTRY_NAME,
+};
+
+function normalizeCatalogText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
 
 export default function ProfilePage() {
   const { user, token } = useAuthStore();
@@ -35,9 +52,20 @@ export default function ProfilePage() {
     neighborhood: "",
     city: "Mérida",
     state: "Yucatán",
-    country: "México"
+    country: DEFAULT_COUNTRY_NAME
   });
   const [mapLocation, setMapLocation] = useState<LatLngLiteral | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState({
+    countries: false,
+    states: false,
+    cities: false,
+  });
+  const [countries, setCountries] = useState<SupplierCatalogOption[]>([DEFAULT_COUNTRY_OPTION]);
+  const [states, setStates] = useState<SupplierCatalogOption[]>([]);
+  const [cities, setCities] = useState<SupplierCatalogOption[]>([]);
+  const [selectedCountryId, setSelectedCountryId] = useState<number | null>(DEFAULT_COUNTRY_ID);
+  const [selectedStateId, setSelectedStateId] = useState<number | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -74,7 +102,7 @@ export default function ProfilePage() {
           neighborhood: String(data.neighborhood || data.colonia || ""),
           city: String(data.city || "Mérida"),
           state: String(data.state || "Yucatán"),
-          country: String(data.country || "México"),
+          country: String(data.country || DEFAULT_COUNTRY_NAME),
         }));
 
         const loc = parseMapLocation(data.map_location || null);
@@ -89,6 +117,154 @@ export default function ProfilePage() {
 
     fetchProfileData();
   }, [user, token]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCountries = async () => {
+      setCatalogLoading((prev) => ({ ...prev, countries: true }));
+      try {
+        const items = await supplierCatalogService.countries();
+        if (!active) return;
+
+        const countryOptions = items.length > 0 ? items : [DEFAULT_COUNTRY_OPTION];
+        const selectedCountry =
+          countryOptions.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(addressData.country)) ??
+          countryOptions.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(DEFAULT_COUNTRY_NAME)) ??
+          DEFAULT_COUNTRY_OPTION;
+
+        setCountries(countryOptions);
+        setSelectedCountryId(selectedCountry.id);
+        setAddressData((prev) => ({ ...prev, country: selectedCountry.name }));
+        setCatalogError(null);
+      } catch {
+        if (!active) return;
+        setCountries([DEFAULT_COUNTRY_OPTION]);
+        setSelectedCountryId(DEFAULT_COUNTRY_ID);
+        setAddressData((prev) => ({ ...prev, country: DEFAULT_COUNTRY_NAME }));
+        setCatalogError(null);
+      } finally {
+        if (active) setCatalogLoading((prev) => ({ ...prev, countries: false }));
+      }
+    };
+
+    loadCountries();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCountryId) {
+      setStates([]);
+      setCities([]);
+      return;
+    }
+
+    let active = true;
+    const currentState = addressData.state;
+
+    const loadStates = async () => {
+      setCatalogLoading((prev) => ({ ...prev, states: true }));
+      try {
+        const items = await supplierCatalogService.states(selectedCountryId);
+        if (!active) return;
+
+        setStates(items);
+        const selectedState = currentState
+          ? items.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(currentState))
+          : null;
+
+        if (selectedState) {
+          setSelectedStateId(selectedState.id);
+          setAddressData((prev) => ({ ...prev, state: selectedState.name }));
+        }
+        setCatalogError(null);
+      } catch {
+        if (!active) return;
+        setStates([]);
+        setCatalogError("No pudimos cargar los estados.");
+      } finally {
+        if (active) setCatalogLoading((prev) => ({ ...prev, states: false }));
+      }
+    };
+
+    loadStates();
+    return () => {
+      active = false;
+    };
+  }, [selectedCountryId]);
+
+  useEffect(() => {
+    if (!selectedStateId) {
+      setCities([]);
+      return;
+    }
+
+    let active = true;
+    const currentCity = addressData.city;
+
+    const loadCities = async () => {
+      setCatalogLoading((prev) => ({ ...prev, cities: true }));
+      try {
+        const items = await supplierCatalogService.cities(selectedStateId);
+        if (!active) return;
+
+        setCities(items);
+        const selectedCity = currentCity
+          ? items.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(currentCity))
+          : null;
+
+        if (selectedCity) {
+          setAddressData((prev) => ({ ...prev, city: selectedCity.name }));
+        }
+        setCatalogError(null);
+      } catch {
+        if (!active) return;
+        setCities([]);
+        setCatalogError("No pudimos cargar las ciudades.");
+      } finally {
+        if (active) setCatalogLoading((prev) => ({ ...prev, cities: false }));
+      }
+    };
+
+    loadCities();
+    return () => {
+      active = false;
+    };
+  }, [selectedStateId]);
+
+  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const countryId = Number(e.target.value);
+    const country = countries.find((item) => item.id === countryId);
+    setCatalogError(null);
+    setSelectedCountryId(e.target.value && Number.isFinite(countryId) ? countryId : null);
+    setSelectedStateId(null);
+    setStates([]);
+    setCities([]);
+    setAddressData((prev) => ({
+      ...prev,
+      country: country?.name ?? "",
+      state: "",
+      city: "",
+    }));
+  };
+
+  const handleStateSelectChange = (state: SupplierCatalogOption | null) => {
+    setCatalogError(null);
+    setSelectedStateId(state?.id ?? null);
+    setCities([]);
+    setAddressData((prev) => ({
+      ...prev,
+      state: state?.name ?? "",
+      city: "",
+    }));
+  };
+
+  const handleCitySelectChange = (city: SupplierCatalogOption | null) => {
+    setCatalogError(null);
+    setAddressData((prev) => ({ ...prev, city: city?.name ?? "" }));
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -303,39 +479,60 @@ export default function ProfilePage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Ciudad</label>
-                <input
-                  value={addressData.city}
-                  onChange={(e) => setAddressData(prev => ({ ...prev, city: e.target.value }))}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  placeholder="Mérida"
-                />
+                <label className="text-sm font-medium text-gray-700">País</label>
+                <select
+                  value={selectedCountryId ?? ""}
+                  onChange={handleCountryChange}
+                  disabled={catalogLoading.countries}
+                  className="h-11 w-full rounded-xl border border-gray-200 bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+                >
+                  <option value="">{catalogLoading.countries ? "Cargando países..." : "Selecciona un país"}</option>
+                  {countries.map((country) => (
+                    <option key={country.id} value={country.id}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Estado</label>
-                <input
-                  value={addressData.state}
-                  onChange={(e) => setAddressData(prev => ({ ...prev, state: e.target.value }))}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  placeholder="Yucatán"
+                <SearchableSelect
+                  id="profile-state"
+                  value={states.find((state) => state.id === selectedStateId) ?? null}
+                  options={states}
+                  onChange={handleStateSelectChange}
+                  placeholder={catalogLoading.states ? "Cargando estados..." : selectedCountryId ? "Selecciona un estado" : "Selecciona un país primero"}
+                  searchPlaceholder="Buscar estado..."
+                  disabled={!selectedCountryId || catalogLoading.states}
+                  className="rounded-xl border-gray-200 focus:ring-primary/20"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">País</label>
-                <input
-                  value={addressData.country}
-                  onChange={(e) => setAddressData(prev => ({ ...prev, country: e.target.value }))}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  placeholder="México"
+                <label className="text-sm font-medium text-gray-700">Ciudad</label>
+                <SearchableSelect
+                  id="profile-city"
+                  value={cities.find((city) => normalizeCatalogText(city.name) === normalizeCatalogText(addressData.city)) ?? null}
+                  options={cities}
+                  onChange={handleCitySelectChange}
+                  placeholder={catalogLoading.cities ? "Cargando ciudades..." : selectedStateId ? "Selecciona una ciudad" : "Selecciona un estado primero"}
+                  searchPlaceholder="Buscar ciudad..."
+                  disabled={!selectedStateId || catalogLoading.cities}
+                  className="rounded-xl border-gray-200 focus:ring-primary/20"
                 />
               </div>
             </div>
+            {catalogError ? (
+              <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-600">
+                {catalogError}
+              </div>
+            ) : null}
             <div className="pt-2">
               <GoogleMapPicker
                 location={mapLocation}
                 onChange={setMapLocation}
                 height="280px"
                 className="rounded-xl overflow-hidden"
+                addressLabel={addressData.address}
               />
             </div>
           </div>
