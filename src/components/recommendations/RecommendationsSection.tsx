@@ -6,6 +6,7 @@ import { RecommendationsSidebar } from "./RecommendationsSidebar";
 import { getRecommendations, RecommendationsParams } from "@/lib/recommendations";
 import { Product } from "@/lib/products";
 import { Search, Filter } from "lucide-react";
+import { useLocationStore } from "@/store/useLocationStore";
 
 // Simple debounce hook implementation if not present
 function useLocalDebounce<T>(value: T, delay: number): T {
@@ -48,6 +49,7 @@ export function RecommendationsSection({
   const [filterCity, setFilterCity] = useState<string | undefined>();
   const [filterState, setFilterState] = useState<string | undefined>();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const { city, state } = useLocationStore();
   
   const debouncedSearch = useLocalDebounce(search, 500);
 
@@ -87,7 +89,9 @@ export function RecommendationsSection({
       const locationParam =
         filterCity || filterState
           ? { city: filterCity || null, state: filterState || null }
-          : null;
+          : city
+            ? { city, state }
+            : null;
 
       const params: RecommendationsParams = {
           skip: currentSkip,
@@ -121,7 +125,7 @@ export function RecommendationsSection({
   // Reset and fetch when filters change
   useEffect(() => {
     fetchProducts(true);
-  }, [category, subcategory, minPrice, maxPrice, bestRated, debouncedSearch, filterCity, filterState]);
+  }, [category, subcategory, minPrice, maxPrice, bestRated, debouncedSearch, filterCity, filterState, city, state]);
 
   // Fetch more when skip changes (infinite scroll)
   useEffect(() => {

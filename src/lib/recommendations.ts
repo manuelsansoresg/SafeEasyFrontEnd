@@ -24,6 +24,38 @@ const unwrapProducts = (data: unknown): Product[] => {
   return [];
 };
 
+const CITY_NORMALIZATION_MAP: Record<string, string> = {
+  merida: "Mérida",
+};
+
+const normalizeLocationText = (value?: string | null) => {
+  if (!value) return null;
+
+  let cleanValue = value.trim();
+  try {
+    cleanValue = decodeURIComponent(cleanValue);
+  } catch {
+    // Keep original value if it is not URI-encoded.
+  }
+
+  if (!cleanValue || cleanValue.toLowerCase() === "undefined") return null;
+  if (/^[A-Z]{2,3}$/.test(cleanValue)) return null;
+
+  const normalizedKey = cleanValue
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  return CITY_NORMALIZATION_MAP[normalizedKey] || cleanValue;
+};
+
+const getCookieValue = (name: string) => {
+  if (typeof document === "undefined") return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  return parts.length === 2 ? parts.pop()?.split(";").shift() || null : null;
+};
+
 export async function getRecommendations(params: RecommendationsParams): Promise<Product[]> {
   const queryParams = new URLSearchParams();
   
@@ -48,18 +80,9 @@ export async function getRecommendations(params: RecommendationsParams): Promise
       queryParams.append("location", `${params.location.latitude},${params.location.longitude}`);
     }
   } else {
-    // If no location provided, check for client-side cookies if running in browser
-    if (typeof window !== 'undefined') {
-        const getCookie = (name: string) => {
-            const value = `; ${document.cookie}`;
-            const parts = value.split(`; ${name}=`);
-            if (parts.length === 2) return parts.pop()?.split(';').shift();
-        };
-        
-        const cityCookie = getCookie('user_city');
-        if (cityCookie) {
-            queryParams.append("location", decodeURIComponent(cityCookie));
-        }
+    const cityCookie = normalizeLocationText(getCookieValue("user_city"));
+    if (cityCookie) {
+      queryParams.append("location", cityCookie);
     }
   }
 
