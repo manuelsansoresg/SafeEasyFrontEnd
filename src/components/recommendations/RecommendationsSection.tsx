@@ -6,7 +6,6 @@ import { RecommendationsSidebar } from "./RecommendationsSidebar";
 import { getRecommendations, RecommendationsParams } from "@/lib/recommendations";
 import { Product } from "@/lib/products";
 import { Search, Filter } from "lucide-react";
-import { useLocationStore } from "@/store/useLocationStore";
 
 // Simple debounce hook implementation if not present
 function useLocalDebounce<T>(value: T, delay: number): T {
@@ -46,10 +45,10 @@ export function RecommendationsSection({
   const [maxPrice, setMaxPrice] = useState<number | undefined>();
   const [bestRated, setBestRated] = useState<boolean | undefined>(false);
   const [search, setSearch] = useState(initialSearch);
+  const [filterCity, setFilterCity] = useState<string | undefined>();
+  const [filterState, setFilterState] = useState<string | undefined>();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   
-  const { latitude, longitude, city, state } = useLocationStore();
-
   const debouncedSearch = useLocalDebounce(search, 500);
 
   // Sync search state with URL params
@@ -86,9 +85,9 @@ export function RecommendationsSection({
       let newProducts: Product[] = [];
 
       const locationParam =
-        city || (latitude && longitude)
-          ? { latitude, longitude, city, state }
-          : { city: "Mérida", state: "Yucatán" };
+        filterCity || filterState
+          ? { city: filterCity || null, state: filterState || null }
+          : null;
 
       const params: RecommendationsParams = {
           skip: currentSkip,
@@ -122,7 +121,7 @@ export function RecommendationsSection({
   // Reset and fetch when filters change
   useEffect(() => {
     fetchProducts(true);
-  }, [category, subcategory, minPrice, maxPrice, bestRated, debouncedSearch, latitude, longitude, city, state]);
+  }, [category, subcategory, minPrice, maxPrice, bestRated, debouncedSearch, filterCity, filterState]);
 
   // Fetch more when skip changes (infinite scroll)
   useEffect(() => {
@@ -137,12 +136,16 @@ export function RecommendationsSection({
     minPrice?: number;
     maxPrice?: number;
     bestRated?: boolean;
+    city?: string;
+    state?: string;
   }) => {
     setCategory(filters.category);
     setSubcategory(filters.subcategory);
     setMinPrice(filters.minPrice);
     setMaxPrice(filters.maxPrice);
     setBestRated(filters.bestRated);
+    setFilterCity(filters.city);
+    setFilterState(filters.state);
     // Reset happens in useEffect
   };
 
@@ -153,6 +156,8 @@ export function RecommendationsSection({
     setMinPrice(undefined);
     setMaxPrice(undefined);
     setBestRated(false);
+    setFilterCity(undefined);
+    setFilterState(undefined);
   };
 
   return (
@@ -186,6 +191,8 @@ export function RecommendationsSection({
                     minPrice={minPrice}
                     maxPrice={maxPrice}
                     bestRated={bestRated}
+                    city={filterCity}
+                    state={filterState}
                     onFilterChange={handleFilterChange}
                     onClear={handleClear}
                     onClose={() => setIsFilterOpen(false)}

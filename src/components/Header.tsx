@@ -18,20 +18,23 @@ import { CartBadge } from "@/components/cart/CartBadge";
 function SearchBar() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    setQuery(searchParams.get("q") || "");
-  }, [searchParams]);
+  const [query, setQuery] = useState(() => searchParams.get("search") || searchParams.get("q") || "");
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
+      const trimmedQuery = query.trim();
       registerInteraction({
-        search_term: query,
+        search_term: trimmedQuery,
         interaction_type: 'search'
       });
-      router.push(`/?q=${encodeURIComponent(query)}`);
+      router.push(`/?search=${encodeURIComponent(trimmedQuery)}#recommendations-section`);
+      window.setTimeout(() => {
+        document.getElementById("recommendations-section")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 100);
     } else {
       router.push("/");
     }

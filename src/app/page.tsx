@@ -15,7 +15,12 @@ export default async function Home({
   searchParams: Promise<SearchParams>;
 }) {
   const resolvedSearchParams = await searchParams;
-  const query = typeof resolvedSearchParams.q === "string" ? resolvedSearchParams.q : undefined;
+  const query =
+    typeof resolvedSearchParams.search === "string"
+      ? resolvedSearchParams.search
+      : typeof resolvedSearchParams.q === "string"
+        ? resolvedSearchParams.q
+        : undefined;
   const categorySlug = typeof resolvedSearchParams.category === "string" ? resolvedSearchParams.category : undefined;
   const subcategorySlug = typeof resolvedSearchParams.subcategory === "string" ? resolvedSearchParams.subcategory : undefined;
 

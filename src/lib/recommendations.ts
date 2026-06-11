@@ -37,8 +37,13 @@ export async function getRecommendations(params: RecommendationsParams): Promise
   if (params.search) queryParams.append("search", params.search);
   
   if (params.location) {
+    if (params.location.city) queryParams.append("city", params.location.city);
+    if (params.location.state) queryParams.append("state", params.location.state);
+
     if (params.location.city) {
       queryParams.append("location", params.location.city);
+    } else if (params.location.state) {
+      queryParams.append("location", params.location.state);
     } else {
       queryParams.append("location", `${params.location.latitude},${params.location.longitude}`);
     }

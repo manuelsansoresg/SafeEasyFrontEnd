@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { ChevronRight, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supplierCatalogService, SupplierCatalogOption } from "@/services/supplierCatalogService";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 
 interface Category {
   id: number;
@@ -49,18 +51,24 @@ const fetchPublicList = async <T,>(urls: string[], key: string) => {
   return [];
 };
 
+const MEXICO_COUNTRY_ID = 1;
+
 interface RecommendationsSidebarProps {
   selectedCategory?: string;
   selectedSubcategory?: string;
   minPrice?: number;
   maxPrice?: number;
   bestRated?: boolean;
+  city?: string;
+  state?: string;
   onFilterChange: (filters: {
     category?: string;
     subcategory?: string;
     minPrice?: number;
     maxPrice?: number;
     bestRated?: boolean;
+    city?: string;
+    state?: string;
   }) => void;
   onClear?: () => void;
   onClose?: () => void;
@@ -72,6 +80,8 @@ export function RecommendationsSidebar({
   minPrice,
   maxPrice,
   bestRated,
+  city,
+  state,
   onFilterChange,
   onClear,
   onClose,
@@ -81,6 +91,11 @@ export function RecommendationsSidebar({
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [localMinPrice, setLocalMinPrice] = useState(minPrice?.toString() || "");
   const [localMaxPrice, setLocalMaxPrice] = useState(maxPrice?.toString() || "");
+  const [states, setStates] = useState<SupplierCatalogOption[]>([]);
+  const [cities, setCities] = useState<SupplierCatalogOption[]>([]);
+  const [selectedState, setSelectedState] = useState<SupplierCatalogOption | null>(null);
+  const [selectedCity, setSelectedCity] = useState<SupplierCatalogOption | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState({ states: false, cities: false });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -112,6 +127,48 @@ export function RecommendationsSidebar({
     fetchData();
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    const fetchStates = async () => {
+      setCatalogLoading((current) => ({ ...current, states: true }));
+      try {
+        const items = await supplierCatalogService.states(MEXICO_COUNTRY_ID);
+        if (active) setStates(items);
+      } finally {
+        if (active) setCatalogLoading((current) => ({ ...current, states: false }));
+      }
+    };
+
+    fetchStates();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedState) {
+      return;
+    }
+
+    let active = true;
+
+    const fetchCities = async () => {
+      setCatalogLoading((current) => ({ ...current, cities: true }));
+      try {
+        const items = await supplierCatalogService.cities(selectedState.id);
+        if (active) setCities(items);
+      } finally {
+        if (active) setCatalogLoading((current) => ({ ...current, cities: false }));
+      }
+    };
+
+    fetchCities();
+    return () => {
+      active = false;
+    };
+  }, [selectedState]);
+
   const handleCategoryClick = (categorySlug: string) => {
     if (expandedCategory === categorySlug) {
       setExpandedCategory(null);
@@ -121,18 +178,18 @@ export function RecommendationsSidebar({
     
     // If clicking the category itself, select it and clear subcategory
     if (selectedCategory === categorySlug) {
-        onFilterChange({ category: undefined, subcategory: undefined, minPrice, maxPrice, bestRated });
+        onFilterChange({ category: undefined, subcategory: undefined, minPrice, maxPrice, bestRated, city, state });
     } else {
-        onFilterChange({ category: categorySlug, subcategory: undefined, minPrice, maxPrice, bestRated });
+        onFilterChange({ category: categorySlug, subcategory: undefined, minPrice, maxPrice, bestRated, city, state });
     }
   };
 
   const handleSubcategoryClick = (e: React.MouseEvent, subcategorySlug: string, categorySlug: string) => {
     e.stopPropagation();
     if (selectedSubcategory === subcategorySlug) {
-        onFilterChange({ category: categorySlug, subcategory: undefined, minPrice, maxPrice, bestRated });
+        onFilterChange({ category: categorySlug, subcategory: undefined, minPrice, maxPrice, bestRated, city, state });
     } else {
-        onFilterChange({ category: categorySlug, subcategory: subcategorySlug, minPrice, maxPrice, bestRated });
+        onFilterChange({ category: categorySlug, subcategory: subcategorySlug, minPrice, maxPrice, bestRated, city, state });
     }
   };
 
@@ -144,13 +201,44 @@ export function RecommendationsSidebar({
         subcategory: selectedSubcategory, 
         minPrice: min, 
         maxPrice: max,
-        bestRated
+        bestRated,
+        city,
+        state
+    });
+  };
+
+  const handleLocationApply = () => {
+    onFilterChange({
+        category: selectedCategory,
+        subcategory: selectedSubcategory,
+        minPrice,
+        maxPrice,
+        bestRated,
+        city: selectedCity?.name,
+        state: selectedState?.name
+    });
+  };
+
+  const handleApplyAll = () => {
+    const min = localMinPrice ? parseFloat(localMinPrice) : undefined;
+    const max = localMaxPrice ? parseFloat(localMaxPrice) : undefined;
+    onFilterChange({
+        category: selectedCategory,
+        subcategory: selectedSubcategory,
+        minPrice: min,
+        maxPrice: max,
+        bestRated,
+        city: selectedCity?.name,
+        state: selectedState?.name
     });
   };
   
   const handleClearAll = () => {
       setLocalMinPrice("");
       setLocalMaxPrice("");
+      setSelectedState(null);
+      setSelectedCity(null);
+      setCities([]);
       setExpandedCategory(null);
       if (onClear) {
         onClear();
@@ -160,7 +248,9 @@ export function RecommendationsSidebar({
           subcategory: undefined, 
           minPrice: undefined, 
           maxPrice: undefined,
-          bestRated: false
+          bestRated: false,
+          city: undefined,
+          state: undefined
         });
       }
   };
@@ -171,7 +261,9 @@ export function RecommendationsSidebar({
         subcategory: selectedSubcategory,
         minPrice,
         maxPrice,
-        bestRated: e.target.checked
+        bestRated: e.target.checked,
+        city,
+        state
     });
   };
 
@@ -253,6 +345,43 @@ export function RecommendationsSidebar({
             </div>
         </div>
 
+        {/* Location Filter */}
+        <div className="mb-6">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">Ubicación</h4>
+            <div className="space-y-3">
+            <SearchableSelect
+                id="recommendations-state"
+                value={selectedState}
+                options={states}
+                onChange={(option) => {
+                    setSelectedState(option);
+                    setSelectedCity(null);
+                    setCities([]);
+                }}
+                placeholder={catalogLoading.states ? "Cargando estados..." : "Estado"}
+                searchPlaceholder="Buscar estado..."
+                disabled={catalogLoading.states}
+                className="h-9 rounded-lg border-gray-200 text-sm focus:ring-primary/20"
+            />
+            <SearchableSelect
+                id="recommendations-city"
+                value={selectedCity}
+                options={cities}
+                onChange={setSelectedCity}
+                placeholder={catalogLoading.cities ? "Cargando ciudades..." : selectedState ? "Ciudad" : "Elige un estado"}
+                searchPlaceholder="Buscar ciudad..."
+                disabled={!selectedState || catalogLoading.cities}
+                className="h-9 rounded-lg border-gray-200 text-sm focus:ring-primary/20"
+            />
+            <button
+                onClick={handleLocationApply}
+                className="hidden md:block w-full py-1.5 bg-primary/10 text-primary text-sm font-medium rounded-lg hover:bg-primary/20 transition-colors"
+            >
+                Aplicar ubicación
+            </button>
+            </div>
+        </div>
+
         {/* Categories Filter */}
         <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-3">Categorías</h4>
@@ -319,7 +448,7 @@ export function RecommendationsSidebar({
         <div className="absolute bottom-0 left-0 w-full p-4 border-t border-gray-100 md:hidden bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
             <button 
                 onClick={() => {
-                    handlePriceApply();
+                    handleApplyAll();
                     onClose();
                 }}
                 className="w-full bg-[#004e28] text-white font-bold py-3 rounded-xl hover:bg-[#003d1f] transition-colors flex items-center justify-center gap-2"
