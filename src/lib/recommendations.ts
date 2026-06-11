@@ -61,7 +61,7 @@ export async function getRecommendations(params: RecommendationsParams): Promise
   
   if (params.skip !== undefined) queryParams.append("skip", params.skip.toString());
   if (params.limit !== undefined) queryParams.append("limit", params.limit.toString());
-  if (params.best_rated !== undefined) queryParams.append("best_rated", params.best_rated.toString());
+  if (params.best_rated) queryParams.append("best_rated", "true");
   if (params.category) queryParams.append("category", params.category);
   if (params.subcategory) queryParams.append("subcategory", params.subcategory);
   if (params.min_price !== undefined) queryParams.append("min_price", params.min_price.toString());
@@ -69,9 +69,6 @@ export async function getRecommendations(params: RecommendationsParams): Promise
   if (params.search) queryParams.append("search", params.search);
   
   if (params.location) {
-    if (params.location.city) queryParams.append("city", params.location.city);
-    if (params.location.state) queryParams.append("state", params.location.state);
-
     if (params.location.city) {
       queryParams.append("location", params.location.city);
     } else if (params.location.state) {
