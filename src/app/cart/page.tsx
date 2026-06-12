@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { fetchWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -8,13 +8,15 @@ import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
-import { Minus, Plus, ShieldCheck, Store, Trash2, X } from "lucide-react";
+import { Minus, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 
 type ProductLite = {
   id: string;
   title: string;
+  slug?: string | null;
   sku?: string | null;
   price?: number | string | null;
+  stock?: number | null;
   image?: string | null;
   thumbnail_url?: string | null;
 };
@@ -32,6 +34,8 @@ type SupplierCart = {
   supplier_name: string;
   supplier_is_verified: boolean;
   supplier_map_location: LatLngLiteral | null;
+  accepts_delivery: boolean;
+  accepts_pickup: boolean;
   items: CartItem[];
 };
 
@@ -76,6 +80,26 @@ function buildImageUrl(path: string | null | undefined) {
   const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api").replace(/\/+$/, "");
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   return `${baseUrl}${cleanPath}`.replace(/([^:])\/{2,}/g, "$1/");
+}
+
+function readOptionalBoolean(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1 ? true : value === 0 ? false : undefined;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "si", "sí"].includes(normalized)) return true;
+    if (["false", "0", "no"].includes(normalized)) return false;
+  }
+  return undefined;
+}
+
+function readOptionalNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[^\d.-]/g, ""));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 type AuthFetchOptions = Parameters<typeof fetchWithAuth>[1];
@@ -152,22 +176,51 @@ function parseSupplierCarts(data: unknown): SupplierCart[] {
       let product: ProductLite | null = null;
       if (productCandidate) {
         const priceRaw = productCandidate.price ?? item.price ?? null;
+        const stock =
+          readOptionalNumber(productCandidate.stock) ??
+          readOptionalNumber(productCandidate.available_stock) ??
+          readOptionalNumber(productCandidate.quantity_available) ??
+          readOptionalNumber(item.stock) ??
+          readOptionalNumber(item.available_stock) ??
+          readOptionalNumber(item.quantity_available);
         product = {
           id: String(productCandidate.id ?? productId),
           title: String(productCandidate.title ?? item.title ?? "Producto"),
+          slug:
+            typeof productCandidate.slug === "string"
+              ? productCandidate.slug
+              : typeof productCandidate.product_slug === "string"
+                ? productCandidate.product_slug
+              : typeof item.slug === "string"
+                ? item.slug
+                : typeof item.product_slug === "string"
+                  ? item.product_slug
+                  : null,
           sku: typeof productCandidate.sku === "string" ? productCandidate.sku : typeof item.sku === "string" ? item.sku : null,
           price: typeof priceRaw === "number" || typeof priceRaw === "string" ? priceRaw : null,
+          stock,
           image: typeof productCandidate.image === "string" ? productCandidate.image : null,
           thumbnail_url: typeof productCandidate.thumbnail_url === "string" ? productCandidate.thumbnail_url : null,
         };
       } else {
         const title = String(item.title ?? "Producto");
         const priceRaw = item.price ?? null;
+        const stock =
+          readOptionalNumber(item.stock) ??
+          readOptionalNumber(item.available_stock) ??
+          readOptionalNumber(item.quantity_available);
         product = {
           id: productId,
           title,
+          slug:
+            typeof item.slug === "string"
+              ? item.slug
+              : typeof item.product_slug === "string"
+                ? item.product_slug
+                : null,
           sku: typeof item.sku === "string" ? item.sku : null,
           price: typeof priceRaw === "number" || typeof priceRaw === "string" ? priceRaw : null,
+          stock,
           image: null,
           thumbnail_url: null,
         };
@@ -180,11 +233,23 @@ function parseSupplierCarts(data: unknown): SupplierCart[] {
     const supplierMapLoc = parseMapLocation(
       r.supplier_map_location ?? r.map_location ?? supplierObj?.map_location ?? supplierObj?.location ?? null,
     );
+    const acceptsDelivery =
+      readOptionalBoolean(r.accepts_delivery) ??
+      readOptionalBoolean(r.supplier_accepts_delivery) ??
+      readOptionalBoolean(supplierObj?.accepts_delivery) ??
+      true;
+    const acceptsPickup =
+      readOptionalBoolean(r.accepts_pickup) ??
+      readOptionalBoolean(r.supplier_accepts_pickup) ??
+      readOptionalBoolean(supplierObj?.accepts_pickup) ??
+      true;
     carts.push({
       supplier_id: supplierId,
       supplier_name: supplierName,
       supplier_is_verified: supplierIsVerified,
       supplier_map_location: supplierMapLoc,
+      accepts_delivery: acceptsDelivery,
+      accepts_pickup: acceptsPickup,
       items,
     });
   }
@@ -380,7 +445,9 @@ export default function CartPage() {
       return;
     }
     if (!checkoutSupplierId || !carts.some((c) => c.supplier_id === checkoutSupplierId)) {
-      setCheckoutSupplierId(carts[0].supplier_id);
+      const firstCart = carts[0];
+      setCheckoutSupplierId(firstCart.supplier_id);
+      setDeliveryType(firstCart.accepts_pickup ? "pickup" : "shipping");
       setQuoteError(null);
       setShippingCost(null);
       setDistanceKm(null);
@@ -388,33 +455,6 @@ export default function CartPage() {
       setAddressLocked(false);
     }
   }, [carts, checkoutSupplierId]);
-
-  const globalSubtotal = useMemo(() => {
-    return carts.reduce((sum, c) => {
-      return (
-        sum +
-        c.items.reduce((s, it) => {
-          const priceRaw = it.product?.price ?? 0;
-          const price = typeof priceRaw === "number" ? priceRaw : Number(String(priceRaw).replace(/[^\d.-]/g, "")) || 0;
-          return s + price * (Number(it.quantity) || 0);
-        }, 0)
-      );
-    }, 0);
-  }, [carts]);
-
-  const activeCart = useMemo(() => {
-    if (!checkoutSupplierId) return null;
-    return carts.find((c) => c.supplier_id === checkoutSupplierId) || null;
-  }, [carts, checkoutSupplierId]);
-
-  const activeSubtotal = useMemo(() => {
-    if (!activeCart) return 0;
-    return activeCart.items.reduce((sum, it) => {
-      const priceRaw = it.product?.price ?? 0;
-      const price = typeof priceRaw === "number" ? priceRaw : Number(String(priceRaw).replace(/[^\d.-]/g, "")) || 0;
-      return sum + price * (Number(it.quantity) || 0);
-    }, 0);
-  }, [activeCart]);
 
   const patchQuantityOptimistic = async (itemId: number, nextQty: number) => {
     const quantity = Math.max(1, Math.floor(nextQty));
@@ -546,12 +586,21 @@ export default function CartPage() {
     }
   };
 
+  const getDefaultDeliveryType = (supplier: SupplierCart): DeliveryType => (supplier.accepts_pickup ? "pickup" : "shipping");
+
   const startCheckout = async (supplierId: number) => {
+    const supplier = carts.find((c) => c.supplier_id === supplierId) || null;
+    if (!supplier) return;
+    if (!supplier.accepts_pickup && !supplier.accepts_delivery) {
+      setToast({ type: "error", message: "Este proveedor no tiene métodos de entrega disponibles por el momento." });
+      return;
+    }
     setCheckoutSupplierId(supplierId);
+    setDeliveryType(supplier.accepts_pickup ? "pickup" : "shipping");
     setQuoteError(null);
     setShippingCost(null);
     setDistanceKm(null);
-    const cached = carts.find((c) => c.supplier_id === supplierId)?.supplier_map_location ?? null;
+    const cached = supplier.supplier_map_location ?? null;
     setSupplierMapLocation(cached);
     setAddressLocked(false);
   };
@@ -695,10 +744,11 @@ export default function CartPage() {
     );
   };
 
-  const confirmCheckout = async (supplierId: number) => {
+  const confirmCheckout = async (supplierId: number, deliveryOverride?: DeliveryType) => {
+    const selectedDeliveryType = deliveryOverride ?? deliveryType;
     setMutating(true);
     try {
-      if (deliveryType === "shipping") {
+      if (selectedDeliveryType === "shipping") {
         if (!userMapLocation) {
           setToast({ type: "error", message: "Selecciona tu ubicación para el envío." });
           return;
@@ -720,12 +770,12 @@ export default function CartPage() {
       }
       const payload: Record<string, unknown> = {
         items,
-        delivery_type: deliveryType,
+        delivery_type: selectedDeliveryType,
         payment_method: "card",
         distance_km: 0,
         courier_user_id: 0,
       };
-      if (deliveryType === "shipping" && Number.isFinite(distanceKm || 0)) {
+      if (selectedDeliveryType === "shipping" && Number.isFinite(distanceKm || 0)) {
         payload.distance_km = distanceKm;
       }
       const res = await tryFetch(
@@ -846,21 +896,28 @@ export default function CartPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              {carts.map((c) => {
-                const supplierSubtotal = c.items.reduce((sum, it) => {
-                  const priceRaw = it.product?.price ?? 0;
-                  const price =
-                    typeof priceRaw === "number" ? priceRaw : Number(String(priceRaw).replace(/[^\d.-]/g, "")) || 0;
-                  return sum + price * (Number(it.quantity) || 0);
-                }, 0);
+          <div className="space-y-6">
+            {carts.map((c) => {
+              const supplierSubtotal = c.items.reduce((sum, it) => {
+                const priceRaw = it.product?.price ?? 0;
+                const price =
+                  typeof priceRaw === "number" ? priceRaw : Number(String(priceRaw).replace(/[^\d.-]/g, "")) || 0;
+                return sum + price * (Number(it.quantity) || 0);
+              }, 0);
+              const isActiveCheckout = checkoutSupplierId === c.supplier_id;
+              const visibleDeliveryType = isActiveCheckout ? deliveryType : getDefaultDeliveryType(c);
+              const supplierTotal =
+                supplierSubtotal +
+                (isActiveCheckout && visibleDeliveryType === "shipping" && shippingCost != null && addressLocked ? shippingCost : 0);
+              const cannotPay =
+                mutating ||
+                savingAddress ||
+                meLoading ||
+                (!c.accepts_pickup && !c.accepts_delivery) ||
+                (isActiveCheckout && visibleDeliveryType === "shipping" && (!addressLocked || shippingCost == null));
 
-                return (
-                  <div
-                    key={c.supplier_id}
-                    className="rounded-2xl bg-white overflow-hidden shadow-sm"
-                  >
+              return (
+                <div key={c.supplier_id} className="rounded-2xl bg-white overflow-hidden shadow-sm">
                     <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
                       <button type="button" onClick={() => startCheckout(c.supplier_id)} className="min-w-0 text-left">
                         <div className="flex items-center gap-2 min-w-0">
@@ -877,42 +934,50 @@ export default function CartPage() {
                         Vaciar tienda
                       </button>
                     </div>
-                    {checkoutSupplierId === c.supplier_id && (
-                      <div className="px-5 py-4 border-t border-gray-100 space-y-5">
-                        <p className="text-sm font-bold text-gray-900">Entrega y pago</p>
-                        <div>
-                          <p className="text-sm font-semibold text-gray-800 mb-2">Método de entrega</p>
-                          <div className="flex items-center gap-3">
+                    <div className="px-5 py-4 border-t border-gray-100 space-y-5">
+                      <p className="text-sm font-bold text-gray-900">Entrega y pago</p>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800 mb-2">Método de entrega</p>
+                        <div className="flex items-center gap-3">
+                          {c.accepts_pickup ? (
                             <button
                               type="button"
                               onClick={() => {
+                                setCheckoutSupplierId(c.supplier_id);
                                 setDeliveryType("pickup");
                                 invalidateQuote();
                               }}
                               className={cn(
                                 "px-3 py-2 rounded-lg border",
-                                deliveryType === "pickup" ? "border-primary text-primary" : "border-gray-200 text-gray-700"
+                                visibleDeliveryType === "pickup" ? "border-primary text-primary" : "border-gray-200 text-gray-700",
                               )}
                             >
                               Recojo en tienda
                             </button>
+                          ) : null}
+                          {c.accepts_delivery ? (
                             <button
                               type="button"
                               onClick={() => {
+                                setCheckoutSupplierId(c.supplier_id);
                                 setDeliveryType("shipping");
                                 invalidateQuote();
                                 computeShippingQuote(c.supplier_id, true).catch(() => {});
                               }}
                               className={cn(
                                 "px-3 py-2 rounded-lg border",
-                                deliveryType === "shipping" ? "border-primary text-primary" : "border-gray-200 text-gray-700"
+                                visibleDeliveryType === "shipping" ? "border-primary text-primary" : "border-gray-200 text-gray-700",
                               )}
                             >
                               Envío a domicilio
                             </button>
-                          </div>
+                          ) : null}
                         </div>
-                        {deliveryType === "shipping" && (
+                        {!c.accepts_pickup && !c.accepts_delivery ? (
+                          <p className="mt-2 text-sm text-red-600">Este proveedor no tiene métodos de entrega disponibles.</p>
+                        ) : null}
+                      </div>
+                      {isActiveCheckout && visibleDeliveryType === "shipping" && (
                           <div className="space-y-3">
                             <div className="flex items-center justify-between gap-3">
                               <p className="text-sm font-semibold text-gray-800">Dirección de entrega</p>
@@ -975,16 +1040,15 @@ export default function CartPage() {
                               {quoteLoading ? "Calculando..." : "Calcular Envío"}
                             </button>
                           </div>
-                        )}
-                        <div className="pt-2">
-                          <p className="text-sm font-semibold text-gray-800 mb-2">Método de pago</p>
-                          <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800">
-                            <ShieldCheck className="w-4 h-4 text-primary" />
-                            Pago con tarjeta
-                          </div>
+                      )}
+                      <div className="pt-2">
+                        <p className="text-sm font-semibold text-gray-800 mb-2">Método de pago</p>
+                        <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800">
+                          <ShieldCheck className="w-4 h-4 text-primary" />
+                          Pago con tarjeta
                         </div>
                       </div>
-                    )}
+                    </div>
 
                     <div className="divide-y divide-gray-100">
                       {c.items.map((it) => {
@@ -994,15 +1058,31 @@ export default function CartPage() {
                           typeof priceRaw === "number" ? priceRaw : Number(String(priceRaw).replace(/[^\d.-]/g, "")) || 0;
                         const lineTotal = price * (Number(it.quantity) || 0);
                         const sku = String(it.product?.sku || "").trim();
+                        const stock = it.product?.stock;
+                        const productHref = `/product/${encodeURIComponent(String(it.product?.slug || it.product?.id || it.product_id))}`;
 
                         return (
                           <div key={it.id} className="px-5 py-4 flex gap-4 items-start">
-                            <div className="w-16 h-16 rounded-xl border border-gray-100 bg-gray-50 overflow-hidden shrink-0">
-                              <img src={buildImageUrl(img)} alt="" className="w-full h-full object-cover" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-gray-900 truncate">{it.product?.title || "Producto"}</p>
-                              {sku ? <p className="text-xs text-gray-500 mt-0.5">SKU: {sku}</p> : null}
+                            <div className="min-w-0 flex-1">
+                              <Link
+                                href={productHref}
+                                className="group flex min-w-0 gap-4 rounded-xl outline-none transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-primary/40"
+                              >
+                                <div className="w-16 h-16 rounded-xl border border-gray-100 bg-gray-50 overflow-hidden shrink-0">
+                                  <img src={buildImageUrl(img)} alt="" className="w-full h-full object-cover" />
+                                </div>
+                                <div className="min-w-0 py-0.5">
+                                  <p className="font-semibold text-gray-900 truncate transition-colors group-hover:text-[#004e28]">
+                                    {it.product?.title || "Producto"}
+                                  </p>
+                                  {sku ? <p className="text-xs text-gray-500 mt-0.5">SKU: {sku}</p> : null}
+                                  {typeof stock === "number" ? (
+                                    <p className="mt-1 text-xs font-semibold text-[#168e00]">
+                                      {stock === 1 ? "1 disponible" : `${stock} disponibles`}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </Link>
                               <div className="mt-3 flex items-center justify-between gap-3">
                                 <div className="inline-flex items-center rounded-xl border border-gray-200 overflow-hidden">
                                   <button
@@ -1047,80 +1127,53 @@ export default function CartPage() {
                       })}
                     </div>
 
-                    <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
-                      <div className="text-sm text-gray-600">
-                        Subtotal: <span className="font-bold text-gray-900">{money(supplierSubtotal)}</span>
+                    <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/70">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                        <div className="min-w-0 space-y-1 text-sm text-gray-600">
+                          <div className="flex items-center justify-between gap-8 sm:justify-start">
+                            <span>Subtotal productos</span>
+                            <span className="font-bold text-gray-900">{money(supplierSubtotal)}</span>
+                          </div>
+                          {isActiveCheckout && visibleDeliveryType === "shipping" ? (
+                            <div className="flex items-center justify-between gap-8 sm:justify-start">
+                              <span>Envío</span>
+                              <span className="font-bold text-gray-900">
+                                {shippingCost != null && addressLocked ? money(shippingCost) : "Pendiente"}
+                              </span>
+                            </div>
+                          ) : null}
+                          <div className="flex items-center justify-between gap-8 pt-2 sm:justify-start">
+                            <span className="font-bold text-gray-900">Total estimado</span>
+                            <span className="font-bold text-gray-900">{money(supplierTotal)}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!isActiveCheckout) {
+                              const selectedDeliveryType = getDefaultDeliveryType(c);
+                              await startCheckout(c.supplier_id);
+                              if (selectedDeliveryType === "shipping") return;
+                              await confirmCheckout(c.supplier_id, selectedDeliveryType);
+                              return;
+                            }
+                            confirmCheckout(c.supplier_id).catch(() => {});
+                          }}
+                          disabled={cannotPay}
+                          className={cn(
+                            "w-full sm:w-auto px-5 py-3 rounded-xl font-bold text-sm",
+                            cannotPay
+                              ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                              : "bg-[#168e00] text-white hover:bg-[#137500]",
+                          )}
+                        >
+                          {mutating || savingAddress ? "Procesando..." : "Finalizar compra"}
+                        </button>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 h-fit self-start">
-              <p className="text-sm font-bold text-gray-900">Resumen</p>
-              <div className="mt-3 space-y-2 text-sm">
-                {activeCart ? (
-                  <>
-                    <div className="text-xs font-semibold text-gray-500">Checkout</div>
-                    <div className="text-sm font-bold text-gray-900 truncate">{activeCart.supplier_name}</div>
-                    <div className="h-px bg-gray-100 my-3" />
-                    <div className="flex items-center justify-between text-gray-700">
-                      <span>Subtotal productos</span>
-                      <span className="font-semibold text-gray-900">{money(activeSubtotal)}</span>
-                    </div>
-                    {deliveryType === "shipping" ? (
-                      <div className="flex items-center justify-between text-gray-700">
-                        <span>Envío</span>
-                        <span className="font-semibold text-gray-900">
-                          {shippingCost != null && addressLocked ? money(shippingCost) : "—"}
-                        </span>
-                      </div>
-                    ) : null}
-                    <div className="h-px bg-gray-100 my-3" />
-                    <div className="flex items-center justify-between rounded-lg px-2 py-1 -mx-2">
-                      <span className="font-bold text-gray-900">Total estimado</span>
-                      <span className="font-bold text-gray-900">
-                        {money(activeSubtotal + (deliveryType === "shipping" && shippingCost != null && addressLocked ? shippingCost : 0))}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => confirmCheckout(activeCart.supplier_id)}
-                      disabled={
-                        mutating ||
-                        savingAddress ||
-                        meLoading ||
-                        (deliveryType === "shipping" && (!addressLocked || shippingCost == null))
-                      }
-                      className={cn(
-                        "mt-4 w-full px-5 py-3 rounded-xl font-bold text-sm",
-                        mutating || savingAddress || (deliveryType === "shipping" && (!addressLocked || shippingCost == null))
-                          ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                          : "bg-[#168e00] text-white hover:bg-[#137500]",
-                      )}
-                    >
-                      {mutating || savingAddress ? "Procesando..." : "Finalizar Compra"}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between text-gray-700">
-                      <span>Subtotal productos</span>
-                      <span className="font-semibold text-gray-900">{money(globalSubtotal)}</span>
-                    </div>
-                    <div className="h-px bg-gray-100 my-3" />
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-gray-900">Total estimado</span>
-                      <span className="font-bold text-gray-900">{money(globalSubtotal)}</span>
-                    </div>
-                    <p className="text-[11px] text-gray-500">
-                      Cada proveedor se paga por separado. El envío se calcula en el checkout de cada tienda.
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

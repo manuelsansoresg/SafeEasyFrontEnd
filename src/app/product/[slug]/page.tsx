@@ -365,9 +365,9 @@ export default function ProductDetailPage() {
         try {
             console.log(`[Debug] Checking for existing rating via API for user ${targetUserId} on product ${product.id}...`);
             
-            // Refetch full product details to get fresh ratings list
-            // Use slug for better reliability if ID fails or is inconsistent
-            const res = await fetchWithAuth(`/api/products/${encodeURIComponent(slug)}`);
+            // Refetch full product details to get fresh ratings list.
+            const productIdentifier = product.slug || product.id || slug;
+            const res = await fetchWithAuth(`/api/products/${encodeURIComponent(productIdentifier)}`);
             
             if (res.ok) {
                 const productData = await res.json();
@@ -386,7 +386,7 @@ export default function ProductDetailPage() {
                     }
                 }
             } else {
-                console.error("[Debug] Failed to refetch product details:", res.status);
+                console.warn("[Debug] Failed to refetch product details:", res.status);
             }
 
         } catch (err) {
@@ -571,8 +571,8 @@ export default function ProductDetailPage() {
 
             if (Array.isArray(searchData) && searchData.length > 0) {
                 const productSummary = searchData[0];
-                // Check slug match to avoid fuzzy search false positives
-                if (productSummary.slug === slug) {
+                // Check slug/id match to avoid fuzzy search false positives
+                if (productSummary.slug === slug || String(productSummary.id) === String(slug)) {
                      console.log(`[ProductDetail] Found product by search. ID: ${productSummary.id}. Fetching details...`);
                      // Now fetch details by ID
                      res = await fetch(`${baseUrl}/products/${productSummary.id}?ts=${Date.now()}`, {
@@ -602,7 +602,7 @@ export default function ProductDetailPage() {
             const items = Array.isArray(listData)
               ? listData
               : listData.items || listData.results || [];
-            const found = (items as any[]).find((p) => p.slug === slug);
+            const found = (items as any[]).find((p) => p.slug === slug || String(p.id) === String(slug));
 
             if (found) {
               console.log("[ProductDetail] Found product via list fallback by slug.", found);
