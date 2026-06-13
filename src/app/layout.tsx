@@ -10,6 +10,8 @@ import { ChatProvider } from "@/context/ChatContext";
 import { ChatOverlay } from "@/components/chat/ChatOverlay";
 import { LocationProvider } from "@/components/LocationProvider";
 import { TokenRefreshProvider } from "@/components/TokenRefreshProvider";
+import { JsonLd } from "@/components/JsonLd";
+import { absoluteSiteUrl, getSiteUrl, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -24,8 +26,58 @@ const varelaRound = Varela_Round({
 });
 
 export const metadata: Metadata = {
-  title: "Drooopy - Compra y Vende Seguro",
-  description: "Tu plataforma segura para compras y ventas online.",
+  metadataBase: new URL(getSiteUrl()),
+  title: {
+    default: "Drooopy | Productos y proveedores en México",
+    template: "%s | Drooopy",
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  icons: {
+    icon: [
+      {
+        url: "/drooopy-favicon-256-transparente.png",
+        sizes: "256x256",
+        type: "image/png",
+      },
+    ],
+    shortcut: "/drooopy-favicon-256-transparente.png",
+    apple: "/drooopy-favicon-256-transparente.png",
+  },
+  keywords: [
+    "Drooopy",
+    "productos en México",
+    "proveedores en México",
+    "negocios en México",
+    "compras online",
+    "vendedores confiables",
+  ],
+  alternates: {
+    canonical: absoluteSiteUrl("/"),
+  },
+  openGraph: {
+    title: "Drooopy | Productos y proveedores en México",
+    description: SITE_DESCRIPTION,
+    url: absoluteSiteUrl("/"),
+    siteName: SITE_NAME,
+    locale: "es_MX",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Drooopy | Productos y proveedores en México",
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default function RootLayout({
@@ -39,6 +91,28 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${poppins.variable} ${varelaRound.variable} font-sans antialiased bg-background text-foreground`}
       >
+        <JsonLd
+          data={[
+            {
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: SITE_NAME,
+              url: absoluteSiteUrl("/"),
+              logo: `${getSiteUrl()}/logo-drooopy.svg`,
+            },
+            {
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: SITE_NAME,
+              url: absoluteSiteUrl("/"),
+              potentialAction: {
+                "@type": "SearchAction",
+                target: `${absoluteSiteUrl("/")}?search={search_term_string}`,
+                "query-input": "required name=search_term_string",
+              },
+            },
+          ]}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{if(typeof window==="undefined")return;var nav=window.navigator;if(!nav||!nav.serviceWorker||!nav.serviceWorker.getRegistrations)return;nav.serviceWorker.getRegistrations().then(function(regs){if(!regs||!regs.length)return;return Promise.all(regs.map(function(r){try{return r.unregister()}catch(e){return false}})).then(function(){if(window.caches&&window.caches.keys){return window.caches.keys().then(function(keys){return Promise.all((keys||[]).map(function(k){try{return window.caches.delete(k)}catch(e){return false}}))})}}).then(function(){try{var key="safeeasy:sw_killed_v1";if(!window.sessionStorage)return;var done=window.sessionStorage.getItem(key);if(done)return;window.sessionStorage.setItem(key,"1");window.location.reload()}catch(e){}})}).catch(function(){})}catch(e){}})();`,

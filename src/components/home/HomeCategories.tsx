@@ -111,13 +111,7 @@ export function HomeCategories() {
   const itemsPerPage = 6; // Adjust based on screen size if needed, but 6 is a good start for desktop
 
   const handleCategoryClick = (slug: string) => {
-    // Navigate to the category page with query param
-    router.push(`/?category=${slug}`, { scroll: false });
-    
-    // Scroll to recommendations section
-    setTimeout(() => {
-        document.getElementById('recommendations-section')?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
+    router.push(`/categorias/${slug}`);
   };
 
   const fetchProductCounts = useCallback(async (catData: Category[]) => {
