@@ -35,7 +35,7 @@ export default function ProfilePage() {
 
       try {
         // Test both APIs as requested to see which one works best
-        console.log("Testing profile APIs...");
+        if (process.env.NODE_ENV === "development") console.log("Testing profile APIs...");
         
         const [resMe, resId] = await Promise.allSettled([
           fetchWithAuth('/api/users/me'),
@@ -48,7 +48,7 @@ export default function ProfilePage() {
         // Check /api/users/me
         if (resMe.status === 'fulfilled' && resMe.value.ok) {
             const data = await resMe.value.json();
-            console.log("/api/users/me response:", data);
+            if (process.env.NODE_ENV === "development") console.log("/api/users/me response:", data);
             if (data && (data.email || data.name)) {
                 profileData = data;
                 usedSource = "/api/users/me";
@@ -58,7 +58,7 @@ export default function ProfilePage() {
         // Check /api/users/{id} if me didn't yield good data or just to compare
         if (resId.status === 'fulfilled' && resId.value.ok) {
             const data = await resId.value.json();
-            console.log(`/api/users/${user.id} response:`, data);
+            if (process.env.NODE_ENV === "development") console.log(`/api/users/${user.id} response:`, data);
             
             // If we haven't found data yet, or if this one seems more complete (e.g. has name where other didn't)
             if (!profileData || (!profileData.name && data.name)) {
@@ -68,7 +68,7 @@ export default function ProfilePage() {
         }
 
         if (profileData) {
-            console.log(`Using data from ${usedSource}:`, profileData);
+            if (process.env.NODE_ENV === "development") console.log(`Using data from ${usedSource}:`, profileData);
             setFormData(prev => ({
                 ...prev,
                 name: profileData.full_name || profileData.name || "",
@@ -130,7 +130,7 @@ export default function ProfilePage() {
       }
 
       const updatedUser = await response.json();
-      console.log("Profile updated:", updatedUser);
+      if (process.env.NODE_ENV === "development") console.log("Profile updated:", updatedUser);
       
       setSuccessMessage("Perfil actualizado correctamente");
       

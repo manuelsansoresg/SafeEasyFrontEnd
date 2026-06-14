@@ -27,7 +27,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const stored = localStorage.getItem('safeeasy_open_chats');
         if (stored) {
             try {
-                setOpenChats(JSON.parse(stored));
+                const parsed = JSON.parse(stored);
+                const chats = Array.isArray(parsed)
+                    ? parsed.filter((chat) => !String(chat?.id || "").startsWith("temp-"))
+                    : [];
+                setOpenChats(chats);
             } catch (e) {
                 console.error("Failed to parse stored chats", e);
             }

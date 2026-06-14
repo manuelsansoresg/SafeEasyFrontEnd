@@ -172,7 +172,7 @@ function SearchControl({ onSelect, addressContext }: { onSelect: (lat: number, l
                const p1 = targetPostalCode.replace(/\s/g, '');
                const p2 = (addr.postcode || '').replace(/\s/g, '');
                if (p2 && p1 !== p2 && newDisplayName.includes(p2)) {
-                   console.log(`Patching CP in display name: ${p2} -> ${p1}`);
+                   if (process.env.NODE_ENV === "development") console.log(`Patching CP in display name: ${p2} -> ${p1}`);
                    newDisplayName = newDisplayName.replace(p2, p1);
                    addr.postcode = p1;
                }
@@ -303,8 +303,8 @@ function SearchControl({ onSelect, addressContext }: { onSelect: (lat: number, l
       if (data.length === 0) {
           const hyphenatedQ = q.replace(/\b(\d+)([a-zA-Z])\b/g, "$1-$2");
           if (hyphenatedQ !== q) {
-              console.log("Retrying with hyphenated query:", hyphenatedQ);
-              let hyphenData = await fetchNominatim(hyphenatedQ);
+              if (process.env.NODE_ENV === "development") console.log("Retrying with hyphenated query:", hyphenatedQ);
+              const hyphenData = await fetchNominatim(hyphenatedQ);
               
               // If we found something, use it (but be careful about CP mismatch if user typed one)
               if (hyphenData.length > 0) {
@@ -367,7 +367,7 @@ function SearchControl({ onSelect, addressContext }: { onSelect: (lat: number, l
 
              // Avoid repeating the exact same query
              if (retryQuery.toLowerCase() !== q.toLowerCase()) {
-                 console.log("Retrying with simpler query:", retryQuery);
+                 if (process.env.NODE_ENV === "development") console.log("Retrying with simpler query:", retryQuery);
                  let fallbackData = await fetchNominatim(retryQuery);
                  // Apply strict filtering on fallback
                  if (targetPostalCode) {
@@ -393,7 +393,7 @@ function SearchControl({ onSelect, addressContext }: { onSelect: (lat: number, l
              retryQueryNoNum += `, ${addressContext.city}, ${addressContext.state}`;
 
               if (retryQueryNoNum.toLowerCase() !== q.toLowerCase()) {
-                 console.log("Retrying without number:", retryQueryNoNum);
+                 if (process.env.NODE_ENV === "development") console.log("Retrying without number:", retryQueryNoNum);
                  let fallbackData = await fetchNominatim(retryQueryNoNum);
                  if (targetPostalCode) {
                      fallbackData = filterByPostalCode(fallbackData, targetPostalCode);
@@ -412,9 +412,9 @@ function SearchControl({ onSelect, addressContext }: { onSelect: (lat: number, l
                   if (match) {
                       const variant = `${match[1]}-${match[2]}`; // Force "34-C" format
                       const hyphenQuery = `Calle ${variant}, ${addressContext.city}, ${addressContext.state}`;
-                      console.log("Retrying Hyphenated Street (No CP):", hyphenQuery);
+                      if (process.env.NODE_ENV === "development") console.log("Retrying Hyphenated Street (No CP):", hyphenQuery);
                       
-                      let hyphenData = await fetchNominatim(hyphenQuery);
+                      const hyphenData = await fetchNominatim(hyphenQuery);
                       
                       // Strict Filter: Must match the street name variants
                       // We accept it even if CP is wrong
@@ -438,14 +438,14 @@ function SearchControl({ onSelect, addressContext }: { onSelect: (lat: number, l
       if (data.length === 0 && addressContext) {
            const targetNeighborhood = addressContext.neighborhood;
            const targetPostalCode = addressContext.postalCode;
-           let simpleStreet = addressContext.street || "";
+           const simpleStreet = addressContext.street || "";
            
            if (simpleStreet && targetNeighborhood && addressContext.city && addressContext.state) {
                let q = `${simpleStreet} ${addressContext.exteriorNumber || ''}, ${targetNeighborhood}, ${addressContext.city}, ${addressContext.state}`;
                if (!/^(calle|av)/i.test(simpleStreet)) q = `Calle ${simpleStreet} ${addressContext.exteriorNumber || ''}, ${targetNeighborhood}, ${addressContext.city}, ${addressContext.state}`;
                
-               console.log("Retrying Street + Neighborhood (Manual):", q);
-               let fallbackData = await fetchNominatim(q);
+               if (process.env.NODE_ENV === "development") console.log("Retrying Street + Neighborhood (Manual):", q);
+               const fallbackData = await fetchNominatim(q);
                
                const filtered = fallbackData.filter((result: any) => {
                    const addr = result.address || {};
@@ -487,7 +487,7 @@ function SearchControl({ onSelect, addressContext }: { onSelect: (lat: number, l
       if (data.length === 0 && addressContext?.postalCode) {
           const postalQuery = `${addressContext.postalCode}, ${addressContext.city || ''}, ${addressContext.state || ''}`;
            if (postalQuery.toLowerCase() !== q.toLowerCase()) {
-               console.log("Retrying with just postal code:", postalQuery);
+               if (process.env.NODE_ENV === "development") console.log("Retrying with just postal code:", postalQuery);
                let fallbackData = await fetchNominatim(postalQuery);
                // Strict check not needed here as we searched BY postal code, but good to have
                fallbackData = filterByPostalCode(fallbackData, addressContext.postalCode);
@@ -499,7 +499,7 @@ function SearchControl({ onSelect, addressContext }: { onSelect: (lat: number, l
       if (data.length === 0 && addressContext) {
         const cityStateQuery = `${addressContext.city || ''}, ${addressContext.state || ''}, ${addressContext.country || 'Mexico'}`.replace(/,\s*,/g, ',').trim();
         if (cityStateQuery.toLowerCase() !== q.toLowerCase() && addressContext.city) {
-             console.log("No exact match found. Trying fallback:", cityStateQuery);
+             if (process.env.NODE_ENV === "development") console.log("No exact match found. Trying fallback:", cityStateQuery);
              data = await fetchNominatim(cityStateQuery);
         }
       }
@@ -691,8 +691,8 @@ function SearchControl({ onSelect, addressContext }: { onSelect: (lat: number, l
              let q = `${street} ${num}, ${postalCode}, ${city}, ${state}`;
              if (!/^(calle|av)/i.test(street)) q = `Calle ${street} ${num}, ${postalCode}, ${city}, ${state}`;
              
-             let data = await fetchFreeText(q);
-             let filtered = filterResults(data);
+             const data = await fetchFreeText(q);
+             const filtered = filterResults(data);
              if (filtered.length > 0) finalResults = filtered;
              
              if (finalResults.length === 0) {

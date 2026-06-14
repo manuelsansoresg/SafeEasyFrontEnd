@@ -58,7 +58,7 @@ export default function SellTestimonials() {
               </div>
 
               <p className="text-gray-700 text-lg mb-8 leading-relaxed italic">
-                "{testimonial.content}"
+                &quot;{testimonial.content}&quot;
               </p>
 
               <div className="flex items-center gap-4 border-t border-gray-100 pt-6">

@@ -46,7 +46,7 @@ export const statsService = {
     // We need /api/api/v1 because proxy strips the first /api/
     let url = `/api/api/v1/suppliers/${supplierId}/stats${queryString ? `?${queryString}` : ''}`;
     
-    console.log(`[StatsService] Fetching stats from: ${url}`);
+    if (process.env.NODE_ENV === "development") console.log(`[StatsService] Fetching stats from: ${url}`);
     let response = await fetchWithAuth(url);
 
     if (response.status === 404) {

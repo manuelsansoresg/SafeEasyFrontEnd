@@ -57,15 +57,15 @@ export const useFavoritesStore = create<FavoritesState>((set, get) => ({
       // Fetch only IDs if possible, or fetch all and map
       // The API docs say GET /favorites/ returns full product objects.
       // We'll extract IDs from there.
-      console.log("fetchFavorites: calling API...");
+      if (process.env.NODE_ENV === "development") console.log("fetchFavorites: calling API...");
       const response = await fetchWithAuth('/api/favorites/?limit=1000'); // Get enough
-      console.log(`fetchFavorites: status ${response.status} ${response.statusText}`);
+      if (process.env.NODE_ENV === "development") console.log(`fetchFavorites: status ${response.status} ${response.statusText}`);
       
       if (response.ok) {
         let text = '';
         try {
             text = await response.text();
-            // console.log("fetchFavorites: raw response", text.substring(0, 100)); // Log first 100 chars
+            // if (process.env.NODE_ENV === "development") console.log("fetchFavorites: raw response", text.substring(0, 100)); // Log first 100 chars
             if (!text) {
                 console.warn("fetchFavorites: Empty response body");
                 set({ favorites: new Set() });

@@ -132,7 +132,9 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
     }
     if (isOwner || (user?.id && supplierId && String(user.id) === String(supplierId))) {
         setIsVendorMode(true);
+        return;
     }
+    setIsVendorMode(false);
   }, [user, supplierId, isOwner, initialConversation]);
 
   // Track if we sent the initial context message for this session
@@ -202,7 +204,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
   // Debug logs
   useEffect(() => {
     if (isOpen) {
-        // console.log("[ChatWindow] Debug IDs:", { 
+        // if (process.env.NODE_ENV === "development") console.log("[ChatWindow] Debug IDs:", { 
         //     currentUserId: user?.id, 
         //     productSupplierId: supplierId, 
         //     isVendorMode,
@@ -324,7 +326,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
   // Send pending messages when WebSocket connects
   useEffect(() => {
     if (status === 'connected' && pendingMessages.length > 0 && activeConversation && !String(activeConversation.id).startsWith('temp-')) {
-        // console.log("[ChatWindow] Sending pending messages via WebSocket", pendingMessages);
+        // if (process.env.NODE_ENV === "development") console.log("[ChatWindow] Sending pending messages via WebSocket", pendingMessages);
         
         // Send all pending messages
         pendingMessages.forEach(msg => {
@@ -602,7 +604,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
                 );
                 
                 if (amISupplier) {
-                    console.log("[ChatWindow] Auto-detected Vendor Mode (Found conversation where my_role=supplier or ID match)");
+                    if (process.env.NODE_ENV === "development") console.log("[ChatWindow] Auto-detected Vendor Mode (Found conversation where my_role=supplier or ID match)");
                     currentIsVendor = true;
                     setIsVendorMode(true);
                     // We can reuse the fetched conversations
@@ -629,7 +631,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
             if (conversations.length === 0) { 
                 const allConversations = await chatService.getConversations();
                 
-                console.log("[ChatWindow] All fetched conversations (Vendor Mode):", allConversations);
+                if (process.env.NODE_ENV === "development") console.log("[ChatWindow] All fetched conversations (Vendor Mode):", allConversations);
                 
                 // Relaxed filtering:
                 // 1. Strict match on product_id
@@ -660,7 +662,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
                 // This helps if the backend isn't sending product_id/title correctly but we know we are the supplier.
                 let finalConversations = productConversations;
                 if (productConversations.length === 0) {
-                     console.log("[ChatWindow] Strict filter returned 0. Trying broader filter by Supplier Role...");
+                     if (process.env.NODE_ENV === "development") console.log("[ChatWindow] Strict filter returned 0. Trying broader filter by Supplier Role...");
                      const broader = allConversations.filter(c => 
                         c.my_role === 'supplier' || String(c.supplier_id) === String(user.id) || 
                         (String(user.id) === String(supplierId) && !c.product_id) // Match if I am the supplier of this page and convo has no product attached
@@ -673,7 +675,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
                              finalConversations = titleMatches;
                          } else if (broader.length > 0) {
                              // If no title match, show all broader matches (better than empty)
-                             console.log("[ChatWindow] No title match found. Showing all supplier conversations as fallback.");
+                             if (process.env.NODE_ENV === "development") console.log("[ChatWindow] No title match found. Showing all supplier conversations as fallback.");
                              finalConversations = broader;
                          }
                      } else {
@@ -717,7 +719,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
             const existing = existingCandidates[0];
             
             if (existing) {
-                console.log(`[ChatWindow] Found ${existingCandidates.length} existing conversations. Using most recent: ${existing.id}`);
+                if (process.env.NODE_ENV === "development") console.log(`[ChatWindow] Found ${existingCandidates.length} existing conversations. Using most recent: ${existing.id}`);
                 setActiveConversation(existing);
                 await loadMessages(existing.id);
                 // Also update conversations list for the sidebar (even if hidden for single chat, good for state)
@@ -748,13 +750,13 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
   // 2. Sync real-time messages
   useEffect(() => {
     if (lastMessage && activeConversation) {
-       console.log("[ChatWindow] New lastMessage received:", lastMessage);
+       if (process.env.NODE_ENV === "development") console.log("[ChatWindow] New lastMessage received:", lastMessage);
        if (String(lastMessage.conversation_id) === String(activeConversation.id)) {
            // Check if message is already in list to avoid duplicates (common in optimistic UI + WS echo)
            setMessages(prev => {
               // 1) Si ya existe un mensaje con el mismo ID, lo ignoramos
               if (prev.some(m => m.id === lastMessage.id)) {
-                  console.log("[ChatWindow] Duplicate message ignored by ID:", lastMessage.id);
+                  if (process.env.NODE_ENV === "development") console.log("[ChatWindow] Duplicate message ignored by ID:", lastMessage.id);
                   return prev;
               }
 
@@ -779,12 +781,12 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
               });
 
               if (replaced) {
-                  console.log("[ChatWindow] Replaced optimistic message with real one");
+                  if (process.env.NODE_ENV === "development") console.log("[ChatWindow] Replaced optimistic message with real one");
                   return updated;
               }
 
               // 3) Si no se reemplazó nada, añadimos el nuevo mensaje al final
-              console.log("[ChatWindow] Appending new message:", lastMessage);
+              if (process.env.NODE_ENV === "development") console.log("[ChatWindow] Appending new message:", lastMessage);
               return [...prev, lastMessage];
            });
            if (shouldStickToBottomRef.current) {
@@ -890,7 +892,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
                 if (prev.length === finalConversations.length && prev[0]?.id === finalConversations[0]?.id) {
                     return prev;
                 }
-                // console.log("[ChatWindow] Updating vendor conversation list from poll");
+                // if (process.env.NODE_ENV === "development") console.log("[ChatWindow] Updating vendor conversation list from poll");
                 return finalConversations;
             });
             
@@ -949,24 +951,100 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
 
     let conversationId: string | number = activeConversation.id;
     let resolvedConversation = activeConversation;
+    const resolveProductIdFromSlug = async () => {
+      const slug = productData?.slug;
+      if (!slug) return null;
+
+      const direct = await fetchWithAuth(`/api/products/${encodeURIComponent(slug)}`);
+      if (direct.ok) {
+        const product = await direct.json();
+        if (product?.id) return String(product.id);
+      }
+
+      const search = await fetchWithAuth(`/api/products/?search=${encodeURIComponent(slug)}&limit=5`);
+      if (!search.ok) return null;
+
+      const payload = await search.json();
+      const items = Array.isArray(payload)
+        ? payload
+        : payload?.items || payload?.results || payload?.data || payload?.products || [];
+      const found = (items as Array<{ id?: string | number; slug?: string }>).find(
+        (item) => item.slug === slug || String(item.id) === slug
+      );
+
+      return found?.id ? String(found.id) : null;
+    };
 
     if (String(conversationId).startsWith("temp-") || conversationId === 0) {
+      if (!targetProductId) {
+        setError("No se pudo iniciar el chat porque falta el producto.");
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setInputValue(messageContent);
+        setSelectedFile(currentFile);
+        return;
+      }
+
       try {
         const newConv = await chatService.createConversation({
           supplier_id: activeConversation.supplier_id,
-          product_id: targetProductId || undefined,
+          product_id: targetProductId,
         });
         resolvedConversation = { ...activeConversation, ...newConv, product_id: targetProductId };
         conversationId = newConv.id;
         setActiveConversation(resolvedConversation);
         setMessages((prev) => prev.map((m) => ({ ...m, conversation_id: conversationId })));
       } catch (err) {
-        console.error("Failed to create conversation:", err);
-        setError("Error al iniciar la conversación.");
-        setMessages((prev) => prev.filter((m) => m.id !== tempId));
-        setInputValue(messageContent);
-        setSelectedFile(currentFile);
-        return;
+        let retried = false;
+        const resolvedProductId = await resolveProductIdFromSlug().catch(() => null);
+
+        if (resolvedProductId && String(resolvedProductId) !== String(targetProductId)) {
+          try {
+            const newConv = await chatService.createConversation({
+              supplier_id: activeConversation.supplier_id,
+              product_id: resolvedProductId,
+            });
+            retried = true;
+            resolvedConversation = { ...activeConversation, ...newConv, product_id: resolvedProductId };
+            conversationId = newConv.id;
+            setActiveConversation(resolvedConversation);
+            setMessages((prev) => prev.map((m) => ({ ...m, conversation_id: conversationId })));
+          } catch {
+            retried = false;
+          }
+        }
+
+        if (retried) {
+          // Continue to send the message using the newly created conversation.
+        } else {
+        const existing = await chatService
+          .getConversations()
+          .then((items) =>
+            items.find(
+              (conversation) =>
+                String(conversation.product_id || "") === String(targetProductId) &&
+                String(conversation.supplier_id) === String(activeConversation.supplier_id)
+            )
+          )
+          .catch(() => undefined);
+
+        if (existing) {
+          resolvedConversation = { ...activeConversation, ...existing, product_id: targetProductId };
+          conversationId = existing.id;
+          setActiveConversation(resolvedConversation);
+          setMessages((prev) => prev.map((m) => ({ ...m, conversation_id: conversationId })));
+        } else {
+          console.error("Failed to create conversation:", err);
+          const message =
+            err instanceof Error && err.message
+              ? err.message
+              : "Error al iniciar la conversación.";
+          setError(message);
+          setMessages((prev) => prev.filter((m) => m.id !== tempId));
+          setInputValue(messageContent);
+          setSelectedFile(currentFile);
+          return;
+        }
+        }
       }
     }
 

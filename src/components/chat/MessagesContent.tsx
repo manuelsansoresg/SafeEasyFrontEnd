@@ -119,7 +119,7 @@ export function MessagesContent() {
 
              // 2. Create if not exists (only if client)
              if (!targetConv && user.role === 'client') {
-                 console.log("Creating new conversation for product/supplier...");
+                 if (process.env.NODE_ENV === "development") console.log("Creating new conversation for product/supplier...");
                  try {
                      const newConv = await chatService.createConversation({
                          supplier_id: Number(paramSupplierId),

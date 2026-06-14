@@ -89,7 +89,7 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
 
   if (shouldAttemptRefresh) {
     try {
-      console.log(`[fetchWithAuth] Refreshing token after 401. Has RefreshToken: ${!!refreshToken}`);
+      if (process.env.NODE_ENV === "development") console.log(`[fetchWithAuth] Refreshing token after 401. Has RefreshToken: ${!!refreshToken}`);
 
       const refreshed = await refreshAccessToken(refreshToken);
       if (refreshed) {

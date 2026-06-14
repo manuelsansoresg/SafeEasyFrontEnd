@@ -87,8 +87,8 @@ export async function getRecommendations(params: RecommendationsParams): Promise
     const deviceId = getDeviceId();
     const url = `/api/products/results?${queryParams.toString()}`;
 
-    console.log("🔍 Fetching product results with params:", queryParams.toString());
-    console.log("📍 Results location param sent:", queryParams.get("location") || "None");
+    if (process.env.NODE_ENV === "development") console.log("🔍 Fetching product results with params:", queryParams.toString());
+    if (process.env.NODE_ENV === "development") console.log("📍 Results location param sent:", queryParams.get("location") || "None");
     const response = await fetchWithAuth(url, {
       headers: {
         Accept: "application/json",

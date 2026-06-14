@@ -41,7 +41,7 @@ export default function LoginPage() {
       const data = await response.json();
       
       // 3. ¡Éxito! Guardar el token de TU sistema
-      console.log("Login exitoso, token recibido:", data.access_token);
+      if (process.env.NODE_ENV === "development") console.log("Login exitoso, token recibido:", data.access_token);
       
       // Decodificar el token o usar los datos devueltos si incluyen info de usuario
       // Asumiendo que el backend devuelve access_token y tal vez user info o lo buscamos
@@ -179,7 +179,7 @@ export default function LoginPage() {
       }
 
       // Login with full user data including ID
-      console.log("Login successful. Data:", { ...data, access_token: '***', refresh_token: data.refresh_token ? '***' : 'undefined' });
+      if (process.env.NODE_ENV === "development") console.log("Login successful. Data:", { ...data, access_token: '***', refresh_token: data.refresh_token ? '***' : 'undefined' });
       
       login(data.access_token, data.refresh_token || null, {
           id: userData.id,
@@ -189,7 +189,7 @@ export default function LoginPage() {
       });
       
       if (userData.role === 'admin' || userData.role === 'supplier') {
-          console.log("El usuario es admin o supplier, redirigiendo a panel...");
+          if (process.env.NODE_ENV === "development") console.log("El usuario es admin o supplier, redirigiendo a panel...");
           router.push('/admin/dashboard');
           return;
       }

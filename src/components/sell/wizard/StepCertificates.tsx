@@ -53,7 +53,7 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
     try {
       // Always use the slug endpoint as it is the only one confirmed to work for reading details
       const url = `/api/suppliers/${slug}`;
-      console.log(`StepCertificates: Fetching from ${url}`);
+      if (process.env.NODE_ENV === "development") console.log(`StepCertificates: Fetching from ${url}`);
       
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -62,7 +62,7 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
       
       if (res.ok) {
         const data = await res.json();
-        console.log("Certificate Items Response:", data);
+        if (process.env.NODE_ENV === "development") console.log("Certificate Items Response:", data);
         
         let certs: CertificateItem[] = [];
         // The response is the supplier object, so we look for certificates array

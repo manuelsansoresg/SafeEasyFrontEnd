@@ -16,13 +16,16 @@ export function ChatOverlay() {
      const myId = String(user.id);
      const supplierId = String(chat.supplier_id);
      const buyerId = String(chat.user_id || chat.buyer_id);
+     const effectiveMyRole =
+       chat.my_role ||
+       (myId === supplierId ? "supplier" : myId === buyerId ? "client" : undefined);
      
      // Construct my name for comparison
       const myName = (user.name || '').trim();
 
      // 1. Am I the Supplier? (Or Admin acting as Supplier)
      // If my ID matches the supplier_id, I MUST see the Client's Name.
-     if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+     if (effectiveMyRole === "supplier" || (!effectiveMyRole && (user.role === 'supplier' || user.role === 'admin'))) {
          // Check structured user object first
          if (chat.user) {
              const chatUserId = String(chat.user.id);
@@ -61,7 +64,7 @@ export function ChatOverlay() {
      }
 
      // 2. Am I the Client?
-     if (myId === buyerId || user.role === 'client') {
+     if (effectiveMyRole === "client" || myId === buyerId || user.role === 'client') {
          return chat.supplier_name || chat.other_party_name || `Proveedor #${supplierId}`;
      }
 
@@ -108,7 +111,7 @@ export function ChatOverlay() {
                     supplierId={chat.supplier_id}
                     supplierName={chat.supplier_name || chat.other_party_name}
                     supplierSlug={chat.supplier_slug}
-                    isOwner={String(user?.id) === String(chat.supplier_id) || user?.role === 'admin'}
+                    isOwner={chat.my_role === "supplier" || String(user?.id) === String(chat.supplier_id)}
                     productData={{
                         title: chat.product_title || "Producto",
                         // Backend contract: conversation.product_price ya viene calculado

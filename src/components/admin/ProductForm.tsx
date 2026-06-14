@@ -284,13 +284,13 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   const fetchMedia = async (productId: string) => {
     if (!token) return;
     try {
-      console.log(`Fetching media for product ${productId}...`);
+      if (process.env.NODE_ENV === "development") console.log(`Fetching media for product ${productId}...`);
       const response = await fetch(`/api/products/${productId}/media`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
-        console.log("Media fetched:", data);
+        if (process.env.NODE_ENV === "development") console.log("Media fetched:", data);
         setMediaList(Array.isArray(data) ? data : []);
       } else {
         console.error("Error fetching media:", await response.text());
@@ -400,7 +400,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
          }
       }
 
-      console.log("Sending payload (FormData)");
+      if (process.env.NODE_ENV === "development") console.log("Sending payload (FormData)");
 
       const url = isEditMode && initialData
         ? `/api/products/${initialData.id}` 

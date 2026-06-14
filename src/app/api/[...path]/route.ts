@@ -121,7 +121,7 @@ const getBaseUrlCandidates = () => {
 async function handler(request: NextRequest) {
   // Use pathname directly to avoid params ambiguity
   const pathname = request.nextUrl.pathname;
-  console.log(`[Generic Proxy] Received request: ${pathname}`);
+  if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Received request: ${pathname}`);
   
   // Remove /api prefix
   let relativePath = pathname.replace(/^\/api/, '');
@@ -157,13 +157,15 @@ async function handler(request: NextRequest) {
           'clear', 'item', 'read', 'claim', 'close', 'mark-read', 
           'resolve', 'unassigned', 'connect', 'disconnect', 'callback', 
           'events', 'purchase', 'payments', 'refresh', 'device-token', 
-          'recommendations', 'similar', 'by-supplier', 'featured', 
+          'recommendations', 'similar', 'by-supplier', 'featured',
           'recommended', 'media', 'dashboard', 'legal', 'sell-faq',
-          'settings', 'results', 'countries', 'states', 'cities', 'catalogs'
+          'settings', 'results', 'countries', 'states', 'cities', 'catalogs',
+          'conversations', 'messages', 'presence'
       ];
       
       // Admin endpoints should NOT have trailing slashes
       const isAdminEndpoint = segments[0] === 'admin';
+      const isChatEndpoint = segments[0] === 'chat';
       
       // Check if path contains a numeric ID or UUID
       const hasResourceId = segments.some(seg => 
@@ -171,7 +173,7 @@ async function handler(request: NextRequest) {
       );
       
       // Remove trailing slash for resource endpoints, paths with resource IDs, or admin endpoints
-      if (resourceEndpoints.includes(lastSegment) || hasResourceId || isAdminEndpoint) {
+      if (resourceEndpoints.includes(lastSegment) || hasResourceId || isAdminEndpoint || isChatEndpoint) {
           relativePath = relativePath.replace(/\/+$/, '');
       }
   }
@@ -275,7 +277,7 @@ async function handler(request: NextRequest) {
 
       nextTargetUrl += request.nextUrl.search;
       targetUrl = nextTargetUrl;
-      console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
+      if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
 
       try {
         response = await fetch(targetUrl, buildFetchOptions());
@@ -314,13 +316,13 @@ async function handler(request: NextRequest) {
       );
     }
 
-    console.log(`[Generic Proxy] Response status: ${response.status}`);
+    if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Response status: ${response.status}`);
 
     // Manually follow redirect (once) to preserve Authorization header.
     if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('Location');
         if (location) {
-             console.log(`[Generic Proxy] Redirect detected to: ${location}`);
+             if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Redirect detected to: ${location}`);
               
               let newUrlString = location;
              if (!location.startsWith('http')) {
@@ -342,7 +344,7 @@ async function handler(request: NextRequest) {
               // Force HTTPS for non-local redirects to avoid downgrade loops (Cloudflare/Backend misconfig).
               // Local FastAPI dev redirects (e.g. /notifications -> /notifications/) must stay HTTP.
               if (shouldUpgradeRedirect) {
-                  console.log(`[Generic Proxy] Upgrading redirect to HTTPS: ${newUrlString}`);
+                  if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Upgrading redirect to HTTPS: ${newUrlString}`);
                   newUrlString = newUrlString.replace('http:', 'https:');
               }
 
@@ -392,10 +394,10 @@ async function handler(request: NextRequest) {
                return NextResponse.redirect(newUrlString, { status: response.status, headers });
              }
              
-             console.log(`[Generic Proxy] Following redirect manually to: ${newUrlString}`);
+             if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Following redirect manually to: ${newUrlString}`);
              
              response = await fetch(newUrlString, buildFetchOptions());
-             console.log(`[Generic Proxy] Followed response status: ${response.status}`);
+             if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Followed response status: ${response.status}`);
         }
     }
 

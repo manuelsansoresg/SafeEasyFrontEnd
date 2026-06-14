@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
+import { fetchWithAuth } from "@/lib/api";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
 import FileUpload from "@/components/ui/FileUpload";
 import { PageHero } from "@/components/ui/PageHero";
+import StarRating from "@/components/StarRating";
 import {
   Loader2,
   Package,
@@ -244,6 +246,25 @@ function isDateInRange(value: string | undefined | null, range: string) {
 function isOrderReadyForDelivery(order: Order) {
   const key = normalizeStatusKey(getOrderStatusRaw(order));
   return key === "ready_for_pickup" || key === "en_route_to_pickup" || key === "picked_up" || key === "shipped" || key === "in_transit";
+}
+
+function isCompletedOrder(order: Order, latestHistoryKey?: string) {
+  const key = normalizeStatusKey(latestHistoryKey || getOrderStatusRaw(order));
+  return key === "completed" || key === "delivered" || key === "verified";
+}
+
+function getOrderRatingId(order: Order) {
+  const record = order as unknown as Record<string, unknown>;
+  const raw =
+    record.rating_id ??
+    record.product_rating_id ??
+    record.review_id ??
+    record.rated_at ??
+    record.rating ??
+    record.review ??
+    record.has_rating ??
+    record.is_rated;
+  return raw === undefined || raw === null || raw === false ? null : String(raw);
 }
 
 function getOrderStatusGroup(order: Order) {
@@ -576,9 +597,15 @@ export default function ClientOrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [ordersPage, setOrdersPage] = useState(1);
+  const [ratedOrdersById, setRatedOrdersById] = useState<Record<string, true>>({});
+  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
+  const [ratingError, setRatingError] = useState<string | null>(null);
   const ordersLimit = 10;
 
   const refundRequestedStorageKey = "safeeasy:refund_requested_v1";
+  const ratedOrdersStorageKey = "safeeasy:rated_orders_v1";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -588,6 +615,17 @@ export default function ClientOrdersPage() {
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
       setRefundRequestedByOrderId(parsed as Record<string, true>);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(ratedOrdersStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+      setRatedOrdersById(parsed as Record<string, true>);
     } catch {}
   }, []);
 
@@ -645,6 +683,10 @@ export default function ClientOrdersPage() {
     setSelectedOrder(order);
     setModalError(null);
     setModalSuccess(null);
+    setRatingValue(0);
+    setRatingComment("");
+    setRatingError(null);
+    setRatingSubmitting(false);
     setHistory([]);
     setHistoryLoading(true);
     setRefundLoading(true);
@@ -691,6 +733,10 @@ export default function ClientOrdersPage() {
     setRefundSubmitting(false);
     setRefundError(null);
     setRefundSuccess(null);
+    setRatingValue(0);
+    setRatingComment("");
+    setRatingError(null);
+    setRatingSubmitting(false);
   };
 
   useEffect(() => {
@@ -764,6 +810,16 @@ export default function ClientOrdersPage() {
   const isRefundRequestedInHistory = latestHistoryKey === "refund_requested";
   const isRefundFinalizedInHistory = latestHistoryKey === "refund_refunded";
 
+  const selectedOrderAlreadyRated = useMemo(() => {
+    if (!selectedOrder) return false;
+    return Boolean(getOrderRatingId(selectedOrder) || ratedOrdersById[String(selectedOrder.id)]);
+  }, [selectedOrder, ratedOrdersById]);
+
+  const canRateSelectedOrder = useMemo(() => {
+    if (!selectedOrder) return false;
+    return isCompletedOrder(selectedOrder, latestHistoryKey) && !selectedOrderAlreadyRated;
+  }, [selectedOrder, latestHistoryKey, selectedOrderAlreadyRated]);
+
   const refundProofUrl = useMemo(() => {
     const raw = activeRefund?.file_url || activeRefund?.evidence_url || activeRefund?.file || null;
     if (!raw) return null;
@@ -794,6 +850,90 @@ export default function ClientOrdersPage() {
     setRefundEvidence(null);
     setRefundError(null);
     setRefundSuccess(null);
+  };
+
+  const markOrderRated = (orderId: number) => {
+    setRatedOrdersById((prev) => {
+      const next = { ...prev, [String(orderId)]: true as const };
+      try {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(ratedOrdersStorageKey, JSON.stringify(next));
+        }
+      } catch {}
+      return next;
+    });
+  };
+
+  const submitOrderRating = async () => {
+    if (!selectedOrder || !user) return;
+    if (!canRateSelectedOrder) return;
+    if (ratingValue === 0) {
+      setRatingError("Selecciona una puntuación.");
+      return;
+    }
+
+    const comment = ratingComment.trim();
+    if (!comment) {
+      setRatingError("Escribe un comentario breve sobre tu experiencia.");
+      return;
+    }
+
+    setRatingSubmitting(true);
+    setRatingError(null);
+    setModalSuccess(null);
+    setModalError(null);
+
+    try {
+      const productId = selectedOrder.product?.id || selectedOrder.product_id;
+      if (!productId) throw new Error("No encontramos el producto de este pedido.");
+
+      const payload = {
+        rating: ratingValue,
+        comment,
+        product_id: productId,
+        user_id: user.id,
+        is_approved: true,
+      };
+
+      const response = await fetchWithAuth(`/api/products/${productId}/ratings`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        let detail = "";
+        try {
+          const data = JSON.parse(errorText) as Record<string, unknown>;
+          detail =
+            (typeof data.detail === "string" && data.detail) ||
+            (typeof data.message === "string" && data.message) ||
+            "";
+        } catch {}
+
+        if (detail === "You have already rated this product") {
+          detail = "Ya calificaste este producto anteriormente.";
+        }
+
+        throw new Error(detail || "No se pudo guardar tu calificación.");
+      }
+
+      markOrderRated(selectedOrder.id);
+      setRatingValue(0);
+      setRatingComment("");
+      setModalSuccess("Calificación enviada. Gracias por compartir tu experiencia.");
+
+      const updatedOrders = await orderService.getMyOrders(user?.id);
+      setOrders(updatedOrders);
+      const updatedOrder = updatedOrders.find((o) => o.id === selectedOrder.id) || null;
+      if (updatedOrder) setSelectedOrder(updatedOrder);
+
+      setTimeout(() => setModalSuccess(null), 3500);
+    } catch (e: unknown) {
+      setRatingError(getErrorMessage(e, "No se pudo guardar tu calificación."));
+    } finally {
+      setRatingSubmitting(false);
+    }
   };
 
   const handleRefundEvidenceChange = (file: File | null) => {
@@ -948,13 +1088,31 @@ export default function ClientOrdersPage() {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">{formatOrderDate(order.created_at)}</td>
                   <td className="px-6 py-4 text-sm">
-                    <button
-                      onClick={() => router.push(`/client/orders/${order.id}`)}
-                      className="inline-flex items-center justify-center rounded-md px-4 py-2 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-95"
-                      style={{ backgroundColor: "#004e28" }}
-                    >
-                      Ver detalle
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      {isCompletedOrder(order) ? (
+                        getOrderRatingId(order) || ratedOrdersById[String(order.id)] ? (
+                          <span className="inline-flex items-center justify-center rounded-md border border-[#004e28]/20 bg-[#004e28]/10 px-3 py-2 text-xs font-semibold text-[#004e28]">
+                            Calificado
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openModal(order)}
+                            className="inline-flex items-center justify-center rounded-md px-3 py-2 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-95"
+                            style={{ backgroundColor: "#168e00" }}
+                          >
+                            Calificar
+                          </button>
+                        )
+                      ) : null}
+                      <button
+                        onClick={() => router.push(`/client/orders/${order.id}`)}
+                        className="inline-flex items-center justify-center rounded-md px-4 py-2 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-95"
+                        style={{ backgroundColor: "#004e28" }}
+                      >
+                        Ver detalle
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -998,12 +1156,29 @@ export default function ClientOrdersPage() {
                     <div className="mt-1"><StatusBadge value={getOrderStatusRaw(order)} /></div>
                   </div>
                 </div>
-                <button
-                  onClick={() => router.push(`/client/orders/${order.id}`)}
-                  className="mt-5 w-full rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white"
-                >
-                  Ver detalle
-                </button>
+                <div className="mt-5 grid gap-2">
+                  {isCompletedOrder(order) ? (
+                    getOrderRatingId(order) || ratedOrdersById[String(order.id)] ? (
+                      <div className="rounded-xl border border-[#004e28]/20 bg-[#004e28]/10 px-4 py-3 text-center text-sm font-bold text-[#004e28]">
+                        Calificado
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openModal(order)}
+                        className="w-full rounded-xl bg-[#168e00] px-4 py-3 text-sm font-bold text-white"
+                      >
+                        Calificar
+                      </button>
+                    )
+                  ) : null}
+                  <button
+                    onClick={() => router.push(`/client/orders/${order.id}`)}
+                    className="w-full rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white"
+                  >
+                    Ver detalle
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -1156,7 +1331,7 @@ export default function ClientOrdersPage() {
           aria-modal="true"
         >
           <div
-            className="w-full max-w-4xl rounded-2xl bg-white shadow-xl overflow-hidden"
+            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative px-8 pt-7 pb-5 border-b border-gray-100">
@@ -1427,6 +1602,90 @@ export default function ClientOrdersPage() {
                   )}
                 </div>
               </div>
+
+              {isCompletedOrder(selectedOrder, latestHistoryKey) ? (
+                <div className="rounded-xl border border-gray-100 bg-white p-5">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-sm font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">
+                        Calificar proveedor
+                      </div>
+                      <div className="mt-1 text-sm text-gray-500 font-[family-name:var(--font-poppins)]">
+                        Comparte tu experiencia con {selectedOrder.supplier?.name || "este proveedor"} en este pedido.
+                      </div>
+                    </div>
+                    {selectedOrderAlreadyRated ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#004e28]/20 bg-[#004e28]/10 px-3 py-1 text-xs font-semibold text-[#004e28] font-[family-name:var(--font-poppins)]">
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        Calificación enviada
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {canRateSelectedOrder ? (
+                    <div className="mt-5 space-y-4">
+                      <div>
+                        <div className="mb-2 text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)]">
+                          Puntuación
+                        </div>
+                        <StarRating
+                          rating={ratingValue}
+                          interactive
+                          size={30}
+                          onRatingChange={(value) => {
+                            setRatingValue(value);
+                            setRatingError(null);
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-2 text-sm font-semibold text-gray-900 font-[family-name:var(--font-poppins)]">
+                          Comentario
+                        </div>
+                        <textarea
+                          value={ratingComment}
+                          onChange={(e) => {
+                            setRatingComment(e.target.value);
+                            setRatingError(null);
+                          }}
+                          rows={3}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 font-[family-name:var(--font-poppins)] outline-none transition focus:border-[#004e28]/40 focus:ring-4 focus:ring-[#004e28]/10"
+                          placeholder="Cuéntanos cómo fue la atención, entrega y calidad del servicio..."
+                          disabled={ratingSubmitting}
+                        />
+                      </div>
+
+                      {ratingError ? (
+                        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 font-[family-name:var(--font-poppins)]">
+                          {ratingError}
+                        </div>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={submitOrderRating}
+                        disabled={ratingSubmitting || ratingValue === 0}
+                        className="inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-bold text-white font-[family-name:var(--font-poppins)] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
+                        style={{ backgroundColor: "#168e00" }}
+                      >
+                        {ratingSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Enviando...
+                          </>
+                        ) : (
+                          "Enviar calificación"
+                        )}
+                      </button>
+                    </div>
+                  ) : selectedOrderAlreadyRated ? (
+                    <div className="mt-4 rounded-xl bg-[#f2f3f4] px-4 py-3 text-sm text-gray-600 font-[family-name:var(--font-poppins)]">
+                      Este pedido ya fue calificado. Gracias por ayudar a otros clientes.
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="h-px bg-gray-100" />
 

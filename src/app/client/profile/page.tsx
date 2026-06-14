@@ -314,7 +314,7 @@ export default function ProfilePage() {
       }
 
       const updatedData = await response.json().catch(() => null);
-      console.log("[Profile] PUT response body:", updatedData);
+      if (process.env.NODE_ENV === "development") console.log("[Profile] PUT response body:", updatedData);
 
       if (mapLocation) {
         await fetchWithAuth(`/api/users/${user.id}/map-location`, {

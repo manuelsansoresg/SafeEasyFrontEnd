@@ -29,9 +29,9 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
   useEffect(() => {
     const fetchAds = async () => {
       try {
-        console.log("AdsCarousel: Fetching ads...");
+        if (process.env.NODE_ENV === "development") console.log("AdsCarousel: Fetching ads...");
         const res = await fetch("/api/ads/public", { cache: "no-store" });
-        console.log(`AdsCarousel: status ${res.status}`);
+        if (process.env.NODE_ENV === "development") console.log(`AdsCarousel: status ${res.status}`);
         
         if (!res.ok) {
           console.warn(`AdsCarousel: Failed to fetch ads (${res.status})`);
@@ -68,7 +68,7 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
         }
 
         const activeAds = adsList.filter((a: PublicAd) => a && a.is_active !== false);
-        console.log(`AdsCarousel: Found ${activeAds.length} active ads`);
+        if (process.env.NODE_ENV === "development") console.log(`AdsCarousel: Found ${activeAds.length} active ads`);
         setAds(activeAds);
       } catch (e) {
         console.warn("AdsCarousel: Error fetching ads", e);

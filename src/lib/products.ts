@@ -152,10 +152,10 @@ export async function getProducts(
     }
   }
 
-  let url = `${baseUrl}/products/?${queryParams.toString()}`;
+  const url = `${baseUrl}/products/?${queryParams.toString()}`;
   
-  console.log("🔍 Fetching products with params:", queryParams.toString());
-  console.log("📍 Location param sent:", queryParams.get("location") || "None");
+  if (process.env.NODE_ENV === "development") console.log("🔍 Fetching products with params:", queryParams.toString());
+  if (process.env.NODE_ENV === "development") console.log("📍 Location param sent:", queryParams.get("location") || "None");
   
   const headers: Record<string, string> = {
     'Accept': 'application/json',

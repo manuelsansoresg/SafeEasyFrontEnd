@@ -148,7 +148,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
         }
           
         if (existing) {
-            console.log("Supplier already exists, advancing...", existing);
+            if (process.env.NODE_ENV === "development") console.log("Supplier already exists, advancing...", existing);
             onSuccess(existing.id);
         }
       } catch (e) {
@@ -419,7 +419,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
           debugEntries.push({ key: k, value: v });
         }
       });
-      console.log("[StepSupplier] FormData debug", debugEntries);
+      if (process.env.NODE_ENV === "development") console.log("[StepSupplier] FormData debug", debugEntries);
 
       const response = await fetch('/api/suppliers', {
         method: 'POST',

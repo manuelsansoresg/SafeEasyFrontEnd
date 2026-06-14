@@ -489,8 +489,8 @@ export default function SupplierForm({
         null
     );
     const parsed = parseSupplierMapLocation(initialData?.map_location ?? null);
-    console.log("[SupplierForm] initialData.map_location raw:", initialData?.map_location);
-    console.log("[SupplierForm] initialData.map_location parsed:", parsed);
+    if (process.env.NODE_ENV === "development") console.log("[SupplierForm] initialData.map_location raw:", initialData?.map_location);
+    if (process.env.NODE_ENV === "development") console.log("[SupplierForm] initialData.map_location parsed:", parsed);
     setMapLocation(parsed);
   }, [initialData]);
 
@@ -784,7 +784,7 @@ export default function SupplierForm({
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log("[SupplierForm] handleSubmit called, preventing default");
+    if (process.env.NODE_ENV === "development") console.log("[SupplierForm] handleSubmit called, preventing default");
     e.preventDefault();
     e.stopPropagation();
     if (!token || !user) {
@@ -1015,21 +1015,21 @@ export default function SupplierForm({
             debugEntries.push({ key: k, value: v });
           }
         });
-        console.log("[SupplierForm] PUT payload:", debugEntries);
-        console.log("[SupplierForm] Token being used:", token ? `${token.slice(0, 20)}...` : "NULL/EMPTY");
-        console.log("[SupplierForm] initialData.id:", initialData?.id);
-        console.log("[SupplierForm] isEdit:", isEdit);
-        console.log("[SupplierForm] finalUserId:", finalUserId);
+        if (process.env.NODE_ENV === "development") console.log("[SupplierForm] PUT payload:", debugEntries);
+        if (process.env.NODE_ENV === "development") console.log("[SupplierForm] Token being used:", token ? `${token.slice(0, 20)}...` : "NULL/EMPTY");
+        if (process.env.NODE_ENV === "development") console.log("[SupplierForm] initialData.id:", initialData?.id);
+        if (process.env.NODE_ENV === "development") console.log("[SupplierForm] isEdit:", isEdit);
+        if (process.env.NODE_ENV === "development") console.log("[SupplierForm] finalUserId:", finalUserId);
 
         response = await fetchWithAuth(url, {
           method: "PUT",
           body: data,
         });
 
-        console.log("[SupplierForm] PUT response status:", response.status);
+        if (process.env.NODE_ENV === "development") console.log("[SupplierForm] PUT response status:", response.status);
         if (!response.ok) {
           const errorText = await response.text().catch(() => "");
-          console.log("[SupplierForm] PUT response body:", errorText);
+          if (process.env.NODE_ENV === "development") console.log("[SupplierForm] PUT response body:", errorText);
         }
       } else {
         const data = buildFormData();
@@ -1086,7 +1086,7 @@ export default function SupplierForm({
         updatedSupplier = null;
       }
 
-      console.log("[SupplierForm] PUT response body:", updatedSupplier);
+      if (process.env.NODE_ENV === "development") console.log("[SupplierForm] PUT response body:", updatedSupplier);
 
       if (isEdit && resolvedMapLocation) {
         try {
@@ -1131,7 +1131,7 @@ export default function SupplierForm({
       setClearAboutMedia(false);
 
       setSuccess(true);
-      console.log("[SupplierForm] Save successful, calling onSaved");
+      if (process.env.NODE_ENV === "development") console.log("[SupplierForm] Save successful, calling onSaved");
       await onSaved?.();
       if (!isEditMode && redirectOnCreate) {
         router.push(returnPath);

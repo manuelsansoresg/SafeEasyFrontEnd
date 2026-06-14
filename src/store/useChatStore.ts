@@ -128,7 +128,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
 
-    console.log(`[ChatStore] Intentando conectar Inbox WS a: ${wsUrl.split('?')[0]}?token=${cleanedWsToken ? '[OCULTO]' : 'FALTA_TOKEN'}`);
+    if (process.env.NODE_ENV === "development") console.log(`[ChatStore] Intentando conectar Inbox WS a: ${wsUrl.split('?')[0]}?token=${cleanedWsToken ? '[OCULTO]' : 'FALTA_TOKEN'}`);
 
     try {
       const newSocket = new WebSocket(wsUrl);
@@ -215,7 +215,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
 
       newSocket.onclose = (closeEvent) => {
-        console.log('[ChatStore] Inbox WS cerrado:', closeEvent.code, closeEvent.reason);
+        if (process.env.NODE_ENV === "development") console.log('[ChatStore] Inbox WS cerrado:', closeEvent.code, closeEvent.reason);
         set({ isInboxConnected: false, inboxSocket: null, isInboxConnecting: false });
 
         const noRetryCodes = new Set([1000, 1008, 4000, 4001, 4003, 4004]);
@@ -270,7 +270,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
     // Prevent multiple simultaneous connection attempts
     if (isConnecting) {
-        // console.log('[ChatStore] Connection already in progress...');
+        // if (process.env.NODE_ENV === "development") console.log('[ChatStore] Connection already in progress...');
         return;
     }
 
@@ -323,20 +323,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
     
-    console.log(`[ChatStore] Intentando conectar WS de Conversacion ${conversationId} a: ${wsUrl.split('?')[0]}?token=${cleanedWsToken ? '[OCULTO]' : 'FALTA_TOKEN'}`); 
+    if (process.env.NODE_ENV === "development") console.log(`[ChatStore] Intentando conectar WS de Conversacion ${conversationId} a: ${wsUrl.split('?')[0]}?token=${cleanedWsToken ? '[OCULTO]' : 'FALTA_TOKEN'}`); 
     
     try {
         const newSocket = new WebSocket(wsUrl);
 
         newSocket.onopen = () => {
-          // console.log('[ChatStore] WebSocket Connected');
+          // if (process.env.NODE_ENV === "development") console.log('[ChatStore] WebSocket Connected');
           set({ isConnected: true, error: null, isConnecting: false, activeSocketConversationId: conversationId });
         };
 
         newSocket.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            // console.log('[ChatStore] WebSocket Message:', data);
+            // if (process.env.NODE_ENV === "development") console.log('[ChatStore] WebSocket Message:', data);
             
             // Handle incoming messages
             // Expecting data format consistent with chat system
@@ -426,7 +426,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
 
         newSocket.onclose = (event) => {
-          // console.log('[ChatStore] WebSocket Disconnected', event.code, event.reason);
+          // if (process.env.NODE_ENV === "development") console.log('[ChatStore] WebSocket Disconnected', event.code, event.reason);
           set({ isConnected: false, socket: null, isConnecting: false });
           
           // Attempt to reconnect if not closed normally (1000) and NOT an auth error (usually 4xxx codes mapped to WS close codes)
@@ -436,7 +436,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           
           const noRetryCodes = new Set([1000, 1008, 4000, 4001, 4003, 4004]);
           if (!noRetryCodes.has(event.code)) {
-            // console.log('[ChatStore] Attempting to reconnect in 5s...');
+            // if (process.env.NODE_ENV === "development") console.log('[ChatStore] Attempting to reconnect in 5s...');
             setTimeout(() => {
                 const currentConversationId = get().activeSocketConversationId;
                 if (currentConversationId) {

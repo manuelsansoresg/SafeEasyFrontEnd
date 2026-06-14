@@ -8,6 +8,7 @@ export function middleware(request: NextRequest) {
   }
   const host = request.nextUrl.hostname;
   const isProd = process.env.NODE_ENV === "production";
+  const debugMiddleware = process.env.NEXT_PUBLIC_MIDDLEWARE_DEBUG === "true";
   if (isProd && host === "www.drooopy.com") {
     const url = request.nextUrl.clone();
     url.hostname = "drooopy.com";
@@ -26,26 +27,22 @@ export function middleware(request: NextRequest) {
     country = request.headers.get('x-vercel-ip-country');
   }
 
-  // Debug: Guardar en cookie lo que estamos viendo
-  const debugInfo = JSON.stringify({
-    cf_city: request.headers.get('cf-ipcity') || 'null',
-    cf_country: request.headers.get('cf-ipcountry') || 'null',
-    vercel_city: request.headers.get('x-vercel-ip-city') || 'null',
-    vercel_country: request.headers.get('x-vercel-ip-country') || 'null',
-    url: request.url
-  });
-  
-  // Cookie de depuración detallada
-  response.cookies.set('mw_debug_headers', debugInfo, { httpOnly: false, path: '/' });
+  if (debugMiddleware) {
+    const debugInfo = JSON.stringify({
+      cf_city: request.headers.get('cf-ipcity') || 'null',
+      cf_country: request.headers.get('cf-ipcountry') || 'null',
+      vercel_city: request.headers.get('x-vercel-ip-city') || 'null',
+      vercel_country: request.headers.get('x-vercel-ip-country') || 'null',
+      url: request.url
+    });
 
-  // Log para depuración en el servidor (Vercel/Cloudflare logs)
-  console.log('Middleware running.');
-  console.log('Headers City:', city || 'None');
-  console.log('Headers Country:', country || 'None');
-  console.log('URL:', request.url);
-
-  // Cookie de depuración para verificar que el middleware se ejecutó
-  response.cookies.set('mw_debug', 'active', { httpOnly: false, path: '/' });
+    response.cookies.set('mw_debug_headers', debugInfo, { httpOnly: false, path: '/' });
+    response.cookies.set('mw_debug', 'active', { httpOnly: false, path: '/' });
+    console.log('[Middleware] Geo headers', { city: city || null, country: country || null, url: request.url });
+  } else {
+    response.cookies.delete('mw_debug_headers');
+    response.cookies.delete('mw_debug');
+  }
 
   if (city) {
     // Decodificar por si viene con caracteres especiales

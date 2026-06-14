@@ -301,7 +301,9 @@ export default function SupplierPage() {
   useEffect(() => {
     if (headerVideoRef.current) {
       if (isHeaderVideoPlaying) {
-        headerVideoRef.current.play().catch(e => console.log("Auto-play prevented", e));
+        headerVideoRef.current.play().catch((e) => {
+          if (process.env.NODE_ENV === "development") console.log("Auto-play prevented", e);
+        });
       } else {
         headerVideoRef.current.pause();
       }
@@ -389,7 +391,7 @@ export default function SupplierPage() {
       // Robust Identifier Logic: Prefer URL slug -> Supplier Slug -> Supplier ID
       const identifier = (slug as string) || supplier.slug || String(supplier.id);
       
-      console.log("Fetching products for identifier:", identifier);
+      if (process.env.NODE_ENV === "development") console.log("Fetching products for identifier:", identifier);
       fetchProducts(identifier, 1, false);
       fetchRatings(identifier, 0, false);
     }
@@ -608,7 +610,6 @@ export default function SupplierPage() {
   useEffect(() => {
     if (!slug) return;
     if (page === 1) return;
-    // @ts-ignore
     const identifier = (slug as string) || supplier?.slug || String(supplier?.id);
     fetchProducts(identifier, page, true);
   }, [page, slug]);
@@ -1102,7 +1103,7 @@ export default function SupplierPage() {
                                       <StarRating rating={rating.rating} size={14} />
                                   </div>
                               </div>
-                              <p className="text-gray-600 italic mb-6">"{rating.comment}"</p>
+                              <p className="text-gray-600 italic mb-6">&quot;{rating.comment}&quot;</p>
                               <div className="flex items-center gap-3 mt-auto pt-4 border-t border-gray-200">
                                   <img 
                                     src={getImageUrl(rating.product_thumbnail_url || rating.product_image || null)} 

@@ -122,12 +122,11 @@ const sanitizeHtml = (html: string) => {
 import { useChat } from "@/context/ChatContext";
 import { useChatStore } from "@/store/useChatStore";
 import { chatService } from "@/services/chatService";
-import { Conversation } from "@/types/chat";
 
 export default function ProductDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
-  const { openChat, openChats } = useChat();
+  const { openChat, openChats, closeChat } = useChat();
   const { conversations, fetchConversations } = useChatStore();
   const { toggleFavorite, isFavorite, syncFavorites } = useFavoritesStore();
   const { user, token } = useAuthStore();
@@ -149,15 +148,20 @@ export default function ProductDetailPage() {
   useEffect(() => {
     if (!product || !openChats || openChats.length === 0) return;
 
-    const existingChat = openChats.find(c => 
+    const existingChat = openChats.find(c =>
         String(c.supplier_id) === String(product.supplier_id)
     );
 
     if (existingChat) {
+        if (String(existingChat.id).startsWith("temp-")) {
+            closeChat(existingChat.id);
+            return;
+        }
+
         // If the chat is open/minimized but has a different product context, update it.
         // This ensures that if the user refreshes or navigates, the chat reflects the current product.
         if (String(existingChat.product_id) !== String(product.id)) {
-            console.log(`[ProductPage] Updating chat context to product: ${product.id}`);
+            if (process.env.NODE_ENV === "development") console.log(`[ProductPage] Updating chat context to product: ${product.id}`);
             openChat({
                 ...existingChat,
                 product_id: product.id,
@@ -168,7 +172,7 @@ export default function ProductDetailPage() {
             });
         }
     }
-  }, [product, openChats, openChat]);
+  }, [product, openChats, openChat, closeChat]);
 
   useEffect(() => {
     if (product?.id) {
@@ -221,13 +225,6 @@ export default function ProductDetailPage() {
     }
   }, [slug, syncFavorites]);
 
-  // Rating State
-  const [userRating, setUserRating] = useState<any>(null);
-  const [ratingValue, setRatingValue] = useState(0);
-  const [comment, setComment] = useState("");
-  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
-  const [ratingError, setRatingError] = useState<string | null>(null);
-  const [ratingSuccess, setRatingSuccess] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
@@ -320,220 +317,11 @@ export default function ProductDetailPage() {
     }
   };
 
-  const checkUserRating = async (forceFetch = false, preserveInput = false) => {
-    if (!user || !product) return null;
-
-    let foundRating = null;
-    const targetUserId = user.id;
-
-    // Helper to check if a rating belongs to the current user
-    const isUserRating = (r: any) => {
-        // 1. Check by ID if available
-        const rUserId = r.user_id ?? r.user?.id ?? r.userId;
-        if (rUserId && String(rUserId) === String(targetUserId)) {
-            return true;
-        }
-        
-        // 2. Fallback: Check by name (risky but necessary if IDs are stripped)
-        if (r.user_name && user) {
-            const userName = String(r.user_name).toLowerCase().trim();
-            // Check against various possible user name fields
-            const currentName = String(user.name || '').toLowerCase().trim();
-            const currentFirstName = String((user as any).first_name || '').toLowerCase().trim();
-            const currentUsername = String((user as any).username || '').toLowerCase().trim();
-            
-            // Debug name matching if needed
-            // console.log(`[Debug] Checking name: ${userName} vs ${currentName} / ${currentFirstName}`);
-
-            if ((currentName && userName === currentName) || 
-                (currentFirstName && userName === currentFirstName) || 
-                (currentUsername && userName === currentUsername)) {
-                console.log(`[Debug] Matched rating by name: ${r.user_name}`);
-                return true;
-            }
-        }
-        return false;
-    };
-    
-    // 1. Try to find in the already loaded product ratings (unless forced)
-    if (!forceFetch && product.ratings && product.ratings.length > 0) {
-        foundRating = product.ratings.find(isUserRating);
-    }
-
-    // 2. If not found, fetch specifically via product details refetch
-    if (!foundRating) {
-        try {
-            console.log(`[Debug] Checking for existing rating via API for user ${targetUserId} on product ${product.id}...`);
-            
-            // Refetch full product details to get fresh ratings list.
-            const productIdentifier = product.slug || product.id || slug;
-            const res = await fetchWithAuth(`/api/products/${encodeURIComponent(productIdentifier)}`);
-            
-            if (res.ok) {
-                const productData = await res.json();
-                const ratings = Array.isArray(productData.ratings) ? productData.ratings : [];
-                console.log(`[Debug] Refetched product details. Found ${ratings.length} ratings.`);
-                
-                if (ratings.length > 0) {
-                    foundRating = ratings.find(isUserRating);
-                    
-                    if (foundRating) {
-                        console.log("[Debug] Found rating in refetched product data:", foundRating);
-                    } else {
-                        console.warn("[Debug] Rating still not found in fresh product data.");
-                        // Debug logs to see what we have
-                        console.log("[Debug] Available Ratings Data (First 3):", JSON.stringify(ratings.slice(0, 3))); 
-                    }
-                }
-            } else {
-                console.warn("[Debug] Failed to refetch product details:", res.status);
-            }
-
-        } catch (err) {
-            console.error("Error fetching user rating:", err);
-        }
-    }
-
-    if (foundRating) {
-        console.log("Found user rating:", foundRating);
-        setUserRating(foundRating);
-        if (!preserveInput) {
-            setRatingValue(foundRating.rating);
-            setComment(foundRating.comment);
-        }
-        return foundRating;
-    } else {
-        if (!preserveInput) {
-            console.log("No user rating found.");
-            setUserRating(null);
-            setRatingValue(0);
-            setComment("");
-        }
-        return null;
-    }
-  };
-
-  useEffect(() => {
-     checkUserRating();
-  }, [user, product]);
-
-  const handleRatingSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!product || !user) return;
-
-    setIsSubmittingRating(true);
-    setRatingError(null);
-    setRatingSuccess(false);
-
-    try {
-        const payload = {
-            rating: ratingValue,
-            comment: comment,
-            product_id: product.id,
-            user_id: user.id,
-            is_approved: true
-        };
-
-        console.log("Submitting rating payload:", payload);
-
-        let res;
-        if (userRating) {
-            // Edit existing rating
-            console.log("Updating rating:", payload);
-            res = await fetchWithAuth(`/api/products/${product.id}/ratings/${userRating.id}`, {
-                method: 'PUT',
-                body: JSON.stringify(payload)
-            });
-        } else {
-            // Create new rating
-            console.log("Creating rating:", payload);
-            res = await fetchWithAuth(`/api/products/${product.id}/ratings`, {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-        }
-
-        if (!res.ok) {
-            const errorText = await res.text();
-            console.error(`API Error (${res.status} ${res.statusText}):`, errorText);
-            
-            let errorData;
-            try {
-                errorData = JSON.parse(errorText);
-            } catch (e) {
-                // If parsing fails, use text
-                throw new Error(`Error ${res.status}: ${res.statusText}`);
-            }
-            
-            // Handle nested backend_response (common in proxy/gateway errors)
-            let detailedMessage = errorData?.detail || errorData?.message;
-            
-            if (errorData?.backend_response) {
-                try {
-                    const backendResp = JSON.parse(errorData.backend_response);
-                    if (backendResp.detail) {
-                        detailedMessage = backendResp.detail;
-                    }
-                } catch (e) {
-                    console.warn("Could not parse backend_response", e);
-                }
-            }
-
-            // Translate common English errors
-            if (detailedMessage === "You have already rated this product") {
-                console.log("Duplicate rating detected. Attempting to recover...");
-                const found = await checkUserRating(true, true); // Force fetch, preserve input
-                
-                if (found) {
-                    console.log("Found missing rating ID:", found.id, "Retrying as update...");
-                    // Retry as PUT
-                    const retryRes = await fetchWithAuth(`/api/products/${product.id}/ratings/${found.id}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(payload)
-                    });
-                    
-                    if (retryRes.ok) {
-                        const retryData = await retryRes.json();
-                        setUserRating(retryData);
-                        setRatingSuccess(true);
-                        await fetchProduct();
-                        return; // Exit successfully
-                    } else {
-                         // If retry fails, fall through to error
-                         const retryText = await retryRes.text();
-                         console.error("Retry update failed:", retryRes.status, retryText);
-                    }
-                } else {
-                    console.error("Auto-recovery failed: Could not find user rating ID despite 400 error.");
-                }
-                
-                detailedMessage = found 
-                    ? "Encontramos tu calificación anterior pero ocurrió un error al actualizarla. Intenta de nuevo."
-                    : "Ya tenías una calificación, pero no pudimos recuperarla para editarla. Por favor contacta a soporte.";
-            }
-
-            throw new Error(detailedMessage || "Error al guardar la calificación");
-        }
-
-        const data = await res.json();
-        setUserRating(data);
-        setRatingSuccess(true);
-        // Refresh product to update average rating and reviews list
-        await fetchProduct(); 
-
-    } catch (err) {
-        console.error("Full error object:", err);
-        setRatingError(err instanceof Error ? err.message : "No se pudo guardar tu calificación.");
-    } finally {
-        setIsSubmittingRating(false);
-    }
-  };
-
   const fetchProduct = async () => {
     try {
       // Use local proxy to avoid CORS and ensure correct backend targeting
       const baseUrl = '/api';
-      console.log(`[ProductDetail] Fetching slug: ${slug} from ${baseUrl}`);
+      if (process.env.NODE_ENV === "development") console.log(`[ProductDetail] Fetching slug: ${slug} from ${baseUrl}`);
 
       const headers: HeadersInit = { 'Accept': 'application/json' };
       if (token) {
@@ -567,13 +355,13 @@ export default function ProductDetailPage() {
         
         if (searchRes.ok) {
             const searchData = await searchRes.json();
-            console.log(`[ProductDetail] Search fallback result:`, searchData);
+            if (process.env.NODE_ENV === "development") console.log(`[ProductDetail] Search fallback result:`, searchData);
 
             if (Array.isArray(searchData) && searchData.length > 0) {
                 const productSummary = searchData[0];
                 // Check slug/id match to avoid fuzzy search false positives
                 if (productSummary.slug === slug || String(productSummary.id) === String(slug)) {
-                     console.log(`[ProductDetail] Found product by search. ID: ${productSummary.id}. Fetching details...`);
+                     if (process.env.NODE_ENV === "development") console.log(`[ProductDetail] Found product by search. ID: ${productSummary.id}. Fetching details...`);
                      // Now fetch details by ID
                      res = await fetch(`${baseUrl}/products/${productSummary.id}?ts=${Date.now()}`, {
                         headers: { 'Accept': 'application/json' }
@@ -605,7 +393,7 @@ export default function ProductDetailPage() {
             const found = (items as any[]).find((p) => p.slug === slug || String(p.id) === String(slug));
 
             if (found) {
-              console.log("[ProductDetail] Found product via list fallback by slug.", found);
+              if (process.env.NODE_ENV === "development") console.log("[ProductDetail] Found product via list fallback by slug.", found);
               setProduct(found as any);
               return;
             } else {
@@ -721,37 +509,51 @@ export default function ProductDetailPage() {
   };
 
   const handleChatOpen = async () => {
-    console.log("handleChatOpen called. Token exists:", !!token);
+    if (process.env.NODE_ENV === "development") console.log("handleChatOpen called. Token exists:", !!token);
     if (!token) {
         setIsLoginModalOpen(true);
         return;
     }
 
     if (!product || !user) return;
+    const supplierDisplayName =
+        product.supplier?.name ||
+        `${product.supplier?.first_name || ''} ${product.supplier?.last_name || ''}`.trim() ||
+        'Proveedor';
+    const chatRole = String(user.id) === String(product.supplier_id) ? 'supplier' : 'client';
 
-    if (!conversations || conversations.length === 0) {
-        try {
-            await fetchConversations();
-        } catch {}
+    let latestConversations = conversations || [];
+    try {
+        latestConversations = await chatService.getConversations();
+        fetchConversations();
+    } catch {
+        latestConversations = conversations || [];
     }
 
     const getConversationProductId = (c: any) => c?.product_id || c?.product?.id;
 
     // 1. Search for existing conversation with this supplier
-    const exactMatch = conversations.find(c =>
+    const exactMatch = latestConversations.find(c =>
         String(c.supplier_id) === String(product.supplier_id) &&
         String(getConversationProductId(c) || "") === String(product.id)
     );
-    const supplierMatch = conversations.find(c =>
+    const supplierMatch = latestConversations.find(c =>
         String(c.supplier_id) === String(product.supplier_id)
     );
     const existingConv = exactMatch || supplierMatch;
 
     if (existingConv) {
-        console.log("Found existing conversation:", existingConv);
+        if (process.env.NODE_ENV === "development") console.log("Found existing conversation:", existingConv);
 
         openChat({
             ...existingConv,
+            my_role: chatRole,
+            supplier_name: existingConv.supplier_name || supplierDisplayName,
+            other_party_name: chatRole === 'client'
+                ? supplierDisplayName
+                : existingConv.other_party_name,
+            supplier_image: existingConv.supplier_image || product.supplier?.logo || undefined,
+            supplier_slug: existingConv.supplier_slug || product.supplier?.slug,
             product_id: product.id,
             product_title: product.title,
             product_image: product.thumbnail_url || product.image || undefined,
@@ -763,7 +565,7 @@ export default function ProductDetailPage() {
 
     // 2. If not found, create a new one
     try {
-        console.log("Creating new conversation for supplier:", product.supplier_id);
+        if (process.env.NODE_ENV === "development") console.log("Creating new conversation for supplier:", product.supplier_id);
         // Create conversation with product context
         const newConv = await chatService.createConversation({
             supplier_id: product.supplier_id,
@@ -776,6 +578,13 @@ export default function ProductDetailPage() {
         // Open the new chat with product context
         openChat({
             ...newConv,
+            my_role: chatRole,
+            supplier_name: newConv.supplier_name || supplierDisplayName,
+            other_party_name: chatRole === 'client'
+                ? supplierDisplayName
+                : newConv.other_party_name,
+            supplier_image: newConv.supplier_image || product.supplier?.logo || undefined,
+            supplier_slug: newConv.supplier_slug || product.supplier?.slug,
             product_id: product.id,
             product_title: product.title,
             product_image: product.thumbnail_url || product.image || undefined,
@@ -785,36 +594,8 @@ export default function ProductDetailPage() {
 
     } catch (err) {
         console.error("Failed to create conversation:", err);
-        // Fallback: Open temporary (though this might fail if ID is invalid)
-        const tempConv: Conversation = {
-            id: `temp-${product.id}-${product.supplier_id}`,
-            user_id: Number(user.id),
-            supplier_id: product.supplier_id,
-            product_id: product.id,
-            product_title: product.title,
-            product_image: product.thumbnail_url || product.image || "",
-            product_price: product.price,
-            product_slug: product.slug,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            supplier_name: product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : 'Proveedor',
-            supplier_image: product.supplier?.logo || undefined,
-            unread_count: 0,
-            my_role: user.role === 'client' ? 'client' : 'supplier',
-            other_party_name: product.supplier ? (product.supplier.name || `${product.supplier.first_name || ''} ${product.supplier.last_name || ''}`.trim()) : 'Proveedor'
-        };
-        openChat(tempConv);
-    }
-  };
-
-  const handleRatingClick = () => {
-    if (!user) {
-      setIsLoginModalOpen(true);
-    } else {
-      const ratingSection = document.getElementById('rating-section');
-      if (ratingSection) {
-        ratingSection.scrollIntoView({ behavior: 'smooth' });
-      }
+        const message = err instanceof Error && err.message ? err.message : "No se pudo iniciar el chat.";
+        setCartToast({ type: "error", message });
     }
   };
 
@@ -1148,66 +929,6 @@ export default function ProductDetailPage() {
               </div>
             </div>
           </div>
-
-          {/* Rating Section */}
-          {user && (
-            <div className="mt-6 border-t border-gray-100 p-6 lg:p-8 bg-white rounded-2xl shadow-sm border border-gray-100">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <StarRating rating={userRating ? userRating.rating : 0} size={20} />
-                    {userRating ? "Tu Calificación" : "Calificar Producto"}
-                </h3>
-                
-                <form onSubmit={handleRatingSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Puntuación</label>
-                        <StarRating 
-                            rating={ratingValue} 
-                            interactive={true} 
-                            size={32} 
-                            onRatingChange={setRatingValue} 
-                        />
-                    </div>
-                    
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Comentario</label>
-                        <textarea
-                            value={comment}
-                            onChange={(e) => setComment(e.target.value)}
-                            required
-                            rows={3}
-                            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                            placeholder="Comparte tu opinión sobre este producto..."
-                        />
-                    </div>
-
-                    {ratingError && (
-                        <div className="text-red-600 text-sm">{ratingError}</div>
-                    )}
-
-                    {ratingSuccess && (
-                        <div className="text-green-600 text-sm flex items-center gap-2">
-                            <Check size={16} />
-                            ¡Calificación guardada exitosamente!
-                        </div>
-                    )}
-
-                    <button 
-                        type="submit" 
-                        disabled={isSubmittingRating || ratingValue === 0}
-                        className="bg-primary text-white px-6 py-2 rounded-xl font-bold shadow-md hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isSubmittingRating ? (
-                            <span className="flex items-center gap-2">
-                                <Loader2 size={16} className="animate-spin" />
-                                Guardando...
-                            </span>
-                        ) : (
-                            userRating ? "Actualizar Calificación" : "Enviar Calificación"
-                        )}
-                    </button>
-                </form>
-            </div>
-          )}
 
           {/* Reviews List */}
           <div className="mt-8 border-t border-gray-100 pt-8 p-6 lg:p-8">

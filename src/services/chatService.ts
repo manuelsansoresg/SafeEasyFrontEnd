@@ -134,12 +134,24 @@ export const chatService = {
     conversationId: number | string,
     params?: { skip?: number; limit?: number }
   ): Promise<Message[]> => {
+    if (!conversationId || String(conversationId).startsWith("temp-")) {
+      return [];
+    }
+
     const skip = params?.skip ?? 0;
     const limit = params?.limit ?? 50;
     const res = await fetchWithAuth(
       `/api/chat/conversations/${conversationId}/messages?skip=${encodeURIComponent(String(skip))}&limit=${encodeURIComponent(String(limit))}`,
     );
-    if (!res.ok) throw new Error('Failed to fetch messages');
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.warn("[chatService] getMessages failed", {
+        conversationId,
+        status: res.status,
+        detail: text,
+      });
+      return [];
+    }
     const data = await res.json();
     // Map backend fields (handle 'message' vs 'content', 'timestamp' vs 'created_at')
     return Array.isArray(data) ? data.map((msg: ApiMessage) => {
@@ -183,7 +195,30 @@ export const chatService = {
       method: 'POST',
       body: JSON.stringify(body)
     });
-    if (!res.ok) throw new Error('Failed to create conversation');
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      let detail = "";
+      try {
+        const parsed = text ? (JSON.parse(text) as { detail?: unknown; message?: unknown; error?: unknown }) : null;
+        detail =
+          (typeof parsed?.detail === "string" && parsed.detail) ||
+          (Array.isArray(parsed?.detail) ? parsed.detail.map((item) => JSON.stringify(item)).join(", ") : "") ||
+          (typeof parsed?.message === "string" && parsed.message) ||
+          (typeof parsed?.error === "string" && parsed.error) ||
+          "";
+      } catch {
+        detail = text;
+      }
+      console.warn("[chatService] createConversation failed", {
+        status: res.status,
+        detail: text,
+        params,
+      });
+
+      throw new Error(detail || `No se pudo crear la conversación (${res.status}).`);
+    }
+
     const data: ApiConversation = await res.json();
     return {
         ...data,

@@ -28,7 +28,7 @@ const fetchFallbackProducts = async (supplierId: string, limit: number, token?: 
         // This endpoint is verified to exist in page.tsx logic
         const targetUrl = `${backendUrl}/products/by-supplier/${supplierId}?limit=${limit}&skip=0`;
         
-        console.log(`[API Proxy] Fetching fallback products: ${targetUrl}`);
+        if (process.env.NODE_ENV === "development") console.log(`[API Proxy] Fetching fallback products: ${targetUrl}`);
         
         const res = await fetch(targetUrl, {
             headers: {
@@ -69,7 +69,7 @@ const fetchGlobalProducts = async (limit: number, token?: string) => {
         // Fetch from global products endpoint
         const targetUrl = `${backendUrl}/products/?limit=${limit}&skip=0`;
         
-        console.log(`[API Proxy] Fetching global fallback products: ${targetUrl}`);
+        if (process.env.NODE_ENV === "development") console.log(`[API Proxy] Fetching global fallback products: ${targetUrl}`);
         
         const res = await fetch(targetUrl, {
             headers: {
@@ -116,7 +116,7 @@ export async function GET(
     const targetUrl = `${backendUrl}/products/recommended/supplier/${supplierId}?kind=${kind}&limit=${limit}`;
     
     try {
-        console.log(`[API Proxy] Trying backend recommended: ${targetUrl}`);
+        if (process.env.NODE_ENV === "development") console.log(`[API Proxy] Trying backend recommended: ${targetUrl}`);
         const res = await fetch(targetUrl, {
             headers: {
                 'Content-Type': 'application/json',
@@ -135,7 +135,7 @@ export async function GET(
             
             // If data is empty but request was OK, user might still want to see *something* in the UI
             // So we fall through to fallback logic below
-            console.log(`[API Proxy] Recommended endpoint returned empty, trying fallback.`);
+            if (process.env.NODE_ENV === "development") console.log(`[API Proxy] Recommended endpoint returned empty, trying fallback.`);
         } else {
             console.warn(`[API Proxy] Recommended endpoint failed with ${res.status}, trying fallback.`);
         }
@@ -149,7 +149,7 @@ export async function GET(
     
     if (fallbackProducts.length > 0) {
         // If we found products, we can rotate/shuffle them slightly to simulate different sections
-        let rotated = [...fallbackProducts];
+        const rotated = [...fallbackProducts];
         if (kind === 'most_purchased') {
             // Rotate by 1
             rotated.push(rotated.shift()!);
@@ -168,7 +168,7 @@ export async function GET(
     // This solves "carousel disappears"
     const globalProducts = await fetchGlobalProducts(limit, token);
     if (globalProducts.length > 0) {
-         let rotated = [...globalProducts];
+         const rotated = [...globalProducts];
          // Shuffle slightly based on kind
          if (kind === 'most_purchased') rotated.push(rotated.shift()!);
          else if (kind === 'best_rated') rotated.reverse();

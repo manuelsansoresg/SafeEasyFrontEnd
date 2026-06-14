@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Drooopy Frontend
 
-## Getting Started
+Frontend de Drooopy construido con Next.js App Router, React, TypeScript y Tailwind CSS.
 
-First, run the development server:
+## Requisitos
+
+- Node.js compatible con Next.js 16
+- npm
+- Acceso al backend en `https://drooopy.com/api` o a una URL compatible
+
+## Comandos
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run lint
+npm run build
+npm run start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Notas:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `npm run build` elimina `.next/cache` antes de compilar. Esto es intencional.
+- No hay framework de pruebas configurado en este repositorio.
+- `.npmrc` usa `legacy-peer-deps=true`; los avisos de peer dependencies son esperados.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Variables de entorno
 
-## Learn More
+Crear `.env.local` con las variables necesarias:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+NEXT_PUBLIC_API_BASE_URL=https://drooopy.com/api
+NEXT_PUBLIC_API_URL=https://drooopy.com/api
+NEXT_PUBLIC_WS_URL=wss://drooopy.com/api
+API_INTERNAL_URL=https://drooopy.com/api
+NEXT_PUBLIC_SITE_URL=https://drooopy.com
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
+GOOGLE_MAPS_API_KEY=
+NEXT_PUBLIC_MIDDLEWARE_DEBUG=false
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+También se usan credenciales OAuth de Google/Facebook cuando los flujos sociales están activos.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Estructura
 
-## Deploy on Vercel
+```text
+src/app          Rutas de Next.js App Router
+src/components   Componentes de UI y flujos principales
+src/context      Contextos de React
+src/hooks        Hooks personalizados
+src/lib          Clientes HTTP, SEO y utilidades
+src/services     Servicios de dominio
+src/store        Stores de Zustand
+src/types        Tipos compartidos
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+El alias `@/*` apunta a `src/*`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Backend
+
+El backend principal es FastAPI en `https://drooopy.com/api`.
+
+La ruta interna `/api/backend/:path*` se reescribe hacia el backend configurado en `NEXT_PUBLIC_API_BASE_URL`.
+
+Para llamadas autenticadas, usar `fetchWithAuth` desde `src/lib/api.ts`; maneja tokens Bearer, refresh y logout en 401.
+
+## Producción
+
+Antes de publicar:
+
+- Ejecutar `npm run lint`.
+- Ejecutar `npm run build`.
+- Confirmar que `NEXT_PUBLIC_SITE_URL` apunta a `https://drooopy.com`.
+- Mantener `NEXT_PUBLIC_MIDDLEWARE_DEBUG=false` salvo que se investigue un problema de geolocalización.
+- Probar manualmente login, registro, carrito, checkout, pedidos, chat, panel proveedor, panel admin y soporte.

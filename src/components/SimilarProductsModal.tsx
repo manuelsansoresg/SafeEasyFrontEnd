@@ -31,7 +31,7 @@ export default function SimilarProductsModal({
           <div>
             <h3 className="text-xl font-bold text-gray-900">Productos Similares</h3>
             <p className="text-sm text-gray-500 mt-1">
-              Porque viste <span className="font-medium text-gray-800">"{baseProductTitle}"</span>
+              Porque viste <span className="font-medium text-gray-800">&quot;{baseProductTitle}&quot;</span>
             </p>
           </div>
           <button

@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     // Remove trailing slash to avoid 307 redirect
     const targetUrl = `${baseUrl}/login/refresh-token`;
 
-    console.log(`[API Proxy] Refreshing token at: ${targetUrl}`);
+    if (process.env.NODE_ENV === "development") console.log(`[API Proxy] Refreshing token at: ${targetUrl}`);
 
     const authHeader = request.headers.get('Authorization');
 
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log(`[API Proxy] Refresh status: ${response.status}`);
+    if (process.env.NODE_ENV === "development") console.log(`[API Proxy] Refresh status: ${response.status}`);
 
     // Handle non-JSON responses (like 401 with text body)
     const text = await response.text();

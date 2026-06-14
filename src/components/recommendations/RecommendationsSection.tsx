@@ -104,7 +104,7 @@ export function RecommendationsSection({
           best_rated: bestRated,
           location: locationParam
       };
-      console.log('[RecommendationsSection] Product results params:', params);
+      if (process.env.NODE_ENV === "development") console.log('[RecommendationsSection] Product results params:', params);
       newProducts = await getRecommendations(params);
       
       if (reset) {
