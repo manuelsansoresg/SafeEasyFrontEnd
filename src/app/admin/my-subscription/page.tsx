@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { subscriptionsService } from "@/services/subscriptionsService";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import type { Plan, Subscription } from "@/types/subscriptions";
 import {
   BadgeDollarSign,
@@ -144,10 +145,11 @@ export default function MySubscriptionPage() {
     setError(null);
     try {
       const purchase = await subscriptionsService.purchase(selectedPlan.id);
-      if (!purchase.init_point) {
+      const safeInitPoint = getSafeMercadoPagoUrl(purchase.init_point);
+      if (!safeInitPoint) {
         throw new Error("Mercado Pago no devolvió una liga de pago.");
       }
-      window.location.href = purchase.init_point;
+      window.location.href = safeInitPoint;
     } catch (e) {
       console.error("Error creating subscription payment:", e);
       setError(e instanceof Error ? e.message : "No pudimos crear la ficha de pago.");

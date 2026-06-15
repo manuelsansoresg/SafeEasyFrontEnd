@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { PageHero } from "@/components/ui/PageHero";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import {
   Loader2,
   Store,
@@ -562,10 +563,11 @@ export default function ClientCartPage() {
       } catch {}
 
       const initPoint = extractInitPoint(data);
-      if (initPoint) {
+      const safeInitPoint = getSafeMercadoPagoUrl(initPoint);
+      if (safeInitPoint) {
         isRedirectingRef.current = true;
         setCheckout(null);
-        window.location.href = initPoint;
+        window.location.href = safeInitPoint;
         return;
       }
 
@@ -580,10 +582,11 @@ export default function ClientCartPage() {
         if (orderRes && orderRes.ok) {
           const orderData: unknown = await orderRes.json().catch(() => null);
           const fetchedInit = extractInitPoint(orderData);
-          if (fetchedInit) {
+          const safeFetchedInit = getSafeMercadoPagoUrl(fetchedInit);
+          if (safeFetchedInit) {
             isRedirectingRef.current = true;
             setCheckout(null);
-            window.location.href = fetchedInit;
+            window.location.href = safeFetchedInit;
             return;
           }
         }
@@ -1287,11 +1290,11 @@ export default function ClientCartPage() {
                 </button>
               </div>
               <div className="flex-1 bg-white">
-                <iframe title="Mercado Pago" src={paymentModal.init_point} className="w-full h-full" />
+                <iframe title="Mercado Pago" src={getSafeMercadoPagoUrl(paymentModal.init_point)} className="w-full h-full" />
               </div>
               <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-end">
                 <a
-                  href={paymentModal.init_point}
+                  href={getSafeMercadoPagoUrl(paymentModal.init_point)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm font-semibold text-gray-700 hover:underline"

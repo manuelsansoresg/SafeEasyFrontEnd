@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import DOMPurify from 'isomorphic-dompurify';
 import { useAuthStore } from '@/store/useAuthStore';
 import { fetchWithAuth } from '@/lib/api';
+import { getSafeMercadoPagoUrl } from '@/lib/security';
 import { subscriptionsService } from '@/services/subscriptionsService';
 import type { Plan } from '@/types/subscriptions';
 import { normalizePlanFeatures } from '@/components/sell/planText';
@@ -565,10 +566,11 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
       } catch (purchaseError) {
         throw new Error(translateBackendMessage(getMessage(purchaseError), 'No pudimos crear la ficha de pago. La cuenta fue creada pero el pago no se pudo iniciar. Contactá soporte si el problema persiste.'));
       }
-      if (!purchase.init_point) {
+      const safeInitPoint = getSafeMercadoPagoUrl(purchase.init_point);
+      if (!safeInitPoint) {
         throw new Error('No pudimos generar el enlace de pago. Contactá soporte.');
       }
-      window.location.href = purchase.init_point;
+      window.location.href = safeInitPoint;
 
     } catch (submitError) {
       const safeError = DOMPurify.sanitize(getMessage(submitError), {

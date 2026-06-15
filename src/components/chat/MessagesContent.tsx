@@ -7,6 +7,7 @@ import { chatService } from "@/services/chatService";
 import { Conversation, Message } from "@/types/chat";
 import { useChatInboxWebSocket, useChatWebSocket } from "@/hooks/useChatWebSocket";
 import { fetchWithAuth } from "@/lib/api";
+import { getTrustedAssetUrl } from "@/lib/security";
 import { PageHero } from "@/components/ui/PageHero";
 import { 
   Send, Search, MessageSquare, Info, Package, CheckCheck, 
@@ -78,10 +79,7 @@ export function MessagesContent() {
 
   // Helper to get absolute URL (for images/files)
   const getAbsoluteUrl = (url?: string) => {
-      if (!url) return '';
-      if (url.startsWith('http') || url.startsWith('blob:')) return url;
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
-      return `${apiBase.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
+      return getTrustedAssetUrl(url);
   };
 
   // 1. Load Conversations & Handle Initialization

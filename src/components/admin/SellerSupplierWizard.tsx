@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { normalizePlanFeatures } from "@/components/sell/planText";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -336,13 +337,14 @@ export default function SellerSupplierWizard() {
       const purchase = await purchaseWithSupplierToken(supplierToken, selectedPlan.id, paymentMethod, supplierId);
 
       if (paymentMethod === "card") {
-        if (!purchase.init_point) {
+        const safeInitPoint = getSafeMercadoPagoUrl(purchase.init_point);
+        if (!safeInitPoint) {
           throw new Error("Mercado Pago no devolvió una liga de pago.");
         }
         try {
           window.sessionStorage.setItem("last_supplier_generated_password", password);
         } catch {}
-        window.location.href = purchase.init_point;
+        window.location.href = safeInitPoint;
         return;
       }
 

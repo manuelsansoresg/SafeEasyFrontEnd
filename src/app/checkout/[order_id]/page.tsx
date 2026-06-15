@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { fetchWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { Toast } from "@/components/ui/Toast";
 import { ArrowLeft, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 
@@ -186,8 +187,9 @@ export default function CheckoutPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!checkout?.init_point) return;
-                  window.location.href = checkout.init_point;
+                  const safeInitPoint = getSafeMercadoPagoUrl(checkout?.init_point);
+                  if (!safeInitPoint) return;
+                  window.location.href = safeInitPoint;
                 }}
                 disabled={!canPay}
                 className={cn(

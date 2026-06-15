@@ -15,6 +15,7 @@ import {
 import { PageHero } from "@/components/ui/PageHero";
 import { normalizePlanFeatures } from "@/components/sell/planText";
 import { fetchWithAuth } from "@/lib/api";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { Plan } from "@/types/subscriptions";
@@ -271,11 +272,12 @@ export default function BecomeSupplierPage() {
         Number.isFinite(supplierId) ? supplierId : undefined
       );
 
-      if (!purchase.init_point) {
+      const safeInitPoint = getSafeMercadoPagoUrl(purchase.init_point);
+      if (!safeInitPoint) {
         throw new Error("Mercado Pago no devolvió una liga de pago.");
       }
 
-      window.location.href = purchase.init_point;
+      window.location.href = safeInitPoint;
     } catch (submitError) {
       const message =
         submitError instanceof Error

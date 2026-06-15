@@ -179,8 +179,9 @@ async function handler(request: NextRequest) {
         respContentType.startsWith("application/zip") ||
         respContentType.startsWith("audio/"));
     const debugProxy =
-      request.nextUrl.searchParams.get("_proxy_debug") === "1" ||
-      request.headers.get("x-proxy-debug") === "1";
+      process.env.NODE_ENV !== "production" &&
+      (request.nextUrl.searchParams.get("_proxy_debug") === "1" ||
+        request.headers.get("x-proxy-debug") === "1");
 
     if (isBinaryGet) {
       const headers = new Headers();

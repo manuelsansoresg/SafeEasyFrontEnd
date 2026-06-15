@@ -8,6 +8,7 @@ import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { Minus, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 
 type ProductLite = {
@@ -818,11 +819,12 @@ export default function CartPage() {
         }
       } catch {}
       const initPoint = extractInitPoint(data);
-      if (initPoint) {
+      const safeInitPoint = getSafeMercadoPagoUrl(initPoint);
+      if (safeInitPoint) {
         isRedirectingRef.current = true;
         setCheckoutSupplierId(null);
         window.dispatchEvent(new CustomEvent("cart:changed"));
-        window.location.href = initPoint;
+        window.location.href = safeInitPoint;
         return;
       }
 
@@ -834,11 +836,12 @@ export default function CartPage() {
         if (orderRes && orderRes.ok) {
           const orderData: unknown = await orderRes.json().catch(() => null);
           const fetchedInitPoint = extractInitPoint(orderData);
-          if (fetchedInitPoint) {
+          const safeFetchedInitPoint = getSafeMercadoPagoUrl(fetchedInitPoint);
+          if (safeFetchedInitPoint) {
             isRedirectingRef.current = true;
             setCheckoutSupplierId(null);
             window.dispatchEvent(new CustomEvent("cart:changed"));
-            window.location.href = fetchedInitPoint;
+            window.location.href = safeFetchedInitPoint;
             return;
           }
         }
@@ -1396,11 +1399,11 @@ export default function CartPage() {
                 </button>
               </div>
               <div className="flex-1 bg-white">
-                <iframe title="Mercado Pago" src={paymentModal.init_point} className="w-full h-full" />
+                <iframe title="Mercado Pago" src={getSafeMercadoPagoUrl(paymentModal.init_point)} className="w-full h-full" />
               </div>
               <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-end">
                 <a
-                  href={paymentModal.init_point}
+                  href={getSafeMercadoPagoUrl(paymentModal.init_point)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm font-semibold text-gray-700 hover:underline"

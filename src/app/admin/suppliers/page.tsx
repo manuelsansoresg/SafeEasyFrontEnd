@@ -20,6 +20,7 @@ import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
 import { subscriptionsService } from "@/services/subscriptionsService";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import type { Plan, Subscription } from "@/types/subscriptions";
 
 interface Supplier {
@@ -226,10 +227,11 @@ export default function AdminSuppliersPage() {
       );
 
       if (subscriptionPaymentMethod === "card") {
-        if (!purchase.init_point) {
+        const safeInitPoint = getSafeMercadoPagoUrl(purchase.init_point);
+        if (!safeInitPoint) {
           throw new Error("Mercado Pago no devolvió una liga de pago.");
         }
-        window.open(purchase.init_point, "_blank", "noopener,noreferrer");
+        window.open(safeInitPoint, "_blank", "noopener,noreferrer");
         setToast({ type: "success", message: "Liga de pago generada. Se abrió Mercado Pago en una nueva pestaña." });
       } else {
         setToast({ type: "success", message: "Suscripción por terminal registrada correctamente." });

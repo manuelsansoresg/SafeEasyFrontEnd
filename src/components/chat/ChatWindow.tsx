@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useChatStore } from "@/store/useChatStore";
 import { chatService } from "@/services/chatService";
 import { orderService } from "@/services/orderService";
 import { useChatInboxWebSocket, useChatWebSocket } from "@/hooks/useChatWebSocket";
@@ -13,6 +14,7 @@ import StarRating from "../StarRating";
 
 
 import { fetchWithAuth } from "@/lib/api";
+import { getTrustedAssetUrl } from "@/lib/security";
 
 interface ChatWindowProps {
   initialConversation?: Conversation;
@@ -43,6 +45,7 @@ interface ChatWindowProps {
 export default function ChatWindow({ initialConversation, productId, supplierId, supplierName, supplierSlug, isOwner, productData, supplierTransferData, onClose, onMinimize, isOpen, mode = 'modal' }: ChatWindowProps) {
   const router = useRouter();
   const { user } = useAuthStore();
+  const markConversationAsRead = useChatStore((state) => state.markAsRead);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -95,10 +98,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
 
   // Helper to get absolute URL
   const getAbsoluteUrl = (url?: string) => {
-      if (!url) return '';
-      if (url.startsWith('http') || url.startsWith('blob:')) return url;
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
-      return `${apiBase.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
+      return getTrustedAssetUrl(url);
   };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -515,7 +515,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
   // Helper to load messages
   const loadMessages = useCallback(async (
     conversationId: number | string,
-    options: { markRead?: boolean; scroll?: "always" | "if-near-bottom" | "never"; behavior?: ScrollBehavior } = {}
+    options: { markRead?: boolean; forceMarkRead?: boolean; scroll?: "always" | "if-near-bottom" | "never"; behavior?: ScrollBehavior } = {}
   ) => {
     try {
       const shouldScroll = options.scroll ?? "if-near-bottom";
@@ -527,19 +527,29 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
       }
 
       const readKey = String(conversationId);
-      if (options.markRead && !readConversationIdsRef.current.has(readKey)) {
+      if (options.markRead && (options.forceMarkRead || !readConversationIdsRef.current.has(readKey))) {
         readConversationIdsRef.current.add(readKey);
         try {
-          await chatService.markAsRead(conversationId);
+          await markConversationAsRead(conversationId);
+          setConversations((prev) =>
+            prev.map((conversation) =>
+              String(conversation.id) === readKey ? { ...conversation, unread_count: 0 } : conversation
+            )
+          );
+          setActiveConversation((prev) =>
+            prev && String(prev.id) === readKey ? { ...prev, unread_count: 0 } : prev
+          );
         } catch (err) {
-          readConversationIdsRef.current.delete(readKey);
+          if (!options.forceMarkRead) {
+            readConversationIdsRef.current.delete(readKey);
+          }
           console.error("Failed to mark conversation as read", err);
         }
       }
     } catch (err) {
       console.error("Failed to load messages:", err);
     }
-  }, []);
+  }, [markConversationAsRead]);
 
   useEffect(() => {
     if (!isOpen || !initialConversation) return;
@@ -556,7 +566,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
     if (!isOpen || !activeConversation) return;
     if (!inboxEvent || typeof inboxEvent !== "object") return;
     const type = (inboxEvent as any).type;
-    if (type !== "new_message") return;
+    if (type !== "new_message" && type !== "conversation_updated") return;
     const convId = (inboxEvent as any).conversation_id;
     if (!convId) return;
     if (String(convId) !== String(activeConversation.id)) return;
@@ -564,7 +574,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
     const reloadKey = String(convId);
     if (now - (lastInboxReloadRef.current[reloadKey] || 0) < 1200) return;
     lastInboxReloadRef.current[reloadKey] = now;
-    loadMessages(activeConversation.id, { markRead: false, scroll: "if-near-bottom" });
+    loadMessages(activeConversation.id, { markRead: true, forceMarkRead: true, scroll: "if-near-bottom" });
   }, [inboxEvent, activeConversation?.id, isOpen, loadMessages]);
 
   // 1. Initialize Chat (Vendor vs Buyer Logic)
@@ -1165,7 +1175,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
                             key={conv.id} 
                             onClick={() => { 
                                 setActiveConversation(conv); 
-                                loadMessages(conv.id); 
+                                loadMessages(conv.id, { markRead: true, forceMarkRead: true }); 
                             }}
                             className={`w-full text-left p-4 border-b hover:bg-gray-50 transition-colors flex items-center gap-3 ${activeConversation?.id === conv.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'border-l-4 border-l-transparent'}`}
                           >
