@@ -36,13 +36,13 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "/drooopy-favicon-256-transparente.png",
+        url: "/drooopy-favicon-256-transparente.png?v=4",
         sizes: "256x256",
         type: "image/png",
       },
     ],
-    shortcut: "/drooopy-favicon-256-transparente.png",
-    apple: "/drooopy-favicon-256-transparente.png",
+    shortcut: "/drooopy-favicon-256-transparente.png?v=4",
+    apple: "/drooopy-favicon-256-transparente.png?v=4",
   },
   keywords: [
     "Drooopy",
