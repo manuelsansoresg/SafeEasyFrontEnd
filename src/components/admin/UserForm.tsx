@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle, Eye, EyeOff } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { supplierCatalogService, type SupplierCatalogOption } from "@/services/supplierCatalogService";
+import { fetchWithAuth } from "@/lib/api";
 
 interface User {
   id: number;
@@ -18,6 +19,9 @@ interface User {
   city?: string;
   state?: string;
   country?: string;
+  city_id?: number | null;
+  state_id?: number | null;
+  country_id?: number | null;
 }
 
 interface UserFormData {
@@ -34,11 +38,13 @@ interface UserFormData {
 interface UserPayload {
   email: string;
   name: string;
+  last_name?: string;
+  second_last_name?: string;
   is_active: boolean;
   role: string;
-  city?: string;
-  state?: string;
-  country?: string;
+  city_id?: number;
+  state_id?: number;
+  country_id?: number;
   password?: string;
 }
 
@@ -57,10 +63,18 @@ function normalizeCatalogText(value: string) {
     .toLowerCase();
 }
 
-const apiUrl = (path: string) => {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-  return `${base.replace(/\/$/, "")}${path}`;
-};
+function splitFullName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const name = parts[0] ?? "";
+  const lastName = parts.length > 1 ? parts[1] : "";
+  const secondLastName = parts.length > 2 ? parts.slice(2).join(" ") : "";
+
+  return {
+    name,
+    last_name: lastName,
+    second_last_name: secondLastName,
+  };
+}
 
 const initialFormData: UserFormData = {
   email: "",
@@ -119,8 +133,9 @@ export default function UserForm({
   const [countries, setCountries] = useState<SupplierCatalogOption[]>([DEFAULT_COUNTRY_OPTION]);
   const [states, setStates] = useState<SupplierCatalogOption[]>([]);
   const [cities, setCities] = useState<SupplierCatalogOption[]>([]);
-  const [selectedCountryId, setSelectedCountryId] = useState<number | null>(DEFAULT_COUNTRY_ID);
-  const [selectedStateId, setSelectedStateId] = useState<number | null>(null);
+  const [selectedCountryId, setSelectedCountryId] = useState<number | null>(initialData?.country_id ?? DEFAULT_COUNTRY_ID);
+  const [selectedStateId, setSelectedStateId] = useState<number | null>(initialData?.state_id ?? null);
+  const [selectedCityId, setSelectedCityId] = useState<number | null>(initialData?.city_id ?? null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -135,6 +150,7 @@ export default function UserForm({
         const countryOptions = items.length > 0 ? items : [DEFAULT_COUNTRY_OPTION];
         const currentCountry = formData.country || DEFAULT_COUNTRY_NAME;
         const selectedCountry =
+          (initialData?.country_id ? countryOptions.find((item) => item.id === initialData.country_id) : null) ??
           countryOptions.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(currentCountry)) ??
           countryOptions.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(DEFAULT_COUNTRY_NAME)) ??
           DEFAULT_COUNTRY_OPTION;
@@ -177,9 +193,11 @@ export default function UserForm({
         if (!active) return;
 
         setStates(items);
-        const selectedState = currentState
+        const selectedState =
+          (initialData?.state_id ? items.find((item) => item.id === initialData.state_id) : null) ??
+          (currentState
           ? items.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(currentState))
-          : null;
+          : null);
 
         if (selectedState) {
           setSelectedStateId(selectedState.id);
@@ -217,11 +235,14 @@ export default function UserForm({
         if (!active) return;
 
         setCities(items);
-        const selectedCity = currentCity
+        const selectedCity =
+          (initialData?.city_id ? items.find((item) => item.id === initialData.city_id) : null) ??
+          (currentCity
           ? items.find((item) => normalizeCatalogText(item.name) === normalizeCatalogText(currentCity))
-          : null;
+          : null);
 
         if (selectedCity) {
+          setSelectedCityId(selectedCity.id);
           setFormData((prev) => ({ ...prev, city: selectedCity.name }));
         }
         setCatalogError(null);
@@ -246,6 +267,7 @@ export default function UserForm({
     setCatalogError(null);
     setSelectedCountryId(e.target.value && Number.isFinite(countryId) ? countryId : null);
     setSelectedStateId(null);
+    setSelectedCityId(null);
     setStates([]);
     setCities([]);
     setFormData((prev) => ({
@@ -259,6 +281,7 @@ export default function UserForm({
   const handleStateSelectChange = (state: SupplierCatalogOption | null) => {
     setCatalogError(null);
     setSelectedStateId(state?.id ?? null);
+    setSelectedCityId(null);
     setCities([]);
     setFormData((prev) => ({
       ...prev,
@@ -269,7 +292,54 @@ export default function UserForm({
 
   const handleCitySelectChange = (city: SupplierCatalogOption | null) => {
     setCatalogError(null);
+    setSelectedCityId(city?.id ?? null);
     setFormData((prev) => ({ ...prev, city: city?.name ?? "" }));
+  };
+
+  const buildBasePayload = (): UserPayload => ({
+    email: formData.email.trim(),
+    ...splitFullName(formData.name),
+    is_active: formData.is_active,
+    role: fixedRole || formData.role,
+  });
+
+  const buildLocationPayload = () => {
+    const payload: Pick<UserPayload, "city_id" | "state_id" | "country_id"> = {};
+
+    if (selectedCityId) payload.city_id = selectedCityId;
+    if (selectedStateId) payload.state_id = selectedStateId;
+    if (selectedCountryId) payload.country_id = selectedCountryId;
+
+    return payload;
+  };
+
+  const readErrorMessage = async (response: Response) => {
+    let errorMessage = `Error ${response.status}: Error al guardar usuario`;
+    try {
+      const text = await response.text();
+      try {
+        const errorData = JSON.parse(text);
+        if (errorData.detail) {
+          const detail = typeof errorData.detail === "string"
+            ? errorData.detail
+            : JSON.stringify(errorData.detail);
+          errorMessage = `Error ${response.status}: ${detail}`;
+        }
+      } catch {
+        errorMessage = `Error ${response.status}: ${text || response.statusText}`;
+      }
+    } catch {
+      errorMessage = `Error ${response.status}: ${response.statusText}`;
+    }
+    return errorMessage;
+  };
+
+  const submitUserPayload = async (url: string, method: "POST" | "PUT", payload: UserPayload) => {
+    return fetchWithAuth(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -291,17 +361,13 @@ export default function UserForm({
     setError(null);
 
     try {
-      const url = isEditMode && initialData ? apiUrl(`/users/${initialData.id}`) : apiUrl("/users/");
+      const url = isEditMode && initialData ? `/api/users/${initialData.id}` : "/api/users/";
       const method = isEditMode ? "PUT" : "POST";
 
+      const locationPayload = buildLocationPayload();
       const payload: UserPayload = {
-        email: formData.email,
-        name: formData.name,
-        is_active: formData.is_active,
-        role: fixedRole || formData.role,
-        city: formData.city,
-        state: formData.state,
-        country: formData.country,
+        ...buildBasePayload(),
+        ...locationPayload,
       };
 
       // Only include password if it's provided (or if creating a new user)
@@ -311,32 +377,21 @@ export default function UserForm({
         throw new Error("La contraseña es obligatoria para nuevos usuarios");
       }
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      let response = await submitUserPayload(url, method, payload);
+
+      if (!response.ok && !isEditMode && Object.keys(locationPayload).length > 0) {
+        await readErrorMessage(response);
+
+        const fallbackPayload: UserPayload = {
+          ...buildBasePayload(),
+          password: payload.password,
+        };
+
+        response = await submitUserPayload(url, method, fallbackPayload);
+      }
 
       if (!response.ok) {
-        let errorMessage = "Error al guardar usuario";
-        try {
-            const text = await response.text();
-            try {
-                const errorData = JSON.parse(text);
-                if (errorData.detail) {
-                    errorMessage = typeof errorData.detail === 'string' 
-                        ? errorData.detail 
-                        : JSON.stringify(errorData.detail);
-                }
-            } catch {
-                errorMessage = `Error ${response.status}: ${text || response.statusText}`;
-            }
-        } catch {
-            errorMessage = `Error ${response.status}: ${response.statusText}`;
-        }
+        const errorMessage = await readErrorMessage(response);
         throw new Error(errorMessage);
       }
 
