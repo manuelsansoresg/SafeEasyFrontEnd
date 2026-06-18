@@ -315,6 +315,8 @@ export default function UserForm({
 
   const readErrorMessage = async (response: Response) => {
     let errorMessage = `Error ${response.status}: Error al guardar usuario`;
+    const friendlyDuplicateMessage =
+      "Ese correo ya existe en el sistema. Usa otro correo o edita el usuario existente.";
     try {
       const text = await response.text();
       try {
@@ -331,6 +333,21 @@ export default function UserForm({
     } catch {
       errorMessage = `Error ${response.status}: ${response.statusText}`;
     }
+
+    const normalizedMessage = errorMessage.toLowerCase();
+    if (
+      response.status === 400 &&
+      (normalizedMessage.includes("already exists") ||
+        normalizedMessage.includes("duplicate") ||
+        normalizedMessage.includes("unique") ||
+        normalizedMessage.includes("username") ||
+        normalizedMessage.includes("email") ||
+        normalizedMessage.includes("correo") ||
+        normalizedMessage.includes("no pudimos completar el registro"))
+    ) {
+      return friendlyDuplicateMessage;
+    }
+
     return errorMessage;
   };
 
