@@ -55,10 +55,6 @@ const apiUrl = (path: string) => {
   return `${base.replace(/\/$/, "")}${path}`;
 };
 
-const authHeaders = (token: string) => ({
-  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
-});
-
 export default function CouriersPage() {
   const { token } = useAuthStore();
   const [couriers, setCouriers] = useState<User[]>([]);
@@ -117,9 +113,8 @@ export default function CouriersPage() {
     if (!token) return;
 
     try {
-      const response = await fetch(apiUrl(`/admin/users/${id}`), {
+      const response = await fetchWithAuth(`/api/admin/users/${id}`, {
         method: "DELETE",
-        headers: authHeaders(token),
       });
 
       if (response.ok) {
@@ -162,9 +157,8 @@ export default function CouriersPage() {
     try {
       const results = await Promise.all(
         selectedIds.map((id) =>
-          fetch(apiUrl(`/admin/users/${id}`), {
+          fetchWithAuth(`/api/admin/users/${id}`, {
             method: "DELETE",
-            headers: authHeaders(token),
           })
         )
       );

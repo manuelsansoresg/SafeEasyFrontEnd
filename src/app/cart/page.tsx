@@ -577,6 +577,22 @@ export default function CartPage() {
         setToast({ type: "error", message: msg });
         return false;
       }
+      if (userMapLocation) {
+        const mapRes = await fetchWithAuth(`/api/users/${meUserId}/map-location`, {
+          method: "PATCH",
+          body: JSON.stringify({ map_location: `${userMapLocation.lat},${userMapLocation.lng}` }),
+          headers: { Accept: "application/json" },
+        });
+        if (!mapRes.ok) {
+          const data = await mapRes.json().catch(() => ({}));
+          const msg =
+            (typeof data.detail === "string" && data.detail) ||
+            (typeof data.message === "string" && data.message) ||
+            "No se pudo guardar la ubicación en el mapa.";
+          setToast({ type: "error", message: msg });
+          return false;
+        }
+      }
       lastSavedAddressHashRef.current = nextHash;
       return true;
     } catch {

@@ -93,11 +93,11 @@ export function Header() {
           {/* Left Side: Logo + Nav */}
           <div className="flex items-center gap-8 md:gap-16">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2 group">
+            <Link href="/" aria-label="Drooopy - Inicio" className="flex items-center gap-2 group">
                <div className="relative w-56 h-14 md:w-[200px] md:h-20">
                  <Image 
                    src="/logo-drooopy.svg" 
-                   alt="Drooopy Logo" 
+                   alt="Drooopy" 
                    fill
                    className="object-contain object-left"
                    priority

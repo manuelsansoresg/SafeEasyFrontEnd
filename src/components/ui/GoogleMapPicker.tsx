@@ -140,13 +140,13 @@ export default function GoogleMapPicker({
     const g = (window as Window & { google?: GoogleMapsApi }).google;
     const map = mapRef.current;
     const marker = markerRef.current;
-    if (!g?.maps || !map || !marker) return;
+    if (!ready || !g?.maps || !map || !marker) return;
 
     const center = location || defaultCenter;
     marker.setDraggable?.(!readOnly);
     marker.setPosition?.(location || null);
     map.setCenter?.(center);
-  }, [defaultCenter, location, readOnly]);
+  }, [defaultCenter, location, readOnly, ready]);
 
   useEffect(() => {
     const g = (window as Window & { google?: GoogleMapsApi }).google;
@@ -160,8 +160,9 @@ export default function GoogleMapPicker({
     if (!readOnly) {
       marker.setDraggable?.(true);
       dragListenerRef.current = marker.addListener?.("dragend", (e) => {
-        const lat = Number(e?.latLng?.lat?.());
-        const lng = Number(e?.latLng?.lng?.());
+        const position = e?.latLng ?? marker.getPosition?.();
+        const lat = Number(position?.lat?.());
+        const lng = Number(position?.lng?.());
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         onChangeRef.current?.({ lat, lng });
       }) ?? null;
@@ -182,7 +183,7 @@ export default function GoogleMapPicker({
         window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
       }) ?? null;
     }
-  }, [readOnly]);
+  }, [readOnly, ready]);
 
   return (
     <div className={cn("w-full rounded-lg border border-gray-200 overflow-hidden bg-white", className)}>

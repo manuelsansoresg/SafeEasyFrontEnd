@@ -11,6 +11,7 @@ import MapPicker from "@/components/ui/MapPicker";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Toast } from "@/components/ui/Toast";
 import { supplierCatalogService, type SupplierCatalogOption } from "@/services/supplierCatalogService";
+import { saveUser, splitUserFullName, type UserUpdatePayload } from "@/services/userService";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
 
@@ -35,7 +36,6 @@ interface Supplier {
   short_name?: string;
   rfc?: string;
   phone?: string;
-  email?: string;
   city?: string;
   state?: string;
   country: string;
@@ -417,7 +417,6 @@ export default function SupplierForm({
     short_name: formText(initialData?.short_name),
     rfc: formText(initialData?.rfc),
     phone: formText(initialData?.phone),
-    email: formText(initialData?.email),
     city: formText(initialData?.city),
     state: formText(initialData?.state),
     country: formText(initialData?.country, "Mexico") || "Mexico",
@@ -866,25 +865,16 @@ export default function SupplierForm({
               return;
           }
 
-          const userPayload: Record<string, unknown> = {
-              name: linkedUser.name,
+          const userPayload: Partial<UserUpdatePayload> = {
+              ...splitUserFullName(linkedUser.name),
               email: linkedUser.email,
-              role: "supplier",
-              is_active: true,
           };
 
           if (linkedUser.password.trim()) {
               userPayload.password = linkedUser.password;
           }
 
-          const userResponse = await fetch(apiUrl(`/users/${finalUserId}`), {
-              method: "PUT",
-              headers: {
-                  ...authHeaders(token),
-                  "Content-Type": "application/json",
-              },
-              body: JSON.stringify(userPayload),
-          });
+          const userResponse = await saveUser(finalUserId, userPayload);
 
           if (!userResponse.ok) {
               const text = await userResponse.text().catch(() => "");
@@ -965,7 +955,6 @@ export default function SupplierForm({
 
         appendIfPresent("rfc", formData.rfc);
         appendIfPresent("phone", formData.phone);
-        appendIfPresent("email", formData.email);
         appendIfPresent("city", formData.city);
         appendIfPresent("state", formData.state);
         appendIfPresent("country", formData.country);
@@ -986,6 +975,9 @@ export default function SupplierForm({
         data.append("accepts_delivery", String(formData.accepts_delivery));
         data.append("accepts_pickup", String(formData.accepts_pickup));
         data.append("accepts_courier", String(formData.accepts_courier));
+        if (resolvedMapLocation) {
+          data.append("map_location", serializeMapLocation(resolvedMapLocation));
+        }
 
         data.append("user_id", String(finalUserId));
 
@@ -1089,14 +1081,21 @@ export default function SupplierForm({
       if (process.env.NODE_ENV === "development") console.log("[SupplierForm] PUT response body:", updatedSupplier);
 
       if (isEdit && resolvedMapLocation) {
+        const mapResponse = await fetchWithAuth(`/api/suppliers/${initialData.id}/map-location`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ map_location: serializeMapLocation(resolvedMapLocation) }),
+        });
+
+        if (!mapResponse.ok) {
+          const errorText = await mapResponse.text().catch(() => "");
+          throw new Error(errorText || `No se pudo guardar la ubicación en el mapa (${mapResponse.status})`);
+        }
+
         try {
-          await fetchWithAuth(`/api/suppliers/${initialData.id}/map-location`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ map_location: serializeMapLocation(resolvedMapLocation) }),
-          });
-        } catch (e) {
-          console.warn("[SupplierForm] PATCH map-location failed, continuing:", e);
+          updatedSupplier = await mapResponse.json();
+        } catch {
+          updatedSupplier = null;
         }
       }
 
@@ -1164,7 +1163,7 @@ export default function SupplierForm({
         <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl mb-6">
           <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
             <Users size={20} />
-            Datos de acceso del proveedor
+            Datos de acceso del usuario
           </h3>
           {loadingLinkedUser ? (
             <div className="mb-4 inline-flex items-center gap-2 text-sm text-blue-700">
@@ -1184,7 +1183,7 @@ export default function SupplierForm({
                   onChange={e => setAccessUser({ name: e.target.value })}
                   required
                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Nombre del usuario"
+                  placeholder="Nombre del usuario vinculado"
                 />
               </div>
               <div>
@@ -1268,17 +1267,6 @@ export default function SupplierForm({
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email Público</label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
           </div>
 
           {showMercadoPagoSection && (

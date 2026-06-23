@@ -450,7 +450,16 @@ export default function ClientCartPage() {
       body: JSON.stringify(body),
       headers: { Accept: "application/json" },
     });
-    return res.ok;
+    if (!res.ok) return false;
+    if (userMapLocation) {
+      const mapRes = await fetchWithAuth(`/api/users/${meUserId}/map-location`, {
+        method: "PATCH",
+        body: JSON.stringify({ map_location: `${userMapLocation.lat},${userMapLocation.lng}` }),
+        headers: { Accept: "application/json" },
+      });
+      return mapRes.ok;
+    }
+    return true;
   };
 
   const confirmAndPay = async (supplierId: number) => {

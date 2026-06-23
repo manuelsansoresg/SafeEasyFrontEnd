@@ -370,7 +370,7 @@ export default function AdminStatsPage() {
 
       const [statsResponse, ordersResponse] = await Promise.all([
         fetchJson(`/api/suppliers/${supplierId}/stats?${params.toString()}`),
-        fetchJson(`/api/orders/?supplier_id=${supplierId}&limit=100&start_date=${encodeURIComponent(range.start.toISOString())}&end_date=${encodeURIComponent(range.end.toISOString())}`),
+        fetchJson("/api/users/me/orders?skip=0&limit=100"),
       ]);
 
       setData({

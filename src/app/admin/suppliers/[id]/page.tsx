@@ -18,7 +18,6 @@ interface Supplier {
   slug?: string;
   rfc?: string;
   phone?: string;
-  email?: string;
   city?: string;
   state?: string;
   country: string;

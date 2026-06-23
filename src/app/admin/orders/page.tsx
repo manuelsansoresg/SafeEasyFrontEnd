@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
-import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
+import { isAdminRole, isSupplierRole } from "@/lib/currentSupplier";
 import { chatService } from "@/services/chatService";
 import { useChat } from "@/context/ChatContext";
 import FileUpload from "@/components/ui/FileUpload";
@@ -474,18 +474,9 @@ export default function AdminOrdersPage() {
     setLoading(true);
     setError(null);
     try {
-      let supplierId: number | undefined;
-      if (isSupplierUser) {
-        const supplier = await resolveCurrentSupplier(user);
-        if (!supplier?.id) {
-          setOrders([]);
-          setError("No se encontró el proveedor asociado a tu cuenta.");
-          return;
-        }
-        supplierId = supplier.id;
-      }
-
-      const data = await orderService.getOrders(page, limit, supplierId);
+      const data = isSupplierUser
+        ? await orderService.getMyOrders(page, limit)
+        : await orderService.getOrders(page, limit);
       setOrders(data);
     } catch (error) {
       console.error("Error fetching orders:", error);

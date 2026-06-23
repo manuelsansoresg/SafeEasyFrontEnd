@@ -298,6 +298,9 @@ export default function ProfilePage() {
         state: addressData.state,
         country: addressData.country,
       };
+      if (mapLocation) {
+        payload.map_location = `${mapLocation.lat},${mapLocation.lng}`;
+      }
 
       if (formData.password) {
         payload.password = formData.password;
@@ -317,10 +320,15 @@ export default function ProfilePage() {
       if (process.env.NODE_ENV === "development") console.log("[Profile] PUT response body:", updatedData);
 
       if (mapLocation) {
-        await fetchWithAuth(`/api/users/${user.id}/map-location`, {
+        const mapResponse = await fetchWithAuth(`/api/users/${user.id}/map-location`, {
           method: "PATCH",
           body: JSON.stringify({ map_location: `${mapLocation.lat},${mapLocation.lng}` }),
         });
+
+        if (!mapResponse.ok) {
+          const errorData = await mapResponse.json().catch(() => ({}));
+          throw new Error(errorData.detail || `No se pudo guardar la ubicación en el mapa (${mapResponse.status})`);
+        }
       }
 
       setSuccessMessage("Perfil actualizado correctamente");

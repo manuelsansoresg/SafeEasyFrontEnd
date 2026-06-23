@@ -284,33 +284,19 @@ export const orderService = {
     return null;
   },
 
-  getMyOrders: async (buyerId?: number): Promise<Order[]> => {
-    const tryUrls = buyerId
-      ? [
-          `/api/orders?buyer_id=${buyerId}`,
-          `/api/orders/?buyer_id=${buyerId}`,
-          `/api/v1/orders?buyer_id=${buyerId}`,
-          `/api/v1/orders/?buyer_id=${buyerId}`,
-        ]
-      : [
-          `/api/users/me/orders`,
-          `/api/users/me/orders/`,
-          `/api/v1/users/me/orders`,
-          `/api/v1/users/me/orders/`,
-        ];
+  getMyOrders: async (page = 1, limit = 100): Promise<Order[]> => {
+    const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : 100;
+    const safePage = Number.isFinite(page) && page > 0 ? page : 1;
+    const query = new URLSearchParams({
+      skip: String((safePage - 1) * safeLimit),
+      limit: String(safeLimit),
+    });
+    const usedUrl = `/api/users/me/orders?${query.toString()}`;
+    const response = await fetchWithAuth(usedUrl);
 
-    let response: Response | null = null;
-    let usedUrl = "";
-    for (const url of tryUrls) {
-      usedUrl = url;
-      response = await fetchWithAuth(url);
-      if (response.ok) break;
-      if (response.status !== 404 && response.status !== 405) break;
-    }
-
-    if (!response || !response.ok) {
-      const status = response?.status ?? "unknown";
-      const bodyText = await response?.text().catch(() => "") ?? "";
+    if (!response.ok) {
+      const status = response.status;
+      const bodyText = await response.text().catch(() => "");
       throw new Error(`Failed to fetch my orders (${status}) ${usedUrl} ${bodyText}`.trim());
     }
 

@@ -10,12 +10,17 @@ import { HomeRegisterBanner } from "@/components/home/HomeRegisterBanner";
 import { JsonLd } from "@/components/JsonLd";
 import { absoluteSiteUrl, buildMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = buildMetadata({
-  title: "Productos y proveedores en México",
-  description:
-    "Descubre productos, proveedores y negocios en México. Compara opciones, revisa catálogos y conecta con vendedores desde Drooopy.",
-  path: "/",
-});
+export const metadata: Metadata = {
+  ...buildMetadata({
+    title: "Drooopy | Productos y proveedores en México",
+    description:
+      "Descubre productos, proveedores y negocios en México. Compara opciones, revisa catálogos y conecta con vendedores desde Drooopy.",
+    path: "/",
+  }),
+  title: {
+    absolute: "Drooopy | Productos y proveedores en México",
+  },
+};
 
 type SearchParams = { [key: string]: string | string[] | undefined };
 
@@ -36,11 +41,12 @@ export default async function Home({
 
   return (
     <div className="flex flex-col w-full pt-24 md:pt-28">
+      <h1 className="sr-only">Drooopy: productos y proveedores en México</h1>
       <JsonLd
         data={{
           "@context": "https://schema.org",
           "@type": "CollectionPage",
-          name: "Productos y proveedores en México",
+          name: "Drooopy | Productos y proveedores en México",
           description:
             "Descubre productos, proveedores y negocios en México desde Drooopy.",
           url: absoluteSiteUrl("/"),

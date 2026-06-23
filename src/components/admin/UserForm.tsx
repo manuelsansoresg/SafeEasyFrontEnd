@@ -7,6 +7,7 @@ import { Loader2, CheckCircle, Eye, EyeOff } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { supplierCatalogService, type SupplierCatalogOption } from "@/services/supplierCatalogService";
 import { fetchWithAuth } from "@/lib/api";
+import { saveUser, splitUserFullName } from "@/services/userService";
 
 interface User {
   id: number;
@@ -61,19 +62,6 @@ function normalizeCatalogText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
-}
-
-function splitFullName(fullName: string) {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  const name = parts[0] ?? "";
-  const lastName = parts.length > 1 ? parts[1] : "";
-  const secondLastName = parts.length > 2 ? parts.slice(2).join(" ") : "";
-
-  return {
-    name,
-    last_name: lastName,
-    second_last_name: secondLastName,
-  };
 }
 
 const initialFormData: UserFormData = {
@@ -298,7 +286,7 @@ export default function UserForm({
 
   const buildBasePayload = (): UserPayload => ({
     email: formData.email.trim(),
-    ...splitFullName(formData.name),
+    ...splitUserFullName(formData.name),
     is_active: formData.is_active,
     role: fixedRole || formData.role,
   });
@@ -394,7 +382,9 @@ export default function UserForm({
         throw new Error("La contraseña es obligatoria para nuevos usuarios");
       }
 
-      let response = await submitUserPayload(url, method, payload);
+      let response = isEditMode && initialData
+        ? await saveUser(initialData.id, payload)
+        : await submitUserPayload(url, method, payload);
 
       if (!response.ok && !isEditMode && Object.keys(locationPayload).length > 0) {
         await readErrorMessage(response);

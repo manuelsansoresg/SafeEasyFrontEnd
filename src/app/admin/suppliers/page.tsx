@@ -30,13 +30,17 @@ interface Supplier {
   slug?: string;
   rfc?: string;
   phone?: string;
-  email?: string;
+  user_email?: string;
   city?: string;
   state?: string;
   country: string;
   is_active: boolean;
   is_verified?: boolean;
   user_id: number;
+}
+
+interface UserSummary {
+  email?: string;
 }
 
 const apiUrl = (path: string) => {
@@ -109,19 +113,40 @@ export default function AdminSuppliersPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const response = await fetch(apiUrl(`/suppliers/?skip=${skip}&limit=${limit}`), {
-        headers: {
-          ...authHeaders(token),
-          Accept: "application/json",
-        },
-      });
+      const headers = {
+        ...authHeaders(token),
+        Accept: "application/json",
+      };
+      const response = await fetch(apiUrl(`/suppliers/?skip=${skip}&limit=${limit}`), { headers });
       
       if (response.ok) {
         const data = await response.json();
         const next = Array.isArray(data) ? (data as Supplier[]) : [];
+        const userIds = [...new Set(
+          next
+            .map((supplier) => Number(supplier.user_id))
+            .filter((userId) => Number.isFinite(userId))
+        )];
+        const linkedUsers = await Promise.all(
+          userIds.map(async (userId) => {
+            try {
+              const userResponse = await fetch(apiUrl(`/users/${userId}`), { headers });
+              if (!userResponse.ok) return [userId, ""] as const;
+              const linkedUser = (await userResponse.json()) as UserSummary;
+              return [userId, linkedUser.email || ""] as const;
+            } catch {
+              return [userId, ""] as const;
+            }
+          })
+        );
+        const emailByUserId = new Map(linkedUsers);
+        const nextWithUserEmail = next.map((supplier) => ({
+          ...supplier,
+          user_email: emailByUserId.get(Number(supplier.user_id)) || "",
+        }));
         setSuppliers((prev) => {
           const prevById = new Map(prev.map((s) => [Number(s.id), s]));
-          return next.map((s) => {
+          return nextWithUserEmail.map((s) => {
             const prevRow = prevById.get(Number(s.id));
             const hasIncomingVerified = typeof s.is_verified === "boolean";
             const preserved = hasIncomingVerified ? s.is_verified : prevRow?.is_verified;
@@ -319,7 +344,7 @@ export default function AdminSuppliersPage() {
       supplier.short_name,
       supplier.rfc,
       supplier.phone,
-      supplier.email,
+      supplier.user_email,
       supplier.city,
       supplier.state,
     ].some((value) => value?.toLowerCase().includes(term));
@@ -672,7 +697,7 @@ export default function AdminSuppliersPage() {
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">{supplier.rfc || '-'}</td>
                         <td className="px-6 py-4 text-sm text-gray-600 hidden md:table-cell">{supplier.phone || '-'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600 hidden lg:table-cell">{supplier.email || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 hidden lg:table-cell">{supplier.user_email || '-'}</td>
                         <td className="px-6 py-4 text-center">
                           <span className={cn(
                             "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border",
@@ -809,7 +834,7 @@ export default function AdminSuppliersPage() {
                         </div>
                         <div className="col-span-2 rounded-xl bg-gray-50 p-2">
                           <div className="font-semibold uppercase tracking-wide text-gray-400">Email</div>
-                          <div className="mt-1 break-all text-gray-700">{supplier.email || "-"}</div>
+                          <div className="mt-1 break-all text-gray-700">{supplier.user_email || "-"}</div>
                         </div>
                         <div className="col-span-2 rounded-xl bg-gray-50 p-2">
                           <div className="font-semibold uppercase tracking-wide text-gray-400">Ubicación</div>
