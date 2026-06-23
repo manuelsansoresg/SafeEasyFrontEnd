@@ -162,7 +162,25 @@ function formatDate(value: string | undefined | null) {
 function getErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === "object" && "message" in error) {
     const message = (error as { message?: unknown }).message;
-    if (typeof message === "string") return message;
+    if (typeof message === "string") {
+      const normalized = message.toLowerCase();
+
+      if (normalized.includes("delivery_type must be shipping")) {
+        return "Esta acción solo aplica para órdenes con envío a domicilio. Para una orden de recoger en tienda, usa la acción de listo para recoger.";
+      }
+      if (normalized.includes("failed to mark order ready for courier pickup")) {
+        return "No se pudo notificar al repartidor. Verifica que la orden sea de envío a domicilio y que el pago esté confirmado.";
+      }
+      if (normalized.includes("failed to mark order ready")) {
+        return "No se pudo marcar la orden como lista. Verifica que el pago esté confirmado e intenta de nuevo.";
+      }
+      if (normalized.includes("failed to complete order")) {
+        return "No se pudo completar la orden. Revisa el estado actual e intenta de nuevo.";
+      }
+      if (normalized.includes("failed to")) return fallback;
+
+      return message;
+    }
   }
   return fallback;
 }
@@ -527,7 +545,7 @@ export default function AdminOrderDetailPage() {
     }
     setActionLoading("mark-ready");
     try {
-      if (acceptsCourier) {
+      if (mode === "shipping" && acceptsCourier) {
         await orderService.markOrderReadyForCourierPickup(orderId);
       } else if (mode === "shipping") {
         await orderService.startSupplierOrderPreparing(orderId);
@@ -540,13 +558,13 @@ export default function AdminOrderDetailPage() {
           fulfillment_status: mode === "shipping" && !acceptsCourier ? "preparing" : "ready_for_pickup",
         });
       }
-      if (acceptsCourier) {
+      if (mode === "shipping" && acceptsCourier) {
         setCourierNotified(true);
       } else if (mode === "shipping") {
         setCourierNotified(true);
       }
-      const msg = acceptsCourier
-        ? "Orden marcada como lista para recolección del courier."
+      const msg = mode === "shipping" && acceptsCourier
+        ? "Orden marcada como lista para recolección del repartidor."
         : mode === "shipping"
           ? "Orden marcada como lista para envío."
           : "Orden marcada como lista para recoger.";
