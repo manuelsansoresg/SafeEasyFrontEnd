@@ -65,6 +65,7 @@ interface Supplier {
   transfer_clabe?: string;
   transfer_bank?: string;
   transfer_name?: string;
+  has_store?: boolean;
   accepts_delivery?: boolean;
   accepts_pickup?: boolean;
   accepts_courier?: boolean;
@@ -439,9 +440,13 @@ export default function SupplierForm({
     transfer_clabe: formText(initialData?.transfer_clabe),
     transfer_bank: formText(initialData?.transfer_bank),
     transfer_name: formText(initialData?.transfer_name),
-    accepts_delivery: initialData?.accepts_delivery ?? true,
-    accepts_pickup: initialData?.accepts_delivery === false ? true : false,
-    accepts_courier: initialData?.accepts_delivery === false ? false : (initialData?.accepts_courier ?? false),
+    has_store: initialData?.has_store ?? true,
+    accepts_delivery: initialData?.has_store === false ? false : (initialData?.accepts_delivery ?? true),
+    accepts_pickup: initialData?.has_store === false ? false : (initialData?.accepts_pickup ?? (initialData?.accepts_delivery === false ? true : false)),
+    accepts_courier:
+      initialData?.has_store === false || initialData?.accepts_delivery === false
+        ? false
+        : (initialData?.accepts_courier ?? false),
   });
 
   const [mapLocation, setMapLocation] = useState<LatLngLiteral | null>(() =>
@@ -702,13 +707,22 @@ export default function SupplierForm({
       if (name === 'zip_code') {
         return { ...prev, zip_code: String(val), cp: String(val) };
       }
-      if (name === "delivery_option") {
-        const isDelivery = value === "delivery";
+      if (name === "has_store") {
+        const hasStore = Boolean(val);
         return {
           ...prev,
-          accepts_delivery: isDelivery,
-          accepts_pickup: !isDelivery,
-          accepts_courier: isDelivery ? prev.accepts_courier : false,
+          has_store: hasStore,
+          accepts_delivery: hasStore ? prev.accepts_delivery : false,
+          accepts_pickup: hasStore ? prev.accepts_pickup : false,
+          accepts_courier: hasStore && prev.accepts_delivery ? prev.accepts_courier : false,
+        };
+      }
+      if (name === "accepts_delivery") {
+        const acceptsDelivery = Boolean(val);
+        return {
+          ...prev,
+          accepts_delivery: acceptsDelivery,
+          accepts_courier: acceptsDelivery ? prev.accepts_courier : false,
         };
       }
       if (name === "accepts_courier" && !prev.accepts_delivery) {
@@ -788,6 +802,10 @@ export default function SupplierForm({
     e.stopPropagation();
     if (!token || !user) {
         setToast({ type: "error", message: "No hay sesión activa" });
+        return;
+    }
+    if (formData.has_store && !formData.accepts_delivery && !formData.accepts_pickup) {
+        setToast({ type: "error", message: "Selecciona al menos una opción de entrega." });
         return;
     }
 
@@ -972,6 +990,7 @@ export default function SupplierForm({
         appendIfPresent("title_about", formData.title_about);
         appendIfPresent("subtitle_about", formData.subtitle_about);
         appendIfPresent("about", formData.about);
+        data.append("has_store", String(formData.has_store));
         data.append("accepts_delivery", String(formData.accepts_delivery));
         data.append("accepts_pickup", String(formData.accepts_pickup));
         data.append("accepts_courier", String(formData.accepts_courier));
@@ -1322,7 +1341,26 @@ export default function SupplierForm({
 
           <div className="pt-4 mt-2 border-t border-gray-200 space-y-3">
             <h4 className="text-base font-semibold text-gray-900">Opciones de Entrega</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+              <input
+                type="checkbox"
+                name="has_store"
+                checked={formData.has_store}
+                onChange={handleInputChange}
+                className="mt-1 rounded text-primary focus:ring-primary"
+              />
+              <span className="min-w-0">
+                <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                  <Store size={16} className="text-primary" />
+                  Tendré tienda
+                </span>
+                <span className="block text-xs text-gray-500 mt-1">Activa las opciones de entrega para la sucursal.</span>
+              </span>
+            </label>
+
+            {formData.has_store && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label
                 className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${
                   formData.accepts_delivery
@@ -1331,9 +1369,8 @@ export default function SupplierForm({
                 }`}
               >
                 <input
-                  type="radio"
-                  name="delivery_option"
-                  value="delivery"
+                  type="checkbox"
+                  name="accepts_delivery"
                   checked={formData.accepts_delivery}
                   onChange={handleInputChange}
                   className="mt-1 rounded text-primary focus:ring-primary"
@@ -1355,9 +1392,8 @@ export default function SupplierForm({
                 }`}
               >
                 <input
-                  type="radio"
-                  name="delivery_option"
-                  value="pickup"
+                  type="checkbox"
+                  name="accepts_pickup"
                   checked={formData.accepts_pickup}
                   onChange={handleInputChange}
                   className="mt-1 rounded text-primary focus:ring-primary"
@@ -1370,26 +1406,28 @@ export default function SupplierForm({
                   <span className="block text-xs text-gray-500 mt-1">Permitir recolección en sucursal.</span>
                 </span>
               </label>
-            </div>
+                </div>
 
-            {formData.accepts_delivery && (
-              <div className="mt-3">
-                <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="checkbox"
-                      name="accepts_courier"
-                      checked={formData.accepts_courier}
-                      onChange={handleInputChange}
-                    className="mt-1 rounded text-primary focus:ring-primary"
-                  />
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                      Aceptar envíos
-                    </span>
-                    <span className="block text-xs text-gray-500 mt-1">Habilitar envíos para productos de este estilo.</span>
-                  </span>
-                </label>
-              </div>
+                {formData.accepts_delivery && (
+                  <div className="mt-3">
+                    <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          name="accepts_courier"
+                          checked={formData.accepts_courier}
+                          onChange={handleInputChange}
+                        className="mt-1 rounded text-primary focus:ring-primary"
+                      />
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                          Aceptar envíos
+                        </span>
+                        <span className="block text-xs text-gray-500 mt-1">Habilitar envíos con dirección, distancia y costo.</span>
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </>
             )}
           </div>
           

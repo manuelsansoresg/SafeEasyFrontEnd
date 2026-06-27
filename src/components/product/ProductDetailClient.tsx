@@ -73,8 +73,16 @@ interface ProductDetail {
   sku: string;
   is_active: boolean;
   supplier_id: number;
+  supplier_user_id?: number | string | null;
+  has_store?: boolean | number | string | null;
+  supplier_has_store?: boolean | number | string | null;
+  accepts_delivery?: boolean | number | string | null;
+  supplier_accepts_delivery?: boolean | number | string | null;
+  accepts_pickup?: boolean | number | string | null;
+  supplier_accepts_pickup?: boolean | number | string | null;
   supplier?: {
     id: number;
+    user_id?: number | string | null;
     first_name: string;
     last_name: string;
     name?: string;
@@ -86,6 +94,7 @@ interface ProductDetail {
     transfer_bank?: string | null;
     transfer_name?: string | null;
     transfer_accepted?: boolean;
+    has_store?: boolean | number | string | null;
   };
   category_id: number;
   subcategory_id: number;
@@ -118,6 +127,17 @@ const sanitizeHtml = (html: string) => {
   if (!html) return "";
   return DOMPurify.sanitize(html);
 };
+
+function readOptionalBoolean(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1 ? true : value === 0 ? false : undefined;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "si", "sí"].includes(normalized)) return true;
+    if (["false", "0", "no"].includes(normalized)) return false;
+  }
+  return undefined;
+}
 
 import { useChat } from "@/context/ChatContext";
 import { useChatStore } from "@/store/useChatStore";
@@ -229,6 +249,20 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [cartToast, setCartToast] = useState<null | { type: "success" | "error"; message: string }>(null);
+  const supplierHasStore =
+    readOptionalBoolean(product?.has_store) ??
+    readOptionalBoolean(product?.supplier_has_store) ??
+    readOptionalBoolean(product?.supplier?.has_store) ??
+    true;
+  const isOwnProduct = Boolean(
+    user &&
+      product &&
+      (
+        String(user.id) === String(product.supplier?.user_id ?? "") ||
+        String(user.id) === String(product.supplier_user_id ?? "") ||
+        (String(user.role || "").toLowerCase() === "supplier" && String(user.id) === String(product.supplier_id))
+      ),
+  );
 
   useEffect(() => {
     if (!product) return;
@@ -260,6 +294,14 @@ export default function ProductDetailPage() {
     }
 
     if (!product) return;
+    if (isOwnProduct) {
+      setCartToast({ type: "error", message: "No puedes agregar productos de tu propia cuenta." });
+      return;
+    }
+    if (!supplierHasStore) {
+      setCartToast({ type: "error", message: "Esta tienda no tiene compras habilitadas por el momento." });
+      return;
+    }
     const stock = Number(product.stock ?? 0) || 0;
     if (stock <= 0) {
       setCartToast({ type: "error", message: "Este producto está agotado." });
@@ -734,91 +776,97 @@ export default function ProductDetailPage() {
                   </h1>
                 </div>
 
-                <div className="mt-2 flex items-center gap-2">
+                <div className={cn("mt-2 flex items-center gap-2", supplierHasStore ? "" : "mb-8")}>
                   <StarRating rating={Number(product.average_rating || 0)} size={20} showCount={true} />
                   <span className="text-sm text-gray-500">({product.average_rating ? Number(product.average_rating).toFixed(1) : '0.0'})</span>
                 </div>
 
-                <div className="flex items-center gap-4 mb-6 text-sm text-gray-500">
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium text-gray-900">SKU:</span>
-                    <span className="font-mono">{product.sku}</span>
-                  </div>
-                  <div className="w-px h-4 bg-gray-300"></div>
-                  <div className="flex items-center gap-1">
-                     <span className={`inline-block w-2 h-2 rounded-full ${product.stock > 0 ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                     <span>{product.stock > 0 ? 'En Stock' : 'Agotado'}</span>
-                  </div>
-                </div>
-
-                <div className="mb-8">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-bold text-primary">
-                      ${product.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                    </span>
-                    <span className="text-sm text-gray-500 font-medium">MXN</span>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">Precio por unidad (IVA incluido)</p>
-                </div>
-
-                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mb-8">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700">Disponibilidad:</span>
-                      <span className="text-sm font-bold text-gray-900">{product.stock} unidades</span>
+                {supplierHasStore ? (
+                  <div className="flex items-center gap-4 mb-6 text-sm text-gray-500">
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium text-gray-900">SKU:</span>
+                      <span className="font-mono">{product.sku}</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700">Cantidad:</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setQuantity((prev) => clampQuantity(prev - 1))}
-                          disabled={isAddingToCart || product.stock <= 0 || quantity <= 1}
-                          className="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                          aria-label="Disminuir cantidad"
-                        >
-                          <Minus size={16} />
-                        </button>
-                        <input
-                          inputMode="numeric"
-                          type="number"
-                          min={1}
-                          max={Math.max(1, product.stock)}
-                          value={quantity}
-                          onChange={(e) => {
-                            const next = Number(e.target.value);
-                            if (!Number.isFinite(next)) return;
-                            setQuantity(clampQuantity(next));
-                          }}
-                          disabled={isAddingToCart || product.stock <= 0}
-                          className="w-20 h-9 rounded-lg border border-gray-200 bg-white text-center font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setQuantity((prev) => clampQuantity(prev + 1))}
-                          disabled={isAddingToCart || product.stock <= 0 || quantity >= Math.max(1, product.stock)}
-                          className="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                          aria-label="Aumentar cantidad"
-                        >
-                          <Plus size={16} />
-                        </button>
+                      <div className="w-px h-4 bg-gray-300"></div>
+                      <div className="flex items-center gap-1">
+                         <span className={`inline-block w-2 h-2 rounded-full ${product.stock > 0 ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                         <span>{product.stock > 0 ? 'En Stock' : 'Agotado'}</span>
+                      </div>
+                  </div>
+                ) : null}
+
+                {supplierHasStore ? (
+                  <div className="mb-8">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl font-bold text-primary">
+                        ${product.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      </span>
+                      <span className="text-sm text-gray-500 font-medium">MXN</span>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">Precio por unidad (IVA incluido)</p>
+                  </div>
+                ) : null}
+
+                {supplierHasStore ? (
+                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mb-8">
+                    <div className="flex flex-col gap-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-700">Disponibilidad:</span>
+                        <span className="text-sm font-bold text-gray-900">{product.stock} unidades</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-700">Cantidad:</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setQuantity((prev) => clampQuantity(prev - 1))}
+                            disabled={isAddingToCart || product.stock <= 0 || quantity <= 1}
+                            className="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                            aria-label="Disminuir cantidad"
+                          >
+                            <Minus size={16} />
+                          </button>
+                          <input
+                            inputMode="numeric"
+                            type="number"
+                            min={1}
+                            max={Math.max(1, product.stock)}
+                            value={quantity}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              if (!Number.isFinite(next)) return;
+                              setQuantity(clampQuantity(next));
+                            }}
+                            disabled={isAddingToCart || product.stock <= 0}
+                            className="w-20 h-9 rounded-lg border border-gray-200 bg-white text-center font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setQuantity((prev) => clampQuantity(prev + 1))}
+                            disabled={isAddingToCart || product.stock <= 0 || quantity >= Math.max(1, product.stock)}
+                            className="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                            aria-label="Aumentar cantidad"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-primary h-2 rounded-full" 
+                          style={{ width: `${Math.min((product.stock / 100) * 100, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-green-600">
+                        <Truck size={16} />
+                        <span className="font-medium">Envío disponible a todo México</span>
                       </div>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-primary h-2 rounded-full" 
-                        style={{ width: `${Math.min((product.stock / 100) * 100, 100)}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-green-600">
-                      <Truck size={16} />
-                      <span className="font-medium">Envío disponible a todo México</span>
-                    </div>
                   </div>
-                </div>
+                ) : null}
 
                 {/* Supplier Info Link */}
-                {product.supplier && product.supplier.slug && (
+                {supplierHasStore && product.supplier && product.supplier.slug && (
                   <div className="mb-6 bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
                     <Link href={`/empresas/${product.supplier.slug}`} className="flex items-center gap-4 group">
                       <div className="w-12 h-12 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
@@ -849,32 +897,54 @@ export default function ProductDetailPage() {
                 )}
 
                 {/* Actions */}
+                {!supplierHasStore ? (
+                  <div className="mb-8 border-l-4 border-[#004e28] bg-[#f2f3f4] px-6 py-5">
+                    <p className="mb-4 text-base font-bold text-gray-900">Descripción</p>
+                    <div className="text-[15px] leading-7 text-gray-700">
+                      <div className="ql-snow w-full">
+                        <div
+                          className="ql-editor"
+                          style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                  <button 
-                    onClick={handleAddToCart}
-                    disabled={isAddingToCart || product.stock <= 0}
-                    className={cn(
-                      "flex-1 px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2",
-                      isAddingToCart || product.stock <= 0
-                        ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
-                        : "bg-[#168e00] text-white hover:bg-[#137500] shadow-[#168e00]/20"
-                    )}
-                  >
-                    {isAddingToCart ? (
-                      <Loader2 size={22} className="animate-spin" />
-                    ) : (
+                  {supplierHasStore ? (
+                    <button 
+                      onClick={handleAddToCart}
+                      disabled={isAddingToCart || product.stock <= 0 || isOwnProduct}
+                      className={cn(
+                        "flex-1 px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2",
+                        isAddingToCart || product.stock <= 0 || isOwnProduct
+                          ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
+                          : "bg-[#168e00] text-white hover:bg-[#137500] shadow-[#168e00]/20"
+                      )}
+                    >
+                      {isAddingToCart ? (
+                        <Loader2 size={22} className="animate-spin" />
+                      ) : (
                       <ShoppingCart size={24} />
                     )}
-                    Agregar al carrito
-                  </button>
+                      {isOwnProduct ? "Tu publicación" : "Agregar al carrito"}
+                    </button>
+                  ) : null}
 
                   <button 
                     onClick={handleChatOpen}
-                    className="px-6 py-4 rounded-xl border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-gray-700 font-semibold"
+                    className={cn(
+                      "px-6 py-4 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 font-semibold",
+                      supplierHasStore
+                        ? "border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 text-gray-700"
+                        : "flex-1 bg-[#168e00] text-white shadow-lg shadow-[#168e00]/15 hover:bg-[#137500]"
+                    )}
                     title="Chat con el proveedor"
                   >
-                    <MessageCircle size={22} className="text-primary" />
-                    Chat
+                    <MessageCircle size={22} className={supplierHasStore ? "text-primary" : "text-white"} />
+                    {supplierHasStore ? "Chat" : "Contactar"}
                   </button>
 
                   <button 
@@ -893,31 +963,34 @@ export default function ProductDetailPage() {
                 </div>
 
                 {/* Safety Badges */}
-                <div className="grid grid-cols-2 gap-4 pt-6 border-t border-gray-100">
-                  <div className="flex items-start gap-3">
-                    <ShieldCheck className="text-green-600 shrink-0" size={20} />
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">Compra Segura</p>
-                      <p className="text-xs text-gray-500">Protección al comprador garantizada</p>
+                {supplierHasStore ? (
+                  <div className="grid grid-cols-2 gap-4 pt-6 border-t border-gray-100">
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck className="text-green-600 shrink-0" size={20} />
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">Compra Segura</p>
+                        <p className="text-xs text-gray-500">Protección al comprador garantizada</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Check className="text-blue-600 shrink-0" size={20} />
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">Calidad Verificada</p>
+                        <p className="text-xs text-gray-500">Producto revisado antes del envío</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <Check className="text-blue-600 shrink-0" size={20} />
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">Calidad Verificada</p>
-                      <p className="text-xs text-gray-500">Producto revisado antes del envío</p>
-                    </div>
-                  </div>
-                </div>
+                ) : null}
               </div>
             </div>
           </div>
 
           {/* Description Section */}
+          {supplierHasStore ? (
           <div className="border-t border-gray-100 p-6 lg:p-8 bg-gray-50/50">
             <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Package size={20} className="text-primary" />
-              Descripción del Producto
+              Descripción
             </h3>
             <div className="text-gray-600 w-full">
               <div className="ql-snow w-full">
@@ -929,6 +1002,7 @@ export default function ProductDetailPage() {
               </div>
             </div>
           </div>
+          ) : null}
 
           {/* Reviews List */}
           <div className="mt-8 border-t border-gray-100 pt-8 p-6 lg:p-8">

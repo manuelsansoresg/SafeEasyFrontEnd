@@ -32,11 +32,14 @@ type CartItem = {
 
 type SupplierCart = {
   supplier_id: number;
+  supplier_user_id: number | null;
   supplier_name: string;
   supplier_is_verified: boolean;
   supplier_map_location: LatLngLiteral | null;
+  has_store: boolean;
   accepts_delivery: boolean;
   accepts_pickup: boolean;
+  accepts_courier: boolean;
   items: CartItem[];
 };
 
@@ -144,6 +147,8 @@ function parseSupplierCarts(data: unknown): SupplierCart[] {
       (typeof supplierObj?.company_name === "string" ? supplierObj.company_name : null) ??
       null;
     const supplierName = String(supplierNameRaw || "").trim() || `Proveedor #${supplierId}`;
+    const supplierUserIdRaw = r.supplier_user_id ?? r.supplierUserId ?? supplierObj?.user_id ?? null;
+    const supplierUserId = Number(supplierUserIdRaw);
 
     const verifiedRaw =
       r.supplier_is_verified ??
@@ -234,6 +239,11 @@ function parseSupplierCarts(data: unknown): SupplierCart[] {
     const supplierMapLoc = parseMapLocation(
       r.supplier_map_location ?? r.map_location ?? supplierObj?.map_location ?? supplierObj?.location ?? null,
     );
+    const hasStore =
+      readOptionalBoolean(r.has_store) ??
+      readOptionalBoolean(r.supplier_has_store) ??
+      readOptionalBoolean(supplierObj?.has_store) ??
+      true;
     const acceptsDelivery =
       readOptionalBoolean(r.accepts_delivery) ??
       readOptionalBoolean(r.supplier_accepts_delivery) ??
@@ -244,13 +254,21 @@ function parseSupplierCarts(data: unknown): SupplierCart[] {
       readOptionalBoolean(r.supplier_accepts_pickup) ??
       readOptionalBoolean(supplierObj?.accepts_pickup) ??
       true;
+    const acceptsCourier =
+      readOptionalBoolean(r.accepts_courier) ??
+      readOptionalBoolean(r.supplier_accepts_courier) ??
+      readOptionalBoolean(supplierObj?.accepts_courier) ??
+      false;
     carts.push({
       supplier_id: supplierId,
+      supplier_user_id: Number.isFinite(supplierUserId) && supplierUserId > 0 ? supplierUserId : null,
       supplier_name: supplierName,
       supplier_is_verified: supplierIsVerified,
       supplier_map_location: supplierMapLoc,
-      accepts_delivery: acceptsDelivery,
-      accepts_pickup: acceptsPickup,
+      has_store: hasStore,
+      accepts_delivery: hasStore && acceptsDelivery,
+      accepts_pickup: hasStore && acceptsPickup,
+      accepts_courier: hasStore && acceptsDelivery && acceptsCourier,
       items,
     });
   }
@@ -763,9 +781,15 @@ export default function CartPage() {
 
   const confirmCheckout = async (supplierId: number, deliveryOverride?: DeliveryType) => {
     const selectedDeliveryType = deliveryOverride ?? deliveryType;
+    const selectedSupplier = carts.find((c) => c.supplier_id === supplierId) || null;
+    const requiresShippingQuote = selectedDeliveryType === "shipping" && Boolean(selectedSupplier?.accepts_courier);
     setMutating(true);
     try {
-      if (selectedDeliveryType === "shipping") {
+      if (selectedSupplier?.supplier_user_id && meUserId && Number(selectedSupplier.supplier_user_id) === Number(meUserId)) {
+        setToast({ type: "error", message: "No puedes comprar productos de tu propia cuenta." });
+        return;
+      }
+      if (requiresShippingQuote) {
         if (!userMapLocation) {
           setToast({ type: "error", message: "Selecciona tu ubicación para el envío." });
           return;
@@ -777,8 +801,7 @@ export default function CartPage() {
       }
       const saved = await saveAddress();
       if (!saved) return;
-      const supplier = carts.find((c) => c.supplier_id === supplierId) || null;
-      const items = (supplier?.items || [])
+      const items = (selectedSupplier?.items || [])
         .map((it) => ({ product_id: String(it.product_id || "").trim(), quantity: Number(it.quantity) || 0 }))
         .filter((it) => it.product_id && it.quantity > 0);
       if (!items.length) {
@@ -792,7 +815,7 @@ export default function CartPage() {
         distance_km: 0,
         courier_user_id: 0,
       };
-      if (selectedDeliveryType === "shipping" && Number.isFinite(distanceKm || 0)) {
+      if (requiresShippingQuote && Number.isFinite(distanceKm || 0)) {
         payload.distance_km = distanceKm;
       }
       const res = await tryFetch(
@@ -925,15 +948,18 @@ export default function CartPage() {
               }, 0);
               const isActiveCheckout = checkoutSupplierId === c.supplier_id;
               const visibleDeliveryType = isActiveCheckout ? deliveryType : getDefaultDeliveryType(c);
+              const visibleShippingNeedsQuote = visibleDeliveryType === "shipping" && c.accepts_courier;
+              const isOwnSupplierCart = Boolean(c.supplier_user_id && meUserId && Number(c.supplier_user_id) === Number(meUserId));
               const supplierTotal =
                 supplierSubtotal +
-                (isActiveCheckout && visibleDeliveryType === "shipping" && shippingCost != null && addressLocked ? shippingCost : 0);
+                (isActiveCheckout && visibleShippingNeedsQuote && shippingCost != null && addressLocked ? shippingCost : 0);
               const cannotPay =
                 mutating ||
                 savingAddress ||
                 meLoading ||
+                isOwnSupplierCart ||
                 (!c.accepts_pickup && !c.accepts_delivery) ||
-                (isActiveCheckout && visibleDeliveryType === "shipping" && (!addressLocked || shippingCost == null));
+                (isActiveCheckout && visibleShippingNeedsQuote && (!addressLocked || shippingCost == null));
 
               return (
                 <div key={c.supplier_id} className="rounded-2xl bg-white overflow-hidden shadow-sm">
@@ -981,7 +1007,7 @@ export default function CartPage() {
                                 setCheckoutSupplierId(c.supplier_id);
                                 setDeliveryType("shipping");
                                 invalidateQuote();
-                                computeShippingQuote(c.supplier_id, true).catch(() => {});
+                                if (c.accepts_courier) computeShippingQuote(c.supplier_id, true).catch(() => {});
                               }}
                               className={cn(
                                 "px-3 py-2 rounded-lg border",
@@ -995,8 +1021,11 @@ export default function CartPage() {
                         {!c.accepts_pickup && !c.accepts_delivery ? (
                           <p className="mt-2 text-sm text-red-600">Este proveedor no tiene métodos de entrega disponibles.</p>
                         ) : null}
+                        {isOwnSupplierCart ? (
+                          <p className="mt-2 text-sm text-red-600">No puedes comprar productos de tu propia cuenta.</p>
+                        ) : null}
                       </div>
-                      {isActiveCheckout && visibleDeliveryType === "shipping" && (
+                      {isActiveCheckout && visibleShippingNeedsQuote && (
                           <div className="space-y-3">
                             <div className="flex items-center justify-between gap-3">
                               <p className="text-sm font-semibold text-gray-800">Dirección de entrega</p>
@@ -1153,7 +1182,7 @@ export default function CartPage() {
                             <span>Subtotal productos</span>
                             <span className="font-bold text-gray-900">{money(supplierSubtotal)}</span>
                           </div>
-                          {isActiveCheckout && visibleDeliveryType === "shipping" ? (
+                          {isActiveCheckout && visibleShippingNeedsQuote ? (
                             <div className="flex items-center justify-between gap-8 sm:justify-start">
                               <span>Envío</span>
                               <span className="font-bold text-gray-900">

@@ -109,6 +109,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     transfer_clabe: '',
     transfer_bank: '',
     transfer_name: '',
+    has_store: true,
     accepts_delivery: true,
     accepts_pickup: true,
     accepts_courier: false,
@@ -264,6 +265,27 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
       setFormData({ ...formData, zip_code: String(value), cp: String(value) });
       return;
     }
+    if (target.name === 'has_store') {
+      const hasStore = Boolean(value);
+      setFormData({
+        ...formData,
+        has_store: hasStore,
+        accepts_delivery: hasStore ? formData.accepts_delivery : false,
+        accepts_pickup: hasStore ? formData.accepts_pickup : false,
+        accepts_courier: hasStore && formData.accepts_delivery ? formData.accepts_courier : false,
+      });
+      return;
+    }
+    if (target.name === 'accepts_delivery') {
+      const acceptsDelivery = Boolean(value);
+      setFormData({
+        ...formData,
+        accepts_delivery: acceptsDelivery,
+        accepts_courier: acceptsDelivery ? formData.accepts_courier : false,
+      });
+      return;
+    }
+    if (target.name === 'accepts_courier' && !formData.accepts_delivery) return;
     setFormData({ ...formData, [target.name]: value });
   };
 
@@ -310,6 +332,11 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
 
     if (!userId) {
       setError("Error: No se ha identificado el usuario. Por favor intente registrarse nuevamente.");
+      setLoading(false);
+      return;
+    }
+    if (formData.has_store && !formData.accepts_delivery && !formData.accepts_pickup) {
+      setError("Selecciona al menos una opción de entrega.");
       setLoading(false);
       return;
     }
@@ -363,6 +390,7 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
       data.append('accepts_delivery', String(formData.accepts_delivery));
       data.append('accepts_pickup', String(formData.accepts_pickup));
       data.append('accepts_courier', String(formData.accepts_courier));
+      data.append('has_store', String(formData.has_store));
 
       if (mapLocation) {
         data.append('map_location', JSON.stringify(mapLocation));
@@ -538,7 +566,26 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
 
             <div className="pt-4 mt-2 border-t border-gray-200 space-y-3">
               <h4 className="text-base font-semibold text-gray-900">Opciones de Entrega</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  name="has_store"
+                  checked={formData.has_store}
+                  onChange={handleChange}
+                  className="mt-1 rounded text-primary focus:ring-primary"
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                    <Store size={16} className="text-primary" />
+                    Tendré tienda
+                  </span>
+                  <span className="block text-xs text-gray-500 mt-1">Activa las opciones de entrega para tu sucursal.</span>
+                </span>
+              </label>
+
+              {formData.has_store && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
                   <input
                     type="checkbox"
@@ -572,26 +619,28 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                     <span className="block text-xs text-gray-500 mt-1">Permitir recolección en sucursal.</span>
                   </span>
                 </label>
-              </div>
+                  </div>
 
-              {formData.accepts_delivery && (
-                <div className="mt-3">
-                  <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="checkbox"
-                      name="accepts_courier"
-                      checked={formData.accepts_courier}
-                      onChange={handleChange}
-                      className="mt-1 rounded text-primary focus:ring-primary"
-                    />
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                        Aceptar envíos
-                      </span>
-                      <span className="block text-xs text-gray-500 mt-1">Habilitar envíos para productos de este estilo.</span>
-                    </span>
-                  </label>
-                </div>
+                  {formData.accepts_delivery && (
+                    <div className="mt-3">
+                      <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          name="accepts_courier"
+                          checked={formData.accepts_courier}
+                          onChange={handleChange}
+                          className="mt-1 rounded text-primary focus:ring-primary"
+                        />
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                            Aceptar envíos
+                          </span>
+                          <span className="block text-xs text-gray-500 mt-1">Habilitar envíos con dirección, distancia y costo.</span>
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
