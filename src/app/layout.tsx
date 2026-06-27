@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Poppins, Varela_Round } from "next/font/google";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import "react-quill-new/dist/quill.snow.css";
 import "./globals.css";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
-import { MobileNav } from "@/components/MobileNav";
+import { AppChrome } from "@/components/AppChrome";
 import { ChatProvider } from "@/context/ChatContext";
 import { ChatOverlay } from "@/components/chat/ChatOverlay";
 import { LocationProvider } from "@/components/LocationProvider";
@@ -121,12 +120,11 @@ export default function RootLayout({
         <ChatProvider>
           <TokenRefreshProvider>
             <LocationProvider />
-            <Header />
-            <main className="min-h-screen">
-              {children}
-            </main>
-            <Footer />
-            <MobileNav />
+            <Suspense fallback={<main className="min-h-screen">{children}</main>}>
+              <AppChrome>
+                {children}
+              </AppChrome>
+            </Suspense>
             <ChatOverlay />
           </TokenRefreshProvider>
         </ChatProvider>
