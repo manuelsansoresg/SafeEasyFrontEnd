@@ -39,7 +39,7 @@ type SupplierCart = {
   has_store: boolean;
   accepts_delivery: boolean;
   accepts_pickup: boolean;
-  accepts_courier: boolean;
+  accepts_courier: boolean | null;
   items: CartItem[];
 };
 
@@ -239,26 +239,10 @@ function parseSupplierCarts(data: unknown): SupplierCart[] {
     const supplierMapLoc = parseMapLocation(
       r.supplier_map_location ?? r.map_location ?? supplierObj?.map_location ?? supplierObj?.location ?? null,
     );
-    const hasStore =
-      readOptionalBoolean(r.has_store) ??
-      readOptionalBoolean(r.supplier_has_store) ??
-      readOptionalBoolean(supplierObj?.has_store) ??
-      true;
-    const acceptsDelivery =
-      readOptionalBoolean(r.accepts_delivery) ??
-      readOptionalBoolean(r.supplier_accepts_delivery) ??
-      readOptionalBoolean(supplierObj?.accepts_delivery) ??
-      true;
-    const acceptsPickup =
-      readOptionalBoolean(r.accepts_pickup) ??
-      readOptionalBoolean(r.supplier_accepts_pickup) ??
-      readOptionalBoolean(supplierObj?.accepts_pickup) ??
-      true;
-    const acceptsCourier =
-      readOptionalBoolean(r.accepts_courier) ??
-      readOptionalBoolean(r.supplier_accepts_courier) ??
-      readOptionalBoolean(supplierObj?.accepts_courier) ??
-      false;
+    const hasStore = readOptionalBoolean(r.has_store) ?? true;
+    const acceptsDelivery = readOptionalBoolean(r.accepts_delivery) ?? false;
+    const acceptsPickup = readOptionalBoolean(r.accepts_pickup) ?? false;
+    const acceptsCourier = readOptionalBoolean(r.accepts_courier) ?? null;
     carts.push({
       supplier_id: supplierId,
       supplier_user_id: Number.isFinite(supplierUserId) && supplierUserId > 0 ? supplierUserId : null,
@@ -268,7 +252,7 @@ function parseSupplierCarts(data: unknown): SupplierCart[] {
       has_store: hasStore,
       accepts_delivery: hasStore && acceptsDelivery,
       accepts_pickup: hasStore && acceptsPickup,
-      accepts_courier: hasStore && acceptsDelivery && acceptsCourier,
+      accepts_courier: hasStore && acceptsDelivery ? acceptsCourier : false,
       items,
     });
   }
@@ -410,10 +394,10 @@ export default function CartPage() {
     if (isRedirectingRef.current || isUnmountedRef.current) return;
     setLoading(true);
     try {
-      let res = await tryFetch(["/api/cart/", "/api/cart", "/api/v1/cart/", "/api/v1/cart"]);
+      let res = await tryFetch(["/api/cart/", "/api/cart"]);
       if (res && (res.status === 401 || res.status === 403)) {
         await new Promise<void>((r) => window.setTimeout(() => r(), 250));
-        res = await tryFetch(["/api/cart/", "/api/cart", "/api/v1/cart/", "/api/v1/cart"]);
+        res = await tryFetch(["/api/cart/", "/api/cart"]);
       }
       if (!res || !res.ok) {
         if (isRedirectingRef.current || isUnmountedRef.current) return;
@@ -487,7 +471,7 @@ export default function CartPage() {
     setMutating(true);
     try {
       const res = await tryFetch(
-        ["/api/cart/update", "/api/cart/update/", "/api/v1/cart/update", "/api/v1/cart/update/"],
+        ["/api/cart/update", "/api/cart/update/"],
         { method: "PATCH", body: JSON.stringify({ item_id: itemId, quantity }) },
       );
       if (!res || !res.ok) {
@@ -513,7 +497,7 @@ export default function CartPage() {
     setMutating(true);
     try {
       const res = await tryFetch(
-        [`/api/cart/item/${itemId}`, `/api/cart/item/${itemId}/`, `/api/v1/cart/item/${itemId}`, `/api/v1/cart/item/${itemId}/`],
+        [`/api/cart/item/${itemId}`, `/api/cart/item/${itemId}/`],
         { method: "DELETE" },
       );
       if (!res || !res.ok) {
@@ -542,8 +526,6 @@ export default function CartPage() {
         [
           `/api/cart/clear/${supplierId}`,
           `/api/cart/clear/${supplierId}/`,
-          `/api/v1/cart/clear/${supplierId}`,
-          `/api/v1/cart/clear/${supplierId}/`,
         ],
         { method: "DELETE" },
       );
@@ -673,9 +655,9 @@ export default function CartPage() {
     }
   };
 
-  const fetchSupplierMapLocation = async (supplierId: number) => {
+  const fetchSupplierDetails = async (supplierId: number) => {
     const res = await tryFetch(
-      [`/api/suppliers/${supplierId}`, `/api/suppliers/${supplierId}/`, `/api/v1/suppliers/${supplierId}`, `/api/v1/suppliers/${supplierId}/`],
+      [`/api/suppliers/${supplierId}`, `/api/suppliers/${supplierId}/`],
       { headers: { Accept: "application/json" } },
     );
     if (!res || !res.ok) return null;
@@ -689,16 +671,46 @@ export default function CartPage() {
     const loc = parseMapLocation(
       src.map_location ?? src.location ?? src.supplier_map_location ?? src.supplierLocation ?? null,
     );
-    if (!loc) return null;
+    const hasStore = readOptionalBoolean(src.has_store);
+    const acceptsDelivery = readOptionalBoolean(src.accepts_delivery);
+    const acceptsPickup = readOptionalBoolean(src.accepts_pickup);
+    const acceptsCourier = readOptionalBoolean(src.accepts_courier);
+    const supplierUserId = Number(src.user_id ?? src.supplier_user_id ?? 0);
     setCarts((prev) =>
-      prev.map((c) => (Number(c.supplier_id) === Number(supplierId) ? { ...c, supplier_map_location: loc } : c)),
+      prev.map((c) => {
+        if (Number(c.supplier_id) !== Number(supplierId)) return c;
+        const nextHasStore = hasStore ?? c.has_store;
+        const nextAcceptsDelivery = nextHasStore && (acceptsDelivery ?? c.accepts_delivery);
+        return {
+          ...c,
+          supplier_user_id: Number.isFinite(supplierUserId) && supplierUserId > 0 ? supplierUserId : c.supplier_user_id,
+          supplier_map_location: loc ?? c.supplier_map_location,
+          has_store: nextHasStore,
+          accepts_delivery: nextAcceptsDelivery,
+          accepts_pickup: nextHasStore && (acceptsPickup ?? c.accepts_pickup),
+          accepts_courier: nextAcceptsDelivery ? (acceptsCourier ?? c.accepts_courier) : false,
+        };
+      }),
     );
-    return loc;
+    return {
+      mapLocation: loc,
+      has_store: hasStore,
+      accepts_delivery: acceptsDelivery,
+      accepts_pickup: acceptsPickup,
+      accepts_courier: acceptsCourier,
+    };
   };
 
   const computeShippingQuote = async (supplierId: number, force?: boolean) => {
     setQuoteError(null);
     if (!force && deliveryType !== "shipping") return;
+    const supplierBeforeFetch = carts.find((c) => c.supplier_id === supplierId) ?? null;
+    let supplierAcceptsCourier = supplierBeforeFetch?.accepts_courier ?? null;
+    if (supplierAcceptsCourier == null) {
+      const details = await fetchSupplierDetails(supplierId);
+      supplierAcceptsCourier = details?.accepts_courier ?? supplierAcceptsCourier;
+    }
+    if (supplierAcceptsCourier === false) return;
     if (!userMapLocation || addressDirtyRef.current) {
       setCheckoutSupplierId(supplierId);
       setAddressModalOpen(true);
@@ -707,7 +719,8 @@ export default function CartPage() {
 
     let sLoc = carts.find((c) => c.supplier_id === supplierId)?.supplier_map_location ?? null;
     if (!sLoc) {
-      sLoc = await fetchSupplierMapLocation(supplierId);
+      const details = await fetchSupplierDetails(supplierId);
+      sLoc = details?.mapLocation ?? null;
     }
     if (!sLoc) {
       setQuoteError("No se pudo obtener la ubicación del proveedor.");
@@ -719,7 +732,7 @@ export default function CartPage() {
       const km = await distanceKmDriving(userMapLocation, sLoc);
       setDistanceKm(km);
       const res = await tryFetch(
-        ["/api/cart/shipping-quote", "/api/cart/shipping-quote/", "/api/v1/cart/shipping-quote", "/api/v1/cart/shipping-quote/"],
+        ["/api/cart/shipping-quote", "/api/cart/shipping-quote/"],
         {
           method: "POST",
           body: JSON.stringify({ supplier_id: supplierId, distance_km: km }),
@@ -782,7 +795,8 @@ export default function CartPage() {
   const confirmCheckout = async (supplierId: number, deliveryOverride?: DeliveryType) => {
     const selectedDeliveryType = deliveryOverride ?? deliveryType;
     const selectedSupplier = carts.find((c) => c.supplier_id === supplierId) || null;
-    const requiresShippingQuote = selectedDeliveryType === "shipping" && Boolean(selectedSupplier?.accepts_courier);
+    const requiresShippingQuote =
+      selectedDeliveryType === "shipping" && Boolean(selectedSupplier?.accepts_delivery) && selectedSupplier?.accepts_courier !== false;
     setMutating(true);
     try {
       if (selectedSupplier?.supplier_user_id && meUserId && Number(selectedSupplier.supplier_user_id) === Number(meUserId)) {
@@ -822,8 +836,6 @@ export default function CartPage() {
         [
           `/api/orders/checkout`,
           `/api/orders/checkout/`,
-          `/api/v1/orders/checkout`,
-          `/api/v1/orders/checkout/`,
         ],
         { method: "POST", body: JSON.stringify(payload), headers: { Accept: "application/json" } },
       );
@@ -869,7 +881,7 @@ export default function CartPage() {
 
       if (orderId) {
         const orderRes = await tryFetch(
-          [`/api/orders/${orderId}`, `/api/orders/${orderId}/`, `/api/v1/orders/${orderId}`, `/api/v1/orders/${orderId}/`],
+          [`/api/orders/${orderId}`, `/api/orders/${orderId}/`],
           { headers: { Accept: "application/json" } },
         );
         if (orderRes && orderRes.ok) {
@@ -948,7 +960,7 @@ export default function CartPage() {
               }, 0);
               const isActiveCheckout = checkoutSupplierId === c.supplier_id;
               const visibleDeliveryType = isActiveCheckout ? deliveryType : getDefaultDeliveryType(c);
-              const visibleShippingNeedsQuote = visibleDeliveryType === "shipping" && c.accepts_courier;
+              const visibleShippingNeedsQuote = visibleDeliveryType === "shipping" && c.accepts_delivery && c.accepts_courier !== false;
               const isOwnSupplierCart = Boolean(c.supplier_user_id && meUserId && Number(c.supplier_user_id) === Number(meUserId));
               const supplierTotal =
                 supplierSubtotal +
@@ -1003,11 +1015,13 @@ export default function CartPage() {
                           {c.accepts_delivery ? (
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 setCheckoutSupplierId(c.supplier_id);
                                 setDeliveryType("shipping");
                                 invalidateQuote();
-                                if (c.accepts_courier) computeShippingQuote(c.supplier_id, true).catch(() => {});
+                                const details = c.accepts_courier == null ? await fetchSupplierDetails(c.supplier_id) : null;
+                                const acceptsCourier = details?.accepts_courier ?? c.accepts_courier;
+                                if (acceptsCourier !== false) computeShippingQuote(c.supplier_id, true).catch(() => {});
                               }}
                               className={cn(
                                 "px-3 py-2 rounded-lg border",
