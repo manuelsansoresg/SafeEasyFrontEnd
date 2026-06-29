@@ -35,7 +35,7 @@ import { resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { useAuthStore } from "@/store/useAuthStore";
 import { PageHero } from "@/components/ui/PageHero";
 
-type DateRange = "last7" | "last30" | "month";
+type QuickRange = "last7" | "last30" | "month";
 type StatsInterval = "day" | "week" | "month";
 
 type SupplierStatsResponse = {
@@ -292,11 +292,35 @@ async function fetchJson(url: string) {
   return response.json() as Promise<unknown>;
 }
 
-function getDateRange(range: DateRange) {
+async function fetchAllMyOrders() {
+  const limit = 100;
+  const orders: SupplierOrder[] = [];
+
+  for (let skip = 0; ; skip += limit) {
+    const response = await fetchJson(`/api/users/me/orders?skip=${skip}&limit=${limit}`);
+    const page = unwrapList(response).map(asRecord);
+    orders.push(...page);
+
+    if (page.length < limit) break;
+  }
+
+  return orders;
+}
+
+function getQuickDateRange(range: QuickRange) {
   const now = new Date();
   if (range === "last7") return { start: subDays(now, 7), end: now };
   if (range === "month") return { start: startOfMonth(now), end: endOfMonth(now) };
   return { start: subDays(now, 30), end: now };
+}
+
+function toDateInputValue(date: Date) {
+  return format(date, "yyyy-MM-dd");
+}
+
+function fromDateInputValue(value: string, fallback: Date, boundary: "start" | "end") {
+  const date = new Date(`${value}T${boundary === "start" ? "00:00:00.000" : "23:59:59.999"}`);
+  return Number.isNaN(date.getTime()) ? fallback : date;
 }
 
 function formatCurrency(value: number) {
@@ -347,7 +371,10 @@ export default function AdminStatsPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange>("last30");
+  const defaultRange = useMemo(() => getQuickDateRange("last30"), []);
+  const [startDate, setStartDate] = useState(defaultRange.start);
+  const [endDate, setEndDate] = useState(defaultRange.end);
+  const [activeQuickRange, setActiveQuickRange] = useState<QuickRange | null>("last30");
   const [interval, setInterval] = useState<StatsInterval>("day");
   const [selectedOrder, setSelectedOrder] = useState<OrderTableRow | null>(null);
 
@@ -361,23 +388,22 @@ export default function AdminStatsPage() {
 
       if (!supplierId) throw new Error("No se encontró una empresa asociada a tu usuario.");
 
-      const range = getDateRange(dateRange);
       const params = new URLSearchParams({
-        start_date: range.start.toISOString(),
-        end_date: range.end.toISOString(),
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
         interval,
       });
 
       const [statsResponse, ordersResponse] = await Promise.all([
         fetchJson(`/api/suppliers/${supplierId}/stats?${params.toString()}`),
-        fetchJson("/api/users/me/orders?skip=0&limit=100"),
+        fetchAllMyOrders(),
       ]);
 
       setData({
         supplierId,
         supplierName: String(supplier?.name ?? supplier?.short_name ?? `Proveedor #${supplierId}`),
         stats: asRecord(statsResponse) as SupplierStatsResponse,
-        orders: unwrapList(ordersResponse).map(asRecord),
+        orders: ordersResponse,
       });
     } catch (caught) {
       console.error("Error loading supplier statistics", caught);
@@ -386,15 +412,14 @@ export default function AdminStatsPage() {
     } finally {
       setLoading(false);
     }
-  }, [dateRange, interval, user]);
+  }, [endDate, interval, startDate, user]);
 
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
 
   const computed = useMemo(() => {
-    const range = getDateRange(dateRange);
-    const orders = (data?.orders ?? []).filter((order) => isOrderInRange(order, range.start, range.end));
+    const orders = (data?.orders ?? []).filter((order) => isOrderInRange(order, startDate, endDate));
     const paidOrders = orders.filter(isPaidOrder);
     const paidOrdersCount = paidOrders.length;
     const productRevenue = paidOrders.reduce((sum, order) => sum + getProductsRevenue(order), 0);
@@ -473,7 +498,7 @@ export default function AdminStatsPage() {
     });
 
     return {
-      totalOrders: toNumber(data?.stats.summary?.total_orders),
+      totalOrders: orders.length || toNumber(data?.stats.summary?.total_orders),
       productRevenue,
       pendingToPrepare,
       completedOrders,
@@ -496,7 +521,7 @@ export default function AdminStatsPage() {
       orderRows,
       timeline,
     };
-  }, [data, dateRange]);
+  }, [data, endDate, startDate]);
 
   if (loading && !data) {
     return (
@@ -525,10 +550,16 @@ export default function AdminStatsPage() {
 
   if (!data) return null;
 
-  const rangeLabel = dateRange === "last7" ? "Últimos 7 días" : dateRange === "month" ? "Este mes" : "Últimos 30 días";
+  const rangeLabel = `${format(startDate, "dd MMM yyyy", { locale: es })} - ${format(endDate, "dd MMM yyyy", { locale: es })}`;
   const hasTimeline = computed.timeline.some((item) => item.amount > 0 || item.count > 0);
   const hasStatuses = computed.statusData.some((item) => item.value > 0);
   const totalDelivery = computed.deliveryData.reduce((sum, item) => sum + item.value, 0);
+  const applyQuickRange = (range: QuickRange) => {
+    const next = getQuickDateRange(range);
+    setStartDate(next.start);
+    setEndDate(next.end);
+    setActiveQuickRange(range);
+  };
 
   return (
     <div className="space-y-6 font-[family-name:var(--font-poppins)]">
@@ -536,32 +567,66 @@ export default function AdminStatsPage() {
         title="Estadísticas"
         subtitle={`Ventas, pedidos y rentabilidad de ${data.supplierName}.`}
         actions={
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
-          {([
-            ["last7", "7 días"],
-            ["last30", "30 días"],
-            ["month", "Este mes"],
-          ] as Array<[DateRange, string]>).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => setDateRange(value)}
-              className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
-                dateRange === value ? "bg-[#004e28] text-white" : "text-gray-600 hover:bg-[#f2f3f4]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-          <select
-            value={interval}
-            onChange={(event) => setInterval(event.target.value as StatsInterval)}
-            className="h-10 rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-[#004e28]/40 focus:ring-4 focus:ring-[#004e28]/10"
-          >
-            <option value="day">Día</option>
-            <option value="week">Semana</option>
-            <option value="month">Mes</option>
-          </select>
-        </div>
+          <div className="flex max-w-4xl flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm">
+            <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+              <label className="min-w-0">
+                <span className="mb-1 block text-xs font-bold uppercase tracking-[0.12em] text-gray-400">Inicio</span>
+                <input
+                  type="date"
+                  value={toDateInputValue(startDate)}
+                  max={toDateInputValue(endDate)}
+                  onChange={(event) => {
+                    setStartDate(fromDateInputValue(event.target.value, startDate, "start"));
+                    setActiveQuickRange(null);
+                  }}
+                  className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-[#004e28]/40 focus:ring-4 focus:ring-[#004e28]/10"
+                />
+              </label>
+              <label className="min-w-0">
+                <span className="mb-1 block text-xs font-bold uppercase tracking-[0.12em] text-gray-400">Fin</span>
+                <input
+                  type="date"
+                  value={toDateInputValue(endDate)}
+                  min={toDateInputValue(startDate)}
+                  onChange={(event) => {
+                    setEndDate(fromDateInputValue(event.target.value, endDate, "end"));
+                    setActiveQuickRange(null);
+                  }}
+                  className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-[#004e28]/40 focus:ring-4 focus:ring-[#004e28]/10"
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-xs font-bold uppercase tracking-[0.12em] text-gray-400">Agrupar</span>
+                <select
+                  value={interval}
+                  onChange={(event) => setInterval(event.target.value as StatsInterval)}
+                  className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-700 outline-none focus:border-[#004e28]/40 focus:ring-4 focus:ring-[#004e28]/10 sm:w-32"
+                >
+                  <option value="day">Día</option>
+                  <option value="week">Semana</option>
+                  <option value="month">Mes</option>
+                </select>
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {([
+                ["last7", "7 días"],
+                ["last30", "30 días"],
+                ["month", "Este mes"],
+              ] as Array<[QuickRange, string]>).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => applyQuickRange(value)}
+                  className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
+                    activeQuickRange === value ? "bg-[#004e28] text-white" : "text-gray-600 hover:bg-[#f2f3f4]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         }
       />
 
@@ -575,7 +640,7 @@ export default function AdminStatsPage() {
         <MetricCard
           title="Pedidos totales"
           value={String(computed.totalOrders)}
-          helper="Desde summary.total_orders"
+          helper="Órdenes dentro del rango"
           Icon={ShoppingBag}
         />
         <MetricCard
@@ -632,7 +697,7 @@ export default function AdminStatsPage() {
 
         <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold text-gray-900 font-[family-name:var(--font-varela-round)]">Estado de pedidos</h2>
-          <p className="mt-1 text-sm text-gray-500">Distribución de las últimas 100 órdenes.</p>
+          <p className="mt-1 text-sm text-gray-500">Distribución de las órdenes del rango seleccionado.</p>
           <div className="mt-5 h-[250px]">
             {hasStatuses ? (
               <ResponsiveContainer width="100%" height="100%">
