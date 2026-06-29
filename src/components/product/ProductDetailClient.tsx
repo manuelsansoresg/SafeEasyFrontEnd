@@ -31,6 +31,7 @@ import Link from "next/link";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
+import { productHasActiveSupplierSubscription } from "@/lib/subscriptionAccess";
 import DOMPurify from "isomorphic-dompurify";
 
 // Interfaces
@@ -254,6 +255,7 @@ export default function ProductDetailPage() {
     readOptionalBoolean(product?.supplier_has_store) ??
     readOptionalBoolean(product?.supplier?.has_store) ??
     true;
+  const supplierSubscriptionActive = productHasActiveSupplierSubscription(product);
   const isOwnProduct = Boolean(
     user &&
       product &&
@@ -300,6 +302,10 @@ export default function ProductDetailPage() {
     }
     if (!supplierHasStore) {
       setCartToast({ type: "error", message: "Esta tienda no tiene compras habilitadas por el momento." });
+      return;
+    }
+    if (!supplierSubscriptionActive) {
+      setCartToast({ type: "error", message: "Este proveedor no tiene una subscripción activa por el momento." });
       return;
     }
     const stock = Number(product.stock ?? 0) || 0;
@@ -916,10 +922,10 @@ export default function ProductDetailPage() {
                   {supplierHasStore ? (
                     <button 
                       onClick={handleAddToCart}
-                      disabled={isAddingToCart || product.stock <= 0 || isOwnProduct}
+                      disabled={isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive}
                       className={cn(
                         "flex-1 px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2",
-                        isAddingToCart || product.stock <= 0 || isOwnProduct
+                        isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive
                           ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
                           : "bg-[#168e00] text-white hover:bg-[#137500] shadow-[#168e00]/20"
                       )}
@@ -929,7 +935,7 @@ export default function ProductDetailPage() {
                       ) : (
                       <ShoppingCart size={24} />
                     )}
-                      {isOwnProduct ? "Tu publicación" : "Agregar al carrito"}
+                      {!supplierSubscriptionActive ? "No disponible" : isOwnProduct ? "Tu publicación" : "Agregar al carrito"}
                     </button>
                   ) : null}
 

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { subscriptionsService } from "@/services/subscriptionsService";
+import { fetchWithAuth } from "@/lib/api";
+import { resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
 import type { Plan, Subscription } from "@/types/subscriptions";
 import {
@@ -12,6 +14,7 @@ import {
   Clock,
   CreditCard,
   Loader2,
+  Package,
   XCircle,
 } from "lucide-react";
 import { PageHero } from "@/components/ui/PageHero";
@@ -58,6 +61,30 @@ const statusLabel = (subscription: Subscription | null) => {
   return "Pago no registrado";
 };
 
+const formatNumber = (value: number) =>
+  new Intl.NumberFormat("es-MX").format(value);
+
+type ProductSummary = {
+  id: string | number;
+  supplier_id?: number | string | null;
+  is_active?: boolean | number | string | null;
+};
+
+const unwrapProducts = (data: unknown): ProductSummary[] => {
+  if (Array.isArray(data)) return data as ProductSummary[];
+  if (!data || typeof data !== "object") return [];
+  const record = data as Record<string, unknown>;
+  const items = record.items ?? record.results ?? record.data ?? record.products;
+  return Array.isArray(items) ? (items as ProductSummary[]) : [];
+};
+
+const isProductActive = (value: ProductSummary["is_active"]) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") return ["true", "1", "active", "activo"].includes(value.trim().toLowerCase());
+  return false;
+};
+
 export default function MySubscriptionPage() {
   const { token, user } = useAuthStore();
   const isSupplier = user?.role === "supplier";
@@ -70,6 +97,8 @@ export default function MySubscriptionPage() {
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [activeProductsCount, setActiveProductsCount] = useState(0);
+  const [loadingProductUsage, setLoadingProductUsage] = useState(false);
 
   const fetchMySubscription = useCallback(async () => {
     if (!token || !isSupplier) {
@@ -92,6 +121,50 @@ export default function MySubscriptionPage() {
   useEffect(() => {
     fetchMySubscription();
   }, [fetchMySubscription]);
+
+  useEffect(() => {
+    if (!token || !isSupplier || !user) return;
+    let mounted = true;
+
+    const loadProductUsage = async () => {
+      setLoadingProductUsage(true);
+      try {
+        const supplier = await resolveCurrentSupplier(user);
+        const supplierId = supplier?.id ?? null;
+        if (!supplierId) {
+          if (mounted) setActiveProductsCount(0);
+          return;
+        }
+
+        const params = new URLSearchParams({
+          skip: "0",
+          limit: "1000",
+          include_inactive: "true",
+        });
+        const response = await fetchWithAuth(`/api/products/?${params.toString()}`);
+        if (!response.ok) {
+          if (mounted) setActiveProductsCount(0);
+          return;
+        }
+
+        const data = await response.json();
+        const count = unwrapProducts(data).filter(
+          (product) => Number(product.supplier_id) === Number(supplierId) && isProductActive(product.is_active)
+        ).length;
+        if (mounted) setActiveProductsCount(count);
+      } catch (error) {
+        console.error("Error loading product usage:", error);
+        if (mounted) setActiveProductsCount(0);
+      } finally {
+        if (mounted) setLoadingProductUsage(false);
+      }
+    };
+
+    loadProductUsage();
+    return () => {
+      mounted = false;
+    };
+  }, [isSupplier, token, user]);
 
   useEffect(() => {
     if (!token || !isSupplier) return;
@@ -134,6 +207,12 @@ export default function MySubscriptionPage() {
     !subscription ||
     !isSubscriptionActive(subscription) ||
     daysRemaining(subscription.end_date) <= RENEW_DAYS_THRESHOLD;
+  const productLimit = Number(subscription?.plan?.max_active_products ?? 0);
+  const hasProductLimit = Number.isFinite(productLimit) && productLimit > 0;
+  const remainingProducts = hasProductLimit ? Math.max(0, productLimit - activeProductsCount) : 0;
+  const productUsagePercent = hasProductLimit
+    ? Math.min(100, Math.max(0, (activeProductsCount / productLimit) * 100))
+    : 0;
 
   const handlePaySelectedPlan = async () => {
     if (!selectedPlan) {
@@ -366,6 +445,57 @@ export default function MySubscriptionPage() {
                   <span className="text-sm font-bold text-gray-900">${subscription.plan?.price}</span>
                 </div>
               </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Límites</h3>
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Package size={20} />
+                </div>
+              </div>
+
+              {loadingProductUsage ? (
+                <div className="flex items-center gap-2 rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+                  <Loader2 className="animate-spin text-primary" size={18} />
+                  Cargando productos activos...
+                </div>
+              ) : hasProductLimit ? (
+                <>
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <div className="text-sm text-gray-500">Productos activos</div>
+                      <div className="mt-1 text-3xl font-bold text-gray-950">
+                        {formatNumber(activeProductsCount)}
+                        <span className="text-base font-semibold text-gray-400"> / {formatNumber(productLimit)}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-gray-500">Restantes</div>
+                      <div className="mt-1 text-xl font-bold text-primary">{formatNumber(remainingProducts)}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 h-3 w-full overflow-hidden rounded-full bg-gray-100">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        remainingProducts === 0 ? "bg-amber-400" : "bg-primary"
+                      }`}
+                      style={{ width: `${productUsagePercent}%` }}
+                    />
+                  </div>
+
+                  <p className="mt-3 text-sm text-gray-500">
+                    {remainingProducts === 0
+                      ? "Ya alcanzaste el límite de productos activos de tu plan."
+                      : `Puedes activar ${formatNumber(remainingProducts)} producto${remainingProducts === 1 ? "" : "s"} más.`}
+                  </p>
+                </>
+              ) : (
+                <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+                  Este plan no tiene un límite de productos configurado.
+                </div>
+              )}
             </div>
 
             {shouldShowPaymentAction ? (

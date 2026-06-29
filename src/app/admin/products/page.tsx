@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { getSupplierSlug, isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
+import { isSubscriptionActive } from "@/lib/subscriptionAccess";
+import { subscriptionsService } from "@/services/subscriptionsService";
+import type { Subscription } from "@/types/subscriptions";
 import DOMPurify from "isomorphic-dompurify";
 import { 
   Plus, 
@@ -64,6 +67,9 @@ export default function AdminProductsPage() {
   const [limit] = useState(50);
   const [totalProducts, setTotalProducts] = useState(0);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const canCreateProduct = !isSupplierUser || isSubscriptionActive(subscription);
 
   useEffect(() => {
     if (!toast) return;
@@ -94,6 +100,29 @@ export default function AdminProductsPage() {
     }, 500);
     return () => clearTimeout(timer);
   }, [search]); // Trigger on search change
+
+  useEffect(() => {
+    if (!token || !isSupplierUser) return;
+    let cancelled = false;
+
+    const loadSubscription = async () => {
+      setSubscriptionLoading(true);
+      try {
+        const data = await subscriptionsService.getMySubscription();
+        if (!cancelled) setSubscription(data);
+      } catch (error) {
+        console.error("Error loading supplier subscription:", error);
+        if (!cancelled) setSubscription(null);
+      } finally {
+        if (!cancelled) setSubscriptionLoading(false);
+      }
+    };
+
+    loadSubscription();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSupplierUser, token]);
 
   // -- API Calls --
 
@@ -211,16 +240,33 @@ export default function AdminProductsPage() {
                 />
             </div>
             
-            <Link 
-              href="/admin/products/create"
-              className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 shrink-0"
-            >
-              <Plus size={20} />
-              <span className="hidden sm:inline">Nuevo Producto</span>
-            </Link>
+            {canCreateProduct ? (
+              <Link 
+                href="/admin/products/create"
+                className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 shrink-0"
+              >
+                <Plus size={20} />
+                <span className="hidden sm:inline">Nuevo Producto</span>
+              </Link>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-500 rounded-xl shadow-sm shrink-0"
+              >
+                {subscriptionLoading ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />}
+                <span className="hidden sm:inline">Renueva para subir</span>
+              </button>
+            )}
         </div>
         }
       />
+
+      {!canCreateProduct && !subscriptionLoading ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          Tu subscripción no está activa. Tus productos no deben mostrarse para compra y no puedes subir productos nuevos hasta renovar tu plan.
+        </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">

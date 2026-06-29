@@ -228,7 +228,9 @@ export default function AdminPlansPage() {
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Productos activos</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Imágenes</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
+                <th className="sticky right-0 bg-gray-50 px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 shadow-[-12px_0_18px_-18px_rgba(15,23,42,0.45)]">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -253,6 +255,23 @@ export default function AdminPlansPage() {
                     <td className="px-6 py-4">
                       <div className="font-medium text-gray-900">{plan.title}</div>
                       <div className="text-sm text-gray-500 max-w-xl truncate">{plan.description || "-"}</div>
+                      <div className="mt-3 flex items-center gap-2 lg:hidden">
+                        <Link
+                          href={`/admin/plans/${plan.id}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+                        >
+                          <Edit2 size={14} />
+                          Editar
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => deletePlan(plan.id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100"
+                        >
+                          <Trash2 size={14} />
+                          Eliminar
+                        </button>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700">{formatPrice(plan.price)}</td>
                     <td className="px-6 py-4">
@@ -275,16 +294,18 @@ export default function AdminPlansPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="sticky right-0 bg-white px-6 py-4 text-right shadow-[-12px_0_18px_-18px_rgba(15,23,42,0.45)]">
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/admin/plans/${plan.id}`}
-                          className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                          className="inline-flex items-center gap-1 rounded-lg p-2 text-gray-500 transition-colors hover:bg-primary/5 hover:text-primary"
                           title="Editar"
                         >
                           <Edit2 size={18} />
+                          <span className="sr-only">Editar</span>
                         </Link>
                         <button
+                          type="button"
                           onClick={() => deletePlan(plan.id)}
                           className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                           title="Eliminar"

@@ -1,3 +1,4 @@
+import { filterProductsByActiveSupplierSubscription } from "@/lib/subscriptionAccess";
 
 export interface Product {
   id: number;
@@ -178,7 +179,7 @@ export async function getProducts(
     }
     
     const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    return Array.isArray(data) ? filterProductsByActiveSupplierSubscription(data) : [];
   } catch (error) {
     console.warn("Warning: Error fetching products (returning empty list):", error);
     if (error instanceof Error && 'cause' in error) {

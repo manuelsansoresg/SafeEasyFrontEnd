@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { fetchWithAuth } from "@/lib/api";
 import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
+import { isSubscriptionActive } from "@/lib/subscriptionAccess";
+import { subscriptionsService } from "@/services/subscriptionsService";
+import type { Subscription } from "@/types/subscriptions";
 import { 
   Loader2, 
   CheckCircle, 
@@ -137,12 +140,44 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const isSupplierSubscriptionActive = !isSupplierUser || isSubscriptionActive(subscription);
+  const isCreationBlockedBySubscription = isSupplierUser && !isEditMode && !subscriptionLoading && !isSupplierSubscriptionActive;
 
   useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(null), 3500);
     return () => window.clearTimeout(id);
   }, [toast]);
+
+  useEffect(() => {
+    if (!token || !isSupplierUser) return;
+    let cancelled = false;
+
+    const loadSubscription = async () => {
+      setSubscriptionLoading(true);
+      setSubscriptionError(null);
+      try {
+        const data = await subscriptionsService.getMySubscription();
+        if (!cancelled) setSubscription(data);
+      } catch (error) {
+        console.error("Error loading supplier subscription:", error);
+        if (!cancelled) {
+          setSubscription(null);
+          setSubscriptionError("No pudimos validar tu subscripción.");
+        }
+      } finally {
+        if (!cancelled) setSubscriptionLoading(false);
+      }
+    };
+
+    loadSubscription();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSupplierUser, token]);
   
   // Media Upload
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -356,6 +391,10 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         setError("No hay sesión activa");
         return;
     }
+    if (isCreationBlockedBySubscription) {
+      setError(subscriptionError || "Tu subscripción no está activa. Renueva tu plan para subir productos.");
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
@@ -489,6 +528,19 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     <>
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        {isCreationBlockedBySubscription ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Tu subscripción no está activa. Tus productos no deben mostrarse para compra y necesitas renovar tu plan para subir productos nuevos.
+          </div>
+        ) : null}
+
+        {subscriptionLoading && isSupplierUser ? (
+          <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+            <Loader2 size={16} className="animate-spin" />
+            Validando subscripción...
+          </div>
+        ) : null}
+
         {error && (
           <div className="p-4 bg-red-50 text-red-600 text-sm rounded-xl">
             {error}
@@ -708,7 +760,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           </button>
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || subscriptionLoading || isCreationBlockedBySubscription}
             className="cursor-pointer px-6 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 flex items-center gap-2"
           >
             {isSubmitting ? (

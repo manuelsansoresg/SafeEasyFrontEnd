@@ -12,6 +12,7 @@ import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { parseMapLocation } from "@/lib/googleMaps";
+import { filterProductsByActiveSupplierSubscription } from "@/lib/subscriptionAccess";
 import DOMPurify from "isomorphic-dompurify";
 
 const SupplierLocationMap = dynamic(() => import("@/components/supplier/SupplierLocationMap"), {
@@ -535,7 +536,9 @@ export default function SupplierPage() {
         }
 
         const fallbackData = await fallback.json();
-        const ownProducts = unwrapSupplierProducts(fallbackData).filter((product) => Number(product.supplier_id) === supplierId);
+        const ownProducts = filterProductsByActiveSupplierSubscription(
+          unwrapSupplierProducts(fallbackData).filter((product) => Number(product.supplier_id) === supplierId)
+        );
         const pageStart = (currentPage - 1) * limit;
         const pageItems = ownProducts.slice(pageStart, pageStart + limit);
 
@@ -546,7 +549,7 @@ export default function SupplierPage() {
       }
 
       const data = await res.json();
-      const newProducts = unwrapSupplierProducts(data);
+      const newProducts = filterProductsByActiveSupplierSubscription(unwrapSupplierProducts(data));
       
       syncFavorites(newProducts);
 

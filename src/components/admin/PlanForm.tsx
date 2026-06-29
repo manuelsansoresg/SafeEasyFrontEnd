@@ -108,7 +108,6 @@ export default function PlanForm({ initialData }: PlanFormProps) {
     }
 
     try {
-      const url = initialData ? apiUrl(`/plans/${initialData.id}`) : apiUrl(`/plans/`);
       const method = initialData ? "PUT" : "POST";
 
       const payload = {
@@ -121,20 +120,30 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         max_images_per_product: parsedMaxImagesPerProduct,
       };
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          ...authHeaders(token),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const body = JSON.stringify(payload);
+      const urls = initialData
+        ? [apiUrl(`/plans/${initialData.id}`), apiUrl(`/plans/${initialData.id}/`)]
+        : [apiUrl(`/plans/`), apiUrl(`/plans`)];
 
-      if (response.ok) {
+      let response: Response | null = null;
+      for (const url of urls) {
+        response = await fetch(url, {
+          method,
+          headers: {
+            ...authHeaders(token),
+            "Content-Type": "application/json",
+          },
+          body,
+        });
+        if (response.ok) break;
+        if (response.status !== 404 && response.status !== 405 && response.status < 500) break;
+      }
+
+      if (response?.ok) {
         router.push("/admin/plans");
         router.refresh();
       } else {
-        const data = await response.json().catch(() => null);
+        const data = await response?.json().catch(() => null);
         setError((data && (data.detail || data.message)) || "Error al guardar el plan");
       }
     } catch (err) {
