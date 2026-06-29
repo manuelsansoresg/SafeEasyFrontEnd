@@ -22,6 +22,8 @@ interface Plan {
   price: number;
   duration: "monthly" | "yearly";
   is_active: boolean;
+  max_active_products?: number | null;
+  max_images_per_product?: number | null;
 }
 
 const formatPrice = (value: unknown) => {
@@ -38,6 +40,12 @@ const formatDuration = (value: Plan["duration"]) => {
   if (value === "monthly") return "Mensual";
   if (value === "yearly") return "Anual";
   return value;
+};
+
+const formatLimit = (value: unknown) => {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) return "-";
+  return new Intl.NumberFormat("es-MX").format(num);
 };
 
 const apiUrl = (path: string) => {
@@ -217,6 +225,8 @@ export default function AdminPlansPage() {
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Plan</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Duración</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Productos activos</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Imágenes</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
               </tr>
@@ -224,7 +234,7 @@ export default function AdminPlansPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="animate-spin" size={20} />
                       Cargando planes...
@@ -233,7 +243,7 @@ export default function AdminPlansPage() {
                 </tr>
               ) : filteredPlans.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     No se encontraron planes
                   </td>
                 </tr>
@@ -250,6 +260,8 @@ export default function AdminPlansPage() {
                         {formatDuration(plan.duration)}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-700">{formatLimit(plan.max_active_products)}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-700">{formatLimit(plan.max_images_per_product)}</td>
                     <td className="px-6 py-4">
                       {plan.is_active ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">
@@ -326,6 +338,14 @@ export default function AdminPlansPage() {
                   <div className="rounded-xl bg-gray-50 p-2">
                     <div className="font-semibold uppercase tracking-wide text-gray-400">Duración</div>
                     <div className="mt-1 text-gray-700">{formatDuration(plan.duration)}</div>
+                  </div>
+                  <div className="rounded-xl bg-gray-50 p-2">
+                    <div className="font-semibold uppercase tracking-wide text-gray-400">Productos activos</div>
+                    <div className="mt-1 text-gray-700">{formatLimit(plan.max_active_products)}</div>
+                  </div>
+                  <div className="rounded-xl bg-gray-50 p-2">
+                    <div className="font-semibold uppercase tracking-wide text-gray-400">Imágenes</div>
+                    <div className="mt-1 text-gray-700">{formatLimit(plan.max_images_per_product)}</div>
                   </div>
                 </div>
 

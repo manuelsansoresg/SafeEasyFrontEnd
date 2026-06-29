@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
-import { CheckCircle, Loader2, X } from "lucide-react";
+import { CheckCircle, ImageIcon, Loader2, Package, X } from "lucide-react";
 
 export type PlanDuration = "monthly" | "yearly";
 
@@ -14,6 +14,8 @@ export interface Plan {
   price: number;
   duration: PlanDuration;
   is_active: boolean;
+  max_active_products?: number | null;
+  max_images_per_product?: number | null;
 }
 
 interface PlanFormData {
@@ -22,6 +24,8 @@ interface PlanFormData {
   price: string;
   duration: PlanDuration;
   is_active: boolean;
+  max_active_products: string;
+  max_images_per_product: string;
 }
 
 const initialFormData: PlanFormData = {
@@ -30,6 +34,8 @@ const initialFormData: PlanFormData = {
   price: "",
   duration: "yearly",
   is_active: true,
+  max_active_products: "",
+  max_images_per_product: "",
 };
 
 const apiUrl = (path: string) => {
@@ -58,6 +64,8 @@ export default function PlanForm({ initialData }: PlanFormProps) {
       price: String(initialData.price ?? ""),
       duration: initialData.duration || "yearly",
       is_active: Boolean(initialData.is_active),
+      max_active_products: initialData.max_active_products != null ? String(initialData.max_active_products) : "",
+      max_images_per_product: initialData.max_images_per_product != null ? String(initialData.max_images_per_product) : "",
     };
   });
 
@@ -75,6 +83,30 @@ export default function PlanForm({ initialData }: PlanFormProps) {
       return;
     }
 
+    const parsedMaxActiveProducts = Number(formData.max_active_products);
+    if (!formData.max_active_products.trim()) {
+      setLoading(false);
+      setError("Captura cuántos productos activos permite este plan.");
+      return;
+    }
+    if (!Number.isInteger(parsedMaxActiveProducts) || parsedMaxActiveProducts < 0) {
+      setLoading(false);
+      setError("Los productos activos deben ser un número entero mayor o igual a 0.");
+      return;
+    }
+
+    const parsedMaxImagesPerProduct = Number(formData.max_images_per_product);
+    if (!formData.max_images_per_product.trim()) {
+      setLoading(false);
+      setError("Captura cuántas imágenes permite cada producto.");
+      return;
+    }
+    if (!Number.isInteger(parsedMaxImagesPerProduct) || parsedMaxImagesPerProduct < 1) {
+      setLoading(false);
+      setError("Las imágenes por producto deben ser un número entero mayor o igual a 1.");
+      return;
+    }
+
     try {
       const url = initialData ? apiUrl(`/plans/${initialData.id}`) : apiUrl(`/plans/`);
       const method = initialData ? "PUT" : "POST";
@@ -85,6 +117,8 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         price: parsedPrice,
         duration: formData.duration,
         is_active: formData.is_active,
+        max_active_products: parsedMaxActiveProducts,
+        max_images_per_product: parsedMaxImagesPerProduct,
       };
 
       const response = await fetch(url, {
@@ -150,6 +184,52 @@ export default function PlanForm({ initialData }: PlanFormProps) {
             value={formData.description}
             onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
           />
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="space-y-2">
+            <label htmlFor="max_active_products" className="text-sm font-medium text-gray-700">
+              Productos activos
+            </label>
+            <div className="relative">
+              <Package className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input
+                id="max_active_products"
+                type="number"
+                min={0}
+                step={1}
+                required
+                inputMode="numeric"
+                className="w-full rounded-xl border border-gray-200 py-2 pl-10 pr-4 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                placeholder="Ej. 50"
+                value={formData.max_active_products}
+                onChange={(e) => setFormData((prev) => ({ ...prev, max_active_products: e.target.value }))}
+              />
+            </div>
+            <p className="text-xs leading-5 text-gray-500">Cantidad máxima de productos activos para este plan.</p>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="max_images_per_product" className="text-sm font-medium text-gray-700">
+              Imágenes por producto
+            </label>
+            <div className="relative">
+              <ImageIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input
+                id="max_images_per_product"
+                type="number"
+                min={1}
+                step={1}
+                required
+                inputMode="numeric"
+                className="w-full rounded-xl border border-gray-200 py-2 pl-10 pr-4 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                placeholder="Ej. 8"
+                value={formData.max_images_per_product}
+                onChange={(e) => setFormData((prev) => ({ ...prev, max_images_per_product: e.target.value }))}
+              />
+            </div>
+            <p className="text-xs leading-5 text-gray-500">Incluye la imagen principal y las imágenes extra.</p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

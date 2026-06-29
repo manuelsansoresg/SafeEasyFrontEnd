@@ -9,6 +9,8 @@ export interface Plan {
   features?: string[];
   duration: PlanDuration;
   is_active: boolean;
+  max_active_products?: number | null;
+  max_images_per_product?: number | null;
   created_at?: string;
 }
 
