@@ -62,6 +62,7 @@ export default function AdminProductsPage() {
   // Pagination
   const [skip, setSkip] = useState(0);
   const [limit] = useState(50);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
 
   useEffect(() => {
@@ -115,34 +116,51 @@ export default function AdminProductsPage() {
       if (isSupplierUser) {
         const supplier = await resolveCurrentSupplier(user);
         supplierId = supplier?.id ?? null;
-        const supplierSlug = getSupplierSlug(supplier);
-        if (!supplierId || !supplierSlug) {
+        if (!supplierId) {
           setProducts([]);
+          setTotalProducts(0);
           setError("No se encontró el proveedor asociado a tu cuenta.");
           return;
         }
-        url = `/api/products/by-supplier/${encodeURIComponent(supplierSlug)}?${queryParams.toString()}`;
+
+        const supplierParams = new URLSearchParams(queryParams);
+        supplierParams.set("skip", "0");
+        supplierParams.set("limit", "1000");
+        supplierParams.set("include_inactive", "true");
+        url = `/api/products/?${supplierParams.toString()}`;
       }
 
       let response = await fetchWithAuth(url);
 
       if (!response.ok && supplierId) {
-        response = await fetchWithAuth(`/api/products/?${queryParams.toString()}`);
+        const supplierSlug = getSupplierSlug(await resolveCurrentSupplier(user));
+        if (supplierSlug) {
+          response = await fetchWithAuth(`/api/products/by-supplier/${encodeURIComponent(supplierSlug)}?${queryParams.toString()}`);
+        }
       }
 
       if (response.ok) {
         const data = await response.json();
         const items = unwrapProducts(data);
-        setProducts(supplierId ? items.filter((product) => Number(product.supplier_id) === Number(supplierId)) : items);
+        if (supplierId) {
+          const supplierProducts = items.filter((product) => Number(product.supplier_id) === Number(supplierId));
+          setTotalProducts(supplierProducts.length);
+          setProducts(supplierProducts.slice(skip, skip + limit));
+        } else {
+          setTotalProducts(items.length);
+          setProducts(items);
+        }
       } else {
         const text = await response.text().catch(() => "");
         setError(`No se pudieron cargar los productos (${response.status}). ${text}`.trim());
         setProducts([]);
+        setTotalProducts(0);
       }
     } catch (error) {
       console.error("Error fetching products:", error);
       setError("No se pudieron cargar los productos.");
       setProducts([]);
+      setTotalProducts(0);
     } finally {
       setLoading(false);
     }
@@ -396,7 +414,7 @@ export default function AdminProductsPage() {
             Página {Math.floor(skip / limit) + 1}
           </span>
           <button
-            disabled={products.length < limit}
+            disabled={isSupplierUser ? skip + limit >= totalProducts : products.length < limit}
             onClick={() => setSkip(skip + limit)}
             className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >

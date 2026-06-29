@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
-import { getSupplierSlug, isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
+import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
 
 interface Product {
   id: string;
@@ -106,8 +106,8 @@ export default function EditProductPage() {
             console.warn(`Direct fetch failed (${directStatus}), trying fallback via list...`);
             
             const listUrl = currentSupplier?.id
-              ? `/api/products/by-supplier/${encodeURIComponent(getSupplierSlug(currentSupplier))}?skip=0&limit=1000`
-              : `/api/products/?skip=0&limit=1000`;
+              ? "/api/products/?skip=0&limit=1000&include_inactive=true"
+              : "/api/products/?skip=0&limit=1000";
 
             const listResponse = await fetchWithAuth(listUrl);
 
