@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
-import { getSupplierSlug, isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
+import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { isSubscriptionActive } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import type { Subscription } from "@/types/subscriptions";
@@ -159,14 +159,7 @@ export default function AdminProductsPage() {
         url = `/api/products/?${supplierParams.toString()}`;
       }
 
-      let response = await fetchWithAuth(url);
-
-      if (!response.ok && supplierId) {
-        const supplierSlug = getSupplierSlug(await resolveCurrentSupplier(user));
-        if (supplierSlug) {
-          response = await fetchWithAuth(`/api/products/by-supplier/${encodeURIComponent(supplierSlug)}?${queryParams.toString()}`);
-        }
-      }
+      const response = await fetchWithAuth(url);
 
       if (response.ok) {
         const data = await response.json();
