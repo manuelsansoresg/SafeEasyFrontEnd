@@ -90,6 +90,21 @@ const isLocalHostname = (hostname: string) => {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0" || hostname === "::1";
 };
 
+const isMercadoPagoAuthHost = (hostname: string) => {
+  const normalized = hostname.toLowerCase();
+  return normalized === "auth.mercadopago.com" || normalized.endsWith(".auth.mercadopago.com");
+};
+
+const normalizeMercadoPagoAuthRedirect = (url: URL) => {
+  if (!isMercadoPagoAuthHost(url.hostname)) return url.toString();
+
+  // Mercado Pago can reject OAuth when the authorization URL asks for
+  // unsupported account data. Their current authorization-code docs do not
+  // require a scope query param, so keep the consent request minimal.
+  url.searchParams.delete("scope");
+  return url.toString();
+};
+
 const getBaseUrlCandidates = () => {
   const internal = sanitizeBaseUrl(process.env.API_INTERNAL_URL);
   const publicUrl = sanitizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
@@ -348,6 +363,7 @@ async function handler(request: NextRequest) {
                   if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Upgrading redirect to HTTPS: ${newUrlString}`);
                   newUrlString = newUrlString.replace('http:', 'https:');
               }
+              newUrlString = normalizeMercadoPagoAuthRedirect(new URL(newUrlString));
 
              const originHost = new URL(targetUrl).host;
              const redirectHost = new URL(newUrlString).host;
@@ -358,9 +374,19 @@ async function handler(request: NextRequest) {
                  accept.includes("application/json") ||
                  request.nextUrl.searchParams.get("redirect") === "json";
                if (wantsJson) {
+                 const headers = new Headers({
+                   "x-next-proxy-version": PROXY_VERSION,
+                   "x-next-proxy-upstream": upstreamBase || "",
+                 });
+                 applyRewrittenSetCookies(
+                   headers,
+                   response,
+                   request.nextUrl.hostname,
+                   pathname.startsWith("/api/mercadopago/") ? "cross-site" : "auth"
+                 );
                  return NextResponse.json(
                    { redirect_url: newUrlString },
-                   { status: 200, headers: { "x-next-proxy-version": PROXY_VERSION, "x-next-proxy-upstream": upstreamBase || "" } },
+                   { status: 200, headers },
                  );
                }
                const headers = new Headers();
