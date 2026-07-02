@@ -22,7 +22,7 @@ const shouldRewriteCookie = (cookie: string) => {
   );
 };
 
-const rewriteSetCookieHeader = (cookie: string, requestHost: string, mode: "all" | "auth") => {
+const rewriteSetCookieHeader = (cookie: string, requestHost: string, mode: "all" | "auth" | "cross-site") => {
   const isProd = process.env.NODE_ENV === "production";
   if (!isProd) return cookie;
   if (mode === "auth" && !shouldRewriteCookie(cookie)) return cookie;
@@ -44,7 +44,8 @@ const rewriteSetCookieHeader = (cookie: string, requestHost: string, mode: "all"
     kept.push(attr);
   }
 
-  const enforced: string[] = [...kept, "Path=/", "SameSite=Lax", "Secure"];
+  const sameSite = mode === "cross-site" ? "SameSite=None" : "SameSite=Lax";
+  const enforced: string[] = [...kept, "Path=/", sameSite, "Secure"];
   if (!isHostCookie && desiredDomain) enforced.push(`Domain=${desiredDomain}`);
   enforced.push("HttpOnly");
 
@@ -55,7 +56,7 @@ const applyRewrittenSetCookies = (
   headers: Headers,
   upstream: Response,
   requestHost: string,
-  mode: "all" | "auth"
+  mode: "all" | "auth" | "cross-site"
 ) => {
   const setCookies = getSetCookieHeaders(upstream);
   if (setCookies.length === 0) return;
@@ -375,7 +376,7 @@ async function handler(request: NextRequest) {
                 headers,
                 response,
                 request.nextUrl.hostname,
-                pathname.startsWith("/api/mercadopago/") ? "all" : "auth"
+                pathname.startsWith("/api/mercadopago/") ? "cross-site" : "auth"
               );
                return NextResponse.redirect(newUrlString, { status: response.status, headers });
              }
@@ -390,7 +391,7 @@ async function handler(request: NextRequest) {
                });
                headers.set("x-next-proxy-version", PROXY_VERSION);
                headers.set("x-next-proxy-upstream", upstreamBase || "");
-              applyRewrittenSetCookies(headers, response, request.nextUrl.hostname, "all");
+              applyRewrittenSetCookies(headers, response, request.nextUrl.hostname, "cross-site");
                return NextResponse.redirect(newUrlString, { status: response.status, headers });
              }
              
@@ -430,7 +431,7 @@ async function handler(request: NextRequest) {
         headers,
         response,
         request.nextUrl.hostname,
-        pathname.startsWith("/api/mercadopago/") ? "all" : "auth"
+        pathname.startsWith("/api/mercadopago/") ? "cross-site" : "auth"
       );
       return new NextResponse(response.body, {
         status: response.status,
@@ -475,7 +476,7 @@ async function handler(request: NextRequest) {
         headers,
         response,
         request.nextUrl.hostname,
-        pathname.startsWith("/api/mercadopago/") ? "all" : "auth"
+        pathname.startsWith("/api/mercadopago/") ? "cross-site" : "auth"
       );
       return NextResponse.json(body, { status: response.status, headers });
     }
@@ -493,7 +494,7 @@ async function handler(request: NextRequest) {
       headers,
       response,
       request.nextUrl.hostname,
-      pathname.startsWith("/api/mercadopago/") ? "all" : "auth"
+      pathname.startsWith("/api/mercadopago/") ? "cross-site" : "auth"
     );
     
     return new NextResponse(response.body, {
