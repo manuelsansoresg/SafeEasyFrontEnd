@@ -134,6 +134,7 @@ export default function AdminProductsPage() {
       const queryParams = new URLSearchParams({
         skip: skip.toString(),
         limit: limit.toString(),
+        include_inactive: "true",
       });
       if (search) {
         queryParams.append('search', search);
@@ -155,7 +156,6 @@ export default function AdminProductsPage() {
         const supplierParams = new URLSearchParams(queryParams);
         supplierParams.set("skip", "0");
         supplierParams.set("limit", "1000");
-        supplierParams.set("include_inactive", "true");
         url = `/api/products/?${supplierParams.toString()}`;
       }
 
