@@ -6,6 +6,7 @@ import { subscriptionsService } from "@/services/subscriptionsService";
 import { fetchWithAuth } from "@/lib/api";
 import { resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import { isSubscriptionActive } from "@/lib/subscriptionAccess";
 import type { Plan, Subscription } from "@/types/subscriptions";
 import {
   BadgeDollarSign,
@@ -53,11 +54,9 @@ const formatDate = (iso: string) => {
   }).format(d);
 };
 
-const isSubscriptionActive = (subscription: Subscription | null) => subscription?.status === "active";
-
 const statusLabel = (subscription: Subscription | null) => {
   if (!subscription) return "Sin pago";
-  if (subscription.status === "active") return "Activo";
+  if (isSubscriptionActive(subscription)) return "Activo";
   return "Pago no registrado";
 };
 

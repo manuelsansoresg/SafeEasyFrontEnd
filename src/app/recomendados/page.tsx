@@ -5,12 +5,13 @@ type SearchParams = { [key: string]: string | string[] | undefined };
 
 const DEFAULT_KIND = "most_searched" as const;
 
-export default function RecomendadosPage({
+export default async function RecomendadosPage({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  searchParams: Promise<SearchParams>;
 }) {
-  const kindParam = searchParams.kind;
+  const resolvedSearchParams = await searchParams;
+  const kindParam = resolvedSearchParams.kind;
   const kindValue =
     typeof kindParam === "string" ? kindParam : DEFAULT_KIND;
 
@@ -36,4 +37,3 @@ export default function RecomendadosPage({
     </div>
   );
 }
-

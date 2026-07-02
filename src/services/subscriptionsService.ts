@@ -53,6 +53,8 @@ export const subscriptionsService = {
     const tryUrls = [
       `/api/subscriptions/${suffix}`,
       `/api/subscriptions${suffix}`,
+      `/api/admin/subscriptions/${suffix}`,
+      `/api/admin/subscriptions${suffix}`,
       apiUrl(`/subscriptions/${suffix}`),
       apiUrl(`/subscriptions${suffix}`),
       apiUrl(`/admin/subscriptions/${suffix}`),
@@ -81,7 +83,12 @@ export const subscriptionsService = {
   },
 
   async listPlans(): Promise<Plan[]> {
-    const tryUrls = [apiUrl(`/plans/?skip=0&limit=1000`), apiUrl(`/plans?skip=0&limit=1000`)];
+    const tryUrls = [
+      `/api/plans/?skip=0&limit=1000`,
+      `/api/plans?skip=0&limit=1000`,
+      apiUrl(`/plans/?skip=0&limit=1000`),
+      apiUrl(`/plans?skip=0&limit=1000`),
+    ];
     let response: Response | null = null;
     for (const url of tryUrls) {
       response = await fetchWithAuth(url);
@@ -104,6 +111,10 @@ export const subscriptionsService = {
 
   async getEvents(subscriptionId: number): Promise<SubscriptionEvent[]> {
     const tryUrls = [
+      `/api/admin/subscriptions/${subscriptionId}/events`,
+      `/api/admin/subscriptions/${subscriptionId}/events/`,
+      `/api/subscriptions/${subscriptionId}/events`,
+      `/api/subscriptions/${subscriptionId}/events/`,
       apiUrl(`/admin/subscriptions/${subscriptionId}/events`),
       apiUrl(`/admin/subscriptions/${subscriptionId}/events/`),
       apiUrl(`/subscriptions/${subscriptionId}/events`),
@@ -134,6 +145,10 @@ export const subscriptionsService = {
     const body = JSON.stringify(payload);
     const options = { method: "PUT", body };
     const tryUrls = [
+      `/api/admin/subscriptions/${subscriptionId}/status`,
+      `/api/admin/subscriptions/${subscriptionId}/status/`,
+      `/api/subscriptions/${subscriptionId}/status`,
+      `/api/subscriptions/${subscriptionId}/status/`,
       apiUrl(`/admin/subscriptions/${subscriptionId}/status`),
       apiUrl(`/admin/subscriptions/${subscriptionId}/status/`),
       apiUrl(`/subscriptions/${subscriptionId}/status`),
@@ -162,7 +177,12 @@ export const subscriptionsService = {
   },
 
   async getMySubscription(): Promise<Subscription | null> {
-    const tryUrls = [apiUrl(`/subscriptions/my`), apiUrl(`/subscriptions/my/`)];
+    const tryUrls = [
+      `/api/subscriptions/my`,
+      `/api/subscriptions/my/`,
+      apiUrl(`/subscriptions/my`),
+      apiUrl(`/subscriptions/my/`),
+    ];
     let response: Response | null = null;
     for (const url of tryUrls) {
       response = await fetchWithAuth(url);
@@ -187,6 +207,8 @@ export const subscriptionsService = {
     const qs = new URLSearchParams({ mp_payment_id: mpPaymentId });
     const options = { method: "POST" };
     const tryUrls = [
+      `/api/subscriptions/payments/refresh?${qs.toString()}`,
+      `/api/subscriptions/payments/refresh/?${qs.toString()}`,
       apiUrl(`/subscriptions/payments/refresh?${qs.toString()}`),
       apiUrl(`/subscriptions/payments/refresh/?${qs.toString()}`),
     ];
