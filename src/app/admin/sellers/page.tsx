@@ -19,14 +19,52 @@ import {
 
 interface User {
   id: number;
-  email: string;
-  is_active: boolean;
-  name?: string;
-  full_name?: string;
-  role?: string;
+  user_id?: number | string | null;
+  email?: string | null;
+  is_active?: boolean | null;
+  seller_code?: string | number | null;
+  name?: string | null;
+  full_name?: string | null;
+  role?: string | null;
+  user?: {
+    id?: number;
+    email?: string | null;
+    is_active?: boolean | null;
+    name?: string | null;
+    full_name?: string | null;
+    role?: string | null;
+  } | null;
 }
 
-const isSeller = (user: User) => (user.role || "").toLowerCase() === "seller";
+const sellerUser = (seller: User) => seller.user ?? null;
+
+const sellerDisplayId = (seller: User) => {
+  const id = Number(seller.user_id ?? sellerUser(seller)?.id ?? seller.id);
+  return Number.isFinite(id) ? id : seller.id;
+};
+
+const sellerEmail = (seller: User) => seller.email ?? sellerUser(seller)?.email ?? "";
+
+const sellerName = (seller: User) => seller.full_name ?? seller.name ?? sellerUser(seller)?.full_name ?? sellerUser(seller)?.name ?? "";
+
+const sellerLabel = (seller: User) => sellerName(seller) || sellerEmail(seller) || "Sin nombre";
+
+const sellerIsActive = (seller: User) => seller.is_active ?? sellerUser(seller)?.is_active ?? false;
+
+const normalizedText = (value: string | number | null | undefined) => String(value ?? "").toLowerCase();
+
+const mergeSellerUser = (seller: User, user: User): User => ({
+  ...seller,
+  user: {
+    ...(seller.user ?? {}),
+    id: user.id,
+    email: user.email,
+    is_active: user.is_active,
+    name: user.name,
+    full_name: user.full_name,
+    role: user.role,
+  },
+});
 
 const unwrapUsers = (data: unknown): User[] => {
   if (Array.isArray(data)) return data as User[];
@@ -86,20 +124,34 @@ export default function SellersPage() {
       try {
         const params = new URLSearchParams({
           skip: "0",
-          limit: "1000",
+          limit: "500",
         });
         if (searchTerm.trim()) params.set("search", searchTerm.trim());
 
-        const response = await fetchWithAuth(apiUrl(`/users/?${params.toString()}`));
+        const response = await fetchWithAuth(apiUrl(`/sellers/?${params.toString()}`));
 
         if (response.ok) {
           const data = await response.json();
-          const nextSellers = unwrapUsers(data).filter(isSeller);
-          setSellers(nextSellers);
-          setSelectedIds((prev) => prev.filter((id) => nextSellers.some((seller) => seller.id === id)));
+          const nextSellers = unwrapUsers(data);
+          const sellersWithUsers = await Promise.all(
+            nextSellers.map(async (seller) => {
+              if (sellerEmail(seller) && sellerName(seller)) return seller;
+
+              try {
+                const userResponse = await fetchWithAuth(apiUrl(`/users/${sellerDisplayId(seller)}`));
+                if (!userResponse.ok) return seller;
+                const userData = (await userResponse.json()) as User;
+                return mergeSellerUser(seller, userData);
+              } catch {
+                return seller;
+              }
+            })
+          );
+          setSellers(sellersWithUsers);
+          setSelectedIds((prev) => prev.filter((id) => sellersWithUsers.some((seller) => sellerDisplayId(seller) === id)));
         } else {
           const message = await readErrorMessage(response);
-          setError(message === "Not Found" ? "No se encontró el endpoint /users/." : message);
+          setError(message === "Not Found" ? "No se encontró el endpoint /sellers/." : message);
         }
       } catch (error) {
         console.error("Error fetching sellers:", error);
@@ -123,7 +175,7 @@ export default function SellersPage() {
       });
 
       if (response.ok) {
-        setSellers((prev) => prev.filter((seller) => seller.id !== id));
+        setSellers((prev) => prev.filter((seller) => sellerDisplayId(seller) !== id));
         setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id));
         setToast({ type: "success", message: "Vendedor eliminado correctamente." });
       } else {
@@ -139,19 +191,19 @@ export default function SellersPage() {
   const filteredSellers = sellers.filter((seller) => {
     const term = searchTerm.toLowerCase();
     return (
-      seller.email.toLowerCase().includes(term) ||
-      (seller.name && seller.name.toLowerCase().includes(term)) ||
-      (seller.full_name && seller.full_name.toLowerCase().includes(term))
+      normalizedText(sellerEmail(seller)).includes(term) ||
+      normalizedText(seller.seller_code).includes(term) ||
+      normalizedText(sellerName(seller)).includes(term)
     );
   });
-  const allSelected = filteredSellers.length > 0 && filteredSellers.every((seller) => selectedIds.includes(seller.id));
+  const allSelected = filteredSellers.length > 0 && filteredSellers.every((seller) => selectedIds.includes(sellerDisplayId(seller)));
 
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
   const toggleSelectAll = () => {
-    setSelectedIds(allSelected ? [] : filteredSellers.map((seller) => seller.id));
+    setSelectedIds(allSelected ? [] : filteredSellers.map(sellerDisplayId));
   };
 
   const handleBulkDelete = async () => {
@@ -175,7 +227,7 @@ export default function SellersPage() {
         return;
       }
 
-      setSellers((prev) => prev.filter((seller) => !selectedIds.includes(seller.id)));
+      setSellers((prev) => prev.filter((seller) => !selectedIds.includes(sellerDisplayId(seller))));
       setSelectedIds([]);
       setToast({ type: "success", message: "Vendedores seleccionados eliminados correctamente." });
     } catch (error) {
@@ -247,6 +299,7 @@ export default function SellersPage() {
                   />
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Vendedor</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Código de vinculación</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
@@ -270,10 +323,10 @@ export default function SellersPage() {
                     <td className="px-6 py-4">
                       <input
                         type="checkbox"
-                        checked={selectedIds.includes(seller.id)}
-                        onChange={() => toggleSelect(seller.id)}
+                        checked={selectedIds.includes(sellerDisplayId(seller))}
+                        onChange={() => toggleSelect(sellerDisplayId(seller))}
                         className="h-4 w-4 rounded border-gray-300 text-primary"
-                        aria-label={`Seleccionar vendedor ${seller.full_name || seller.name || seller.email}`}
+                        aria-label={`Seleccionar vendedor ${sellerLabel(seller)}`}
                       />
                     </td>
                     <td className="px-6 py-4">
@@ -282,21 +335,30 @@ export default function SellersPage() {
                           <UserIcon size={20} />
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900">{seller.full_name || seller.name || "Sin nombre"}</div>
-                          <div className="text-sm text-gray-500">{seller.email}</div>
+                          <div className="font-medium text-gray-900">{sellerName(seller) || "Sin nombre"}</div>
+                          <div className="text-sm text-gray-500">{sellerEmail(seller) || "Sin correo"}</div>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {seller.seller_code ? (
+                        <span className="inline-flex rounded-lg bg-gray-100 px-2.5 py-1 font-mono text-sm font-medium text-gray-700">
+                          {seller.seller_code}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-400">Sin código</span>
+                      )}
                     </td>
                   
                     <td className="px-6 py-4">
                       <span
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          seller.is_active
+                          sellerIsActive(seller)
                             ? "bg-green-50 text-green-700 border border-green-100"
                             : "bg-red-50 text-red-700 border border-red-100"
                         }`}
                       >
-                        {seller.is_active ? (
+                        {sellerIsActive(seller) ? (
                           <>
                             <CheckCircle size={12} /> Activo
                           </>
@@ -310,13 +372,13 @@ export default function SellersPage() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
                         <Link
-                          href={`/admin/sellers/${seller.id}`}
+                          href={`/admin/sellers/${sellerDisplayId(seller)}`}
                           className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                         >
                           <Edit size={18} />
                         </Link>
                         <button
-                          onClick={() => deleteSeller(seller.id)}
+                          onClick={() => deleteSeller(sellerDisplayId(seller))}
                           className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                         >
                           <Trash2 size={18} />
@@ -340,10 +402,10 @@ export default function SellersPage() {
                 <div className="flex items-start gap-3">
                   <input
                     type="checkbox"
-                    checked={selectedIds.includes(seller.id)}
-                    onChange={() => toggleSelect(seller.id)}
+                    checked={selectedIds.includes(sellerDisplayId(seller))}
+                    onChange={() => toggleSelect(sellerDisplayId(seller))}
                     className="mt-3 h-4 w-4 rounded border-gray-300 text-primary"
-                    aria-label={`Seleccionar vendedor ${seller.full_name || seller.name || seller.email}`}
+                    aria-label={`Seleccionar vendedor ${sellerLabel(seller)}`}
                   />
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                     <UserIcon size={20} />
@@ -351,8 +413,12 @@ export default function SellersPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className="break-words text-sm font-semibold text-gray-900">{seller.full_name || seller.name || "Sin nombre"}</h3>
-                        <p className="mt-1 break-all text-sm text-gray-500">{seller.email}</p>
+                        <h3 className="break-words text-sm font-semibold text-gray-900">{sellerName(seller) || "Sin nombre"}</h3>
+                        <p className="mt-1 break-all text-sm text-gray-500">{sellerEmail(seller) || "Sin correo"}</p>
+                        <p className="mt-2 text-xs font-medium text-gray-500">
+                          Código de vinculación:{" "}
+                          <span className="font-mono text-gray-800">{seller.seller_code || "Sin código"}</span>
+                        </p>
                       </div>
                       <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
                         <Store size={12} />
@@ -361,15 +427,15 @@ export default function SellersPage() {
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border ${
-                        seller.is_active ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"
+                        sellerIsActive(seller) ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"
                       }`}>
-                        {seller.is_active ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
+                        {sellerIsActive(seller) ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
                       </span>
                       <div className="flex gap-2">
-                        <Link href={`/admin/sellers/${seller.id}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary">
+                        <Link href={`/admin/sellers/${sellerDisplayId(seller)}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary">
                           <Edit size={18} />
                         </Link>
-                        <button type="button" onClick={() => deleteSeller(seller.id)} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500">
+                        <button type="button" onClick={() => deleteSeller(sellerDisplayId(seller))} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500">
                           <Trash2 size={18} />
                         </button>
                       </div>

@@ -988,7 +988,7 @@ export default function SupplierPage() {
                             )}
                             {/* Overlay Text */}
                             <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[#004e28] to-transparent p-8">
-                                <p className="text-white font-bold font-[family-name:var(--font-varela-round)] text-xl">Nuestra Misión</p>
+                                <p className="text-white font-bold font-[family-name:var(--font-varela-round)] text-xl"></p>
                             </div>
                         </div>
                     </div>
