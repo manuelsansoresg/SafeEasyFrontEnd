@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
+import { startMercadoPagoConnect } from "@/lib/mercadoPagoConnect";
 import { PageHero } from "@/components/ui/PageHero";
 import { Loader2, CheckCircle, Eye, EyeOff, User, Mail, Lock, Shield, CreditCard, Unlink } from "lucide-react";
 
@@ -66,7 +67,7 @@ function normalizeMpAccount(payload: unknown): NormalizedMpAccount | null {
       const provider = (getString(entry, "provider") || getString(entry, "platform") || getString(entry, "name") || "").toLowerCase();
       const accountType = (getString(entry, "account_type") || getString(entry, "type") || "").toLowerCase();
       if (provider && !provider.includes("mercado")) continue;
-      if (accountType && accountType !== "seller") continue;
+      if (accountType && !["seller", "supplier", "proveedor", "provider", "vendor"].includes(accountType)) continue;
       return normalizeFromRecord(entry);
     }
     return null;
@@ -296,10 +297,17 @@ export default function ProfilePage() {
     }
   };
 
-  const handleMercadoPagoConnect = () => {
+  const handleMercadoPagoConnect = async () => {
     if (!isSeller) return;
+    setError(null);
+    setSuccessMessage(null);
     setMpConnectLoading(true);
-    window.location.href = "/api/mercadopago/connect?account_type=seller&redirect=true";
+    try {
+      await startMercadoPagoConnect("seller");
+    } catch (err) {
+      setError(getErrorMessage(err, "No se pudo iniciar la vinculación con Mercado Pago."));
+      setMpConnectLoading(false);
+    }
   };
 
   const handleMercadoPagoDisconnect = async () => {

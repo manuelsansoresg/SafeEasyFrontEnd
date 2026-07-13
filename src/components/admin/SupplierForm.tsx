@@ -12,6 +12,7 @@ import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Toast } from "@/components/ui/Toast";
 import { supplierCatalogService, type SupplierCatalogOption } from "@/services/supplierCatalogService";
 import { saveUser, splitUserFullName, type UserUpdatePayload } from "@/services/userService";
+import { startMercadoPagoConnect } from "@/lib/mercadoPagoConnect";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
 
@@ -280,7 +281,7 @@ export default function SupplierForm({
             (getString(rec, "provider") || getString(rec, "platform") || getString(rec, "name") || "").toLowerCase();
           const accountType = (getString(rec, "account_type") || getString(rec, "type") || "").toLowerCase();
           if (provider && !provider.includes("mercado")) continue;
-          if (accountType && accountType !== "supplier") continue;
+          if (accountType && !["supplier", "seller", "proveedor", "provider", "vendor"].includes(accountType)) continue;
           const normalized = normalizeFromRecord(rec);
           if (normalized) return normalized;
         }
@@ -376,7 +377,7 @@ export default function SupplierForm({
     if (!showMercadoPagoSection) return;
     setMpConnectLoading(true);
     try {
-      window.location.href = "/api/mercadopago/connect?account_type=supplier&redirect=true";
+      await startMercadoPagoConnect("supplier");
     } catch (e: unknown) {
       console.error("[MercadoPago Connect] Redirect failed", e);
       const msg =
