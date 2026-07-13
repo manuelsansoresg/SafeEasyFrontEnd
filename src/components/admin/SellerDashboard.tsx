@@ -7,14 +7,17 @@ import {
   Calendar,
   CheckCircle2,
   Copy,
+  CreditCard,
   CircleDollarSign,
   Loader2,
   Plus,
   RefreshCw,
   Store,
+  Unlink,
   Wallet,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
+import { startMercadoPagoConnect } from "@/lib/mercadoPagoConnect";
 import { PageHero } from "@/components/ui/PageHero";
 
 type CommissionRecord = Record<string, unknown>;
@@ -28,6 +31,11 @@ type SellerStats = {
   pending_commission?: number;
   pending_total?: number;
   commission_history?: CommissionRecord[];
+};
+
+type NormalizedMpAccount = {
+  connected: boolean;
+  email: string | null;
 };
 
 const readErrorMessage = async (response: Response) => {
@@ -81,6 +89,77 @@ const getText = (record: Record<string, unknown>, keys: string[], fallback: stri
   return fallback;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
+const getString = (record: Record<string, unknown> | null, key: string) =>
+  record && typeof record[key] === "string" ? record[key] : null;
+
+const getBool = (record: Record<string, unknown> | null, key: string) =>
+  record && typeof record[key] === "boolean" ? record[key] : null;
+
+const normalizeMpAccount = (payload: unknown): NormalizedMpAccount | null => {
+  const normalizeFromRecord = (record: Record<string, unknown>): NormalizedMpAccount | null => {
+    const direct =
+      getBool(record, "connected") ??
+      getBool(record, "is_connected") ??
+      getBool(record, "isLinked") ??
+      getBool(record, "is_linked") ??
+      getBool(record, "linked") ??
+      getBool(record, "mp_is_linked") ??
+      getBool(record, "mpIsLinked");
+
+    let connected = direct;
+    if (connected == null) {
+      const status = getString(record, "status") || getString(record, "state") || getString(record, "connection_status");
+      if (status) {
+        const key = status.toLowerCase();
+        if (["connected", "linked", "active", "ok"].includes(key)) connected = true;
+        if (["disconnected", "unlinked", "inactive"].includes(key)) connected = false;
+      }
+    }
+    if (connected == null) {
+      connected =
+        typeof record.access_token === "string" ||
+        typeof record.token === "string" ||
+        typeof record.refresh_token === "string";
+    }
+
+    const account = isRecord(record.account) ? record.account : null;
+    const email =
+      getString(record, "email") ||
+      getString(record, "account_email") ||
+      getString(record, "payer_email") ||
+      getString(record, "connected_email") ||
+      getString(record, "mp_email") ||
+      getString(record, "mp_connected_email") ||
+      getString(account, "email");
+
+    return { connected: Boolean(connected), email };
+  };
+
+  if (Array.isArray(payload)) {
+    for (const entry of payload) {
+      if (!isRecord(entry)) continue;
+      const provider = (getString(entry, "provider") || getString(entry, "platform") || getString(entry, "name") || "").toLowerCase();
+      const accountType = (getString(entry, "account_type") || getString(entry, "type") || "").toLowerCase();
+      if (provider && !provider.includes("mercado")) continue;
+      if (accountType && accountType !== "seller") continue;
+      return normalizeFromRecord(entry);
+    }
+    return null;
+  }
+
+  if (!isRecord(payload)) return null;
+  if (Array.isArray(payload.payment_accounts)) return normalizeMpAccount(payload.payment_accounts);
+  if (Array.isArray(payload.accounts)) return normalizeMpAccount(payload.accounts);
+  return normalizeFromRecord(payload);
+};
+
+const readPlainError = async (response: Response) => {
+  const text = await response.text().catch(() => "");
+  return text || `Error ${response.status}`;
+};
+
 export default function SellerDashboard() {
   const [stats, setStats] = useState<SellerStats | null>(null);
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
@@ -89,6 +168,12 @@ export default function SellerDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<"code" | "url" | null>(null);
   const [origin, setOrigin] = useState("");
+  const [mpAccount, setMpAccount] = useState<NormalizedMpAccount>({ connected: false, email: null });
+  const [mpStatusLoading, setMpStatusLoading] = useState(false);
+  const [mpConnectLoading, setMpConnectLoading] = useState(false);
+  const [mpDisconnectLoading, setMpDisconnectLoading] = useState(false);
+  const [mpMessage, setMpMessage] = useState<string | null>(null);
+  const [mpError, setMpError] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -140,6 +225,82 @@ export default function SellerDashboard() {
     setOrigin(configuredUrl || window.location.origin);
   }, []);
 
+  const loadMercadoPagoAccount = useCallback(async () => {
+    setMpStatusLoading(true);
+    setMpError(null);
+
+    try {
+      const candidates = [
+        "/api/mercadopago/account?account_type=seller",
+        "/api/mercadopago/status?account_type=seller",
+        "/api/mercadopago/account-status?account_type=seller",
+      ];
+
+      for (const url of candidates) {
+        const response = await fetchWithAuth(url, { headers: { Accept: "application/json" } });
+        if (response.ok) {
+          const data = await response.json().catch(() => null);
+          const normalized = normalizeMpAccount(data);
+          if (normalized) {
+            setMpAccount(normalized);
+            return;
+          }
+        } else if (response.status !== 404) {
+          throw new Error(await readPlainError(response));
+        }
+      }
+
+      const meResponse = await fetchWithAuth("/api/users/me", { headers: { Accept: "application/json" } });
+      if (!meResponse.ok) {
+        setMpAccount({ connected: false, email: null });
+        return;
+      }
+      const meData = await meResponse.json().catch(() => null);
+      setMpAccount(normalizeMpAccount(meData) ?? { connected: false, email: null });
+    } catch (error) {
+      setMpError(error instanceof Error ? error.message : "No se pudo validar Mercado Pago.");
+    } finally {
+      setMpStatusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMercadoPagoAccount();
+    const onFocus = () => loadMercadoPagoAccount();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") loadMercadoPagoAccount();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [loadMercadoPagoAccount]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mp") !== "callback" || params.get("mp_account_type") !== "seller") return;
+
+    setMpMessage("Regresaste de Mercado Pago. Estamos validando la vinculación.");
+    let attempts = 0;
+    loadMercadoPagoAccount();
+    const interval = window.setInterval(() => {
+      attempts += 1;
+      loadMercadoPagoAccount();
+      if (attempts >= 10) window.clearInterval(interval);
+    }, 2000);
+
+    return () => window.clearInterval(interval);
+  }, [loadMercadoPagoAccount]);
+
+  useEffect(() => {
+    if (!mpAccount.connected) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mp") === "callback") setMpMessage("Cuenta de Mercado Pago vinculada correctamente.");
+  }, [mpAccount.connected]);
+
   const history = useMemo(() => {
     const raw = stats?.commission_history;
     return Array.isArray(raw) ? raw.slice(0, 50) : [];
@@ -161,6 +322,37 @@ export default function SellerDashboard() {
       window.setTimeout(() => setCopied(null), 1800);
     } catch {
       setCopied(null);
+    }
+  };
+
+  const handleMercadoPagoConnect = async () => {
+    setMpConnectLoading(true);
+    setMpError(null);
+    setMpMessage(null);
+    try {
+      await startMercadoPagoConnect("seller");
+    } catch (error) {
+      setMpError(error instanceof Error ? error.message : "No se pudo iniciar la vinculación con Mercado Pago.");
+      setMpConnectLoading(false);
+    }
+  };
+
+  const handleMercadoPagoDisconnect = async () => {
+    setMpDisconnectLoading(true);
+    setMpError(null);
+    setMpMessage(null);
+    try {
+      const response = await fetchWithAuth("/api/mercadopago/disconnect?account_type=seller", {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error(await readPlainError(response));
+      setMpMessage("Cuenta de Mercado Pago desvinculada correctamente.");
+      await loadMercadoPagoAccount();
+    } catch (error) {
+      setMpError(error instanceof Error ? error.message : "No se pudo desvincular Mercado Pago.");
+    } finally {
+      setMpDisconnectLoading(false);
     }
   };
 
@@ -219,6 +411,55 @@ export default function SellerDashboard() {
               </button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-primary/10 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+                mpAccount.connected ? "bg-[#168e00]/10 text-[#168e00]" : "bg-[#004e28]/10 text-primary"
+              }`}
+            >
+              {mpStatusLoading ? <Loader2 size={22} className="animate-spin" /> : <CreditCard size={22} />}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold uppercase tracking-wide text-primary">Mercado Pago</p>
+              <h2 className="mt-1 font-[family-name:var(--font-varela-round)] text-xl font-bold text-gray-900">
+                {mpAccount.connected ? "Cuenta vinculada para comisiones" : "Vincula tu cuenta para recibir comisiones"}
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-gray-500">
+                {mpAccount.connected
+                  ? mpAccount.email || "Tu cuenta está lista para recibir pagos de comisiones."
+                  : "Conecta Mercado Pago para que tus comisiones queden asociadas a tu cuenta de vendedor."}
+              </p>
+              {mpMessage ? <p className="mt-2 text-sm font-medium text-[#168e00]">{mpMessage}</p> : null}
+              {mpError ? <p className="mt-2 text-sm font-medium text-red-600">{mpError}</p> : null}
+            </div>
+          </div>
+
+          {mpAccount.connected ? (
+            <button
+              type="button"
+              onClick={handleMercadoPagoDisconnect}
+              disabled={mpDisconnectLoading || mpStatusLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {mpDisconnectLoading ? <Loader2 size={16} className="animate-spin" /> : <Unlink size={16} />}
+              {mpDisconnectLoading ? "Desvinculando..." : "Desvincular"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleMercadoPagoConnect}
+              disabled={mpConnectLoading || mpStatusLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#009ee3] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#008dcc] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {mpConnectLoading ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
+              {mpConnectLoading ? "Redirigiendo..." : "Vincular Mercado Pago"}
+            </button>
+          )}
         </div>
       </section>
 
