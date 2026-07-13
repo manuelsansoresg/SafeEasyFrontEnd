@@ -4,13 +4,22 @@ import SellPlans from '@/components/sell/SellPlans';
 import SellTestimonials from '@/components/sell/SellTestimonials';
 import SellFAQ from '@/components/sell/SellFAQ';
 
-export default function SellPage() {
+type SearchParams = { [key: string]: string | string[] | undefined };
+
+export default async function SellPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const accessCode = typeof resolvedSearchParams.code === 'string' ? resolvedSearchParams.code.trim() : '';
+
   return (
     <main className="min-h-screen pt-24 md:pt-28">
       <SellHero />
       <SellBenefits />
       <SellTestimonials />
-      <SellPlans />
+      <SellPlans accessCode={accessCode} />
       <SellFAQ />
       
       {/* Call to Action Section */}

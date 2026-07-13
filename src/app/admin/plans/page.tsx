@@ -228,7 +228,7 @@ export default function AdminPlansPage() {
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Productos activos</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Imágenes</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
-                <th className="sticky right-0 bg-gray-50 px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 shadow-[-12px_0_18px_-18px_rgba(15,23,42,0.45)]">
+                <th className="sticky right-0 bg-gray-50 px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Acciones
                 </th>
               </tr>
@@ -294,7 +294,7 @@ export default function AdminPlansPage() {
                         </span>
                       )}
                     </td>
-                    <td className="sticky right-0 bg-white px-6 py-4 text-right shadow-[-12px_0_18px_-18px_rgba(15,23,42,0.45)]">
+                    <td className="sticky right-0 bg-white px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/admin/plans/${plan.id}`}

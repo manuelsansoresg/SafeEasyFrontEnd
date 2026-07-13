@@ -4,10 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Check,
   CheckCircle2,
-  CreditCard,
   Loader2,
   LockKeyhole,
-  MonitorSmartphone,
   ReceiptText,
   ShieldCheck,
 } from "lucide-react";
@@ -19,8 +17,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import type { PurchaseResponse } from "@/types/subscriptions";
 import type { Plan } from "@/types/subscriptions";
 
-type WizardStep = "plan" | "payment" | "supplier" | "done";
-type PaymentMethod = "card" | "card_terminal";
+type WizardStep = "plan" | "supplier" | "done";
 
 type SupplierRegistrationForm = {
   name: string;
@@ -165,7 +162,7 @@ const loginSupplierForPurchase = async (email: string, password: string) => {
   return String((payload as Record<string, unknown>).access_token);
 };
 
-const purchaseWithSupplierToken = async (supplierToken: string, planId: number, paymentMethod: PaymentMethod, supplierId: number) => {
+const purchaseWithSupplierToken = async (supplierToken: string, planId: number) => {
   const response = await fetch("/api/subscriptions/purchase", {
     method: "POST",
     headers: {
@@ -174,7 +171,6 @@ const purchaseWithSupplierToken = async (supplierToken: string, planId: number, 
     },
     body: JSON.stringify({
       plan_id: planId,
-      ...(paymentMethod === "card_terminal" ? { payment_method: "card_terminal", supplier_id: supplierId } : {}),
     }),
   });
   const payload = await readResponseBody(response);
@@ -192,7 +188,6 @@ export default function SellerSupplierWizard() {
   const [step, setStep] = useState<WizardStep>("plan");
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [form, setForm] = useState<SupplierRegistrationForm>(initialForm);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -269,8 +264,8 @@ export default function SellerSupplierWizard() {
       return;
     }
 
-    if (!selectedPlan || !paymentMethod) {
-      setError("Selecciona un paquete y método de pago.");
+    if (!selectedPlan) {
+      setError("Selecciona un paquete.");
       return;
     }
 
@@ -334,23 +329,16 @@ export default function SellerSupplierWizard() {
       }
 
       const supplierToken = await loginSupplierForPurchase(form.email.trim(), password);
-      const purchase = await purchaseWithSupplierToken(supplierToken, selectedPlan.id, paymentMethod, supplierId);
+      const purchase = await purchaseWithSupplierToken(supplierToken, selectedPlan.id);
 
-      if (paymentMethod === "card") {
-        const safeInitPoint = getSafeMercadoPagoUrl(purchase.init_point);
-        if (!safeInitPoint) {
-          throw new Error("Mercado Pago no devolvió una liga de pago.");
-        }
-        try {
-          window.sessionStorage.setItem("last_supplier_generated_password", password);
-        } catch {}
-        window.location.href = safeInitPoint;
-        return;
+      const safeInitPoint = getSafeMercadoPagoUrl(purchase.init_point);
+      if (!safeInitPoint) {
+        throw new Error("Mercado Pago no devolvió una liga de pago.");
       }
-
-      setCreatedPassword(password);
-      setCreatedEmail(form.email.trim());
-      setStep("done");
+      try {
+        window.sessionStorage.setItem("last_supplier_generated_password", password);
+      } catch {}
+      window.location.href = safeInitPoint;
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {
@@ -435,7 +423,7 @@ export default function SellerSupplierWizard() {
             <button
               type="button"
               disabled={!selectedPlan}
-              onClick={() => setStep("payment")}
+              onClick={() => setStep("supplier")}
               className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Continuar
@@ -444,59 +432,10 @@ export default function SellerSupplierWizard() {
         </section>
       ) : null}
 
-      {step === "payment" ? (
-        <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-          <div className="mb-5">
-            <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#168e00]">Paso 2</p>
-            <h2 className="font-[family-name:var(--font-varela-round)] text-2xl font-bold text-gray-950">
-              Elige el método de pago
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              El proveedor quedará asociado al paquete {selectedPlan ? selectedPlan.title : "seleccionado"}.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <PaymentOption
-              active={paymentMethod === "card"}
-              icon={<CreditCard size={24} />}
-              title="Tarjeta de crédito"
-              description="Continúa a Mercado Pago, igual que el registro público de proveedor."
-              onClick={() => setPaymentMethod("card")}
-            />
-            <PaymentOption
-              active={paymentMethod === "card_terminal"}
-              icon={<MonitorSmartphone size={24} />}
-              title="Pago con terminal"
-              description="Registra la compra para cobro por terminal física."
-              onClick={() => setPaymentMethod("card_terminal")}
-            />
-          </div>
-
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-            <button
-              type="button"
-              onClick={() => setStep("plan")}
-              className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:border-primary/30 hover:text-primary"
-            >
-              Volver
-            </button>
-            <button
-              type="button"
-              disabled={!paymentMethod}
-              onClick={() => setStep("supplier")}
-              className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Continuar al registro
-            </button>
-          </div>
-        </section>
-      ) : null}
-
       {step === "supplier" ? (
         <div className="grid gap-6 lg:grid-cols-[0.86fr_1.14fr]">
           <aside className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm lg:sticky lg:top-28 lg:self-start">
-            <SummaryPanel plan={selectedPlan} paymentMethod={paymentMethod} />
+            <SummaryPanel plan={selectedPlan} />
           </aside>
 
           <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm md:p-8">
@@ -556,7 +495,7 @@ export default function SellerSupplierWizard() {
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
                 <button
                   type="button"
-                  onClick={() => setStep("payment")}
+                  onClick={() => setStep("plan")}
                   className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:border-primary/30 hover:text-primary"
                 >
                   Volver
@@ -567,7 +506,7 @@ export default function SellerSupplierWizard() {
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? <Loader2 className="animate-spin" size={18} /> : null}
-                  {paymentMethod === "card" ? "Crear y continuar a Mercado Pago" : "Crear y registrar pago terminal"}
+                  Crear y continuar a Mercado Pago
                 </button>
               </div>
             </form>
@@ -584,7 +523,7 @@ export default function SellerSupplierWizard() {
             Proveedor registrado
           </h2>
           <p className="mx-auto mt-2 max-w-xl text-sm text-gray-500">
-            La solicitud de suscripción por terminal quedó registrada. Puedes volver al panel para revisar tus ganancias.
+            El proveedor quedó registrado. Puedes volver al panel para revisar tus ganancias.
           </p>
           {createdPassword ? (
             <div className="mx-auto mt-5 max-w-xl rounded-2xl border border-primary/15 bg-primary/5 p-4 text-left">
@@ -623,14 +562,13 @@ export default function SellerSupplierWizard() {
 function WizardProgress({ step }: { step: WizardStep }) {
   const steps: Array<{ id: WizardStep; label: string }> = [
     { id: "plan", label: "Paquete" },
-    { id: "payment", label: "Pago" },
     { id: "supplier", label: "Proveedor" },
   ];
   const currentIndex = step === "done" ? steps.length : steps.findIndex((item) => item.id === step);
 
   return (
     <div className="rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {steps.map((item, index) => {
           const active = index <= currentIndex;
           return (
@@ -653,40 +591,7 @@ function WizardProgress({ step }: { step: WizardStep }) {
   );
 }
 
-function PaymentOption({
-  active,
-  icon,
-  title,
-  description,
-  onClick,
-}: {
-  active: boolean;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-2xl border p-5 text-left transition-all ${
-        active ? "border-primary bg-primary/5 shadow-sm shadow-primary/10" : "border-gray-100 hover:border-primary/30 hover:bg-[#f2f3f4]"
-      }`}
-    >
-      <div className="mb-4 flex items-center justify-between">
-        <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${active ? "bg-primary text-white" : "bg-[#f2f3f4] text-primary"}`}>
-          {icon}
-        </span>
-        {active ? <CheckCircle2 className="text-[#168e00]" size={22} /> : null}
-      </div>
-      <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-bold text-gray-950">{title}</h3>
-      <p className="mt-1 text-sm leading-6 text-gray-500">{description}</p>
-    </button>
-  );
-}
-
-function SummaryPanel({ plan, paymentMethod }: { plan: Plan | null; paymentMethod: PaymentMethod | null }) {
+function SummaryPanel({ plan }: { plan: Plan | null }) {
   const features = plan ? normalizePlanFeatures(plan.features, plan.description).slice(0, 6) : [];
 
   return (
@@ -725,9 +630,7 @@ function SummaryPanel({ plan, paymentMethod }: { plan: Plan | null; paymentMetho
 
       <div className="mt-6 flex items-start gap-3 rounded-xl border border-gray-100 p-4 text-sm leading-6 text-gray-500">
         <ShieldCheck className="mt-0.5 shrink-0 text-primary" size={18} />
-        {paymentMethod === "card_terminal"
-          ? "El pago se registrará para cobro por terminal."
-          : "El pago se completa de forma segura en Mercado Pago."}
+        El pago se completa de forma segura en Mercado Pago.
       </div>
     </div>
   );

@@ -1,9 +1,10 @@
 "use client";
 
+import type { ComponentType } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
-import { CheckCircle, ImageIcon, Loader2, Package, X } from "lucide-react";
+import { CheckCircle, Eye, FlaskConical, ImageIcon, KeyRound, Loader2, Package, Repeat2, ShieldCheck, X } from "lucide-react";
 
 export type PlanDuration = "monthly" | "yearly";
 
@@ -14,6 +15,11 @@ export interface Plan {
   price: number;
   duration: PlanDuration;
   is_active: boolean;
+  is_listed?: boolean;
+  is_renewable?: boolean;
+  is_demo?: boolean;
+  allowed_once_per_supplier?: boolean;
+  access_code?: string | null;
   max_active_products?: number | null;
   max_images_per_product?: number | null;
 }
@@ -24,6 +30,11 @@ interface PlanFormData {
   price: string;
   duration: PlanDuration;
   is_active: boolean;
+  is_listed: boolean;
+  is_renewable: boolean;
+  is_demo: boolean;
+  allowed_once_per_supplier: boolean;
+  access_code: string;
   max_active_products: string;
   max_images_per_product: string;
 }
@@ -34,6 +45,11 @@ const initialFormData: PlanFormData = {
   price: "",
   duration: "yearly",
   is_active: true,
+  is_listed: true,
+  is_renewable: true,
+  is_demo: false,
+  allowed_once_per_supplier: false,
+  access_code: "",
   max_active_products: "",
   max_images_per_product: "",
 };
@@ -51,6 +67,8 @@ interface PlanFormProps {
   initialData?: Plan;
 }
 
+type PlanToggleKey = "is_active" | "is_listed" | "is_renewable" | "is_demo" | "allowed_once_per_supplier";
+
 export default function PlanForm({ initialData }: PlanFormProps) {
   const router = useRouter();
   const { token } = useAuthStore();
@@ -64,6 +82,11 @@ export default function PlanForm({ initialData }: PlanFormProps) {
       price: String(initialData.price ?? ""),
       duration: initialData.duration || "yearly",
       is_active: Boolean(initialData.is_active),
+      is_listed: initialData.is_listed ?? true,
+      is_renewable: initialData.is_renewable ?? true,
+      is_demo: initialData.is_demo ?? false,
+      allowed_once_per_supplier: initialData.allowed_once_per_supplier ?? false,
+      access_code: initialData.access_code || "",
       max_active_products: initialData.max_active_products != null ? String(initialData.max_active_products) : "",
       max_images_per_product: initialData.max_images_per_product != null ? String(initialData.max_images_per_product) : "",
     };
@@ -116,6 +139,11 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         price: parsedPrice,
         duration: formData.duration,
         is_active: formData.is_active,
+        is_listed: formData.is_listed,
+        is_renewable: formData.is_renewable,
+        is_demo: formData.is_demo,
+        allowed_once_per_supplier: formData.allowed_once_per_supplier,
+        ...(formData.is_demo ? { access_code: formData.access_code.trim() } : {}),
         max_active_products: parsedMaxActiveProducts,
         max_images_per_product: parsedMaxImagesPerProduct,
       };
@@ -254,19 +282,89 @@ export default function PlanForm({ initialData }: PlanFormProps) {
             </select>
           </div>
 
-          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100 mt-7 md:mt-0">
-            <input
-              type="checkbox"
-              id="is_active"
-              className="w-5 h-5 rounded text-primary focus:ring-primary border-gray-300"
-              checked={formData.is_active}
-              onChange={(e) => setFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
-            />
-            <label htmlFor="is_active" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
-              Plan Activo
-            </label>
-          </div>
+          <PlanToggle
+            id="is_active"
+            title="Plan activo"
+            description="Permite que el plan pueda usarse en los flujos de compra."
+            checked={formData.is_active}
+            onChange={(checked) => setFormData((prev) => ({ ...prev, is_active: checked }))}
+          />
         </div>
+
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Visibilidad y reglas de compra</h2>
+            <p className="mt-1 text-xs leading-5 text-gray-500">
+              Define dónde aparece el plan y cuándo puede volver a comprarse.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <PlanToggle
+              id="is_listed"
+              title="Mostrar en listado"
+              description="Si está activo, el plan aparece en el listado público o normal. Apágalo para demos ocultas o campañas."
+              icon={Eye}
+              checked={formData.is_listed}
+              onChange={(checked) => setFormData((prev) => ({ ...prev, is_listed: checked }))}
+            />
+
+            <PlanToggle
+              id="is_renewable"
+              title="Permite renovar"
+              description="Permite usar este plan para extender una suscripción activa. Desactívalo para demos o promociones de una sola vez."
+              icon={Repeat2}
+              checked={formData.is_renewable}
+              onChange={(checked) => setFormData((prev) => ({ ...prev, is_renewable: checked }))}
+            />
+
+            <PlanToggle
+              id="is_demo"
+              title="Plan demo"
+              description="Marca una prueba especial. El backend puede impedir que un proveedor compre otra demo si ya tuvo una."
+              icon={FlaskConical}
+              checked={formData.is_demo}
+              onChange={(checked) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  is_demo: checked,
+                  access_code: checked ? prev.access_code : "",
+                }))
+              }
+            />
+
+            <PlanToggle
+              id="allowed_once_per_supplier"
+              title="Una vez por proveedor"
+              description="Limita este plan específico a una sola compra por proveedor, aunque no sea el único plan demo."
+              icon={ShieldCheck}
+              checked={formData.allowed_once_per_supplier}
+              onChange={(checked) => setFormData((prev) => ({ ...prev, allowed_once_per_supplier: checked }))}
+            />
+          </div>
+
+          {formData.is_demo ? (
+            <div className="space-y-2">
+              <label htmlFor="access_code" className="text-sm font-medium text-gray-700">
+                Código de acceso
+              </label>
+              <div className="relative">
+                <KeyRound className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  id="access_code"
+                  type="text"
+                  className="w-full rounded-xl border border-gray-200 py-2 pl-10 pr-4 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  placeholder="Ej. DEMO10"
+                  value={formData.access_code}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, access_code: e.target.value }))}
+                />
+              </div>
+              <p className="text-xs leading-5 text-gray-500">
+                Código opcional para mostrar este plan solo a usuarios con un enlace o código especial. Si se deja vacío, el plan puede aparecer en el listado normal según su visibilidad.
+              </p>
+            </div>
+          ) : null}
+        </section>
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
@@ -294,5 +392,43 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         </button>
       </form>
     </div>
+  );
+}
+
+function PlanToggle({
+  id,
+  title,
+  description,
+  checked,
+  onChange,
+  icon: Icon = CheckCircle,
+}: {
+  id: PlanToggleKey;
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  icon?: ComponentType<{ size?: number; className?: string }>;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className="flex min-h-[92px] cursor-pointer items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4 transition-colors hover:border-primary/20 hover:bg-primary/5"
+    >
+      <input
+        type="checkbox"
+        id={id}
+        className="mt-0.5 h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+          <Icon size={16} className={checked ? "text-primary" : "text-gray-400"} />
+          <span>{title}</span>
+        </div>
+        <p className="mt-1 text-xs leading-5 text-gray-500">{description}</p>
+      </div>
+    </label>
   );
 }

@@ -9,6 +9,11 @@ export interface Plan {
   features?: string[];
   duration: PlanDuration;
   is_active: boolean;
+  is_listed?: boolean;
+  is_renewable?: boolean;
+  is_demo?: boolean;
+  allowed_once_per_supplier?: boolean;
+  access_code?: string | null;
   max_active_products?: number | null;
   max_images_per_product?: number | null;
   created_at?: string;

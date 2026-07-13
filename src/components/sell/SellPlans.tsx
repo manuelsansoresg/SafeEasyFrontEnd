@@ -84,16 +84,33 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => ({
   featureLines: normalizePlanFeatures(plan.features, plan.description),
 });
 
-export default function SellPlans() {
+type SellPlansProps = {
+  accessCode?: string;
+};
+
+export default function SellPlans({ accessCode = '' }: SellPlansProps) {
   const [serverPlans, setServerPlans] = useState<SellPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const normalizedAccessCode = accessCode.trim();
+  const hasAccessCode = normalizedAccessCode.length > 0;
 
   useEffect(() => {
     let mounted = true;
 
     const loadPlans = async () => {
       try {
-        const response = await fetch('/api/plans/?skip=0&limit=1000&only_active=true', {
+        const params = new URLSearchParams({
+          skip: '0',
+          limit: '1000',
+          only_active: 'true',
+        });
+
+        if (normalizedAccessCode) {
+          params.set('access_code', normalizedAccessCode);
+          params.set('is_demo', 'true');
+        }
+
+        const response = await fetch(`/api/plans/?${params.toString()}`, {
           cache: 'no-store',
         });
 
@@ -116,9 +133,12 @@ export default function SellPlans() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [normalizedAccessCode]);
 
-  const plans = useMemo(() => (serverPlans.length > 0 ? serverPlans : fallbackPlans), [serverPlans]);
+  const plans = useMemo(
+    () => (serverPlans.length > 0 || hasAccessCode ? serverPlans : fallbackPlans),
+    [hasAccessCode, serverPlans]
+  );
 
   return (
     <section id="plans" className="py-20 bg-gray-50">
