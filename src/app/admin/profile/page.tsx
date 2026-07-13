@@ -67,7 +67,7 @@ function normalizeMpAccount(payload: unknown): NormalizedMpAccount | null {
       const provider = (getString(entry, "provider") || getString(entry, "platform") || getString(entry, "name") || "").toLowerCase();
       const accountType = (getString(entry, "account_type") || getString(entry, "type") || "").toLowerCase();
       if (provider && !provider.includes("mercado")) continue;
-      if (accountType && !["seller", "supplier", "proveedor", "provider", "vendor"].includes(accountType)) continue;
+      if (accountType && !["seller", "vendedor", "vendor"].includes(accountType)) continue;
       return normalizeFromRecord(entry);
     }
     return null;
