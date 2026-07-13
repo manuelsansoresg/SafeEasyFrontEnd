@@ -84,7 +84,6 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
 
   const [formData, setFormData] = useState({
     name: '',
-    short_name: '',
     rfc: '',
     phone: '',
     email: '',
@@ -93,7 +92,6 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
     country: DEFAULT_COUNTRY_NAME,
     is_active: true,
     short_description: '',
-    description: '',
     address: '',
     exterior_number: '',
     interior_number: '',
@@ -351,21 +349,6 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
 
       // Add text fields
       append('name', formData.name);
-      
-      // Generate slug
-      let slug = formData.short_name 
-        ? formData.short_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-        : formData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      
-      // If slug is empty (e.g. name was only special chars), use 'empresa'
-      if (!slug) slug = 'empresa';
-      
-      // Append a timestamp to ensure uniqueness in case of retries/duplicates
-      // Ideally backend handles duplicates, but to avoid 500s during dev:
-      // const uniqueSlug = `${slug}-${Date.now()}`; 
-      // User requested clean urls, so let's try sending the clean slug first.
-      // If the user is retrying, maybe we should let them know if it fails.
-      data.append('short_name', slug);
 
       append('rfc', formData.rfc);
       append('phone', formData.phone);
@@ -374,7 +357,6 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
       append('state', formData.state);
       append('country', formData.country);
       append('short_description', formData.short_description);
-      append('description', formData.description);
       append('address', formData.address);
       append('exterior_number', formData.exterior_number);
       append('interior_number', formData.interior_number);
@@ -514,17 +496,6 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                 name="name" 
                 required 
                 value={formData.name} 
-                onChange={handleChange} 
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Corto (Slug)</label>
-              <input 
-                type="text" 
-                name="short_name" 
-                value={formData.short_name} 
                 onChange={handleChange} 
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" 
               />
@@ -808,22 +779,6 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                  maxLength={160} 
                />
              </div>
-  
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Completa (HTML)</label>
-              <div className="border border-gray-300 rounded-md overflow-hidden bg-white" onPasteCapture={pasteAsPlainText}>
-                <ReactQuill
-                  theme="snow"
-                  value={formData.description}
-                  onChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      description: value,
-                    }))
-                  }
-                />
-              </div>
-            </div>
   
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
                 <h4 className="mb-4 text-sm font-semibold text-[#004e28]">Sobre Nosotros</h4>

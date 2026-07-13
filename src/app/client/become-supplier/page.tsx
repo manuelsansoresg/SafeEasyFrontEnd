@@ -25,23 +25,6 @@ type SupplierPayload = {
   name?: string;
 };
 
-const normalize = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-
-const buildSlug = (value: string) => {
-  const slug = normalize(value)
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-
-  return slug || "empresa";
-};
-
 const cleanInput = (value: string) =>
   value
     .trim()
@@ -105,7 +88,6 @@ const buildSupplierFormData = (userId: number, companyName: string, email: strin
   const append = (key: string, value: string) => data.append(key, value.trim());
 
   append("name", companyName);
-  data.append("short_name", buildSlug(companyName));
   append("rfc", "");
   append("phone", "");
   append("email", email);
@@ -113,7 +95,6 @@ const buildSupplierFormData = (userId: number, companyName: string, email: strin
   append("state", "");
   append("country", "Mexico");
   append("short_description", "");
-  append("description", "");
   append("address", "");
   append("exterior_number", "");
   append("interior_number", "");

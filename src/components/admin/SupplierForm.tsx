@@ -416,7 +416,6 @@ export default function SupplierForm({
 
   const [formData, setFormData] = useState({
     name: formText(initialData?.name),
-    short_name: formText(initialData?.short_name),
     rfc: formText(initialData?.rfc),
     phone: formText(initialData?.phone),
     city: formText(initialData?.city),
@@ -425,7 +424,6 @@ export default function SupplierForm({
     is_active: initialData?.is_active ?? true,
     // Extended
     short_description: formText(initialData?.short_description),
-    description: formText(initialData?.description),
     address: formText(initialData?.address),
     exterior_number: formText(initialData?.exterior_number),
     interior_number: formText(initialData?.interior_number),
@@ -908,10 +906,6 @@ export default function SupplierForm({
           }
       }
 
-      const slug = formData.short_name 
-        ? formData.short_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-        : formData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-
       const isEdit = isEditMode && initialData;
 
       let resolvedMapLocation = mapLocation;
@@ -970,7 +964,6 @@ export default function SupplierForm({
         }
 
         appendIfPresent("name", formData.name);
-        data.append("short_name", slug);
 
         appendIfPresent("rfc", formData.rfc);
         appendIfPresent("phone", formData.phone);
@@ -979,7 +972,6 @@ export default function SupplierForm({
         appendIfPresent("country", formData.country);
         data.append("is_active", String(formData.is_active));
         appendIfPresent("short_description", formData.short_description);
-        appendIfPresent("description", formData.description);
         appendIfPresent("address", formData.address);
         appendIfPresent("exterior_number", formData.exterior_number);
         appendIfPresent("interior_number", formData.interior_number);
@@ -1252,17 +1244,6 @@ export default function SupplierForm({
               onChange={handleInputChange}
               className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Corto (Slug)</label>
-            <input
-              type="text"
-              name="short_name"
-              value={formData.short_name}
-              onChange={handleInputChange}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
@@ -1610,22 +1591,6 @@ export default function SupplierForm({
               maxLength={160}
               className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Completa (HTML)</label>
-            <div className="border border-gray-300 rounded-md overflow-hidden bg-white" onPasteCapture={pasteAsPlainText}>
-              <ReactQuill
-                theme="snow"
-                value={formData.description}
-                onChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    description: value,
-                  }))
-                }
-              />
-            </div>
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">

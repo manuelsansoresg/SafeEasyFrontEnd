@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { fetchWithAuth } from "@/lib/api";
 import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
+import { getSpanishErrorMessage } from "@/lib/errorMessages";
 import { isSubscriptionActive } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import type { Subscription } from "@/types/subscriptions";
@@ -458,31 +459,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
             const text = await response.text();
             try {
                 const errorDataUnknown: unknown = JSON.parse(text);
-                const errorData =
-                  errorDataUnknown && typeof errorDataUnknown === "object"
-                    ? (errorDataUnknown as Record<string, unknown>)
-                    : null;
-
-                if (errorData?.detail && Array.isArray(errorData.detail)) {
-                    errorMessage = errorData.detail
-                      .map((d: unknown) => {
-                        const row = d && typeof d === "object" ? (d as Record<string, unknown>) : {};
-                        const loc = Array.isArray(row.loc) ? row.loc.map((v) => String(v)).join(".") : "";
-                        const msg = typeof row.msg === "string" ? row.msg : "";
-                        return [loc, msg].filter(Boolean).join(" - ");
-                      })
-                      .filter(Boolean)
-                      .join(", ");
-                } else {
-                    const detail =
-                      typeof errorData?.detail === "string"
-                        ? errorData.detail
-                        : errorData?.detail
-                          ? JSON.stringify(errorData.detail)
-                          : null;
-                    const message = typeof errorData?.message === "string" ? errorData.message : null;
-                    errorMessage = detail || message || errorMessage;
-                }
+                errorMessage = getSpanishErrorMessage(errorDataUnknown, errorMessage);
             } catch {
                 errorMessage = `Error ${response.status}: ${text || response.statusText}`;
             }
