@@ -53,10 +53,27 @@ export async function startMercadoPagoConnect(accountType: "seller" | "supplier"
     account_type: accountType,
     redirect: "true",
   });
+  const connectPath = `/api/mercadopago/connect?${params.toString()}`;
+  const openDirectConnect = () => {
+    window.location.assign(connectPath);
+  };
 
-  const response = await fetchWithAuth(`/api/mercadopago/connect?${params.toString()}`, {
-    headers: { Accept: "application/json" },
-  });
+  let response: Response;
+  try {
+    response = await fetchWithAuth(connectPath, {
+      headers: { Accept: "application/json" },
+      redirect: "manual",
+    });
+  } catch {
+    openDirectConnect();
+    return;
+  }
+
+  if (response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400)) {
+    openDirectConnect();
+    return;
+  }
+
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
@@ -65,7 +82,8 @@ export async function startMercadoPagoConnect(accountType: "seller" | "supplier"
 
   const redirectUrl = getRedirectUrl(payload);
   if (!redirectUrl) {
-    throw new Error("Mercado Pago no devolvió una URL de vinculación.");
+    openDirectConnect();
+    return;
   }
   if (!isSafeConnectUrl(redirectUrl)) {
     throw new Error("Mercado Pago devolvió una URL de vinculación no válida.");
