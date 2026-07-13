@@ -13,13 +13,14 @@ export default async function SellPage({
 }) {
   const resolvedSearchParams = await searchParams;
   const accessCode = typeof resolvedSearchParams.code === 'string' ? resolvedSearchParams.code.trim() : '';
+  const referralCode = typeof resolvedSearchParams.referral_code === 'string' ? resolvedSearchParams.referral_code.trim() : '';
 
   return (
     <main className="min-h-screen pt-24 md:pt-28">
       <SellHero />
       <SellBenefits />
       <SellTestimonials />
-      <SellPlans accessCode={accessCode} />
+      <SellPlans accessCode={accessCode} referralCode={referralCode} />
       <SellFAQ />
       
       {/* Call to Action Section */}

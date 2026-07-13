@@ -84,14 +84,24 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => ({
   featureLines: normalizePlanFeatures(plan.features, plan.description),
 });
 
-type SellPlansProps = {
-  accessCode?: string;
+const buildRegisterHref = (planName: string, referralCode: string) => {
+  const params = new URLSearchParams({
+    plan: planName.toLowerCase(),
+  });
+  if (referralCode) params.set('referral_code', referralCode);
+  return `/sell/register?${params.toString()}`;
 };
 
-export default function SellPlans({ accessCode = '' }: SellPlansProps) {
+type SellPlansProps = {
+  accessCode?: string;
+  referralCode?: string;
+};
+
+export default function SellPlans({ accessCode = '', referralCode = '' }: SellPlansProps) {
   const [serverPlans, setServerPlans] = useState<SellPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const normalizedAccessCode = accessCode.trim();
+  const normalizedReferralCode = referralCode.trim();
   const hasAccessCode = normalizedAccessCode.length > 0;
 
   useEffect(() => {
@@ -108,6 +118,9 @@ export default function SellPlans({ accessCode = '' }: SellPlansProps) {
         if (normalizedAccessCode) {
           params.set('access_code', normalizedAccessCode);
           params.set('is_demo', 'true');
+        } else {
+          params.set('is_listed', 'true');
+          params.set('is_demo', 'false');
         }
 
         const response = await fetch(`/api/plans/?${params.toString()}`, {
@@ -230,7 +243,7 @@ export default function SellPlans({ accessCode = '' }: SellPlansProps) {
                 </div>
                 <div className="p-8 bg-gray-50 mt-auto">
                   <Link
-                    href={`/sell/register?plan=${encodeURIComponent(plan.name.toLowerCase())}`}
+                    href={buildRegisterHref(plan.name, normalizedReferralCode)}
                     className={`block w-full text-center py-3 px-6 rounded-lg font-bold transition-colors ${
                       highlight
                         ? 'bg-primary text-white hover:bg-primary/90'

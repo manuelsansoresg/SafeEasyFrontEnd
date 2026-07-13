@@ -8,6 +8,7 @@ export type WizardStep = 'plan' | 'account' | 'supplier' | 'payment';
 export default function WizardContainer() {
   const searchParams = useSearchParams();
   const selectedPlan = searchParams.get('plan') || 'estándar';
+  const referralCode = searchParams.get('referral_code') || '';
 
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm md:p-6">
@@ -17,7 +18,7 @@ export default function WizardContainer() {
           <p className="text-sm text-gray-500">Registra tu cuenta y continúa a Mercado Pago</p>
         </div>
       </div>
-      <StepCheckout selectedPlan={selectedPlan} />
+      <StepCheckout selectedPlan={selectedPlan} referralCode={referralCode} />
     </div>
   );
 }

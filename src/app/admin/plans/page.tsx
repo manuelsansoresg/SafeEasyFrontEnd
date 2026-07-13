@@ -22,6 +22,7 @@ interface Plan {
   price: number;
   duration: "monthly" | "yearly";
   is_active: boolean;
+  is_demo?: boolean;
   max_active_products?: number | null;
   max_images_per_product?: number | null;
 }
@@ -67,6 +68,13 @@ const unwrapPlans = (data: unknown): Plan[] => {
   return [];
 };
 
+const buildAdminPlanParams = () => {
+  const params = new URLSearchParams();
+  params.set("skip", String(0));
+  params.set("limit", String(1000));
+  return params;
+};
+
 export default function AdminPlansPage() {
   const { token } = useAuthStore();
 
@@ -74,8 +82,6 @@ export default function AdminPlansPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [onlyActive, setOnlyActive] = useState(false);
-  const skip = 0;
-  const limit = 100;
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
 
   useEffect(() => {
@@ -92,19 +98,15 @@ export default function AdminPlansPage() {
     const run = async () => {
       setLoading(true);
       try {
-        const params = new URLSearchParams();
-        params.set("skip", String(skip));
-        params.set("limit", String(limit));
-        if (searchTerm.trim()) params.set("search", searchTerm.trim());
-        if (onlyActive) params.set("only_active", "true");
-
-        const response = await fetch(apiUrl(`/plans/?${params.toString()}`), {
+        const requestHeaders = {
+          ...authHeaders(token),
+          Accept: "application/json",
+        };
+        const commonRequest = {
           signal: controller.signal,
-          headers: {
-            ...authHeaders(token),
-            Accept: "application/json",
-          },
-        });
+          headers: requestHeaders,
+        };
+        const response = await fetch(apiUrl(`/plans/?${buildAdminPlanParams().toString()}`), commonRequest);
         if (!isMounted) return;
         if (response.ok) {
           const data = await response.json();
@@ -128,7 +130,7 @@ export default function AdminPlansPage() {
       window.clearTimeout(debounceId);
       controller.abort();
     };
-  }, [skip, limit, token, searchTerm, onlyActive]);
+  }, [token]);
 
   const deletePlan = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este plan?")) return;
@@ -140,17 +142,11 @@ export default function AdminPlansPage() {
       });
       if (response.ok) {
         setToast({ type: "success", message: "Plan eliminado correctamente." });
-        const params = new URLSearchParams();
-        params.set("skip", String(skip));
-        params.set("limit", String(limit));
-        if (searchTerm.trim()) params.set("search", searchTerm.trim());
-        if (onlyActive) params.set("only_active", "true");
-        const refresh = await fetch(apiUrl(`/plans/?${params.toString()}`), {
-          headers: {
-            ...authHeaders(token),
-            Accept: "application/json",
-          },
-        });
+        const requestHeaders = {
+          ...authHeaders(token),
+          Accept: "application/json",
+        };
+        const refresh = await fetch(apiUrl(`/plans/?${buildAdminPlanParams().toString()}`), { headers: requestHeaders });
         if (refresh.ok) {
           const data = await refresh.json();
           setPlans(unwrapPlans(data));

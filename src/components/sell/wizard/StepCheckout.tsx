@@ -214,12 +214,15 @@ const pickPlanArray = (data: unknown): Plan[] => {
 
 interface StepCheckoutProps {
   selectedPlan: string;
+  referralCode?: string;
 }
 
-export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
+export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCheckoutProps) {
   const { login } = useAuthStore();
   const selectedKey = normalize(selectedPlan || 'estandar');
   const fallbackPlan = fallbackPlans[selectedKey] ?? fallbackPlans.estandar;
+  const fixedReferralCode = sanitizeInput(referralCode);
+  const hasFixedReferralCode = fixedReferralCode.length > 0;
   const [serverPlans, setServerPlans] = useState<Plan[]>([]);
   const [formData, setFormData] = useState<FormState>({
     name: '',
@@ -227,7 +230,7 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
     secondLastName: '',
     email: '',
     companyName: '',
-    sellerCode: '',
+    sellerCode: fixedReferralCode,
     password: '',
     confirmPassword: '',
   });
@@ -715,20 +718,32 @@ export default function StepCheckout({ selectedPlan }: StepCheckoutProps) {
             )}
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-gray-700">Código de referido</label>
-            <input
-              type="text"
-              name="sellerCode"
-              value={formData.sellerCode}
-              onChange={handleChange}
-              className="h-12 w-full rounded-lg border border-gray-200 px-4 text-gray-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-              placeholder="Código de referido (opcional)"
-            />
-            <p className="mt-1.5 text-xs text-gray-500">
-              Si un vendedor te compartió un código, ingresalo aquí para vincular tu cuenta.
-            </p>
-          </div>
+          {hasFixedReferralCode ? (
+            <div>
+              <p className="mb-2 block text-sm font-semibold text-gray-700">Código de referido</p>
+              <div className="rounded-lg border border-primary/15 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary">
+                {fixedReferralCode}
+              </div>
+              <p className="mt-1.5 text-xs text-gray-500">
+                Este código se aplicará automáticamente al enviar tu registro.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">Código de referido</label>
+              <input
+                type="text"
+                name="sellerCode"
+                value={formData.sellerCode}
+                onChange={handleChange}
+                className="h-12 w-full rounded-lg border border-gray-200 px-4 text-gray-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                placeholder="Código de referido (opcional)"
+              />
+              <p className="mt-1.5 text-xs text-gray-500">
+                Si un vendedor te compartió un código, ingresalo aquí para vincular tu cuenta.
+              </p>
+            </div>
+          )}
 
           <div className="grid gap-5 md:grid-cols-2">
             <div>

@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Calendar,
   CheckCircle2,
+  Copy,
   CircleDollarSign,
   Loader2,
   Plus,
@@ -86,6 +87,8 @@ export default function SellerDashboard() {
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<"code" | "url" | null>(null);
+  const [origin, setOrigin] = useState("");
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -132,6 +135,11 @@ export default function SellerDashboard() {
     loadStats();
   }, [loadStats]);
 
+  useEffect(() => {
+    const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+    setOrigin(configuredUrl || window.location.origin);
+  }, []);
+
   const history = useMemo(() => {
     const raw = stats?.commission_history;
     return Array.isArray(raw) ? raw.slice(0, 50) : [];
@@ -142,6 +150,19 @@ export default function SellerDashboard() {
     getNumber(summary, ["total_commissions", "total_commission", "total_earned", "accumulated_commissions"]);
   const pending = getNumber(stats ?? null, ["pending_commissions", "pending_commission", "pending_total"]);
   const paid = Math.max(totalEarned - pending, 0);
+  const sellerCode = summary ? getText(summary, ["seller_code", "code", "referral_code"], "") : "";
+  const referralUrl = sellerCode ? `${origin || ""}/sell?referral_code=${encodeURIComponent(sellerCode)}` : "";
+
+  const copyToClipboard = async (value: string, type: "code" | "url") => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(type);
+      window.setTimeout(() => setCopied(null), 1800);
+    } catch {
+      setCopied(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -159,6 +180,47 @@ export default function SellerDashboard() {
           </Link>
         }
       />
+
+      <section className="rounded-2xl border border-primary/10 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-primary">Código de vinculación</p>
+            <h2 className="mt-1 font-[family-name:var(--font-varela-round)] text-2xl font-bold text-gray-900">
+              {sellerCode || "Sin código asignado"}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-gray-500">
+              Comparte esta URL para que el registro de proveedor se abra con tu código.
+            </p>
+          </div>
+
+          <div className="min-w-0 lg:w-[560px]">
+            <div className="rounded-xl border border-gray-100 bg-[#f2f3f4] p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">URL de registro</p>
+              <p className="mt-1 truncate font-mono text-sm text-gray-800">{referralUrl || "Código no disponible"}</p>
+            </div>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                disabled={!sellerCode}
+                onClick={() => copyToClipboard(sellerCode, "code")}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Copy size={16} />
+                {copied === "code" ? "Código copiado" : "Copiar código"}
+              </button>
+              <button
+                type="button"
+                disabled={!referralUrl}
+                onClick={() => copyToClipboard(referralUrl, "url")}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Copy size={16} />
+                {copied === "url" ? "URL copiada" : "Copiar URL"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <MetricCard icon={<Wallet size={24} />} label="Comisiones ganadas" value={formatCurrency(totalEarned)} tone="green" />
