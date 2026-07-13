@@ -58,50 +58,21 @@ function setReturnCookies(accountType: "seller" | "supplier") {
   document.cookie = `mp_connect_account_type=${encodeURIComponent(accountType)}; Max-Age=600; Path=/; SameSite=Lax${secure}`;
 }
 
-type MercadoPagoConnectOptions = {
-  requireAuthenticatedStart?: boolean;
-};
-
-export async function startMercadoPagoConnect(
-  accountType: "seller" | "supplier",
-  options: MercadoPagoConnectOptions = {},
-) {
+export async function startMercadoPagoConnect(accountType: "seller" | "supplier") {
   setReturnCookies(accountType);
 
   const params = new URLSearchParams({
     account_type: accountType,
-    redirect: "true",
   });
   const connectPath = `/api/mercadopago/connect?${params.toString()}`;
-  const openDirectConnect = () => {
-    window.location.assign(connectPath);
-  };
 
   let response: Response;
   try {
     response = await fetchWithAuth(connectPath, {
       headers: { Accept: "application/json" },
-      redirect: "manual",
     });
   } catch (error) {
-    if (!options.requireAuthenticatedStart) {
-      openDirectConnect();
-      return;
-    }
     throw new Error(error instanceof Error && error.message ? error.message : "No se pudo iniciar Mercado Pago.");
-  }
-
-  if (response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400)) {
-    const location = response.headers.get("Location");
-    if (location && isSafeConnectUrl(location)) {
-      window.location.assign(location);
-      return;
-    }
-    if (!options.requireAuthenticatedStart) {
-      openDirectConnect();
-      return;
-    }
-    throw new Error("Mercado Pago no devolvió una URL de vinculación legible.");
   }
 
   const payload = await response.json().catch(() => null);
@@ -112,11 +83,7 @@ export async function startMercadoPagoConnect(
 
   const redirectUrl = getRedirectUrl(payload);
   if (!redirectUrl) {
-    if (!options.requireAuthenticatedStart) {
-      openDirectConnect();
-      return;
-    }
-    throw new Error("Mercado Pago no devolvió una URL de vinculación.");
+    throw new Error("Mercado Pago no devolvió auth_url para iniciar la vinculación.");
   }
   if (!isSafeConnectUrl(redirectUrl)) {
     throw new Error("Mercado Pago devolvió una URL de vinculación no válida.");

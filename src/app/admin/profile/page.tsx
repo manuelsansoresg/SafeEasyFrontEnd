@@ -328,7 +328,7 @@ export default function ProfilePage() {
     setSuccessMessage(null);
     setMpConnectLoading(true);
     try {
-      await startMercadoPagoConnect("seller", { requireAuthenticatedStart: true });
+      await startMercadoPagoConnect("seller");
     } catch (err) {
       setError(getErrorMessage(err, "No se pudo iniciar la vinculación con Mercado Pago."));
       setMpConnectLoading(false);
