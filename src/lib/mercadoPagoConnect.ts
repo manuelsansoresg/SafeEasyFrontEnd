@@ -48,7 +48,26 @@ function isSafeConnectUrl(value: string) {
   }
 }
 
-export async function startMercadoPagoConnect(accountType: "seller" | "supplier") {
+function setReturnCookies(accountType: "seller" | "supplier") {
+  const currentPath = `${window.location.pathname}${window.location.search || ""}`;
+  const fallbackPath = accountType === "seller" ? "/admin/profile" : "/admin/my-company";
+  const returnPath = currentPath.startsWith("/admin/") ? currentPath : fallbackPath;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+
+  document.cookie = `mp_connect_return_path=${encodeURIComponent(returnPath)}; Max-Age=600; Path=/; SameSite=Lax${secure}`;
+  document.cookie = `mp_connect_account_type=${encodeURIComponent(accountType)}; Max-Age=600; Path=/; SameSite=Lax${secure}`;
+}
+
+type MercadoPagoConnectOptions = {
+  requireAuthenticatedStart?: boolean;
+};
+
+export async function startMercadoPagoConnect(
+  accountType: "seller" | "supplier",
+  options: MercadoPagoConnectOptions = {},
+) {
+  setReturnCookies(accountType);
+
   const params = new URLSearchParams({
     account_type: accountType,
     redirect: "true",
@@ -64,14 +83,25 @@ export async function startMercadoPagoConnect(accountType: "seller" | "supplier"
       headers: { Accept: "application/json" },
       redirect: "manual",
     });
-  } catch {
-    openDirectConnect();
-    return;
+  } catch (error) {
+    if (!options.requireAuthenticatedStart) {
+      openDirectConnect();
+      return;
+    }
+    throw new Error(error instanceof Error && error.message ? error.message : "No se pudo iniciar Mercado Pago.");
   }
 
   if (response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400)) {
-    openDirectConnect();
-    return;
+    const location = response.headers.get("Location");
+    if (location && isSafeConnectUrl(location)) {
+      window.location.assign(location);
+      return;
+    }
+    if (!options.requireAuthenticatedStart) {
+      openDirectConnect();
+      return;
+    }
+    throw new Error("Mercado Pago no devolvió una URL de vinculación legible.");
   }
 
   const payload = await response.json().catch(() => null);
@@ -82,8 +112,11 @@ export async function startMercadoPagoConnect(accountType: "seller" | "supplier"
 
   const redirectUrl = getRedirectUrl(payload);
   if (!redirectUrl) {
-    openDirectConnect();
-    return;
+    if (!options.requireAuthenticatedStart) {
+      openDirectConnect();
+      return;
+    }
+    throw new Error("Mercado Pago no devolvió una URL de vinculación.");
   }
   if (!isSafeConnectUrl(redirectUrl)) {
     throw new Error("Mercado Pago devolvió una URL de vinculación no válida.");

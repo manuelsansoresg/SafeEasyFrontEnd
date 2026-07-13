@@ -235,6 +235,31 @@ export default function ProfilePage() {
     };
   }, [isSeller, loadMercadoPagoAccount, token]);
 
+  useEffect(() => {
+    if (!isSeller || !token || typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mp") !== "callback" || params.get("mp_account_type") !== "seller") return;
+
+    setSuccessMessage("Regresaste de Mercado Pago. Estamos validando la vinculación.");
+    let attempts = 0;
+    loadMercadoPagoAccount();
+    const interval = window.setInterval(() => {
+      attempts += 1;
+      loadMercadoPagoAccount();
+      if (attempts >= 10) window.clearInterval(interval);
+    }, 2000);
+
+    return () => window.clearInterval(interval);
+  }, [isSeller, loadMercadoPagoAccount, token]);
+
+  useEffect(() => {
+    if (!mpAccount.connected || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mp") !== "callback") return;
+    setSuccessMessage("Cuenta de Mercado Pago vinculada correctamente.");
+  }, [mpAccount.connected]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -303,7 +328,7 @@ export default function ProfilePage() {
     setSuccessMessage(null);
     setMpConnectLoading(true);
     try {
-      await startMercadoPagoConnect("seller");
+      await startMercadoPagoConnect("seller", { requireAuthenticatedStart: true });
     } catch (err) {
       setError(getErrorMessage(err, "No se pudo iniciar la vinculación con Mercado Pago."));
       setMpConnectLoading(false);

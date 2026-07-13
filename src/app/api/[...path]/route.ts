@@ -105,6 +105,33 @@ const normalizeMercadoPagoAuthRedirect = (url: URL) => {
   return url.toString();
 };
 
+const isMercadoPagoCallbackPath = (pathname: string) =>
+  pathname === "/api/mercadopago/callback" || pathname.startsWith("/api/mercadopago/callback/");
+
+const getSafeMpReturnUrl = (request: NextRequest) => {
+  const raw = request.cookies.get("mp_connect_return_path")?.value || "";
+  const accountType = request.cookies.get("mp_connect_account_type")?.value === "supplier" ? "supplier" : "seller";
+  const fallback = accountType === "supplier" ? "/admin/my-company" : "/admin/profile";
+
+  let decoded = "";
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    decoded = raw;
+  }
+
+  const path = decoded.startsWith("/admin/") ? decoded : fallback;
+  const url = new URL(path, request.nextUrl.origin);
+  url.searchParams.set("mp", "callback");
+  url.searchParams.set("mp_account_type", accountType);
+  return url.toString();
+};
+
+const appendClearMpConnectCookies = (headers: Headers) => {
+  headers.append("set-cookie", "mp_connect_return_path=; Max-Age=0; Path=/; SameSite=Lax");
+  headers.append("set-cookie", "mp_connect_account_type=; Max-Age=0; Path=/; SameSite=Lax");
+};
+
 const getBaseUrlCandidates = () => {
   const internal = sanitizeBaseUrl(process.env.API_INTERNAL_URL);
   const publicUrl = sanitizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
@@ -364,6 +391,13 @@ async function handler(request: NextRequest) {
                   newUrlString = newUrlString.replace('http:', 'https:');
               }
               newUrlString = normalizeMercadoPagoAuthRedirect(new URL(newUrlString));
+              const isMercadoPagoCallback = isMercadoPagoCallbackPath(pathname);
+              if (isMercadoPagoCallback) {
+                const callbackRedirectUrl = new URL(newUrlString);
+                if (!isMercadoPagoAuthHost(callbackRedirectUrl.hostname)) {
+                  newUrlString = getSafeMpReturnUrl(request);
+                }
+              }
 
              const originHost = new URL(targetUrl).host;
              const redirectHost = new URL(newUrlString).host;
@@ -384,6 +418,7 @@ async function handler(request: NextRequest) {
                    request.nextUrl.hostname,
                    pathname.startsWith("/api/mercadopago/") ? "cross-site" : "auth"
                  );
+                 if (isMercadoPagoCallback) appendClearMpConnectCookies(headers);
                  return NextResponse.json(
                    { redirect_url: newUrlString },
                    { status: 200, headers },
@@ -404,6 +439,7 @@ async function handler(request: NextRequest) {
                 request.nextUrl.hostname,
                 pathname.startsWith("/api/mercadopago/") ? "cross-site" : "auth"
               );
+               if (isMercadoPagoCallback) appendClearMpConnectCookies(headers);
                return NextResponse.redirect(newUrlString, { status: response.status, headers });
              }
 
@@ -418,6 +454,7 @@ async function handler(request: NextRequest) {
                headers.set("x-next-proxy-version", PROXY_VERSION);
                headers.set("x-next-proxy-upstream", upstreamBase || "");
               applyRewrittenSetCookies(headers, response, request.nextUrl.hostname, "cross-site");
+               if (isMercadoPagoCallback) appendClearMpConnectCookies(headers);
                return NextResponse.redirect(newUrlString, { status: response.status, headers });
              }
              
