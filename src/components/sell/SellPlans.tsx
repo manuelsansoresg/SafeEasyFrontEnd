@@ -38,12 +38,11 @@ const fallbackPlans: SellPlan[] = [
     period: '/año',
     description: 'Ideal para negocios establecidos.',
     featureLines: [
-      'Hasta 50 productos',
       'Perfil verificado',
       'Soporte por correo',
       'Acceso al mercado global',
     ],
-    maxActiveProducts: 50,
+    maxActiveProducts: 500,
     maxImagesPerProduct: 5,
   },
   {
@@ -53,14 +52,13 @@ const fallbackPlans: SellPlan[] = [
     period: '/año',
     description: 'Para maximizar sus ventas.',
     featureLines: [
-      'Productos ilimitados',
       'Perfil verificado + Badge',
       'Prioridad en búsquedas',
       'Soporte prioritario 24/7',
       'Analíticas avanzadas',
     ],
-    maxActiveProducts: null,
-    maxImagesPerProduct: null,
+    maxActiveProducts: 2000,
+    maxImagesPerProduct: 15,
   },
 ];
 
@@ -76,6 +74,7 @@ const formatPeriod = (duration: PlanDuration) => (duration === 'monthly' ? '/mes
 const formatLimitValue = (value: number | null | undefined) => {
   if (value === null || value === undefined) return null;
   if (!Number.isFinite(value)) return null;
+  if (value < 0) return null;
   return new Intl.NumberFormat('es-MX').format(value);
 };
 
@@ -165,7 +164,6 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
   const productValue = formatLimitValue(plan.maxActiveProducts);
   const imageValue = formatLimitValue(plan.maxImagesPerProduct);
   const showLimits = productValue !== null || imageValue !== null;
-  const showUnlimited = productValue === null && imageValue === null;
 
   return (
     <div
@@ -244,25 +242,6 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
                 highlight={highlight}
               />
             )}
-          </div>
-        )}
-
-        {showUnlimited && (
-          <div
-            className={`mt-6 rounded-xl border px-3.5 py-3 ${
-              highlight
-                ? 'border-white/15 bg-white/[0.06] text-white/85'
-                : 'border-primary/15 bg-primary/5 text-primary'
-            }`}
-          >
-            <div className="text-sm font-semibold">Productos e imágenes ilimitadas</div>
-            <div
-              className={`mt-0.5 text-xs ${
-                highlight ? 'text-white/60' : 'text-gray-500'
-              }`}
-            >
-              Escale su catálogo sin restricciones.
-            </div>
           </div>
         )}
 
