@@ -147,7 +147,7 @@ const loginSupplierForPurchase = async (email: string, password: string) => {
   body.set("username", email);
   body.set("password", password);
 
-  const response = await fetch("/api/login/access-token", {
+  const response = await fetch("/api/login/access-token/", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),

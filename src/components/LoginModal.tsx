@@ -26,7 +26,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
     try {
       // Use internal API route to avoid Mixed Content (HTTPS -> HTTP) issues
-      // The proxy at /api/login/access-token will handle the communication with the insecure backend
+      // The proxy at /api/login/access-token/ will handle the communication with the insecure backend
       const formData = new URLSearchParams();
       formData.append('grant_type', 'password');
       formData.append('username', email);
@@ -36,7 +36,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
       formData.append('client_id', 'string');
       formData.append('client_secret', 'string');
 
-      const response = await fetch('/api/login/access-token', {
+      const response = await fetch('/api/login/access-token/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

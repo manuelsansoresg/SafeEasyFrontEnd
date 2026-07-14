@@ -508,7 +508,7 @@ export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCh
       loginBody.append('username', formData.email);
       loginBody.append('password', formData.password);
 
-      const loginResponse = await fetch('/api/login/access-token', {
+      const loginResponse = await fetch('/api/login/access-token/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: loginBody.toString(),

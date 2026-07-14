@@ -38,6 +38,16 @@ type InboxEventCallback = (event: ChatInboxEvent) => void;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object";
 
+const logChatConnectionWarning = (message: string, event?: Event) => {
+  if (process.env.NODE_ENV !== "development") return;
+  const target = event?.target;
+  const readyState =
+    target instanceof WebSocket
+      ? ` readyState=${target.readyState}`
+      : "";
+  console.warn(`${message}${readyState}`);
+};
+
 export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
   loading: false,
@@ -227,7 +237,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
 
       newSocket.onerror = (error) => {
-        console.error('[ChatStore] Error en Inbox WS:', error);
+        logChatConnectionWarning('[ChatStore] No se pudo conectar Inbox WS.', error);
         set({ isInboxConnecting: false });
       };
     } catch {
@@ -362,7 +372,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                             if (!senderId) senderId = parsed.sender_id;
                             if (!productId) productId = parsed.product_id;
                         }
-                    } catch (e) {
+                    } catch {
                         // Not JSON, ignore
                     }
                 }
@@ -447,14 +457,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
 
         newSocket.onerror = (error) => {
-          console.error('[ChatStore] WebSocket Error:', error);
+          logChatConnectionWarning('[ChatStore] No se pudo conectar WebSocket de conversación.', error);
           set({ isConnecting: false });
           // Let onclose handle reconnection
         };
 
         set({ socket: newSocket });
     } catch (e) {
-        console.error("[ChatStore] Failed to create WebSocket", e);
+        const message = e instanceof Error ? e.message : String(e);
+        console.warn("[ChatStore] No se pudo crear WebSocket:", message);
         set({ isConnecting: false });
     }
   },

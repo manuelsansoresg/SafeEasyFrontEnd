@@ -56,6 +56,11 @@ const getCookieValue = (name: string) => {
   return parts.length === 2 ? parts.pop()?.split(";").shift() || null : null;
 };
 
+const buildProductResultsUrls = (queryParams: URLSearchParams) => {
+  const query = queryParams.toString();
+  return [`/api/products/results?${query}`, `/api/products/?${query}`];
+};
+
 export async function getRecommendations(params: RecommendationsParams): Promise<Product[]> {
   const queryParams = new URLSearchParams();
   
@@ -85,25 +90,34 @@ export async function getRecommendations(params: RecommendationsParams): Promise
 
   try {
     const deviceId = getDeviceId();
-    const url = `/api/products/results?${queryParams.toString()}`;
+    const urls = buildProductResultsUrls(queryParams);
 
     if (process.env.NODE_ENV === "development") console.log("🔍 Fetching product results with params:", queryParams.toString());
     if (process.env.NODE_ENV === "development") console.log("📍 Results location param sent:", queryParams.get("location") || "None");
-    const response = await fetchWithAuth(url, {
-      headers: {
-        Accept: "application/json",
-        ...(deviceId ? { "X-Device-ID": deviceId } : {}),
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error fetching product results: ${response.statusText}`);
+
+    for (const url of urls) {
+      const response = await fetchWithAuth(url, {
+        headers: {
+          Accept: "application/json",
+          ...(deviceId ? { "X-Device-ID": deviceId } : {}),
+        },
+      });
+
+      if (!response.ok) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn(`Product results endpoint failed (${response.status} ${response.statusText}): ${url}`);
+        }
+        continue;
+      }
+
+      const data = await response.json();
+      return unwrapProducts(data);
     }
 
-    const data = await response.json();
-    return unwrapProducts(data);
+    return [];
   } catch (error) {
-    console.error("Failed to fetch product results:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn("Failed to fetch product results:", message);
     return [];
   }
 }
