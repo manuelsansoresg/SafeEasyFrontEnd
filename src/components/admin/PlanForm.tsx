@@ -13,6 +13,7 @@ export interface Plan {
   title: string;
   description: string;
   price: number;
+  display_order?: number | null;
   duration: PlanDuration;
   is_active: boolean;
   is_listed?: boolean;
@@ -28,6 +29,7 @@ interface PlanFormData {
   title: string;
   description: string;
   price: string;
+  display_order: string;
   duration: PlanDuration;
   is_active: boolean;
   is_listed: boolean;
@@ -43,6 +45,7 @@ const initialFormData: PlanFormData = {
   title: "",
   description: "",
   price: "",
+  display_order: "0",
   duration: "yearly",
   is_active: true,
   is_listed: true,
@@ -80,6 +83,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
       title: initialData.title || "",
       description: initialData.description || "",
       price: String(initialData.price ?? ""),
+      display_order: initialData.display_order != null ? String(initialData.display_order) : "0",
       duration: initialData.duration || "yearly",
       is_active: Boolean(initialData.is_active),
       is_listed: initialData.is_listed ?? true,
@@ -103,6 +107,18 @@ export default function PlanForm({ initialData }: PlanFormProps) {
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
       setLoading(false);
       setError("El precio debe ser un número válido mayor o igual a 0.");
+      return;
+    }
+
+    const parsedDisplayOrder = Number(formData.display_order);
+    if (!formData.display_order.trim()) {
+      setLoading(false);
+      setError("Captura el orden en el que debe mostrarse este plan.");
+      return;
+    }
+    if (!Number.isInteger(parsedDisplayOrder) || parsedDisplayOrder < 0) {
+      setLoading(false);
+      setError("El orden debe ser un número entero mayor o igual a 0.");
       return;
     }
 
@@ -137,6 +153,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         title: formData.title,
         description: formData.description,
         price: parsedPrice,
+        display_order: parsedDisplayOrder,
         duration: formData.duration,
         is_active: formData.is_active,
         is_listed: formData.is_listed,
@@ -209,6 +226,21 @@ export default function PlanForm({ initialData }: PlanFormProps) {
               placeholder="0.00"
               value={formData.price}
               onChange={(e) => setFormData((prev) => ({ ...prev, price: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Orden</label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              required
+              inputMode="numeric"
+              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              placeholder="Ej. 1"
+              value={formData.display_order}
+              onChange={(e) => setFormData((prev) => ({ ...prev, display_order: e.target.value }))}
             />
           </div>
         </div>

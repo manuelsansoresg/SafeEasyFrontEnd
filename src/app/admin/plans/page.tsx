@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
+import { fetchWithAuth } from "@/lib/api";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
 import {
@@ -75,6 +76,18 @@ const buildAdminPlanParams = () => {
   return params;
 };
 
+const readErrorMessage = async (response: Response) => {
+  const text = await response.text().catch(() => "");
+  if (!text) return "";
+  try {
+    const data = JSON.parse(text) as { detail?: unknown; message?: unknown; error?: unknown };
+    const message = data.detail || data.message || data.error;
+    return typeof message === "string" ? message : "";
+  } catch {
+    return text;
+  }
+};
+
 export default function AdminPlansPage() {
   const { token } = useAuthStore();
 
@@ -136,11 +149,18 @@ export default function AdminPlansPage() {
     if (!confirm("¿Estás seguro de eliminar este plan?")) return;
     if (!token) return;
     try {
-      const response = await fetch(apiUrl(`/plans/${id}`), {
-        method: "DELETE",
-        headers: authHeaders(token),
-      });
-      if (response.ok) {
+      const urls = [`/api/plans/${id}`, `/api/plans/${id}/`, apiUrl(`/plans/${id}`), apiUrl(`/plans/${id}/`)];
+      let response: Response | null = null;
+      for (const url of urls) {
+        response = await fetchWithAuth(url, {
+          method: "DELETE",
+          headers: { Accept: "application/json" },
+        });
+        if (response.ok) break;
+        if (response.status !== 404 && response.status !== 405 && response.status < 500) break;
+      }
+
+      if (response?.ok) {
         setToast({ type: "success", message: "Plan eliminado correctamente." });
         const requestHeaders = {
           ...authHeaders(token),
@@ -152,7 +172,8 @@ export default function AdminPlansPage() {
           setPlans(unwrapPlans(data));
         }
       } else {
-        setToast({ type: "error", message: "Error al eliminar plan." });
+        const message = response ? await readErrorMessage(response) : "";
+        setToast({ type: "error", message: message || "Error al eliminar plan." });
       }
     } catch (error) {
       console.error("Error deleting plan:", error);
