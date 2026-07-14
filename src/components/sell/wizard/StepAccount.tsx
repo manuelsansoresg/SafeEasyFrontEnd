@@ -63,7 +63,7 @@ export default function StepAccount({ plan, onSuccess }: StepAccountProps) {
       loginBody.append('username', formData.email);
       loginBody.append('password', formData.password);
 
-      const loginRes = await fetch('/api/login/access-token/', {
+      const loginRes = await fetch('/api/login/access-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: loginBody.toString(),
@@ -139,7 +139,7 @@ export default function StepAccount({ plan, onSuccess }: StepAccountProps) {
       loginBody.append('username', formData.email);
       loginBody.append('password', formData.password);
 
-      const loginRes = await fetch('/api/login/access-token/', {
+      const loginRes = await fetch('/api/login/access-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: loginBody.toString(),

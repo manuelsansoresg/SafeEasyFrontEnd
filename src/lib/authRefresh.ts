@@ -19,7 +19,7 @@ export async function refreshAccessToken(refreshToken?: string | null): Promise<
 
   if (!refreshPromise) {
     refreshPromise = (async () => {
-      const response = await fetch("/api/login/refresh-token/", {
+      const response = await fetch("/api/login/refresh-token", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${stripBearer(activeRefreshToken)}`,

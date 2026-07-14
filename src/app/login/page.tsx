@@ -109,7 +109,7 @@ export default function LoginPage() {
 
       // Use internal API route to avoid CORS issues
       // The rewrite in next.config.ts maps /api/* to http://127.0.0.1:8000/*
-      const response = await fetch('/api/login/access-token/', {
+      const response = await fetch('/api/login/access-token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
