@@ -17,10 +17,12 @@ export default function AdminAdsPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
+  const [displayOrder, setDisplayOrder] = useState("0");
   const [error, setError] = useState<string | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editItem, setEditItem] = useState<AdItem | null>(null);
   const [editLinkUrl, setEditLinkUrl] = useState("");
+  const [editDisplayOrder, setEditDisplayOrder] = useState("0");
   const [editCity, setEditCity] = useState("Mérida");
   const [editState, setEditState] = useState("Yucatán");
   const [editActive, setEditActive] = useState(true);
@@ -74,12 +76,14 @@ export default function AdminAdsPage() {
         link_url: linkUrl || undefined,
         city: "Mérida",
         state: "Yucatán",
+        display_order: Number(displayOrder) || 0,
         is_active: true,
       });
       if (!created) {
         setError("No se pudo crear el anuncio.");
       } else {
         setLinkUrl("");
+        setDisplayOrder("0");
         setFile(null);
         await load();
       }
@@ -97,6 +101,7 @@ export default function AdminAdsPage() {
       const updated = await adsService.update(ad.id, {
         city: ad.city ?? "Mérida",
         state: ad.state ?? "Yucatán",
+        display_order: ad.display_order ?? 0,
         is_active: !ad.is_active,
         link_url: ad.link_url ?? undefined,
       });
@@ -199,6 +204,20 @@ export default function AdminAdsPage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
             </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700">
+                Orden
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={displayOrder}
+                onChange={(e) => setDisplayOrder(e.target.value)}
+                placeholder="0"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">
@@ -251,6 +270,7 @@ export default function AdminAdsPage() {
               <tr className="border-b border-gray-100">
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Imagen</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Link</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Orden</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ciudad</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Activo</th>
@@ -260,7 +280,7 @@ export default function AdminAdsPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="animate-spin" size={20} />
                       Cargando anuncios...
@@ -269,7 +289,7 @@ export default function AdminAdsPage() {
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     No se encontraron anuncios
                   </td>
                 </tr>
@@ -283,6 +303,9 @@ export default function AdminAdsPage() {
                     </td>
                     <td className="px-6 py-4 text-sm text-blue-600">
                       {ad.link_url || "-"}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {ad.display_order ?? 0}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700">
                       {ad.city || "Mérida"}
@@ -308,6 +331,7 @@ export default function AdminAdsPage() {
                           onClick={() => {
                             setEditItem(ad);
                             setEditLinkUrl(ad.link_url || "");
+                            setEditDisplayOrder(String(ad.display_order ?? 0));
                             setEditCity(ad.city || "Mérida");
                             setEditState(ad.state || "Yucatán");
                             setEditActive(!!ad.is_active);
@@ -411,6 +435,20 @@ export default function AdminAdsPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 />
               </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  Orden
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editDisplayOrder}
+                  onChange={(e) => setEditDisplayOrder(e.target.value)}
+                  placeholder="0"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700">Ciudad</label>
@@ -461,6 +499,7 @@ export default function AdminAdsPage() {
                       link_url: editLinkUrl || null,
                       city: editCity || null,
                       state: editState || null,
+                      display_order: Number(editDisplayOrder) || 0,
                       is_active: editActive,
                       image: editFile || null,
                     });
