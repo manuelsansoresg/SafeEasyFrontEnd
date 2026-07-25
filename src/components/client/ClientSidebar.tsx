@@ -24,13 +24,14 @@ interface ClientSidebarProps {
 export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const isAdmin = user?.role === "admin" || user?.role === "superuser";
   
   // Menu items configuration
   const menuItems = [
     { 
       title: "Panel Admin", 
-      path: "/client/profile", 
+      path: isAdmin ? "/admin/dashboard" : "/client/profile",
       icon: User,
     },
     {
@@ -48,11 +49,13 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
       path: "/client/favorites",
       icon: Heart,
     },
-    {
-      title: "Volverme proveedor",
-      path: "/client/become-supplier",
-      icon: Store,
-    },
+    ...(isAdmin
+      ? []
+      : [{
+          title: "Volverme proveedor",
+          path: "/client/become-supplier",
+          icon: Store,
+        }]),
     // Mis Mensajes item removed
   ];
 

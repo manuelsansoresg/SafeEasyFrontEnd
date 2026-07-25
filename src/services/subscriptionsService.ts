@@ -1,18 +1,30 @@
 import { fetchWithAuth } from "@/lib/api";
 import type {
+  ManualSubscriptionPayload,
   Plan,
   PurchaseResponse,
+  SupplierSubscriptionOption,
   Subscription,
-  SubscriptionEvent,
-  UpdateSubscriptionStatusPayload,
+  SubscriptionHistoryEntry,
+  UpdateManualSubscriptionPayload,
 } from "@/types/subscriptions";
 
 type ListSubscriptionsParams = {
   skip?: number;
   limit?: number;
-  status?: "active" | "expired";
+  status?: "active" | "expired" | "cancelled";
   search?: string;
 };
+
+export class SubscriptionRequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "SubscriptionRequestError";
+    this.status = status;
+  }
+}
 
 const readJson = async <T>(response: Response): Promise<T> => {
   const text = await response.text().catch(() => "");
@@ -29,10 +41,147 @@ const pickArray = <T>(data: unknown): T[] => {
   if (Array.isArray(data)) return data as T[];
   if (data && typeof data === "object") {
     const record = data as Record<string, unknown>;
-    const items = record.items ?? record.results ?? record.data ?? record.subscriptions ?? record.plans;
+    const items =
+      record.items ??
+      record.results ??
+      record.data ??
+      record.subscriptions ??
+      record.plans ??
+      record.suppliers ??
+      record.history;
     if (Array.isArray(items)) return items as T[];
   }
   return [];
+};
+
+const readErrorMessage = async (response: Response, fallback: string) => {
+  const text = await response.text().catch(() => "");
+  if (!text) return fallback;
+  try {
+    const data = JSON.parse(text) as { detail?: unknown; message?: unknown; error?: unknown };
+    const detail = data.detail ?? data.message ?? data.error;
+    if (typeof detail === "string" && detail.trim()) return detail;
+    if (Array.isArray(detail)) {
+      const messages = detail
+        .map((item) => {
+          if (!item || typeof item !== "object") return "";
+          const message = (item as Record<string, unknown>).msg;
+          return typeof message === "string" ? message : "";
+        })
+        .filter(Boolean);
+      if (messages.length > 0) return messages.join(". ");
+    }
+  } catch {
+    return text;
+  }
+  return fallback;
+};
+
+const requireOk = async (response: Response, fallback: string) => {
+  if (response.ok) return;
+  throw new SubscriptionRequestError(await readErrorMessage(response, fallback), response.status);
+};
+
+const asRecord = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return {};
+    }
+  }
+  return {};
+};
+
+const optionalString = (...values: unknown[]) => {
+  const value = values.find((candidate) => typeof candidate === "string");
+  return typeof value === "string" ? value : null;
+};
+
+const optionalNumber = (...values: unknown[]) => {
+  for (const value of values) {
+    if (value == null || value === "") continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+};
+
+const normalizeHistoryEntry = (
+  value: SubscriptionHistoryEntry,
+  index: number,
+): SubscriptionHistoryEntry => {
+  const record = asRecord(value);
+  const previous = asRecord(
+    record.previous_values ?? record.old_values ?? record.before ?? record.previous,
+  );
+  const next = asRecord(
+    record.new_values ?? record.next_values ?? record.after ?? record.current,
+  );
+  const admin = asRecord(
+    record.admin ?? record.admin_user ?? record.changed_by ?? record.performed_by,
+  );
+
+  return {
+    id: optionalNumber(record.id, record.history_id) ?? -(index + 1),
+    subscription_id: optionalNumber(record.subscription_id, record.subscriptionId) ?? 0,
+    supplier_id: optionalNumber(record.supplier_id, record.supplierId),
+    admin_user_id: optionalNumber(
+      record.admin_user_id,
+      record.admin_id,
+      record.changed_by_user_id,
+      admin.id,
+    ),
+    admin_name: optionalString(
+      record.admin_name,
+      record.changed_by_name,
+      admin.full_name,
+      admin.name,
+      admin.email,
+    ),
+    action: optionalString(record.action, record.event_type, record.action_type, record.type),
+    previous_status: optionalString(
+      record.previous_status,
+      record.old_status,
+      previous.status,
+    ),
+    new_status: optionalString(record.new_status, record.status, next.status),
+    previous_plan_id: optionalNumber(
+      record.previous_plan_id,
+      record.old_plan_id,
+      previous.plan_id,
+    ),
+    new_plan_id: optionalNumber(record.new_plan_id, record.plan_id, next.plan_id),
+    previous_start_date: optionalString(
+      record.previous_start_date,
+      record.old_start_date,
+      previous.start_date,
+    ),
+    new_start_date: optionalString(
+      record.new_start_date,
+      record.start_date,
+      next.start_date,
+    ),
+    previous_end_date: optionalString(
+      record.previous_end_date,
+      record.old_end_date,
+      previous.end_date,
+    ),
+    new_end_date: optionalString(record.new_end_date, record.end_date, next.end_date),
+    assignment_type:
+      (optionalString(record.assignment_type, record.reason_type) as
+        | SubscriptionHistoryEntry["assignment_type"]
+        | null) ?? null,
+    note: optionalString(record.note, record.reason, record.comment) ?? "",
+    created_at:
+      optionalString(record.created_at, record.timestamp, record.changed_at) ?? "",
+  };
 };
 
 const apiUrl = (path: string) => {
@@ -109,71 +258,43 @@ export const subscriptionsService = {
     return pickArray<Plan>(json);
   },
 
-  async getEvents(subscriptionId: number): Promise<SubscriptionEvent[]> {
-    const tryUrls = [
-      `/api/admin/subscriptions/${subscriptionId}/events`,
-      `/api/admin/subscriptions/${subscriptionId}/events/`,
-      `/api/subscriptions/${subscriptionId}/events`,
-      `/api/subscriptions/${subscriptionId}/events/`,
-      apiUrl(`/admin/subscriptions/${subscriptionId}/events`),
-      apiUrl(`/admin/subscriptions/${subscriptionId}/events/`),
-      apiUrl(`/subscriptions/${subscriptionId}/events`),
-      apiUrl(`/subscriptions/${subscriptionId}/events/`),
-    ];
-    let response: Response | null = null;
-    for (const url of tryUrls) {
-      response = await fetchWithAuth(url);
-      if (response.ok) break;
-      if (response.status !== 404 && response.status !== 405) break;
-    }
-    if (!response || !response.ok) {
-      const text = await response?.text().catch(() => "") ?? "";
-      console.error(`[subscriptionsService] getEvents failed:`, {
-        subscriptionId,
-        status: response?.status,
-        statusText: response?.statusText,
-        body: text.slice(0, 500),
-        triedUrls: tryUrls,
-      });
-      throw new Error(`Failed to fetch events (${response?.status ?? "unknown"}) ${text}`.trim());
-    }
+  async listSupplierOptions(): Promise<SupplierSubscriptionOption[]> {
+    const response = await fetchWithAuth("/api/suppliers/?skip=0&limit=1000");
+    await requireOk(response, "No se pudieron cargar los proveedores.");
     const json = await readJson<unknown>(response);
-    return pickArray<SubscriptionEvent>(json);
+    return pickArray<SupplierSubscriptionOption>(json);
   },
 
-  async updateStatus(subscriptionId: number, payload: UpdateSubscriptionStatusPayload) {
-    const body = JSON.stringify(payload);
-    const options = { method: "PUT", body };
-    const tryUrls = [
-      `/api/admin/subscriptions/${subscriptionId}/status`,
-      `/api/admin/subscriptions/${subscriptionId}/status/`,
-      `/api/subscriptions/${subscriptionId}/status`,
-      `/api/subscriptions/${subscriptionId}/status/`,
-      apiUrl(`/admin/subscriptions/${subscriptionId}/status`),
-      apiUrl(`/admin/subscriptions/${subscriptionId}/status/`),
-      apiUrl(`/subscriptions/${subscriptionId}/status`),
-      apiUrl(`/subscriptions/${subscriptionId}/status/`),
-    ];
-
-    let response: Response | null = null;
-    let used = "";
-    for (const url of tryUrls) {
-      used = url;
-      response = await fetchWithAuth(url, options);
-      if (response.ok) break;
-      if (response.status === 404 || response.status === 405) continue;
-      if (response.status === 301 || response.status === 302 || response.status === 307 || response.status === 308) continue;
-      break;
-    }
-
-    if (!response || !response.ok) {
-      const text = await response?.text().catch(() => "") ?? "";
-      throw new Error(`Failed to update subscription (${response?.status ?? "unknown"}) ${used} ${text}`.trim());
-    }
-
+  async assignManual(payload: ManualSubscriptionPayload) {
+    const response = await fetchWithAuth("/api/subscriptions/admin/manual", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    await requireOk(response, "No se pudo asignar la subscripción.");
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return readJson<unknown>(response);
     return null;
+  },
+
+  async updateManual(subscriptionId: number, payload: UpdateManualSubscriptionPayload) {
+    const response = await fetchWithAuth(`/api/subscriptions/admin/${subscriptionId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    await requireOk(response, "No se pudo modificar la subscripción.");
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) return readJson<unknown>(response);
+    return null;
+  },
+
+  async getHistory(subscriptionId: number, skip = 0, limit = 50): Promise<SubscriptionHistoryEntry[]> {
+    const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+    const response = await fetchWithAuth(
+      `/api/subscriptions/admin/${subscriptionId}/history?${params.toString()}`,
+    );
+    await requireOk(response, "No se pudo cargar el historial.");
+    const json = await readJson<unknown>(response);
+    return pickArray<SubscriptionHistoryEntry>(json).map(normalizeHistoryEntry);
   },
 
   async getMySubscription(): Promise<Subscription | null> {

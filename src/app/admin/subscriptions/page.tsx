@@ -8,6 +8,7 @@ import { subscriptionsService } from "@/services/subscriptionsService";
 import type { Subscription } from "@/types/subscriptions";
 import EditSubscriptionModal from "@/app/admin/subscriptions/components/EditSubscriptionModal";
 import EventsModal from "@/app/admin/subscriptions/components/EventsModal";
+import ManualSubscriptionModal from "@/app/admin/subscriptions/components/ManualSubscriptionModal";
 import { PageHero } from "@/components/ui/PageHero";
 import {
   BadgeDollarSign,
@@ -15,6 +16,7 @@ import {
   Edit2,
   History,
   Loader2,
+  Plus,
   Search,
   Slash,
   XCircle,
@@ -29,13 +31,14 @@ export default function AdminSubscriptionsPage() {
   const [skip, setSkip] = useState(0);
   const [limit] = useState(50);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"" | "active" | "expired">("");
+  const [statusFilter, setStatusFilter] = useState<"" | "active" | "expired" | "cancelled">("");
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
 
   const [eventsOpen, setEventsOpen] = useState(false);
   const [eventsSubscriptionId, setEventsSubscriptionId] = useState<number | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
 
   useEffect(() => {
     if (!toast) return;
@@ -145,6 +148,14 @@ export default function AdminSubscriptionsPage() {
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
 
       <EventsModal open={eventsOpen} subscriptionId={eventsSubscriptionId} onClose={() => setEventsOpen(false)} />
+      <ManualSubscriptionModal
+        open={manualOpen}
+        onClose={() => setManualOpen(false)}
+        onSaved={async () => {
+          setToast({ type: "success", message: "Subscripción asignada correctamente." });
+          await refresh();
+        }}
+      />
       <EditSubscriptionModal
         open={editOpen}
         subscription={editingSubscription}
@@ -157,15 +168,25 @@ export default function AdminSubscriptionsPage() {
 
       <PageHero
         title="Subscripciones"
-        subtitle="Gestiona las subscripciones de los usuarios."
+        subtitle="Asigna, modifica y audita las subscripciones de proveedores."
         actions={
-        <Link
-          href="/admin/plans"
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
-        >
-          <BadgeDollarSign size={20} />
-          Gestionar Planes
-        </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin/plans"
+              className="flex items-center gap-2 rounded-xl border border-primary/20 bg-white px-4 py-2 text-primary transition-colors hover:bg-primary/5"
+            >
+              <BadgeDollarSign size={20} />
+              Gestionar planes
+            </Link>
+            <button
+              type="button"
+              onClick={() => setManualOpen(true)}
+              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-white shadow-sm shadow-primary/20 transition-colors hover:bg-primary/90"
+            >
+              <Plus size={20} />
+              Asignar subscripción
+            </button>
+          </div>
         }
       />
 
@@ -189,11 +210,14 @@ export default function AdminSubscriptionsPage() {
             <select
               className="h-11 rounded-xl border border-gray-200 bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "" | "active" | "expired")}
+              onChange={(e) =>
+                setStatusFilter(e.target.value as "" | "active" | "expired" | "cancelled")
+              }
             >
               <option value="">Todos</option>
               <option value="active">Activos</option>
               <option value="expired">Expirados</option>
+              <option value="cancelled">Cancelados</option>
             </select>
           </div>
         </div>
@@ -246,6 +270,11 @@ export default function AdminSubscriptionsPage() {
                           <CheckCircle size={12} />
                           Activo
                         </span>
+                      ) : sub.status === "cancelled" ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                          <XCircle size={12} />
+                          Cancelado
+                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100">
                           <XCircle size={12} />
@@ -266,7 +295,7 @@ export default function AdminSubscriptionsPage() {
                         <button
                           onClick={() => openEdit(sub)}
                           className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
-                          title="Editar estado"
+                          title="Modificar subscripción"
                         >
                           <Edit2 size={18} />
                         </button>

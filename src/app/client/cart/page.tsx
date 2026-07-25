@@ -10,6 +10,7 @@ import { PageHero } from "@/components/ui/PageHero";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
 import {
   Loader2,
   Store,
@@ -546,14 +547,10 @@ export default function ClientCartPage() {
       const record = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
 
       if (!response || !response.ok) {
-        const msg =
-          (typeof record.detail === "string" && record.detail.trim()) ||
-          (typeof record.message === "string" && record.message.trim()) ||
-          (typeof record.error === "string" && record.error.trim()) ||
-          "No se pudo iniciar el checkout.";
+        const msg = getSpanishErrorMessage(record, "No se pudo iniciar el checkout.");
         const lower = msg.toLowerCase();
         if (lower.includes("stock") || lower.includes("invent") || lower.includes("insuf")) {
-          setStockError(msg);
+          setStockError(translateStockErrorMessage(msg));
         } else {
           setError(msg);
         }

@@ -175,17 +175,24 @@ export function Header() {
                               <span>🛡️</span> {user.role === "supplier" ? "Mi Empresa" : "Panel Admin"}
                             </Link>
                           )}
-                          {user?.role === "client" && (
+                          {(user?.role === "client" || user?.role === "admin") && (
                             <>
-                              <Link href="/client/profile" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
-                                <span>🛡️</span> Panel Admin
-                              </Link>
+                              {user.role === "client" ? (
+                                <Link href="/client/profile" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
+                                  <span>🛡️</span> Mi perfil
+                                </Link>
+                              ) : null}
                               <Link href="/client/orders" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
                                 <span>📦</span> Mis Pedidos
                               </Link>
-                              <Link href="/client/become-supplier" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
-                                <span>🏪</span> Volverme proveedor
+                              <Link href="/cart" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
+                                <span>🛒</span> Mi Carrito
                               </Link>
+                              {user.role === "client" ? (
+                                <Link href="/client/become-supplier" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 font-medium text-gray-700 hover:text-primary">
+                                  <span>🏪</span> Volverme proveedor
+                                </Link>
+                              ) : null}
                             </>
                           )}
                           <Link href="/client/favorites" className="px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-3 text-gray-700 hover:text-primary">

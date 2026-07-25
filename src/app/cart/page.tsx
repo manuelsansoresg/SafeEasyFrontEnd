@@ -9,6 +9,7 @@ import { PageHero } from "@/components/ui/PageHero";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
 import { Minus, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 
 type ProductLite = {
@@ -477,7 +478,14 @@ export default function CartPage() {
       if (!res || !res.ok) {
         if (prevSnapshot.current) setCarts(prevSnapshot.current);
         const text = await res?.text().catch(() => "") ?? "";
-        setToast({ type: "error", message: text.trim() || "No se pudo actualizar la cantidad." });
+        let msg = "";
+        try {
+          msg = text ? getSpanishErrorMessage(JSON.parse(text), "") : "";
+        } catch {}
+        setToast({
+          type: "error",
+          message: translateStockErrorMessage(msg || text.trim() || "No se pudo actualizar la cantidad."),
+        });
         return;
       }
       setToast({ type: "success", message: "Cantidad actualizada." });
@@ -503,7 +511,11 @@ export default function CartPage() {
       if (!res || !res.ok) {
         if (prevSnapshot.current) setCarts(prevSnapshot.current);
         const text = await res?.text().catch(() => "") ?? "";
-        setToast({ type: "error", message: text.trim() || "No se pudo eliminar el producto." });
+        let msg = "";
+        try {
+          msg = text ? getSpanishErrorMessage(JSON.parse(text), "") : "";
+        } catch {}
+        setToast({ type: "error", message: msg || text.trim() || "No se pudo eliminar el producto." });
         return;
       }
       setToast({ type: "success", message: "Producto eliminado." });
@@ -532,7 +544,11 @@ export default function CartPage() {
       if (!res || !res.ok) {
         if (prevSnapshot.current) setCarts(prevSnapshot.current);
         const text = await res?.text().catch(() => "") ?? "";
-        setToast({ type: "error", message: text.trim() || "No se pudo vaciar la tienda." });
+        let msg = "";
+        try {
+          msg = text ? getSpanishErrorMessage(JSON.parse(text), "") : "";
+        } catch {}
+        setToast({ type: "error", message: msg || text.trim() || "No se pudo vaciar la tienda." });
         return;
       }
       setToast({ type: "success", message: "Tienda vaciada." });
@@ -850,12 +866,10 @@ export default function CartPage() {
         }
         const rawText = raw ? raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() : "";
         const msg =
-          (typeof record.detail === "string" && record.detail.trim()) ||
-          (typeof record.message === "string" && record.message.trim()) ||
-          (typeof record.error === "string" && record.error.trim()) ||
+          getSpanishErrorMessage(record, "") ||
           (rawText ? rawText.slice(0, 180) : "") ||
           `No se pudo iniciar el checkout (HTTP ${res?.status ?? "?"}).`;
-        setToast({ type: "error", message: msg });
+        setToast({ type: "error", message: translateStockErrorMessage(msg) });
         return;
       }
       const data: unknown = await res.json().catch(() => ({}));

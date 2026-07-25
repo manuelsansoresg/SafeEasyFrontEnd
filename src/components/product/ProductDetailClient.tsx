@@ -32,6 +32,7 @@ import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
 import { productHasActiveSupplierSubscription } from "@/lib/subscriptionAccess";
+import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
 import DOMPurify from "isomorphic-dompurify";
 
 // Interfaces
@@ -339,20 +340,13 @@ export default function ProductDetailPage() {
         if (contentType.includes("application/json") && bodyText) {
           try {
             const parsed = JSON.parse(bodyText) as Record<string, unknown>;
-            const detail = parsed.detail;
-            const message = parsed.message;
-            const errorValue = parsed.error;
-            msg =
-              (typeof detail === "string" && detail.trim()) ||
-              (typeof message === "string" && message.trim()) ||
-              (typeof errorValue === "string" && errorValue.trim()) ||
-              "";
+            msg = getSpanishErrorMessage(parsed, "");
           } catch {}
         }
         if (!msg) {
           msg = bodyText.trim() || `No se pudo agregar al carrito (HTTP ${res?.status ?? "?"}).`;
         }
-        setCartToast({ type: "error", message: msg });
+        setCartToast({ type: "error", message: translateStockErrorMessage(msg) });
         return;
       }
 

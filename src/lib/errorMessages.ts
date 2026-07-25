@@ -67,6 +67,23 @@ const translateValidationMessage = (message: string, fieldLabel: string | null) 
   return fieldLabel ? `${field}: ${message}` : message;
 };
 
+export const translateStockErrorMessage = (message: string) => {
+  const normalized = message.trim().toLowerCase();
+
+  if (
+    normalized.includes("not enough stock") ||
+    normalized.includes("insufficient stock") ||
+    normalized.includes("stock available") ||
+    normalized.includes("stock insuficiente") ||
+    normalized.includes("inventario insuficiente") ||
+    normalized.includes("sin suficiente stock")
+  ) {
+    return "No tenemos suficientes unidades disponibles para agregar esa cantidad.";
+  }
+
+  return message;
+};
+
 const getDetailMessages = (detail: unknown): string[] => {
   if (Array.isArray(detail)) {
     return detail
@@ -74,13 +91,13 @@ const getDetailMessages = (detail: unknown): string[] => {
         const row = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
         const message = typeof row.msg === "string" ? row.msg : "";
         const fieldLabel = getFieldLabel(row.loc);
-        return message ? translateValidationMessage(message, fieldLabel) : "";
+        return message ? translateStockErrorMessage(translateValidationMessage(message, fieldLabel)) : "";
       })
       .filter(Boolean);
   }
 
   if (typeof detail === "string" && detail.trim()) {
-    return [detail.trim()];
+    return [translateStockErrorMessage(detail.trim())];
   }
 
   return [];
@@ -101,11 +118,11 @@ export const getSpanishErrorMessage = (
   }
 
   if (typeof record.message === "string" && record.message.trim()) {
-    return record.message.trim();
+    return translateStockErrorMessage(record.message.trim());
   }
 
   if (typeof record.error === "string" && record.error.trim()) {
-    return record.error.trim();
+    return translateStockErrorMessage(record.error.trim());
   }
 
   return fallback;

@@ -4,7 +4,7 @@ import type { ComponentType } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
-import { CheckCircle, Eye, FlaskConical, ImageIcon, KeyRound, Loader2, Package, Repeat2, ShieldCheck, X } from "lucide-react";
+import { CheckCircle, Eye, FlaskConical, FolderTree, ImageIcon, KeyRound, Loader2, Package, Repeat2, ShieldCheck, X } from "lucide-react";
 
 export type PlanDuration = "monthly" | "yearly";
 
@@ -19,6 +19,7 @@ export interface Plan {
   is_listed?: boolean;
   is_renewable?: boolean;
   is_demo?: boolean;
+  is_directory?: boolean;
   allowed_once_per_supplier?: boolean;
   access_code?: string | null;
   max_active_products?: number | null;
@@ -35,6 +36,7 @@ interface PlanFormData {
   is_listed: boolean;
   is_renewable: boolean;
   is_demo: boolean;
+  is_directory: boolean;
   allowed_once_per_supplier: boolean;
   access_code: string;
   max_active_products: string;
@@ -51,6 +53,7 @@ const initialFormData: PlanFormData = {
   is_listed: true,
   is_renewable: true,
   is_demo: false,
+  is_directory: false,
   allowed_once_per_supplier: false,
   access_code: "",
   max_active_products: "",
@@ -70,7 +73,13 @@ interface PlanFormProps {
   initialData?: Plan;
 }
 
-type PlanToggleKey = "is_active" | "is_listed" | "is_renewable" | "is_demo" | "allowed_once_per_supplier";
+type PlanToggleKey =
+  | "is_active"
+  | "is_listed"
+  | "is_renewable"
+  | "is_demo"
+  | "is_directory"
+  | "allowed_once_per_supplier";
 
 export default function PlanForm({ initialData }: PlanFormProps) {
   const router = useRouter();
@@ -89,6 +98,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
       is_listed: initialData.is_listed ?? true,
       is_renewable: initialData.is_renewable ?? true,
       is_demo: initialData.is_demo ?? false,
+      is_directory: initialData.is_directory ?? false,
       allowed_once_per_supplier: initialData.allowed_once_per_supplier ?? false,
       access_code: initialData.access_code || "",
       max_active_products: initialData.max_active_products != null ? String(initialData.max_active_products) : "",
@@ -159,6 +169,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         is_listed: formData.is_listed,
         is_renewable: formData.is_renewable,
         is_demo: formData.is_demo,
+        is_directory: formData.is_directory,
         allowed_once_per_supplier: formData.allowed_once_per_supplier,
         ...(formData.is_demo ? { access_code: formData.access_code.trim() } : {}),
         max_active_products: parsedMaxActiveProducts,
@@ -363,6 +374,15 @@ export default function PlanForm({ initialData }: PlanFormProps) {
                   access_code: checked ? prev.access_code : "",
                 }))
               }
+            />
+
+            <PlanToggle
+              id="is_directory"
+              title="Plan directorio"
+              description="Convierte el perfil del proveedor en un escaparate de servicios: muestra su información y galería, sin productos ni opción de compra."
+              icon={FolderTree}
+              checked={formData.is_directory}
+              onChange={(checked) => setFormData((prev) => ({ ...prev, is_directory: checked }))}
             />
 
             <PlanToggle

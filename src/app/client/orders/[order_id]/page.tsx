@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { orderService, Order, OrderHistoryItem, OrderRefund } from "@/services/orderService";
 import type { LatLngLiteral } from "@/lib/googleMaps";
 import {
@@ -45,7 +45,17 @@ function normalizeStatusKey(value: string) {
   const v = ascii.toLowerCase().trim().replace(/\s+/g, "_");
 
   if (v === "pending" || v === "pendiente") return "pending";
-  if (v === "paid" || v === "pagado" || v === "pago_verificado" || v === "validado" || v === "validated")
+  if (
+    v === "paid" ||
+    v === "pagado" ||
+    v === "approved" ||
+    v === "aprobado" ||
+    v === "authorized" ||
+    v === "accredited" ||
+    v === "pago_verificado" ||
+    v === "validado" ||
+    v === "validated"
+  )
     return "paid";
   if (v === "verified" || v === "verificado") return "verified";
   if (v === "completed" || v === "completado" || v === "delivered" || v === "entregado") return "completed";
@@ -313,8 +323,29 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+type MercadoPagoReturnStatus = "success" | "failure" | "pending";
+
+function getMercadoPagoReturnStatus(value: string | null): MercadoPagoReturnStatus | null {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "success" || normalized === "failure" || normalized === "pending") {
+    return normalized;
+  }
+  return null;
+}
+
+function getBackendPaymentStatus(order: Order) {
+  const raw =
+    order.payment_status ||
+    order.status ||
+    order.visual_status ||
+    order.fulfillment_status ||
+    "";
+  return toSpanishStatusLabel(String(raw)) || "Sin confirmar";
+}
+
 export default function ClientOrderDetailPage() {
   const params = useParams<{ order_id?: string }>();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<ToastState>(null);
   const [order, setOrder] = useState<Order | null>(null);
@@ -331,7 +362,6 @@ export default function ClientOrderDetailPage() {
   const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
   const [deliveryCodeLoading, setDeliveryCodeLoading] = useState(false);
   const [deliveryCodeError, setDeliveryCodeError] = useState<string | null>(null);
-  const [focusDeliveryCode, setFocusDeliveryCode] = useState(false);
   const [deliveryCodeHighlighted, setDeliveryCodeHighlighted] = useState(false);
   const deliveryCodeRef = useRef<HTMLDivElement>(null);
 
@@ -340,6 +370,8 @@ export default function ClientOrderDetailPage() {
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 ? n : null;
   }, [params?.order_id]);
+  const mercadoPagoReturnStatus = getMercadoPagoReturnStatus(searchParams.get("status"));
+  const focusDeliveryCode = searchParams.get("focus") === "delivery-code";
 
   const closeToast = () => setToast(null);
 
@@ -392,12 +424,6 @@ export default function ClientOrderDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    setFocusDeliveryCode(params.get("focus") === "delivery-code");
-  }, []);
 
   const latestHistoryKey = useMemo(() => pickLatestHistoryKey(history), [history]);
   const paymentMethod = useMemo(() => getPaymentMethodKey(order), [order]);
@@ -546,6 +572,42 @@ export default function ClientOrderDetailPage() {
           </div>
         ) : (
           <>
+            {mercadoPagoReturnStatus ? (
+              <div
+                role="status"
+                className={
+                  mercadoPagoReturnStatus === "success"
+                    ? "rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-950"
+                    : mercadoPagoReturnStatus === "pending"
+                      ? "rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950"
+                      : "rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-red-950"
+                }
+              >
+                <div className="flex items-start gap-3">
+                  {mercadoPagoReturnStatus === "success" ? (
+                    <BadgeCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                  ) : mercadoPagoReturnStatus === "pending" ? (
+                    <Clock className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                  )}
+                  <div>
+                    <div className="font-bold font-[family-name:var(--font-varela-round)]">
+                      {mercadoPagoReturnStatus === "success"
+                        ? "Mercado Pago reportó un pago exitoso"
+                        : mercadoPagoReturnStatus === "pending"
+                          ? "Mercado Pago reportó un pago pendiente"
+                          : "Mercado Pago reportó un pago rechazado"}
+                    </div>
+                    <p className="mt-1 text-sm leading-relaxed">
+                      El resultado de regreso es informativo. Estado confirmado por Drooopy:{" "}
+                      <strong>{getBackendPaymentStatus(order)}</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
               <div
                 className="px-5 py-5 text-white sm:px-6"

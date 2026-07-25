@@ -16,6 +16,8 @@ import {
   LogOut,
   LayoutDashboard,
   ShoppingCart,
+  PackageCheck,
+  Heart,
   BarChart3,
   Store,
   Truck,
@@ -77,6 +79,24 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
       path: "/admin/profile", 
       icon: User,
       roles: ['admin', 'superuser', 'supplier', 'seller', 'client']
+    },
+    {
+      title: "Mis Pedidos",
+      path: "/client/orders",
+      icon: PackageCheck,
+      roles: ['admin', 'superuser']
+    },
+    {
+      title: "Mi Carrito",
+      path: "/cart",
+      icon: ShoppingCart,
+      roles: ['admin', 'superuser']
+    },
+    {
+      title: "Favoritos",
+      path: "/client/favorites",
+      icon: Heart,
+      roles: ['admin', 'superuser']
     },
     {
       title: "Contenido",
