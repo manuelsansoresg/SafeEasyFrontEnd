@@ -15,6 +15,7 @@ type ApiPlan = {
   features?: unknown;
   duration: PlanDuration;
   is_active?: boolean;
+  is_directory?: boolean;
   max_active_products?: number | null;
   max_images_per_product?: number | null;
 };
@@ -26,6 +27,7 @@ type SellPlan = {
   period: string;
   description: string;
   featureLines: string[];
+  isDirectory: boolean;
   maxActiveProducts: number | null;
   maxImagesPerProduct: number | null;
 };
@@ -42,6 +44,7 @@ const fallbackPlans: SellPlan[] = [
       'Soporte por correo',
       'Acceso al mercado global',
     ],
+    isDirectory: false,
     maxActiveProducts: 500,
     maxImagesPerProduct: 5,
   },
@@ -57,6 +60,7 @@ const fallbackPlans: SellPlan[] = [
       'Soporte prioritario 24/7',
       'Analíticas avanzadas',
     ],
+    isDirectory: false,
     maxActiveProducts: 2000,
     maxImagesPerProduct: 15,
   },
@@ -95,6 +99,7 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => ({
   period: formatPeriod(plan.duration),
   description: plan.description || 'Plan diseñado para impulsar su negocio.',
   featureLines: normalizePlanFeatures(plan.features, plan.description),
+  isDirectory: Boolean(plan.is_directory),
   maxActiveProducts:
     typeof plan.max_active_products === 'number' && Number.isFinite(plan.max_active_products)
       ? plan.max_active_products
@@ -161,7 +166,7 @@ type PlanCardProps = {
 };
 
 const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
-  const productValue = formatLimitValue(plan.maxActiveProducts);
+  const productValue = plan.isDirectory ? null : formatLimitValue(plan.maxActiveProducts);
   const imageValue = formatLimitValue(plan.maxImagesPerProduct);
   const showLimits = productValue !== null || imageValue !== null;
 
@@ -225,7 +230,7 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
         </div>
 
         {showLimits && (
-          <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className={`mt-6 grid gap-3 ${productValue !== null && imageValue !== null ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {productValue !== null && (
               <LimitStat
                 icon={<Package className="h-[18px] w-[18px]" />}
@@ -238,7 +243,7 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
               <LimitStat
                 icon={<ImageIcon className="h-[18px] w-[18px]" />}
                 value={imageValue}
-                label="Imágenes por producto"
+                label={plan.isDirectory ? 'Imágenes de servicios' : 'Imágenes por producto'}
                 highlight={highlight}
               />
             )}
