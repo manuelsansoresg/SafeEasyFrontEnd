@@ -367,7 +367,7 @@ export default function SellPlans({ accessCode = '', referralCode = '' }: SellPl
           </p>
         </div>
 
-        <div className="mx-auto grid max-w-5xl grid-cols-1 items-stretch gap-6 md:grid-cols-2 md:gap-8">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 items-stretch gap-6 md:grid-cols-2 md:gap-7 xl:grid-cols-3">
           {isLoading &&
             fallbackPlans.map((plan, index) => (
               <PlanCard
@@ -379,7 +379,7 @@ export default function SellPlans({ accessCode = '', referralCode = '' }: SellPl
             ))}
 
           {!isLoading && plans.length === 0 && (
-            <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm md:col-span-2">
+            <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm md:col-span-2 xl:col-span-3">
               <h3 className="text-2xl font-bold text-gray-900">No hay planes disponibles</h3>
               <p className="mt-3 text-gray-600">
                 En este momento no hay planes activos para mostrar.
