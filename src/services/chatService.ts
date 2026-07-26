@@ -1,6 +1,16 @@
 import { fetchWithAuth } from "@/lib/api";
 import { Conversation, Message, CreateConversationParams } from "@/types/chat";
 
+export class ChatRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "ChatRequestError";
+  }
+}
+
 interface ApiConversation {
   id: number;
   unread_count?: number;
@@ -216,7 +226,17 @@ export const chatService = {
         params,
       });
 
-      throw new Error(detail || `No se pudo crear la conversación (${res.status}).`);
+      const statusMessage =
+        res.status === 401
+          ? "Debes iniciar sesión para contactar al proveedor."
+          : res.status === 403
+            ? "Este proveedor no tiene una suscripción activa para recibir nuevos contactos."
+            : res.status === 404
+              ? "Proveedor no encontrado."
+              : res.status === 422
+                ? "La solicitud no contiene un proveedor o producto válido."
+                : detail || `No se pudo crear la conversación (${res.status}).`;
+      throw new ChatRequestError(statusMessage, res.status);
     }
 
     const data: ApiConversation = await res.json();

@@ -92,12 +92,24 @@ const getBaseUrlCandidates = () => {
   const internal = ensureAuthApiRoot(process.env.API_INTERNAL_URL || "");
   const publicUrl = ensureAuthApiRoot(process.env.NEXT_PUBLIC_API_BASE_URL || "");
   const candidates = [internal, publicUrl];
+  const usesExplicitLocalBackend =
+    process.env.NODE_ENV !== "production" &&
+    [internal, publicUrl].some((candidate) => {
+      if (!candidate) return false;
+      try {
+        return isLocalHostname(new URL(candidate).hostname);
+      } catch {
+        return false;
+      }
+    });
 
   if (process.env.NODE_ENV !== "production") {
     candidates.push("http://localhost:8000", "http://127.0.0.1:8000");
   }
 
-  candidates.push("https://drooopy.com/api");
+  if (!usesExplicitLocalBackend) {
+    candidates.push("https://drooopy.com/api");
+  }
   return Array.from(new Set(candidates.filter(Boolean)));
 };
 

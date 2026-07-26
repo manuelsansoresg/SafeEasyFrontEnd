@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Home, ShoppingCart, MessageSquare, User, Package, Users } from "lucide-react";
+import { BriefcaseBusiness, Home, ShoppingCart, MessageSquare, User, Package, Users } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useSupplierPageModeStore } from "@/store/useSupplierPageModeStore";
 
 export function MobileNav() {
   const pathname = usePathname();
   const { user } = useAuthStore();
+  const isDirectorySupplier = useSupplierPageModeStore((state) => state.isDirectory);
   const hasPanelAccess = user?.role === "admin" || user?.role === "supplier";
   
   let accountHref = "/login";
@@ -24,7 +26,11 @@ export function MobileNav() {
     pathname.startsWith("/empresas/") ?
       [
         { href: "/", label: "Inicio", icon: Home },
-        { href: `${pathname}#productos`, label: "Productos", icon: Package },
+        {
+          href: `${pathname}${isDirectorySupplier ? "#servicios" : "#productos"}`,
+          label: isDirectorySupplier ? "Servicios" : "Productos",
+          icon: isDirectorySupplier ? BriefcaseBusiness : Package,
+        },
         { href: `${pathname}#nosotros`, label: "Nosotros", icon: Users },
         { href: `${pathname}#contacto`, label: "Contacto", icon: MessageSquare },
         { href: accountHref, label: "Mi Cuenta", icon: User },

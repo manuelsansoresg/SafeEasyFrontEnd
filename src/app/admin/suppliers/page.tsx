@@ -21,6 +21,7 @@ import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import { fetchWithAuth } from "@/lib/api";
 import type { Plan, Subscription } from "@/types/subscriptions";
 
 interface Supplier {
@@ -37,10 +38,25 @@ interface Supplier {
   is_active: boolean;
   is_verified?: boolean;
   user_id: number;
+  userId?: number;
+  owner_id?: number;
+  email?: string;
+  user?: {
+    id?: number;
+    email?: string;
+  };
+  profile_pending?: boolean;
 }
 
 interface UserSummary {
+  id: number;
   email?: string;
+  name?: string;
+  full_name?: string;
+  role?: string | { name?: string; slug?: string; key?: string };
+  role_name?: string;
+  user_role?: string;
+  is_active?: boolean;
 }
 
 const apiUrl = (path: string) => {
@@ -51,6 +67,28 @@ const apiUrl = (path: string) => {
 const authHeaders = (token: string) => ({
   "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
 });
+
+const unwrapArray = <T,>(data: unknown, keys: string[]): T[] => {
+  if (Array.isArray(data)) return data as T[];
+  if (!data || typeof data !== "object") return [];
+  const record = data as Record<string, unknown>;
+  for (const key of keys) {
+    if (Array.isArray(record[key])) return record[key] as T[];
+  }
+  return [];
+};
+
+const isSupplierRole = (role: unknown) =>
+  ["supplier", "proveedor", "provider", "vendor"].includes(
+    String(role || "").trim().toLowerCase(),
+  );
+
+const getUserRole = (user: UserSummary) => {
+  if (user.role && typeof user.role === "object") {
+    return user.role.name ?? user.role.slug ?? user.role.key;
+  }
+  return user.role ?? user.role_name ?? user.user_role;
+};
 
 const subscriptionBadge = (subscription?: Subscription, options?: { loading?: boolean; error?: boolean }) => {
   if (options?.loading) {
@@ -113,47 +151,170 @@ export default function AdminSuppliersPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const headers = {
-        ...authHeaders(token),
-        Accept: "application/json",
-      };
-      const response = await fetch(apiUrl(`/suppliers/?skip=${skip}&limit=${limit}`), { headers });
+      const [response, usersResponse] = await Promise.all([
+        fetchWithAuth(`/api/suppliers/?skip=${skip}&limit=${limit}`),
+        fetchWithAuth("/api/users/?skip=0&limit=1000"),
+      ]);
       
       if (response.ok) {
+        if (!usersResponse.ok) {
+          throw new Error(
+            "No se pudieron cargar los roles de usuario para filtrar proveedores.",
+          );
+        }
         const data = await response.json();
-        const next = Array.isArray(data) ? (data as Supplier[]) : [];
-        const userIds = [...new Set(
-          next
-            .map((supplier) => Number(supplier.user_id))
-            .filter((userId) => Number.isFinite(userId))
-        )];
-        const linkedUsers = await Promise.all(
-          userIds.map(async (userId) => {
-            try {
-              const userResponse = await fetch(apiUrl(`/users/${userId}`), { headers });
-              if (!userResponse.ok) return [userId, ""] as const;
-              const linkedUser = (await userResponse.json()) as UserSummary;
-              return [userId, linkedUser.email || ""] as const;
-            } catch {
-              return [userId, ""] as const;
-            }
-          })
+        const allSupplierProfiles = unwrapArray<Supplier>(data, [
+          "items",
+          "results",
+          "data",
+          "suppliers",
+        ]);
+        const users = unwrapArray<UserSummary>(await usersResponse.json(), [
+          "items",
+          "results",
+          "data",
+          "users",
+        ]);
+        const usersById = new Map(
+          users
+            .map((linkedUser) => [Number(linkedUser.id), linkedUser] as const)
+            .filter(([userId]) => Number.isFinite(userId)),
         );
-        const emailByUserId = new Map(linkedUsers);
+        const usersByEmail = new Map(
+          users
+            .filter((linkedUser) => linkedUser.email?.trim())
+            .map((linkedUser) => [
+              String(linkedUser.email).trim().toLowerCase(),
+              linkedUser,
+            ]),
+        );
+        const supplierUsers = users.filter((candidate) =>
+          isSupplierRole(getUserRole(candidate)),
+        );
+        const supplierUserIds = new Set(
+          supplierUsers.map((candidate) => Number(candidate.id)),
+        );
+        const normalizeSupplierProfile = (supplier: Supplier) => {
+          const email = String(
+            supplier.user_email ?? supplier.email ?? supplier.user?.email ?? "",
+          )
+            .trim()
+            .toLowerCase();
+          const matchedUser = email ? usersByEmail.get(email) : undefined;
+          const linkedUserId = Number(
+            supplier.user_id ??
+              supplier.userId ??
+              supplier.owner_id ??
+              supplier.user?.id ??
+              matchedUser?.id,
+          );
+          return {
+            ...supplier,
+            user_id: linkedUserId,
+            user_email:
+              supplier.user_email ||
+              supplier.email ||
+              supplier.user?.email ||
+              matchedUser?.email ||
+              "",
+          };
+        };
+        const normalizedGeneralProfiles = allSupplierProfiles.map(
+          normalizeSupplierProfile,
+        );
+        const generallyLinkedUserIds = new Set(
+          normalizedGeneralProfiles
+            .map((supplier) => Number(supplier.user_id))
+            .filter((userId) => Number.isFinite(userId)),
+        );
+        const unresolvedSupplierUsers = supplierUsers.filter(
+          (candidate) => !generallyLinkedUserIds.has(Number(candidate.id)),
+        );
+        const directlyResolvedProfiles = (
+          await Promise.all(
+            unresolvedSupplierUsers.map(async (candidate) => {
+              const userId = Number(candidate.id);
+              if (!Number.isFinite(userId)) return [];
+              const directResponse = await fetchWithAuth(
+                `/api/suppliers/?skip=0&limit=10&user_id=${userId}`,
+              );
+              if (!directResponse.ok) return [];
+              const directData = await directResponse.json();
+              return unwrapArray<Supplier>(directData, [
+                "items",
+                "results",
+                "data",
+                "suppliers",
+              ]).map(normalizeSupplierProfile);
+            }),
+          )
+        ).flat();
+        const profilesById = new Map<number, Supplier>();
+        for (const supplier of [
+          ...normalizedGeneralProfiles,
+          ...directlyResolvedProfiles,
+        ]) {
+          if (Number.isFinite(Number(supplier.id))) {
+            profilesById.set(Number(supplier.id), supplier);
+          }
+        }
+        const latestProfileByUserId = new Map<number, Supplier>();
+        for (const supplier of profilesById.values()) {
+          const linkedUserId = Number(supplier.user_id);
+          if (!Number.isFinite(linkedUserId)) continue;
+          const current = latestProfileByUserId.get(linkedUserId);
+          if (!current || Number(supplier.id) > Number(current.id)) {
+            latestProfileByUserId.set(linkedUserId, supplier);
+          }
+        }
+        const normalizedSupplierProfiles = Array.from(
+          latestProfileByUserId.values(),
+        );
+        const next = normalizedSupplierProfiles.filter((supplier) =>
+          supplierUserIds.has(Number(supplier.user_id)),
+        );
+        const linkedUserIds = new Set(next.map((supplier) => Number(supplier.user_id)));
         const nextWithUserEmail = next.map((supplier) => ({
           ...supplier,
-          user_email: emailByUserId.get(Number(supplier.user_id)) || "",
+          user_email:
+            supplier.user_email ||
+            usersById.get(Number(supplier.user_id))?.email ||
+            "",
         }));
+        const pendingSupplierUsers: Supplier[] = supplierUsers
+          .filter(
+            (candidate) =>
+              !linkedUserIds.has(Number(candidate.id)),
+          )
+          .map((candidate) => ({
+            id: -Number(candidate.id),
+            user_id: Number(candidate.id),
+            name:
+              candidate.full_name?.trim() ||
+              candidate.name?.trim() ||
+              candidate.email?.split("@")[0] ||
+              `Usuario #${candidate.id}`,
+            user_email: candidate.email || "",
+            country: "",
+            is_active: candidate.is_active !== false,
+            is_verified: false,
+            profile_pending: true,
+          }));
+        const combined = [...pendingSupplierUsers, ...nextWithUserEmail];
         setSuppliers((prev) => {
           const prevById = new Map(prev.map((s) => [Number(s.id), s]));
-          return nextWithUserEmail.map((s) => {
+          return combined.map((s) => {
             const prevRow = prevById.get(Number(s.id));
             const hasIncomingVerified = typeof s.is_verified === "boolean";
             const preserved = hasIncomingVerified ? s.is_verified : prevRow?.is_verified;
             return typeof preserved === "boolean" ? { ...s, is_verified: preserved } : s;
           });
         });
-        setSelectedIds((prev) => prev.filter((id) => next.some((supplier) => supplier.id === id)));
+        setSelectedIds((prev) =>
+          prev.filter((id) =>
+            next.some((supplier) => supplier.id === id),
+          ),
+        );
       } else {
         console.error("Failed to fetch suppliers:", response.status, response.statusText);
         try {
@@ -165,6 +326,7 @@ export default function AdminSuppliersPage() {
       }
     } catch (error) {
       console.error("Error fetching suppliers:", error);
+      setSuppliers([]);
     } finally {
       setLoading(false);
     }
@@ -350,13 +512,18 @@ export default function AdminSuppliersPage() {
     ].some((value) => value?.toLowerCase().includes(term));
   });
 
-  const allSelected = filteredSuppliers.length > 0 && filteredSuppliers.every((supplier) => selectedIds.includes(supplier.id));
+  const selectableSuppliers = filteredSuppliers.filter(
+    (supplier) => !supplier.profile_pending,
+  );
+  const allSelected =
+    selectableSuppliers.length > 0 &&
+    selectableSuppliers.every((supplier) => selectedIds.includes(supplier.id));
 
   const toggleSelectAll = () => {
     if (allSelected) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(filteredSuppliers.map((s) => s.id));
+      setSelectedIds(selectableSuppliers.map((s) => s.id));
     }
   };
 
@@ -683,7 +850,8 @@ export default function AdminSuppliersPage() {
                             type="checkbox"
                             checked={selectedIds.includes(supplier.id)}
                             onChange={() => toggleSelect(supplier.id)}
-                            className="h-4 w-4 text-primary border-gray-300 rounded"
+                            disabled={supplier.profile_pending}
+                            className="h-4 w-4 text-primary border-gray-300 rounded disabled:cursor-not-allowed disabled:opacity-30"
                           />
                         </td>
                         <td className="px-6 py-4">
@@ -691,6 +859,11 @@ export default function AdminSuppliersPage() {
                           {supplier.short_name && (
                             <div className="text-xs text-gray-400">{supplier.short_name}</div>
                           )}
+                          {supplier.profile_pending ? (
+                            <div className="mt-1 text-xs font-medium text-amber-700">
+                              Perfil empresarial pendiente
+                            </div>
+                          ) : null}
                           <div className="md:hidden text-xs text-gray-500 mt-1">
                             {supplier.phone}
                           </div>
@@ -701,15 +874,25 @@ export default function AdminSuppliersPage() {
                         <td className="px-6 py-4 text-center">
                           <span className={cn(
                             "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border",
-                            supplier.is_active 
+                            supplier.profile_pending
+                              ? "bg-amber-50 text-amber-700 border-amber-100"
+                              : supplier.is_active
                               ? "bg-green-50 text-green-700 border-green-100" 
                               : "bg-gray-50 text-gray-600 border-gray-100"
                           )}>
-                            {supplier.is_active ? "Activo" : "Inactivo"}
+                            {supplier.profile_pending
+                              ? "Pendiente"
+                              : supplier.is_active
+                                ? "Activo"
+                                : "Inactivo"}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
-                          {(() => {
+                          {supplier.profile_pending ? (
+                            <span className="inline-flex items-center rounded-full border border-amber-100 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                              Sin perfil
+                            </span>
+                          ) : (() => {
                             const badge = subscriptionBadge(subscriptionsBySupplier[supplier.id], {
                               loading: loadingSubscriptions,
                               error: subscriptionsError,
@@ -730,11 +913,23 @@ export default function AdminSuppliersPage() {
                                 : "border-gray-100 bg-gray-50 text-gray-600"
                             )}
                           >
-                            {supplier.is_verified ? "Verificado" : "Sin verificar"}
+                            {supplier.profile_pending
+                              ? "Pendiente"
+                              : supplier.is_verified
+                                ? "Verificado"
+                                : "Sin verificar"}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          {supplier.profile_pending ? (
+                            <Link
+                              href={`/admin/suppliers/create?user_id=${supplier.user_id}`}
+                              className="inline-flex items-center rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+                            >
+                              Completar perfil
+                            </Link>
+                          ) : (
+                            <div className="flex items-center justify-end gap-2">
                             {isAdminUser ? (
                               <button
                                 type="button"
@@ -787,7 +982,8 @@ export default function AdminSuppliersPage() {
                             >
                               <Trash2 size={18} />
                             </button>
-                          </div>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     </Fragment>
@@ -807,19 +1003,33 @@ export default function AdminSuppliersPage() {
                       type="checkbox"
                       checked={selectedIds.includes(supplier.id)}
                       onChange={() => toggleSelect(supplier.id)}
-                      className="mt-1 h-4 w-4 rounded border-gray-300 text-primary"
+                      disabled={supplier.profile_pending}
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-primary disabled:cursor-not-allowed disabled:opacity-30"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h3 className="break-words text-sm font-semibold text-gray-900">{supplier.name}</h3>
                           {supplier.short_name ? <p className="mt-1 text-xs text-gray-400">{supplier.short_name}</p> : null}
+                          {supplier.profile_pending ? (
+                            <p className="mt-1 text-xs font-medium text-amber-700">
+                              Perfil empresarial pendiente
+                            </p>
+                          ) : null}
                         </div>
                         <span className={cn(
                           "shrink-0 inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
-                          supplier.is_active ? "bg-green-50 text-green-700 border-green-100" : "bg-gray-50 text-gray-600 border-gray-100"
+                          supplier.profile_pending
+                            ? "border-amber-100 bg-amber-50 text-amber-700"
+                            : supplier.is_active
+                              ? "bg-green-50 text-green-700 border-green-100"
+                              : "bg-gray-50 text-gray-600 border-gray-100"
                         )}>
-                          {supplier.is_active ? "Activo" : "Inactivo"}
+                          {supplier.profile_pending
+                            ? "Pendiente"
+                            : supplier.is_active
+                              ? "Activo"
+                              : "Inactivo"}
                         </span>
                       </div>
 
@@ -843,7 +1053,11 @@ export default function AdminSuppliersPage() {
                         <div className="col-span-2 rounded-xl bg-gray-50 p-2">
                           <div className="font-semibold uppercase tracking-wide text-gray-400">Suscripción</div>
                           <div className="mt-1">
-                            {(() => {
+                            {supplier.profile_pending ? (
+                              <span className="inline-flex rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                                Sin perfil
+                              </span>
+                            ) : (() => {
                               const badge = subscriptionBadge(subscriptionsBySupplier[supplier.id], {
                                 loading: loadingSubscriptions,
                                 error: subscriptionsError,
@@ -860,7 +1074,9 @@ export default function AdminSuppliersPage() {
 
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <div className="text-xs text-gray-500">
-                          {supplier.is_verified ? (
+                          {supplier.profile_pending ? (
+                            <span className="font-medium text-amber-700">Perfil pendiente</span>
+                          ) : supplier.is_verified ? (
                             <span className="inline-flex items-center gap-1 text-[#168e00]">
                               <CheckCircle size={14} />
                               Verificado
@@ -869,7 +1085,15 @@ export default function AdminSuppliersPage() {
                             "Sin verificar"
                           )}
                         </div>
-                        <div className="flex gap-2">
+                        {supplier.profile_pending ? (
+                          <Link
+                            href={`/admin/suppliers/create?user_id=${supplier.user_id}`}
+                            className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                          >
+                            Completar perfil
+                          </Link>
+                        ) : (
+                          <div className="flex gap-2">
                           {isAdminUser ? (
                             <button
                               type="button"
@@ -897,7 +1121,8 @@ export default function AdminSuppliersPage() {
                           <button type="button" onClick={() => handleDelete(supplier.id)} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500" title="Eliminar">
                             <Trash2 size={18} />
                           </button>
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

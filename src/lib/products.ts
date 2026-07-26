@@ -47,6 +47,9 @@ export interface Supplier {
   exterior_number: string | null;
   interior_number: string | null;
   neighborhood: string | null;
+  cp?: string | null;
+  cross_street_1?: string | null;
+  cross_street_2?: string | null;
   user_id: number;
   logo: string | null;
   about_media: string | null;
@@ -68,6 +71,17 @@ export interface Supplier {
   header_video?: string;
   primary_color?: string;
   business_hours?: BusinessHour[];
+  is_directory?: boolean;
+  subscription_is_directory?: boolean;
+  plan_is_directory?: boolean;
+  subscription?: {
+    status?: string;
+    end_date?: string;
+    is_directory?: boolean;
+    plan?: {
+      is_directory?: boolean;
+    };
+  } | null;
 }
 
 export interface CarouselImage {

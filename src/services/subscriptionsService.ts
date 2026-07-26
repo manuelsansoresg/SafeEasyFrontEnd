@@ -277,10 +277,35 @@ export const subscriptionsService = {
   },
 
   async updateManual(subscriptionId: number, payload: UpdateManualSubscriptionPayload) {
-    const response = await fetchWithAuth(`/api/subscriptions/admin/${subscriptionId}`, {
+    const options = {
       method: "PATCH",
       body: JSON.stringify(payload),
-    });
+    };
+    const tryUrls = [
+      `/api/subscriptions/admin/${subscriptionId}`,
+      `/api/subscriptions/admin/${subscriptionId}/`,
+      apiUrl(`/subscriptions/admin/${subscriptionId}`),
+      apiUrl(`/subscriptions/admin/${subscriptionId}/`),
+    ];
+    let response: Response | null = null;
+    for (const url of tryUrls) {
+      response = await fetchWithAuth(url, options);
+      if (response.ok) break;
+      if (response.status !== 404 && response.status !== 405) break;
+    }
+
+    if (response?.status === 404 || response?.status === 405) {
+      throw new SubscriptionRequestError(
+        "La modificación administrativa de suscripciones aún no está disponible en el backend publicado.",
+        response.status,
+      );
+    }
+    if (!response) {
+      throw new SubscriptionRequestError(
+        "No se pudo conectar con el servicio de suscripciones.",
+        0,
+      );
+    }
     await requireOk(response, "No se pudo modificar la subscripción.");
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return readJson<unknown>(response);

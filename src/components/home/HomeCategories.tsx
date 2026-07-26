@@ -170,7 +170,8 @@ export function HomeCategories() {
           const data = await res.json();
           const catData = extractList(data).map(toCategory).filter((category): category is Category => Boolean(category));
           setCategories(catData);
-          await fetchProductCounts(catData);
+          setLoading(false);
+          void fetchProductCounts(catData);
         }
       } catch (error) {
         console.error("Error fetching categories:", error);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useController, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Loader2, Save, X } from "lucide-react";
 import { subscriptionsService } from "@/services/subscriptionsService";
@@ -55,9 +55,15 @@ const toDateTimeInputValue = (iso: string | null | undefined) => {
 
 const toIso = (value: string) => new Date(value).toISOString();
 
+const getSubscriptionPlanId = (subscription: Subscription | null) => {
+  const value = subscription?.plan_id ?? subscription?.plan?.id;
+  const planId = Number(value);
+  return Number.isInteger(planId) && planId > 0 ? planId : 0;
+};
+
 const getInitialValues = (subscription: Subscription | null): FormValues => ({
   status: subscription?.status ?? "active",
-  plan_id: subscription?.plan_id ?? 0,
+  plan_id: getSubscriptionPlanId(subscription),
   start_date: toDateTimeInputValue(subscription?.start_date),
   end_date: toDateTimeInputValue(subscription?.end_date),
   assignment_type: "support",
@@ -76,11 +82,31 @@ export default function EditSubscriptionModal({
   const [plans, setPlans] = useState<Plan[]>([]);
 
   const initialValues = useMemo(() => getInitialValues(subscription), [subscription]);
-  const { register, handleSubmit, reset } = useForm<FormValues>({
+  const { register, handleSubmit, reset, control } = useForm<FormValues>({
     mode: "onSubmit",
     reValidateMode: "onBlur",
     defaultValues: initialValues,
   });
+  const {
+    field: {
+      value: selectedPlanId,
+      onChange: onPlanChange,
+      onBlur: onPlanBlur,
+      name: planFieldName,
+      ref: planFieldRef,
+    },
+  } = useController({
+    control,
+    name: "plan_id",
+  });
+
+  const selectablePlans = useMemo(() => {
+    const currentPlan = subscription?.plan;
+    if (!currentPlan || plans.some((plan) => Number(plan.id) === Number(currentPlan.id))) {
+      return plans;
+    }
+    return [currentPlan, ...plans];
+  }, [plans, subscription?.plan]);
 
   useEffect(() => {
     reset(initialValues);
@@ -124,7 +150,7 @@ export default function EditSubscriptionModal({
     if (parsed.data.status !== subscription.status) {
       payload.status = parsed.data.status;
     }
-    if (parsed.data.plan_id !== subscription.plan_id) {
+    if (parsed.data.plan_id !== getSubscriptionPlanId(subscription)) {
       payload.plan_id = parsed.data.plan_id;
     }
 
@@ -256,11 +282,15 @@ export default function EditSubscriptionModal({
               </label>
               <select
                 id="edit_subscription_plan"
-                {...register("plan_id", { valueAsNumber: true })}
+                name={planFieldName}
+                ref={planFieldRef}
+                value={selectedPlanId || ""}
+                onBlur={onPlanBlur}
+                onChange={(event) => onPlanChange(Number(event.target.value))}
                 disabled={saving || loadingPlans}
                 className="h-11 w-full rounded-xl border border-gray-200 bg-white px-4 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:bg-gray-50"
               >
-                {plans.map((plan) => (
+                {selectablePlans.map((plan) => (
                   <option key={plan.id} value={plan.id}>
                     {plan.title} · {plan.duration === "monthly" ? "Mensual" : "Anual"}
                     {plan.is_active ? "" : " (inactivo)"}

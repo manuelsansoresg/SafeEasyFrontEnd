@@ -4,16 +4,25 @@ import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import Image from "next/image";
 import { Supplier, CarouselImage, Certificate } from "@/lib/products";
-import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, FileText, Award, X, Calendar, ExternalLink, Play, Clock, ArrowDown, Volume2, VolumeX, Search } from "lucide-react";
+import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, Award, X, Calendar, ExternalLink, Play, Clock, ArrowDown, Volume2, VolumeX, Search, BriefcaseBusiness } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { parseMapLocation } from "@/lib/googleMaps";
-import { filterProductsByActiveSupplierSubscription } from "@/lib/subscriptionAccess";
+import {
+  filterProductsByActiveSupplierSubscription,
+  supplierHasDirectorySubscription,
+} from "@/lib/subscriptionAccess";
 import DOMPurify from "isomorphic-dompurify";
+import { useSupplierPageModeStore } from "@/store/useSupplierPageModeStore";
+import { servicesService } from "@/services/servicesService";
+import type { SupplierService } from "@/types/services";
+import { DirectoryRatingsSection } from "@/components/supplier/DirectoryRatingsSection";
+import { DirectoryContactButton } from "@/components/supplier/DirectoryContactButton";
 
 const SupplierLocationMap = dynamic(() => import("@/components/supplier/SupplierLocationMap"), {
   ssr: false,
@@ -253,6 +262,56 @@ interface SupplierProduct {
   subcategory?: SupplierProductSubcategory;
 }
 
+function DirectoryServiceCard({
+  service,
+}: {
+  service: SupplierService;
+}) {
+  const imageUrl =
+    service.cover_thumbnail_url ||
+    service.cover_image_url ||
+    "/placeholder.png";
+
+  return (
+    <article className="group flex h-full flex-col overflow-hidden rounded-[1.65rem] border border-[#004e28]/10 bg-white shadow-[0_18px_50px_-34px_rgba(0,78,40,0.5)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_-30px_rgba(0,78,40,0.62)]">
+      <div className="relative aspect-[1.18/1] overflow-hidden bg-[#e9efeb]">
+        <Image
+          src={imageUrl}
+          alt={`Servicio ${service.title}`}
+          fill
+          unoptimized
+          sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw"
+          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+        />
+      </div>
+
+      <div className="flex flex-1 flex-col p-5">
+        <h3 className="text-lg font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
+          {service.title}
+        </h3>
+        {service.description ? (
+          <p className="mt-2 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-gray-600">
+            {service.description}
+          </p>
+        ) : null}
+        <p className="mt-5 text-sm font-bold text-[#168e00]">
+          Desde{" "}
+          {new Intl.NumberFormat("es-MX", {
+            style: "currency",
+            currency: "MXN",
+          }).format(service.price)}
+        </p>
+        <Link
+          href={`/servicios/${service.id}`}
+          className="mt-5 inline-flex min-h-11 items-center justify-center gap-3 rounded-full border border-[#004e28] bg-white px-4 py-3 text-sm font-semibold text-[#004e28] transition-colors hover:bg-[#004e28] hover:text-white"
+        >
+          Ver servicio
+        </Link>
+      </div>
+    </article>
+  );
+}
+
 interface SupplierRating {
   id: number;
   rating: number;
@@ -330,6 +389,9 @@ export default function SupplierPage() {
   }, []);
 
   const [products, setProducts] = useState<SupplierProduct[]>([]);
+  const [services, setServices] = useState<SupplierService[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [servicesError, setServicesError] = useState<string | null>(null);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -352,8 +414,9 @@ export default function SupplierPage() {
   const [ratingsHasMore, setRatingsHasMore] = useState(false);
   const { syncFavorites } = useFavoritesStore();
   const { token } = useAuthStore();
+  const setDirectoryMode = useSupplierPageModeStore((state) => state.setDirectoryMode);
   
-  const observerTarget = useRef(null);
+  const observerTarget = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -393,8 +456,33 @@ export default function SupplierPage() {
       const identifier = (slug as string) || supplier.slug || String(supplier.id);
       
       if (process.env.NODE_ENV === "development") console.log("Fetching products for identifier:", identifier);
-      fetchProducts(identifier, 1, false);
+      if (supplierHasDirectorySubscription(supplier)) {
+        setProducts([]);
+        setProductsLoading(false);
+        setHasMore(false);
+      } else {
+        fetchProducts(identifier, 1, false);
+      }
       fetchRatings(identifier, 0, false);
+      if (supplierHasDirectorySubscription(supplier)) {
+        setServicesLoading(true);
+        setServicesError(null);
+        servicesService
+          .listPublic({ supplierId: supplier.id, skip: 0, limit: 100 })
+          .then(setServices)
+          .catch((requestError) => {
+            setServices([]);
+            setServicesError(
+              requestError instanceof Error
+                ? requestError.message
+                : "No se pudieron cargar los servicios.",
+            );
+          })
+          .finally(() => setServicesLoading(false));
+      } else {
+        setServices([]);
+        setServicesError(null);
+      }
     }
   }, [supplier?.id, supplier?.slug, slug, token]);
 
@@ -515,7 +603,11 @@ export default function SupplierPage() {
         if (!Number.isFinite(supplierId)) {
           if (!append) setProducts([]);
           setHasMore(false);
-          setProductsError("No se pudieron cargar los productos.");
+          setProductsError(
+            supplierHasDirectorySubscription(supplier)
+              ? "No se pudieron cargar los servicios."
+              : "No se pudieron cargar los productos.",
+          );
           return;
         }
 
@@ -531,7 +623,11 @@ export default function SupplierPage() {
         if (!fallback.ok) {
           if (!append) setProducts([]);
           setHasMore(false);
-          setProductsError("No se pudieron cargar los productos.");
+          setProductsError(
+            supplierHasDirectorySubscription(supplier)
+              ? "No se pudieron cargar los servicios."
+              : "No se pudieron cargar los productos.",
+          );
           return;
         }
 
@@ -557,7 +653,11 @@ export default function SupplierPage() {
       setHasMore(newProducts.length === limit);
     } catch (error) {
       console.error("Error fetching supplier products", error);
-      setProductsError("Error de conexión.");
+      setProductsError(
+        supplierHasDirectorySubscription(supplier)
+          ? "No se pudieron cargar los servicios."
+          : "No se pudieron cargar los productos.",
+      );
       if (!append) setProducts([]);
       setHasMore(false);
     } finally {
@@ -628,6 +728,13 @@ export default function SupplierPage() {
   const sanitizeHtml = (html: string) => {
     if (!html) return "";
     return DOMPurify.sanitize(html);
+  };
+
+  const sanitizeDescriptionHtml = (html: string) => {
+    if (!html) return "";
+    return DOMPurify.sanitize(html, {
+      FORBID_ATTR: ["class", "style"],
+    });
   };
 
   // --- BUSINESS HOURS HELPERS ---
@@ -733,6 +840,7 @@ export default function SupplierPage() {
 
   const businessStatus = getBusinessStatus();
   const groupedHours = groupBusinessHours();
+  const isDirectory = supplierHasDirectorySubscription(supplier);
 
   const filteredProducts = products.filter((product) => {
     const matchesCategory = selectedCategorySlug ? product.category?.slug === selectedCategorySlug : true;
@@ -742,6 +850,44 @@ export default function SupplierPage() {
       : true;
     return matchesCategory && matchesSubcategory && matchesSearch;
   });
+  const filteredServices = services.filter((service) =>
+    searchQuery
+      ? service.title.toLocaleLowerCase("es").includes(
+          searchQuery.toLocaleLowerCase("es"),
+        )
+      : true,
+  );
+  const contactHref = supplier?.phone
+    ? `https://wa.me/${supplier.phone.replace(/[^0-9]/g, "")}`
+    : supplier?.email
+      ? `mailto:${supplier.email}`
+      : null;
+  const hasCustomAboutTitle = Boolean(
+    supplier?.title_about?.trim() &&
+      supplier.title_about.trim().toLowerCase() !== "más que un proveedor,",
+  );
+  const hasCustomAboutSubtitle = Boolean(
+    supplier?.subtitle_about?.trim() &&
+      supplier.subtitle_about.trim().toLowerCase() !== "tu aliado estratégico.",
+  );
+  const hasContactInfo = Boolean(
+    supplier?.phone || supplier?.email || supplier?.address,
+  );
+  const hasBusinessHours = groupedHours.length > 0;
+  const hasLocation = Boolean(mapLocation || supplier?.address);
+  const hasContactSection =
+    hasContactInfo || hasBusinessHours || hasLocation;
+  const hasHeroHighlights = Boolean(
+    (Number(supplier?.rating_count) > 0 &&
+      Number(supplier?.average_rating) > 0) ||
+      Number(supplier?.sales_count) > 0 ||
+      supplier?.is_verified,
+  );
+  const useDirectoryPresentation = false;
+  useEffect(() => {
+    setDirectoryMode(isDirectory);
+    return () => setDirectoryMode(false);
+  }, [isDirectory, setDirectoryMode]);
 
   if (loading)
     return (
@@ -759,7 +905,10 @@ export default function SupplierPage() {
     <div className="min-h-screen bg-[#ffffff] font-sans selection:bg-[#168e00] selection:text-white">
       
       {/* --- HERO SECTION --- */}
-      <section className="relative w-full h-[92svh] min-h-[760px] md:h-[90vh] md:min-h-[680px] bg-black overflow-hidden group">
+      <section
+        id="inicio"
+        className="relative h-[92svh] min-h-[760px] w-full scroll-mt-20 overflow-hidden bg-black group md:h-[90vh] md:min-h-[680px]"
+      >
          {/* Media Background */}
          {supplier.header_media_type === 'video' && supplier.header_video ? (
              <video 
@@ -782,52 +931,70 @@ export default function SupplierPage() {
          <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/45 to-transparent z-10" />
 
          {/* Content */}
-         <div className="absolute inset-0 z-20 flex flex-col justify-center px-6 md:px-20 lg:px-32 items-center md:items-start text-center md:text-left pb-28 md:pb-0">
-             <div className="animate-in fade-in slide-in-from-left-10 duration-1000 w-full max-w-4xl">
+         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 pb-28 text-center md:items-start md:px-20 md:pb-0 md:text-left lg:px-32">
+             <div className="animate-in fade-in slide-in-from-left-10 w-full max-w-4xl duration-1000">
                 {supplierLogo && (
-                    <div className="mb-8 w-24 h-24 md:w-32 md:h-32 bg-white/10 backdrop-blur-md rounded-3xl p-4 border border-white/20 shadow-2xl mx-auto md:mx-0">
+                    <div className="mx-auto mb-8 h-24 w-24 rounded-3xl border border-white/20 bg-white/10 p-4 shadow-2xl backdrop-blur-md md:mx-0 md:h-32 md:w-32">
                         <img src={getImageUrl(supplierLogo)} alt={supplier.name} className="w-full h-full object-contain drop-shadow-md" />
                     </div>
                 )}
                 
-                <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-9xl font-black text-white mb-6 tracking-tighter drop-shadow-2xl font-[family-name:var(--font-varela-round)] uppercase leading-[0.9]">
+                <h1 className="mb-6 text-4xl font-black uppercase leading-[0.9] tracking-tighter text-white drop-shadow-2xl font-[family-name:var(--font-varela-round)] sm:text-5xl md:text-7xl lg:text-9xl">
                    {supplier.name}
                 </h1>
                 
-                <p className="text-base sm:text-xl md:text-2xl text-gray-100 max-w-2xl font-light leading-relaxed drop-shadow-lg font-[family-name:var(--font-poppins)] border-l-0 md:border-l-4 border-[#168e00] pl-0 md:pl-6 mb-10 mx-auto md:mx-0">
-                   {supplier.short_description || "Innovación y calidad en cada producto. Tu socio estratégico de confianza."}
-                </p>
+                {supplier.short_description ? (
+                  <p className="mx-auto mb-10 max-w-2xl border-l-0 border-[#168e00] pl-0 text-base font-light leading-relaxed text-gray-100 drop-shadow-lg font-[family-name:var(--font-poppins)] sm:text-xl md:mx-0 md:border-l-4 md:pl-6 md:text-2xl">
+                    {supplier.short_description}
+                  </p>
+                ) : null}
 
-                <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-stretch sm:items-center justify-center md:justify-start w-full mb-8">
-                    <a href="#productos" className="w-full sm:w-auto px-8 py-4 bg-[#168e00] hover:bg-[#137a00] text-white rounded-full font-bold text-lg transition-all shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] hover:-translate-y-1 inline-flex items-center justify-center gap-2 font-[family-name:var(--font-varela-round)]">
-                        Ver Catálogo <ArrowDown size={20} />
-                    </a>
-                    <a href="#contacto" className="w-full sm:w-auto px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-full font-bold text-lg transition-all hover:-translate-y-1 inline-flex items-center justify-center font-[family-name:var(--font-varela-round)]">
-                        Contactar Ahora
-                    </a>
+                <div className="mb-8 flex w-full flex-col flex-wrap items-stretch justify-center gap-4 sm:flex-row sm:items-center md:justify-start">
+                      {!isDirectory ? (
+                        <a href={isDirectory ? "#servicios" : "#productos"} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#168e00] px-8 py-4 text-lg font-bold text-white shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] transition-all hover:-translate-y-1 hover:bg-[#137a00] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] font-[family-name:var(--font-varela-round)] sm:w-auto">
+                            {isDirectory ? "Servicios" : "Ver Catálogo"} <ArrowDown size={20} />
+                        </a>
+                      ) : null}
+                      {isDirectory ? (
+                        <DirectoryContactButton
+                          supplierId={supplier.id}
+                          supplierName={supplier.name}
+                          supplierSlug={supplier.slug}
+                          supplierImage={supplierLogo}
+                          returnPath={`/empresas/${supplier.slug || supplier.id}`}
+                        />
+                      ) : null}
+                      {hasContactSection ? (
+                        <a href="#contacto" className="inline-flex w-full items-center justify-center rounded-full border border-white/30 bg-white/10 px-8 py-4 text-lg font-bold text-white backdrop-blur-md transition-all hover:-translate-y-1 hover:bg-white/20 font-[family-name:var(--font-varela-round)] sm:w-auto">
+                          {isDirectory ? "Contacto" : "Contactar Ahora"}
+                        </a>
+                      ) : null}
                 </div>
              </div>
          </div>
 
          {/* Floating Stats Bar */}
-         <div className="absolute bottom-0 left-0 w-full z-30 border-t border-white/10 bg-black/20 backdrop-blur-xl">
-             <div className="container mx-auto px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-8 items-center">
-                 <div className="text-center md:text-left">
-                     <div className="text-[#168e00] text-3xl font-black font-[family-name:var(--font-varela-round)]">{supplier.average_rating ? supplier.average_rating.toFixed(1) : "5.0"}</div>
-                     <div className="text-white/60 text-xs uppercase tracking-widest font-bold">Calificación</div>
-                 </div>
-                 <div className="text-center md:text-left">
-                     <div className="text-white text-3xl font-black font-[family-name:var(--font-varela-round)]">{supplier.sales_count ? `+${supplier.sales_count}` : "+500"}</div>
-                     <div className="text-white/60 text-xs uppercase tracking-widest font-bold">Ventas Exitosas</div>
-                 </div>
-                 <div className="text-center md:text-left">
-                     <div className="text-white text-2xl md:text-3xl font-black font-[family-name:var(--font-varela-round)] flex flex-col items-center md:items-start justify-center md:justify-start leading-none gap-1">
-                        <span>Atención</span>
-                        <span className="text-[#168e00]">Personalizada</span>
-                     </div>
-                 </div>
+         {hasHeroHighlights ? (
+         <div className="absolute bottom-0 left-0 z-30 w-full border-t border-white/10 bg-black/20 backdrop-blur-xl">
+             <div className="container mx-auto flex flex-wrap items-center gap-10 px-6 py-6 md:gap-16">
+                 {Number(supplier.rating_count) > 0 && Number(supplier.average_rating) > 0 ? (
+                   <div className="text-center md:text-left">
+                       <div className="text-3xl font-black text-[#168e00] font-[family-name:var(--font-varela-round)]">{supplier.average_rating?.toFixed(1)}</div>
+                       <div className="text-white/60 text-xs uppercase tracking-widest font-bold">Calificación</div>
+                   </div>
+                 ) : null}
+                 {Number(supplier.sales_count) > 0 ? (
+                   <div className="text-center md:text-left">
+                       <div className="text-3xl font-black text-white font-[family-name:var(--font-varela-round)]">
+                         {supplier.sales_count}
+                       </div>
+                       <div className="text-white/60 text-xs uppercase tracking-widest font-bold">
+                         Ventas
+                       </div>
+                   </div>
+                 ) : null}
                 {supplier.is_verified ? (
-                  <div className="hidden md:flex items-center justify-end">
+                  <div className="flex items-center">
                     <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
                       <div className="w-8 h-8 rounded-full bg-[#168e00] flex items-center justify-center text-white">
                         <Check size={18} strokeWidth={4} />
@@ -838,12 +1005,13 @@ export default function SupplierPage() {
                 ) : null}
              </div>
          </div>
+         ) : null}
 
          {/* Audio Toggle */}
          {supplier.header_media_type === 'video' && supplier.header_video && (
              <button 
                 onClick={toggleMute}
-                className="absolute bottom-24 right-6 z-40 p-3 bg-black/40 hover:bg-black/60 backdrop-blur-md rounded-full text-white transition-all hover:scale-110 border border-white/20"
+                className="absolute bottom-24 right-6 z-40 rounded-full border border-white/20 bg-black/40 p-3 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/60"
                 aria-label={isMuted ? "Activar sonido" : "Silenciar"}
              >
                  {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
@@ -861,33 +1029,136 @@ export default function SupplierPage() {
               >
                 Página Principal
               </button>
+              {!isDirectory ? (
               <button 
                 onClick={() => setActiveTab('products')} 
                 className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'products' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
               >
                 Productos
               </button>
+              ) : null}
            </div>
         </div>
       </div>
 
+      {activeTab === "main" && supplier.description?.trim() ? (
+        <section
+          aria-labelledby="supplier-description-title"
+          className="relative overflow-hidden bg-gradient-to-b from-white to-[#f7f9f8] py-14 md:py-20"
+        >
+          <div className="mx-auto max-w-6xl px-5 md:px-8">
+            <article className="max-w-4xl">
+              <span
+                aria-hidden="true"
+                className="mb-7 block h-1 w-14 rounded-full bg-[#168e00]"
+              />
+              <h2
+                id="supplier-description-title"
+                className="font-[family-name:var(--font-varela-round)] text-3xl font-bold text-[#004e28] md:text-5xl"
+              >
+                Conoce a {supplier.name}
+              </h2>
+              <div className="ql-snow mt-7 w-full">
+                <div
+                  className="ql-editor max-w-none p-0 text-base leading-8 text-gray-700 [&_a]:font-semibold [&_a]:text-[#168e00] [&_a]:underline-offset-4 [&_a:hover]:underline [&_li]:mb-2 [&_p]:mb-5 [&_p:last-child]:mb-0 md:text-lg md:leading-9"
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeDescriptionHtml(
+                      supplier.description.trim(),
+                    ),
+                  }}
+                />
+              </div>
+            </article>
+          </div>
+        </section>
+      ) : null}
+
+      {isDirectory ? (
+        <section
+          id="servicios"
+          className="relative scroll-mt-20 overflow-hidden bg-[#f2f3f4] py-20"
+        >
+          <div className="pointer-events-none absolute -right-64 -top-64 h-[620px] w-[620px] rounded-full bg-[#168e00]/5 blur-3xl" />
+          <div className="relative z-10 mx-auto max-w-6xl px-5 md:px-8">
+            <div className="mb-10 flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
+              <div className="max-w-2xl">
+                <span className="mb-3 inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-[#168e00]">
+                  <BriefcaseBusiness size={17} />
+                  Directorio empresarial
+                </span>
+                <h2 className="font-[family-name:var(--font-varela-round)] text-3xl font-black text-[#004e28] md:text-5xl">
+                  Servicios
+                </h2>
+                <p className="mt-3 text-base leading-7 text-gray-600">
+                  Conoce las soluciones profesionales disponibles y encuentra
+                  la opción adecuada para ti.
+                </p>
+              </div>
+
+              {services.length > 4 ? (
+                <label className="relative block w-full md:w-80">
+                  <Search
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={19}
+                  />
+                  <span className="sr-only">Buscar servicios</span>
+                  <input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Buscar servicios..."
+                    className="w-full rounded-2xl border border-gray-200 bg-white py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10"
+                  />
+                </label>
+              ) : null}
+            </div>
+
+            {servicesLoading ? (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {[1, 2, 3].map((item) => (
+                  <div
+                    key={item}
+                    className="aspect-[4/5] animate-pulse rounded-[2rem] bg-white"
+                  />
+                ))}
+              </div>
+            ) : servicesError ? (
+              <div className="rounded-[2rem] bg-white px-6 py-14 text-center shadow-sm">
+                <p className="font-semibold text-red-600">{servicesError}</p>
+              </div>
+            ) : filteredServices.length === 0 ? (
+              <div className="rounded-[2rem] bg-white px-6 py-14 text-center shadow-sm">
+                <p className="font-semibold text-gray-500">
+                  {searchQuery
+                    ? "No encontramos servicios con ese nombre."
+                    : "No hay servicios disponibles en este momento."}
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {filteredServices.map((service) => (
+                  <DirectoryServiceCard key={service.id} service={service} />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
+
       {/* --- PRODUCTS SECTION (Tab Content) --- */}
-      {activeTab === 'products' && (
-      <section id="productos" className="relative py-24 bg-[#f2f3f4] overflow-hidden">
+      {!isDirectory && activeTab === 'products' && (
+      <section id={isDirectory ? "servicios" : "productos"} className={`relative scroll-mt-20 overflow-hidden ${isDirectory ? "bg-[#f2f3f4] py-20" : "bg-[#f2f3f4] py-24"}`}>
         {/* Decorative Background Blob */}
         <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#004e28]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 
-        <div className="container mx-auto px-4 md:px-8 relative z-10">
-            <div className="flex flex-col md:flex-row items-center justify-between mb-16 gap-6">
-                <div>
-                    <h2 className="text-4xl md:text-5xl font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]">
-                        Productos
+        <div className={`container mx-auto px-4 md:px-8 relative z-10 ${isDirectory ? "max-w-6xl" : ""}`}>
+            <div className={`flex flex-col md:flex-row items-center justify-between gap-6 ${isDirectory ? "mb-10" : "mb-16"}`}>
+                <div className="max-w-2xl">
+                    <h2 className={`${isDirectory ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl"} font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]`}>
+                        {isDirectory ? "Servicios" : "Productos"}
                     </h2>
-                    <p className="text-gray-500 max-w-xl text-lg">
-                        Explora nuestra selección premium de productos diseñados para transformar tu negocio. Calidad garantizada en cada pedido.
-                    </p>
                 </div>
                 
+                {products.length > 4 ? (
                 <div className="w-full md:w-auto">
                     <div className="relative w-full md:w-96 group">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -895,7 +1166,7 @@ export default function SupplierPage() {
                         </div>
                         <input
                             type="text"
-                            placeholder="Buscar productos..."
+                            placeholder={isDirectory ? "Buscar servicios..." : "Buscar productos..."}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="block w-full pl-11 pr-4 py-4 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#168e00]/20 focus:border-[#168e00] transition-all shadow-sm hover:shadow-md"
@@ -910,6 +1181,7 @@ export default function SupplierPage() {
                         )}
                     </div>
                 </div>
+                ) : null}
             </div>
 
             {productsLoading && products.length === 0 ? (
@@ -928,26 +1200,32 @@ export default function SupplierPage() {
                         Reintentar Carga
                     </button>
                 </div>
-            ) : products.length === 0 ? (
-                <div className="text-center py-20 bg-white rounded-[3rem] shadow-sm">
-                    <p className="text-xl text-gray-400 font-bold">No hay productos disponibles en este momento.</p>
+            ) : !isDirectory && products.length === 0 ? (
+                <div className="rounded-[3rem] bg-white py-20 text-center shadow-sm">
+                    <p className="text-xl font-bold text-gray-400">
+                      No hay productos disponibles en este momento.
+                    </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 md:gap-10">
+                <div className={`grid gap-8 md:gap-10 ${isDirectory ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"}`}>
                     {filteredProducts.map((product) => (
-                        <div key={product.id} className="h-full">
-                            <ProductCard
-                                id={String(product.id)}
-                                title={product.title}
-                                price={product.price}
-                                image={product.thumbnail_url || product.subcategory?.thumbnail_url || ""}
-                                minOrder={`${product.stock > 0 ? "1" : "10"} pzas`}
-                                slug={product.slug}
-                                rating={product.average_rating || 5.0}
-                                sales={product.stock} // Using stock as proxy for sales visual
-                                supplier={supplier}
-                            />
-                        </div>
+                      <div key={product.id} className="h-full">
+                        <ProductCard
+                          id={String(product.id)}
+                          title={product.title}
+                          price={product.price}
+                          image={
+                            product.thumbnail_url ||
+                            product.subcategory?.thumbnail_url ||
+                            ""
+                          }
+                          minOrder={`${product.stock > 0 ? "1" : "10"} pzas`}
+                          slug={product.slug}
+                          rating={product.average_rating || 5.0}
+                          sales={product.stock}
+                          supplier={supplier}
+                        />
+                      </div>
                     ))}
                 </div>
             )}
@@ -964,52 +1242,163 @@ export default function SupplierPage() {
       {activeTab === 'main' && (
       <>
         {/* Recommended Carousels */}
+        {!isDirectory ? (
         <div className="container mx-auto px-4 md:px-8 py-12 space-y-8 bg-gray-50/30">
              <SupplierProductCarousel supplierId={supplier.id} kind="most_searched" title="Más Buscados" />
              <SupplierProductCarousel supplierId={supplier.id} kind="most_purchased" title="Más Comprados" />
              <SupplierProductCarousel supplierId={supplier.id} kind="best_rated" title="Mejor Calificados" />
         </div>
+        ) : null}
 
       {/* --- NUESTRA ESENCIA (Storytelling) --- */}
-      <section className="py-24 bg-white relative overflow-hidden">
-         <div className="container mx-auto px-6 md:px-12">
+      <section
+        id="nosotros"
+        className={`relative scroll-mt-20 overflow-hidden ${
+          useDirectoryPresentation ? "bg-[#f2f3f4] py-16 md:py-24" : "bg-white py-24"
+        }`}
+      >
+         <div className={isDirectory ? "mx-auto max-w-6xl px-5 md:px-8" : "container mx-auto px-5 md:px-12"}>
+           {useDirectoryPresentation ? (
+             <>
+               <header className="mb-8">
+                 <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[#168e00]">
+                   {supplier.name}
+                 </p>
+                 <h2 className="text-3xl font-black tracking-[-0.025em] text-[#004e28] font-[family-name:var(--font-varela-round)] sm:text-4xl">
+                   Acerca de nosotros
+                 </h2>
+               </header>
+
+               <article className="overflow-hidden rounded-[2rem] border border-[#004e28]/15 bg-white shadow-[0_28px_80px_-48px_rgba(0,78,40,0.7)]">
+                 <div className={supplier.about_media ? "grid items-stretch lg:grid-cols-2" : ""}>
+                 {supplier.about_media ? (
+                   <div className="relative min-h-[320px] overflow-hidden bg-[#e7ece8] sm:min-h-[400px] lg:min-h-[460px]">
+                     {/* eslint-disable-next-line @next/next/no-img-element */}
+                     <img
+                       src={getImageUrl(supplier.about_media)}
+                       alt={supplier.name}
+                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 hover:scale-[1.025]"
+                     />
+                     <div className="absolute inset-0 bg-gradient-to-t from-[#002f18]/45 via-transparent to-transparent" />
+                     <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-6 sm:p-8">
+                       <p className="max-w-[75%] text-xl font-bold leading-tight text-white drop-shadow-md font-[family-name:var(--font-varela-round)] sm:text-2xl">
+                         {supplier.name}
+                       </p>
+                       {supplier.is_verified ? (
+                         <span
+                           className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/90 text-[#168e00] shadow-lg backdrop-blur"
+                           aria-label="Perfil verificado"
+                           title="Perfil verificado"
+                         >
+                           <Check size={20} strokeWidth={3} />
+                         </span>
+                       ) : null}
+                     </div>
+                   </div>
+                 ) : null}
+
+                 <div className={`relative flex flex-col justify-center bg-[#004e28] p-9 text-white sm:p-12 lg:p-14 ${supplier.about_media ? "min-h-[400px]" : ""}`}>
+                   <span className="mb-8 block h-1 w-16 rounded-full bg-[#168e00]" aria-hidden="true" />
+                   {hasCustomAboutTitle || hasCustomAboutSubtitle ? (
+                     <h3 className="max-w-xl text-2xl font-black leading-[1.15] tracking-[-0.02em] text-white font-[family-name:var(--font-varela-round)] sm:text-3xl">
+                       {hasCustomAboutTitle ? supplier.title_about : null}
+                       {hasCustomAboutTitle && hasCustomAboutSubtitle ? <br /> : null}
+                       {hasCustomAboutSubtitle ? (
+                         <span className="text-[#168e00]">{supplier.subtitle_about}</span>
+                       ) : null}
+                     </h3>
+                   ) : null}
+
+                   {supplier.about ? (
+                     <div className={`${hasCustomAboutTitle || hasCustomAboutSubtitle ? "mt-7" : ""} max-w-3xl text-base leading-8 text-white/85 sm:text-lg sm:leading-9`}>
+                       <div className="ql-snow w-full">
+                         <div
+                           className="ql-editor break-normal [&_a]:font-semibold [&_a]:text-[#7cde68] [&_a]:underline-offset-4 [&_a:hover]:underline [&_li]:mb-3 [&_p]:mb-6 [&_p:last-child]:mb-0"
+                           style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
+                           dangerouslySetInnerHTML={{
+                             __html: sanitizeHtml(supplier.about || ""),
+                           }}
+                         />
+                       </div>
+                     </div>
+                   ) : null}
+
+                   {(supplier.phone || supplier.email || supplier.address) ? (
+                     <div className="mt-10 flex flex-col gap-4 border-t border-white/15 pt-8">
+                       {supplier.phone ? (
+                         <a
+                           href={`tel:${supplier.phone}`}
+                           className="group inline-flex w-fit items-center gap-3 text-sm font-semibold text-white/90 transition-colors hover:text-white"
+                         >
+                           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-[#7cde68] transition-colors group-hover:bg-[#168e00] group-hover:text-white">
+                             <Phone size={16} aria-hidden="true" />
+                           </span>
+                           {supplier.phone}
+                         </a>
+                       ) : null}
+                       {supplier.email ? (
+                         <a
+                           href={`mailto:${supplier.email}`}
+                           className="group inline-flex w-fit items-center gap-3 text-sm font-semibold text-white/90 transition-colors hover:text-white"
+                         >
+                           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-[#7cde68] transition-colors group-hover:bg-[#168e00] group-hover:text-white">
+                             <Mail size={16} aria-hidden="true" />
+                           </span>
+                           {supplier.email}
+                         </a>
+                       ) : null}
+                       {supplier.address ? (
+                         <div className="inline-flex items-start gap-3 text-sm font-medium leading-6 text-white/75">
+                           <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#7cde68]">
+                             <MapPin size={16} aria-hidden="true" />
+                           </span>
+                           <span className="pt-1.5">{supplier.address}</span>
+                         </div>
+                       ) : null}
+                     </div>
+                   ) : null}
+                 </div>
+               </div>
+               </article>
+             </>
+           ) : (
              <div className="bg-[#f2f3f4] rounded-[3rem] p-8 md:p-16 relative overflow-hidden group">
                  <div className="absolute top-0 right-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5" />
                  
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center relative z-10">
+                 <div className={`relative z-10 grid grid-cols-1 items-center gap-16 ${supplier.about_media ? "md:grid-cols-2" : ""}`}>
+                     {supplier.about_media ? (
                      <div className="order-2 md:order-1">
                          <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-[0_20px_50px_-20px_rgba(0,0,0,0.3)] transform md:-rotate-2 hover:rotate-0 transition-transform duration-700">
-                             {supplier.about_media ? (
-                                <img src={getImageUrl(supplier.about_media)} alt="Nosotros" className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full bg-gray-300 flex items-center justify-center">
-                                    <Store size={64} className="text-gray-400" />
-                                </div>
-                            )}
-                            {/* Overlay Text */}
-                            <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[#004e28] to-transparent p-8">
-                                <p className="text-white font-bold font-[family-name:var(--font-varela-round)] text-xl"></p>
-                            </div>
+                             <img src={getImageUrl(supplier.about_media)} alt="Nosotros" className="w-full h-full object-cover" />
                         </div>
                     </div>
+                    ) : null}
                     
                     <div className="order-1 md:order-2">
+                        {hasCustomAboutTitle || hasCustomAboutSubtitle ? (
                         <h2 className="text-3xl md:text-5xl font-black text-[#004e28] mb-8 font-[family-name:var(--font-varela-round)] leading-tight">
-                            {supplier.title_about || "Más que un proveedor,"}
-                            <br/>
-                            <span className="text-[#168e00]">{supplier.subtitle_about || "tu aliado estratégico."}</span>
+                            {hasCustomAboutTitle ? supplier.title_about : null}
+                            {hasCustomAboutTitle && hasCustomAboutSubtitle ? <br/> : null}
+                            {hasCustomAboutSubtitle ? (
+                              <span className="text-[#168e00]">
+                                {supplier.subtitle_about}
+                              </span>
+                            ) : null}
                         </h2>
+                        ) : null}
+                        {supplier.about ? (
                         <div className="text-gray-600 w-full">
                           <div className="ql-snow w-full">
                             <div
                               className="ql-editor"
                               style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
                               dangerouslySetInnerHTML={{
-                                __html: sanitizeHtml(supplier.about || "Comprometidos con la excelencia y el servicio al cliente."),
+                                __html: sanitizeHtml(supplier.about || ""),
                               }}
                             />
                           </div>
                         </div>
+                        ) : null}
                          
                          {supplier.is_verified ? (
                          <div className="mt-10 flex items-center gap-4">
@@ -1025,20 +1414,18 @@ export default function SupplierPage() {
                      </div>
                  </div>
              </div>
+           )}
          </div>
       </section>
 
       {/* --- CERTIFICATES SECTION --- */}
       {supplier.certificates && supplier.certificates.length > 0 && (
         <section className="py-20 bg-[#f9fafb]">
-            <div className="container mx-auto px-6 md:px-12">
+            <div className={isDirectory ? "mx-auto max-w-6xl px-5 md:px-8" : "container mx-auto px-6 md:px-12"}>
                 <div className="text-center mb-16">
                     <h2 className="text-3xl md:text-4xl font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]">
                         Calidad Certificada
                     </h2>
-                    <p className="text-gray-500 max-w-2xl mx-auto">
-                        Nuestros procesos y productos cumplen con los más altos estándares internacionales.
-                    </p>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -1068,23 +1455,23 @@ export default function SupplierPage() {
       )}
 
       {/* --- RATINGS SECTION --- */}
-      <section className="py-24 bg-white border-t border-gray-100">
-          <div className="container mx-auto px-6 md:px-12">
+      {isDirectory ? (
+        <DirectoryRatingsSection slug={supplier.slug || String(slug)} />
+      ) : (
+      <section id="experiencia" className="scroll-mt-20 border-t border-gray-100 bg-white py-24">
+          <div className={`container mx-auto px-6 md:px-12 ${useDirectoryPresentation ? "max-w-6xl" : ""}`}>
               <div className="flex flex-col md:flex-row items-center justify-between mb-12 gap-8">
                   <div>
                       <h2 className="text-3xl md:text-4xl font-black text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">
                           Opiniones Verificadas
                       </h2>
                       <div className="flex items-center gap-2 text-[#168e00]">
-                          <span className="font-bold text-xl">{supplier.average_rating ? supplier.average_rating.toFixed(1) : "5.0"}</span>
-                          <StarRating rating={supplier.average_rating || 5} size={20} />
+                          <span className="font-bold text-xl">{supplier.average_rating?.toFixed(1)}</span>
+                          <StarRating rating={supplier.average_rating || 0} size={20} />
                           <span className="text-gray-400 text-sm">({ratingsTotal} reseñas)</span>
                       </div>
                   </div>
                   
-                  <button className="px-6 py-3 bg-white border-2 border-[#004e28] text-[#004e28] font-bold rounded-full hover:bg-[#004e28] hover:text-white transition-all font-[family-name:var(--font-varela-round)]">
-                      Escribir una Reseña
-                  </button>
               </div>
 
               {ratingsLoading ? (
@@ -1114,7 +1501,9 @@ export default function SupplierPage() {
                                     className="w-10 h-10 rounded-lg object-cover bg-white"
                                   />
                                   <div className="text-xs text-gray-400">
-                                      <p className="line-clamp-1">Sobre: {rating.product_title}</p>
+                                      <p className="line-clamp-1">
+                                        Sobre: {rating.product_title}
+                                      </p>
                                       <p>{rating.created_at ? new Date(rating.created_at).toLocaleDateString() : ""}</p>
                                   </div>
                               </div>
@@ -1130,22 +1519,29 @@ export default function SupplierPage() {
               )}
           </div>
       </section>
+      )}
 
       {/* --- CONTACT & MAP (Dark Mode / Expert UI) --- */}
-      <section id="contacto" className="relative bg-[#004e28] text-white py-24 overflow-hidden">
+      <section
+        id="contacto"
+        className={`relative overflow-hidden ${
+          useDirectoryPresentation ? "bg-[#f2f3f4] py-16 text-[#000000] md:py-20" : "bg-[#004e28] py-24 text-white"
+        }`}
+      >
           {/* Background Elements */}
-          <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
+          <div className={`absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] via-transparent to-transparent ${useDirectoryPresentation ? "from-[#168e00]/10" : "from-white opacity-10"}`} />
           
           <div className="container mx-auto px-4 md:px-8 max-w-6xl relative z-10">
               
               {/* TOP ROW: Info & Hours */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+              <div className={`mb-12 grid grid-cols-1 gap-8 ${hasContactInfo && hasBusinessHours ? "md:grid-cols-2" : ""}`}>
                   {/* Info Card */}
-                  <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-8 rounded-[2rem] hover:bg-white/10 transition-colors">
-                      <h3 className="text-2xl font-bold mb-6 font-[family-name:var(--font-varela-round)] flex items-center gap-3">
+                  {hasContactInfo ? (
+                  <div className={`rounded-[2rem] transition-colors ${useDirectoryPresentation ? "overflow-hidden border border-[#004e28]/10 bg-white shadow-[0_24px_60px_-40px_rgba(0,78,40,0.7)]" : "bg-white/5 backdrop-blur-lg border border-white/10 p-8 hover:bg-white/10"}`}>
+                      <h3 className={`text-2xl font-bold font-[family-name:var(--font-varela-round)] flex items-center gap-3 ${useDirectoryPresentation ? "bg-[#004e28] px-8 py-6 text-white" : "mb-6"}`}>
                           <MessageCircle className="text-[#168e00]" /> Contáctanos
                       </h3>
-                      <div className="space-y-4">
+                      <div className={`space-y-4 ${useDirectoryPresentation ? "p-8" : ""}`}>
                           {supplier.phone && (
                               <div className="flex min-w-0 items-center gap-4 group">
                                   <div className="w-10 h-10 shrink-0 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
@@ -1172,97 +1568,125 @@ export default function SupplierPage() {
                           )}
                       </div>
                   </div>
+                  ) : null}
 
                   {/* Hours Card */}
-                  <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-8 rounded-[2rem]">
-                      <h3 className="text-2xl font-bold mb-6 font-[family-name:var(--font-varela-round)] flex items-center gap-3">
+                  {hasBusinessHours ? (
+                  <div className={`rounded-[2rem] ${useDirectoryPresentation ? "overflow-hidden border border-[#004e28]/10 bg-white shadow-[0_24px_60px_-40px_rgba(0,78,40,0.7)]" : "bg-white/5 backdrop-blur-lg border border-white/10 p-8"}`}>
+                      <h3 className={`text-2xl font-bold font-[family-name:var(--font-varela-round)] flex items-center gap-3 ${useDirectoryPresentation ? "bg-[#004e28] px-8 py-6 text-white" : "mb-6"}`}>
                           <Clock style={{ color: supplier.primary_color || '#168e00' }} /> Horarios de Atención
                       </h3>
-                      <div className="space-y-4 text-gray-300">
-                          {groupedHours.length > 0 ? (
-                              groupedHours.map((group, idx) => (
-                                  <div key={idx} className="flex justify-between items-center border-b border-white/5 pb-2 last:border-0">
-                                      <span>
+                      <div className={`space-y-4 ${useDirectoryPresentation ? "p-8 text-[#59675f]" : "text-gray-300"}`}>
+                          {groupedHours.map((group, idx) => (
+                                  <div key={idx} className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${useDirectoryPresentation ? "rounded-2xl bg-[#f2f3f4] px-5 py-4" : "border-b border-white/5 pb-2 last:border-0"}`}>
+                                      <span className={useDirectoryPresentation ? "font-semibold text-[#004e28]" : ""}>
                                           {group.start === group.end 
                                               ? DAYS_MAP[group.start] 
                                               : `${DAYS_MAP[group.start]} - ${DAYS_MAP[group.end]}`}
                                       </span>
-                                      <span className="font-bold text-white">
+                                      <span className={`font-bold ${useDirectoryPresentation ? "w-fit rounded-xl bg-white px-4 py-2 text-[#168e00] shadow-sm" : "text-white"}`}>
                                           {group.isClosed ? "Cerrado" : `${formatTime(group.open)} - ${formatTime(group.close)}`}
                                       </span>
                                   </div>
-                              ))
-                          ) : (
-                              <div className="text-center text-white/60 italic">Horarios no disponibles</div>
-                          )}
+                              ))}
 
-                          <div className="mt-4 flex items-center gap-3">
+                          <div className={`flex items-center gap-3 ${useDirectoryPresentation ? "pt-3" : "mt-4"}`}>
                               {businessStatus.isOpen ? (
                                   <div 
-                                    className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide text-white inline-flex items-center gap-2"
+                                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide text-white"
                                     style={{ backgroundColor: supplier.primary_color || '#168e00' }}
                                   >
                                       <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
                                       Abierto Ahora
                                   </div>
                               ) : (
-                                  <div className="px-3 py-1 bg-red-500/20 border border-red-500/50 rounded-full text-xs font-bold uppercase tracking-wide text-red-200 inline-flex items-center gap-2">
+                                  <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-wide ${useDirectoryPresentation ? "border-red-200 bg-red-50 text-red-700" : "border-red-500/50 bg-red-500/20 text-red-200"}`}>
                                       <div className="w-2 h-2 rounded-full bg-red-500" />
                                       Cerrado Ahora
                                   </div>
                               )}
-                              <span className="text-sm text-white/60">Tiempo de respuesta: ~10 min</span>
                           </div>
                       </div>
                   </div>
+                  ) : null}
               </div>
 
               {/* MIDDLE ROW: Map (Full Width) */}
-              <div className="w-full h-[400px] bg-white/5 backdrop-blur-md rounded-[2rem] overflow-hidden border border-white/10 relative shadow-2xl mb-12 group">
-                  {mapLocation ? (
-                      <SupplierLocationMap
-                          location={mapLocation}
-                          supplierName={supplier.name}
-                      />
-                  ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white/30 bg-black/20">
-                          <div className="text-center">
-                              <MapPin size={48} className="mx-auto mb-2 opacity-50" />
-                              <p>Ubicación no disponible</p>
-                          </div>
-                      </div>
-                  )}
+              {mapLocation ? (
+              <div className={`w-full h-[400px] rounded-[2rem] overflow-hidden relative mb-12 group ${useDirectoryPresentation ? "border border-[#004e28]/10 bg-white shadow-[0_24px_70px_-44px_rgba(0,78,40,0.7)]" : "bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl"}`}>
+                  <SupplierLocationMap
+                      location={mapLocation}
+                      supplierName={supplier.name}
+                  />
 
                   {/* Floating Location Badge */}
-                  <a
-                    href={mapLocation ? `https://www.google.com/maps/search/?api=1&query=${mapLocation.lat},${mapLocation.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(supplier.address || '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute bottom-4 left-4 z-[500] bg-white/90 backdrop-blur text-[#004e28] px-4 py-2 rounded-xl text-sm font-bold shadow-lg flex items-center gap-2 group-hover:scale-105 transition-transform"
-                  >
-                      <MapPin size={16} /> Ver Ubicación Exacta
-                  </a>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${mapLocation.lat},${mapLocation.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute bottom-4 left-4 z-[500] flex items-center gap-2 rounded-xl bg-white/90 px-4 py-2 text-sm font-bold text-[#004e28] shadow-lg backdrop-blur transition-transform group-hover:scale-105"
+                    >
+                        <MapPin size={16} /> Ver Ubicación Exacta
+                    </a>
               </div>
+              ) : null}
 
               {/* BOTTOM ROW: CTA (Full Width) */}
+              {(contactHref || isDirectory) ? (
               <div className="bg-[#168e00] rounded-[2rem] p-8 md:p-12 text-center relative overflow-hidden shadow-[0_0_50px_-10px_rgba(22,142,0,0.4)]">
                   <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
                   <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
                       <div className="text-left">
-                          <h3 className="text-2xl md:text-3xl font-black mb-2 font-[family-name:var(--font-varela-round)]">¿Tienes preguntas sobre nuestros productos?</h3>
+                          <h3 className="text-2xl md:text-3xl font-black mb-2 font-[family-name:var(--font-varela-round)]">
+                            ¿Tienes preguntas sobre nuestros {isDirectory ? "servicios" : "productos"}?
+                          </h3>
                           <p className="text-white/80 text-lg">Estamos listos para atenderte y resolver todas tus dudas al instante.</p>
                       </div>
-                      <a 
-                        href={`https://wa.me/${supplier.phone?.replace(/[^0-9]/g, '')}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="whitespace-nowrap px-8 py-4 bg-white text-[#004e28] rounded-full font-bold text-lg hover:bg-gray-100 transition-all shadow-xl hover:-translate-y-1 flex items-center gap-2"
-                      >
-                          <MessageCircle size={24} />
-                          Enviar Mensaje
-                      </a>
+                      {isDirectory ? (
+                        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                          {supplier.phone ? (
+                            <a
+                              href={`https://wa.me/${supplier.phone.replace(/[^0-9]/g, "")}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex min-h-14 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-white px-8 py-4 text-base font-bold text-[#004e28] shadow-xl transition-all hover:-translate-y-1 hover:bg-gray-100"
+                            >
+                              <Phone size={21} />
+                              WhatsApp
+                            </a>
+                          ) : (
+                            <span
+                              aria-disabled="true"
+                              title="El proveedor todavía no ha configurado un número de WhatsApp"
+                              className="inline-flex min-h-14 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/30 bg-white/15 px-8 py-4 text-base font-bold text-white/75"
+                            >
+                              <Phone size={21} />
+                              WhatsApp sin configurar
+                            </span>
+                          )}
+                          <DirectoryContactButton
+                            supplierId={supplier.id}
+                            supplierName={supplier.name}
+                            supplierSlug={supplier.slug}
+                            supplierImage={supplierLogo}
+                            returnPath={`/empresas/${supplier.slug || supplier.id}`}
+                            className="inline-flex min-h-14 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/20 bg-[#004e28] px-8 py-4 text-base font-bold text-white shadow-xl transition-all hover:-translate-y-1 hover:bg-[#003b1f] disabled:cursor-wait disabled:opacity-70"
+                          />
+                        </div>
+                      ) : contactHref ? (
+                        <a
+                          href={contactHref}
+                          target={contactHref.startsWith("http") ? "_blank" : undefined}
+                          rel={contactHref.startsWith("http") ? "noopener noreferrer" : undefined}
+                          className="flex items-center gap-2 whitespace-nowrap rounded-full bg-white px-8 py-4 text-lg font-bold text-[#004e28] shadow-xl transition-all hover:-translate-y-1 hover:bg-gray-100"
+                        >
+                            <MessageCircle size={24} />
+                            {supplier.phone ? "Enviar mensaje" : "Enviar correo"}
+                        </a>
+                      ) : null}
                   </div>
               </div>
+              ) : null}
 
           </div>
       </section>

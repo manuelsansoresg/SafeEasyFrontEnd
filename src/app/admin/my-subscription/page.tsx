@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { subscriptionsService } from "@/services/subscriptionsService";
+import { servicesService } from "@/services/servicesService";
 import { fetchWithAuth } from "@/lib/api";
 import { resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
-import { isSubscriptionActive } from "@/lib/subscriptionAccess";
+import { isDirectorySubscription, isSubscriptionActive } from "@/lib/subscriptionAccess";
 import type { Plan, Subscription } from "@/types/subscriptions";
 import {
   BadgeDollarSign,
@@ -98,6 +99,7 @@ export default function MySubscriptionPage() {
   const [paying, setPaying] = useState(false);
   const [activeProductsCount, setActiveProductsCount] = useState(0);
   const [loadingProductUsage, setLoadingProductUsage] = useState(false);
+  const isDirectory = isDirectorySubscription(subscription);
 
   const fetchMySubscription = useCallback(async () => {
     if (!token || !isSupplier) {
@@ -128,6 +130,16 @@ export default function MySubscriptionPage() {
     const loadProductUsage = async () => {
       setLoadingProductUsage(true);
       try {
+        if (isDirectory) {
+          const myServices = await servicesService.listMine({
+            skip: 0,
+            limit: 100,
+          });
+          const count = myServices.filter((service) => service.is_active).length;
+          if (mounted) setActiveProductsCount(count);
+          return;
+        }
+
         const supplier = await resolveCurrentSupplier(user);
         const supplierId = supplier?.id ?? null;
         if (!supplierId) {
@@ -163,7 +175,7 @@ export default function MySubscriptionPage() {
     return () => {
       mounted = false;
     };
-  }, [isSupplier, token, user]);
+  }, [isDirectory, isSupplier, token, user]);
 
   useEffect(() => {
     if (!token || !isSupplier) return;
@@ -457,13 +469,15 @@ export default function MySubscriptionPage() {
               {loadingProductUsage ? (
                 <div className="flex items-center gap-2 rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
                   <Loader2 className="animate-spin text-primary" size={18} />
-                  Cargando productos activos...
+                  Cargando {isDirectory ? "servicios" : "productos"} activos...
                 </div>
               ) : hasProductLimit ? (
                 <>
                   <div className="flex items-end justify-between gap-4">
                     <div>
-                      <div className="text-sm text-gray-500">Productos activos</div>
+                      <div className="text-sm text-gray-500">
+                        {isDirectory ? "Servicios activos" : "Productos activos"}
+                      </div>
                       <div className="mt-1 text-3xl font-bold text-gray-950">
                         {formatNumber(activeProductsCount)}
                         <span className="text-base font-semibold text-gray-400"> / {formatNumber(productLimit)}</span>
@@ -486,13 +500,13 @@ export default function MySubscriptionPage() {
 
                   <p className="mt-3 text-sm text-gray-500">
                     {remainingProducts === 0
-                      ? "Ya alcanzaste el límite de productos activos de tu plan."
-                      : `Puedes activar ${formatNumber(remainingProducts)} producto${remainingProducts === 1 ? "" : "s"} más.`}
+                      ? `Ya alcanzaste el límite de ${isDirectory ? "servicios" : "productos"} activos de tu plan.`
+                      : `Puedes activar ${formatNumber(remainingProducts)} ${isDirectory ? "servicio" : "producto"}${remainingProducts === 1 ? "" : "s"} más.`}
                   </p>
                 </>
               ) : (
                 <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
-                  Este plan no tiene un límite de productos configurado.
+                  Este plan no tiene un límite de {isDirectory ? "servicios" : "productos"} configurado.
                 </div>
               )}
             </div>

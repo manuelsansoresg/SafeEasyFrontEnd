@@ -28,10 +28,12 @@ import {
   LifeBuoy,
   CircleHelp
 } from "lucide-react";
+import { BriefcaseBusiness } from "lucide-react";
 import { Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
 
 interface AdminSidebarProps {
   isCollapsed: boolean;
@@ -58,6 +60,8 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const isAdmin = user?.role === 'admin' || user?.role === 'superuser';
+  const isSupplier = user?.role === "supplier";
+  const { isDirectory } = useMyDirectorySubscription(isSupplier);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   
   // Menu items configuration
@@ -175,9 +179,9 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
       ],
     },
     { 
-      title: "Mis Productos", 
-      path: "/admin/products", 
-      icon: Package,
+      title: isDirectory ? "Mis Servicios" : "Mis Productos",
+      path: isDirectory ? "/admin/services" : "/admin/products",
+      icon: isDirectory ? BriefcaseBusiness : Package,
       roles: ['admin', 'superuser', 'supplier']
     },
     {

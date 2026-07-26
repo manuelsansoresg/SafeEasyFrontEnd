@@ -29,7 +29,9 @@ const getSupplierDescription = (supplier: Awaited<ReturnType<typeof fetchSupplie
   if (!supplier) return "Consulta proveedores y negocios en Drooopy.";
   return makeDescription(
     supplier.short_description || supplier.description || supplier.about,
-    `${supplier.name} en Drooopy. Revisa su catálogo, productos, datos de contacto y ubicación.`,
+    supplier.is_directory
+      ? `${supplier.name} en Drooopy. Conoce sus servicios profesionales, experiencia, datos de contacto y ubicación.`
+      : `${supplier.name} en Drooopy. Revisa su catálogo, productos, datos de contacto y ubicación.`,
   );
 };
 
@@ -72,7 +74,7 @@ export default async function SupplierLayout({ children, params }: SupplierLayou
         data={[
           {
             "@context": "https://schema.org",
-            "@type": "Store",
+            "@type": supplier.is_directory ? "ProfessionalService" : "Store",
             name: supplier.name,
             description: getSupplierDescription(supplier),
             url: supplierUrl,

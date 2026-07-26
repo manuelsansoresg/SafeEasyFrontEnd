@@ -16,6 +16,13 @@ const readDate = (value: unknown) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const readBoolean = (value: unknown) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value !== "string") return false;
+  return ["1", "true", "yes", "si", "sí"].includes(value.trim().toLowerCase());
+};
+
 export const isSubscriptionActive = (subscription: unknown) => {
   const record = asRecord(subscription);
   if (!record) return false;
@@ -27,6 +34,47 @@ export const isSubscriptionActive = (subscription: unknown) => {
   if (endDate && endDate.getTime() <= Date.now()) return false;
 
   return status === "active" || status === "paid" || status === "approved" || Boolean(endDate);
+};
+
+export const isDirectorySubscription = (subscription: unknown) => {
+  const record = asRecord(subscription);
+  if (!record || !isSubscriptionActive(record)) return false;
+
+  const plan = asRecord(record.plan);
+  return readBoolean(
+    record.is_directory ??
+      record.isDirectory ??
+      record.plan_is_directory ??
+      record.planIsDirectory ??
+      plan?.is_directory ??
+      plan?.isDirectory,
+  );
+};
+
+export const supplierHasDirectorySubscription = (supplier: unknown) => {
+  const record = asRecord(supplier);
+  if (!record) return false;
+
+  if (
+    readBoolean(
+      record.is_directory ??
+        record.isDirectory ??
+        record.subscription_is_directory ??
+        record.subscriptionIsDirectory ??
+        record.plan_is_directory ??
+        record.planIsDirectory,
+    )
+  ) {
+    return true;
+  }
+
+  const candidates = [
+    record.subscription,
+    record.active_subscription,
+    record.supplier_subscription,
+    record.supplierSubscription,
+  ];
+  return candidates.some(isDirectorySubscription);
 };
 
 export const productHasActiveSupplierSubscription = (product: unknown) => {

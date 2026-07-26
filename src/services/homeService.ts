@@ -12,6 +12,7 @@ export interface FeaturedSupplier {
   average_rating: number;
   is_featured: boolean;
   is_verified?: boolean;
+  is_directory?: boolean;
 }
 
 export interface FeaturedProduct {
@@ -51,6 +52,10 @@ export async function getFeaturedSuppliers(skip = 0, limit = 3): Promise<Feature
       average_rating: Number(record.average_rating) || 0,
       is_featured: Boolean(record.is_featured),
       is_verified: typeof record.is_verified === "boolean" ? record.is_verified : undefined,
+      is_directory:
+        typeof record.is_directory === "boolean"
+          ? record.is_directory
+          : undefined,
     };
   };
 

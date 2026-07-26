@@ -108,6 +108,9 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
   const lastInboxReloadRef = useRef<Record<string, number>>({});
   const initialConversationId = initialConversation?.id;
   const isDockedChat = mode === "docked";
+  const hasProductContext = Boolean(
+    productId || activeConversation?.product_id,
+  );
 
   // Determine if current user is the supplier (Vendor Mode)
   // Ensure strict string comparison to avoid type mismatch
@@ -1242,7 +1245,9 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
                 <h3 className="font-semibold text-[17px] text-gray-900 leading-tight truncate">
                     {activeConversation 
                         ? getChatName(activeConversation)
-                        : 'Chat del Producto'}
+                        : hasProductContext
+                          ? 'Chat del Producto'
+                          : 'Chat con el proveedor'}
                 </h3>
                 <p className={`text-[12px] leading-none mt-0.5 ${
                     !activeConversation
@@ -1288,7 +1293,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
           )}
 
           {/* Product Context Bar (Sub-header) - HIDDEN for Vendors as requested */}
-          {(!isVendorMode && productData?.title) && (
+          {(!isVendorMode && hasProductContext && productData?.title) && (
           <div
             className="px-4 py-2 bg-white border-b border-gray-100 flex items-start gap-3 shrink-0"
           >

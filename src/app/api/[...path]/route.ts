@@ -187,8 +187,8 @@ async function handler(request: NextRequest) {
       
       // Resource/action endpoints that should NOT have trailing slashes
       const resourceEndpoints = [
-          'me', 'has-role', 'map-location', 'stats', 'business-hours', 
-          'carousel', 'certificates', 'header-video', 'ratings', 'views', 
+          'me', 'my', 'has-role', 'map-location', 'stats', 'business-hours', 
+          'carousel', 'certificates', 'header-video', 'ratings', 'directory-ratings', 'views', 
           'earnings', 'availability', 'location', 'mp-status', 
           'active-delivery', 'deliveries', 'payouts', 'manual', 
           'offers', 'current', 'accept', 'reject', 'cancel', 
@@ -293,12 +293,13 @@ async function handler(request: NextRequest) {
       bufferedBody = await request.arrayBuffer();
     }
 
-    const buildFetchOptions = (): RequestInit => {
+    const buildFetchOptions = (timeoutMs: number): RequestInit => {
       const opts: RequestInit = {
         method: request.method,
         headers: forwardHeaders,
         redirect: 'manual', // Do not follow redirects automatically
         cache: 'no-store',
+        signal: AbortSignal.timeout(timeoutMs),
       };
       if (bufferedBody) {
         opts.body = bufferedBody.slice(0);
@@ -323,7 +324,9 @@ async function handler(request: NextRequest) {
       if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Forwarding ${request.method} request to: ${targetUrl}`);
 
       try {
-        response = await fetch(targetUrl, buildFetchOptions());
+        const candidateUrl = new URL(baseCandidate);
+        const timeoutMs = isLocalHostname(candidateUrl.hostname) ? 1000 : 15000;
+        response = await fetch(targetUrl, buildFetchOptions(timeoutMs));
         upstreamBase = baseCandidate;
         lastError = null;
         if (response.ok) break;
@@ -460,7 +463,7 @@ async function handler(request: NextRequest) {
              
              if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Following redirect manually to: ${newUrlString}`);
              
-             response = await fetch(newUrlString, buildFetchOptions());
+             response = await fetch(newUrlString, buildFetchOptions(15000));
              if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Followed response status: ${response.status}`);
         }
     }

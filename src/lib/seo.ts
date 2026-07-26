@@ -44,6 +44,7 @@ export interface SeoSupplier {
   logo_url?: string | null;
   image?: string | null;
   image_url?: string | null;
+  is_directory?: boolean;
   is_verified?: boolean;
   average_rating?: number | null;
   rating_count?: number | null;

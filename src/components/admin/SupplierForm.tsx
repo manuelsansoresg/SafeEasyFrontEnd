@@ -11,6 +11,9 @@ import MapPicker from "@/components/ui/MapPicker";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Toast } from "@/components/ui/Toast";
 import { supplierCatalogService, type SupplierCatalogOption } from "@/services/supplierCatalogService";
+import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
+import { subscriptionsService } from "@/services/subscriptionsService";
+import { isDirectorySubscription } from "@/lib/subscriptionAccess";
 import { saveUser, splitUserFullName, type UserUpdatePayload } from "@/services/userService";
 import { startMercadoPagoConnect } from "@/lib/mercadoPagoConnect";
 import dynamic from "next/dynamic";
@@ -104,8 +107,25 @@ const authHeaders = (token: string) => ({
   "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
 });
 
+type SupplierAccessUser = {
+  id: number;
+  email?: string;
+  role?: string;
+  role_name?: string;
+  user_role?: string;
+};
+
+const unwrapUsers = (data: unknown): SupplierAccessUser[] => {
+  if (Array.isArray(data)) return data as SupplierAccessUser[];
+  if (!data || typeof data !== "object") return [];
+  const record = data as Record<string, unknown>;
+  const items = record.items ?? record.results ?? record.data ?? record.users;
+  return Array.isArray(items) ? (items as SupplierAccessUser[]) : [];
+};
+
 interface SupplierFormProps {
   initialData?: Supplier;
+  existingUserId?: number;
   isEditMode?: boolean;
   onSaved?: () => void | Promise<void>;
   returnPath?: string;
@@ -114,6 +134,7 @@ interface SupplierFormProps {
 
 export default function SupplierForm({
   initialData,
+  existingUserId,
   isEditMode = false,
   onSaved,
   returnPath = "/admin/suppliers",
@@ -123,7 +144,9 @@ export default function SupplierForm({
   const router = useRouter();
   const pathname = usePathname();
   
-  const [userMode, setUserMode] = useState<'existing' | 'new' | 'current'>(isEditMode ? 'current' : 'new');
+  const [userMode, setUserMode] = useState<'existing' | 'new' | 'current'>(
+    isEditMode ? 'current' : existingUserId ? 'existing' : 'new',
+  );
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
@@ -158,6 +181,19 @@ export default function SupplierForm({
   const effectiveRoleKey = roleKeyFromStore || roleKeyFromStorage;
   const isAdminUser = ["admin", "superuser"].includes(effectiveRoleKey);
   const isSupplierRole = ["supplier", "proveedor", "provider", "vendor", "seller"].includes(effectiveRoleKey);
+  const isRecoveringExistingUser =
+    isAdminUser &&
+    !isEditMode &&
+    Number.isInteger(existingUserId) &&
+    Number(existingUserId) > 0;
+  const {
+    isDirectory: ownSubscriptionIsDirectory,
+    loading: ownDirectoryLoading,
+  } = useMyDirectorySubscription(isMyCompanyPage && isSupplierRole);
+  const [adminSubscriptionIsDirectory, setAdminSubscriptionIsDirectory] = useState(false);
+  const [adminDirectoryLoading, setAdminDirectoryLoading] = useState(false);
+  const isDirectory = ownSubscriptionIsDirectory || adminSubscriptionIsDirectory;
+  const directoryLoading = ownDirectoryLoading || adminDirectoryLoading;
   const showAccessSection = (isAdminUser && !isEditMode) || (isEditMode && (isAdminUser || isSupplierRole));
   const accessUser = isEditMode ? linkedUser : newUser;
   const setAccessUser = (patch: Partial<typeof newUser>) => {
@@ -168,8 +204,64 @@ export default function SupplierForm({
     }
   };
 
-  const showMercadoPagoSection = isMyCompanyPage && isSupplierRole;
+  const showMercadoPagoSection = isMyCompanyPage && isSupplierRole && !directoryLoading && !isDirectory;
   const canLoadMercadoPagoStatus = showMercadoPagoSection && !!token;
+
+  const findExistingSupplierUser = useCallback(
+    async (email: string) => {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!normalizedEmail) return null;
+
+      const response = await fetchWithAuth("/api/users/?skip=0&limit=1000");
+      if (!response.ok) return null;
+
+      const users = unwrapUsers(await response.json());
+      return (
+        users.find((candidate) => {
+          const role = String(
+            candidate.role ?? candidate.role_name ?? candidate.user_role ?? "",
+          )
+            .trim()
+            .toLowerCase();
+          return (
+            String(candidate.email || "").trim().toLowerCase() === normalizedEmail &&
+            ["supplier", "proveedor", "provider", "vendor"].includes(role)
+          );
+        }) ?? null
+      );
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isAdminUser || !isEditMode || !initialData?.id) return;
+
+    let cancelled = false;
+    const loadSupplierSubscription = async () => {
+      setAdminDirectoryLoading(true);
+      try {
+        const subscriptions = await subscriptionsService.listSubscriptions({
+          skip: 0,
+          limit: 500,
+        });
+        const subscription = subscriptions.find(
+          (item) => Number(item.supplier_id) === Number(initialData.id),
+        );
+        if (!cancelled) {
+          setAdminSubscriptionIsDirectory(isDirectorySubscription(subscription));
+        }
+      } catch {
+        if (!cancelled) setAdminSubscriptionIsDirectory(false);
+      } finally {
+        if (!cancelled) setAdminDirectoryLoading(false);
+      }
+    };
+
+    void loadSupplierSubscription();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialData?.id, isAdminUser, isEditMode]);
 
   const [mpAccount, setMpAccount] = useState<{ connected: boolean; email: string | null }>({
     connected: false,
@@ -184,6 +276,53 @@ export default function SupplierForm({
     const id = window.setTimeout(() => setToast(null), 3500);
     return () => window.clearTimeout(id);
   }, [toast]);
+
+  useEffect(() => {
+    if (!isRecoveringExistingUser || !existingUserId || !token) return;
+
+    let cancelled = false;
+    const loadExistingUser = async () => {
+      setLoadingLinkedUser(true);
+      try {
+        const response = await fetchWithAuth(`/api/users/${existingUserId}`);
+        if (!response.ok) {
+          throw new Error("No se pudo recuperar el usuario proveedor.");
+        }
+        const data = (await response.json()) as Record<string, unknown>;
+        const name =
+          (typeof data.full_name === "string" && data.full_name.trim()) ||
+          (typeof data.name === "string" && data.name.trim()) ||
+          "";
+        const email =
+          typeof data.email === "string" ? data.email.trim() : "";
+
+        if (!email) {
+          throw new Error("El usuario proveedor no tiene un correo válido.");
+        }
+        if (!cancelled) {
+          setNewUser({ name, email, password: "" });
+          setUserMode("existing");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setToast({
+            type: "error",
+            message:
+              error instanceof Error
+                ? error.message
+                : "No se pudo recuperar el usuario proveedor.",
+          });
+        }
+      } finally {
+        if (!cancelled) setLoadingLinkedUser(false);
+      }
+    };
+
+    void loadExistingUser();
+    return () => {
+      cancelled = true;
+    };
+  }, [existingUserId, isRecoveringExistingUser, token]);
 
   useEffect(() => {
     if (!isEditMode || !token || !initialData?.user_id || !(isAdminUser || isSupplierRole)) return;
@@ -424,6 +563,7 @@ export default function SupplierForm({
     is_active: initialData?.is_active ?? true,
     // Extended
     short_description: formText(initialData?.short_description),
+    description: formText(initialData?.description),
     address: formText(initialData?.address),
     exterior_number: formText(initialData?.exterior_number),
     interior_number: formText(initialData?.interior_number),
@@ -803,7 +943,7 @@ export default function SupplierForm({
         setToast({ type: "error", message: "No hay sesión activa" });
         return;
     }
-    if (formData.has_store && !formData.accepts_delivery && !formData.accepts_pickup) {
+    if (!isDirectory && formData.has_store && !formData.accepts_delivery && !formData.accepts_pickup) {
         setToast({ type: "error", message: "Selecciona al menos una opción de entrega." });
         return;
     }
@@ -821,11 +961,18 @@ export default function SupplierForm({
       }
 
       if (isAdminUser) {
-          if (!isEditMode && userMode !== 'new') {
-              setUserMode('new');
-          }
-
-          if (!isEditMode || userMode === 'new') {
+          if (isRecoveringExistingUser && existingUserId) {
+              if (loadingLinkedUser || !newUser.email) {
+                  setToast({
+                      type: "error",
+                      message: "Espera a que termine de cargar el usuario proveedor.",
+                  });
+                  setIsSubmitting(false);
+                  return;
+              }
+              finalUserId = existingUserId;
+              setUserMode("existing");
+          } else if (!isEditMode || userMode === 'new') {
               if (!newUser.email || !newUser.password || !newUser.name) {
                   setToast({ type: "error", message: "Todos los campos del nuevo usuario son obligatorios" });
                   setIsSubmitting(false);
@@ -833,10 +980,9 @@ export default function SupplierForm({
               }
               // Create user first
               try {
-                  const userResponse = await fetch(apiUrl('/users/'), {
+                  const userResponse = await fetchWithAuth('/api/users/', {
                       method: 'POST',
                       headers: {
-                          ...authHeaders(token),
                           "Content-Type": "application/json",
                       },
                       body: JSON.stringify({
@@ -848,20 +994,28 @@ export default function SupplierForm({
                   
                   if (!userResponse.ok) {
                       const errText = await userResponse.text();
-                      let errMsg = errText;
-                      try {
-                          const json = JSON.parse(errText);
-                          errMsg = json.detail || JSON.stringify(json);
-                      } catch {}
-                      throw new Error("Error al crear el usuario: " + errMsg);
+                      const existingUser = [400, 409, 422].includes(userResponse.status)
+                        ? await findExistingSupplierUser(newUser.email)
+                        : null;
+
+                      if (existingUser) {
+                          finalUserId = Number(existingUser.id);
+                      } else {
+                          let errMsg = errText;
+                          try {
+                              const json = JSON.parse(errText);
+                              errMsg = json.detail || JSON.stringify(json);
+                          } catch {}
+                          throw new Error("Error al crear el usuario: " + errMsg);
+                      }
+                  } else {
+                      const createdUser = await userResponse.json();
+                      const createdUserId = Number(createdUser?.id);
+                      if (!Number.isFinite(createdUserId)) {
+                          throw new Error("El backend creó el usuario, pero no devolvió un ID válido.");
+                      }
+                      finalUserId = createdUserId;
                   }
-                  
-                  const createdUser = await userResponse.json();
-                  const createdUserId = Number(createdUser?.id);
-                  if (!Number.isFinite(createdUserId)) {
-                      throw new Error("El backend creó el usuario, pero no devolvió un ID válido.");
-                  }
-                  finalUserId = createdUserId;
               } catch (e: unknown) {
                   const msg =
                     e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
@@ -937,7 +1091,7 @@ export default function SupplierForm({
         };
 
         // Transfer Data Validation
-        if (formData.transfer_accepted) {
+        if (!isDirectory && formData.transfer_accepted) {
               if (!formData.transfer_clabe || !/^\d{18}$/.test(formData.transfer_clabe)) {
                   setToast({ type: "error", message: "La CLABE debe tener 18 dígitos numéricos." });
                   setIsSubmitting(false);
@@ -971,7 +1125,8 @@ export default function SupplierForm({
         appendIfPresent("state", formData.state);
         appendIfPresent("country", formData.country);
         data.append("is_active", String(formData.is_active));
-        appendIfPresent("short_description", formData.short_description);
+        data.append("short_description", formData.short_description.trim());
+        data.append("description", formData.description.trim());
         appendIfPresent("address", formData.address);
         appendIfPresent("exterior_number", formData.exterior_number);
         appendIfPresent("interior_number", formData.interior_number);
@@ -983,10 +1138,10 @@ export default function SupplierForm({
         appendIfPresent("title_about", formData.title_about);
         appendIfPresent("subtitle_about", formData.subtitle_about);
         appendIfPresent("about", formData.about);
-        data.append("has_store", String(formData.has_store));
-        data.append("accepts_delivery", String(formData.accepts_delivery));
-        data.append("accepts_pickup", String(formData.accepts_pickup));
-        data.append("accepts_courier", String(formData.accepts_courier));
+        data.append("has_store", String(isDirectory ? false : formData.has_store));
+        data.append("accepts_delivery", String(isDirectory ? false : formData.accepts_delivery));
+        data.append("accepts_pickup", String(isDirectory ? false : formData.accepts_pickup));
+        data.append("accepts_courier", String(isDirectory ? false : formData.accepts_courier));
         if (resolvedMapLocation) {
           data.append("map_location", serializeMapLocation(resolvedMapLocation));
         }
@@ -1038,9 +1193,8 @@ export default function SupplierForm({
       } else {
         const data = buildFormData();
 
-        response = await fetch(apiUrl("/suppliers/"), {
+        response = await fetchWithAuth("/api/suppliers/", {
           method: "POST",
-          headers: authHeaders(token),
           body: data,
         });
       }
@@ -1088,6 +1242,50 @@ export default function SupplierForm({
         updatedSupplier = await response.json();
       } catch {
         updatedSupplier = null;
+      }
+
+      if (!isEdit && isRecoveringExistingUser && existingUserId) {
+        const createdRecord =
+          updatedSupplier && typeof updatedSupplier === "object"
+            ? (updatedSupplier as Record<string, unknown>)
+            : null;
+        let confirmedLinkedUserId = Number(
+          createdRecord?.user_id ?? createdRecord?.userId,
+        );
+
+        if (confirmedLinkedUserId !== existingUserId) {
+          const verifyResponse = await fetchWithAuth(
+            `/api/suppliers/?skip=0&limit=10&user_id=${existingUserId}`,
+          );
+          if (verifyResponse.ok) {
+            const verifyData = await verifyResponse.json();
+            const candidates = Array.isArray(verifyData)
+              ? verifyData
+              : verifyData && typeof verifyData === "object"
+                ? ((verifyData as Record<string, unknown>).items ??
+                    (verifyData as Record<string, unknown>).results ??
+                    (verifyData as Record<string, unknown>).data ??
+                    (verifyData as Record<string, unknown>).suppliers)
+                : [];
+            if (Array.isArray(candidates)) {
+              const linkedSupplier = candidates.find((candidate) => {
+                if (!candidate || typeof candidate !== "object") return false;
+                const record = candidate as Record<string, unknown>;
+                return Number(record.user_id ?? record.userId) === existingUserId;
+              });
+              if (linkedSupplier) {
+                confirmedLinkedUserId = existingUserId;
+                updatedSupplier = linkedSupplier;
+              }
+            }
+          }
+        }
+
+        if (confirmedLinkedUserId !== existingUserId) {
+          throw new Error(
+            "La empresa se guardó, pero el backend no confirmó que quedara vinculada al usuario seleccionado.",
+          );
+        }
       }
 
       if (process.env.NODE_ENV === "development") console.log("[SupplierForm] PUT response body:", updatedSupplier);
@@ -1177,6 +1375,11 @@ export default function SupplierForm({
             <Users size={20} />
             Datos de acceso del usuario
           </h3>
+          {isRecoveringExistingUser ? (
+            <p className="mb-4 rounded-lg border border-blue-200 bg-white/70 px-4 py-3 text-sm text-blue-800">
+              Esta cuenta ya existe. Al guardar solo se creará y vinculará su perfil empresarial.
+            </p>
+          ) : null}
           {loadingLinkedUser ? (
             <div className="mb-4 inline-flex items-center gap-2 text-sm text-blue-700">
               <Loader2 size={16} className="animate-spin" />
@@ -1193,8 +1396,9 @@ export default function SupplierForm({
                   autoComplete="off"
                   value={accessUser.name}
                   onChange={e => setAccessUser({ name: e.target.value })}
+                  readOnly={isRecoveringExistingUser}
                   required
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 read-only:cursor-not-allowed read-only:bg-blue-50/60"
                   placeholder="Nombre del usuario vinculado"
                 />
               </div>
@@ -1206,11 +1410,13 @@ export default function SupplierForm({
                   autoComplete="off"
                   value={accessUser.email}
                   onChange={e => setAccessUser({ email: e.target.value })}
+                  readOnly={isRecoveringExistingUser}
                   required
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 read-only:cursor-not-allowed read-only:bg-blue-50/60"
                   placeholder="usuario@ejemplo.com"
                 />
               </div>
+              {!isRecoveringExistingUser ? (
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Contraseña {isEditMode ? <span className="font-normal text-gray-500">(opcional)</span> : null}
@@ -1226,6 +1432,7 @@ export default function SupplierForm({
                   placeholder={isEditMode ? "Dejar en blanco para no cambiarla" : "Contraseña segura"}
                 />
               </div>
+              ) : null}
             </div>
         </div>
       )}
@@ -1321,6 +1528,19 @@ export default function SupplierForm({
             </div>
           )}
 
+          {directoryLoading && isMyCompanyPage && isSupplierRole ? (
+            <div className="mt-2 flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+              <Loader2 size={16} className="animate-spin" />
+              Validando modalidad de la subscripción...
+            </div>
+          ) : isDirectory ? (
+            <div className="mt-2 rounded-xl border border-primary/15 bg-primary/5 p-4">
+              <h4 className="text-sm font-semibold text-primary">Perfil de servicios</h4>
+              <p className="mt-1 text-xs leading-5 text-gray-600">
+                Tu plan funciona como directorio empresarial. No requiere tienda, cobros, entregas ni recolección.
+              </p>
+            </div>
+          ) : (
           <div className="pt-4 mt-2 border-t border-gray-200 space-y-3">
             <h4 className="text-base font-semibold text-gray-900">Opciones de Entrega</h4>
             <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
@@ -1412,6 +1632,7 @@ export default function SupplierForm({
               </>
             )}
           </div>
+          )}
           
            {isAdminUser && (
              <div>
@@ -1581,16 +1802,41 @@ export default function SupplierForm({
         <div className="md:col-span-2 space-y-4 pt-4">
            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Perfil Detallado</h3>
 
+          <div className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
            <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Corta (SEO)</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Descripción corta (encabezado y SEO)
+            </label>
             <input
               type="text"
               name="short_description"
               value={formData.short_description}
               onChange={handleInputChange}
               maxLength={160}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              placeholder="Ej. Soluciones profesionales para cuidar de ti"
             />
+            <p className="mt-1.5 text-xs leading-5 text-gray-500">
+              Se muestra en la parte superior del perfil, debajo del nombre del proveedor.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Descripción completa
+            </label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
+              rows={6}
+              className="w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 leading-6 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              placeholder="Cuenta qué hace especial a tu empresa, su propuesta de valor y la experiencia que ofrece."
+            />
+            <p className="mt-1.5 text-xs leading-5 text-gray-500">
+              Aparece en una sección destacada del perfil público, tanto para tiendas como para proveedores del directorio.
+            </p>
+          </div>
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
@@ -1662,7 +1908,11 @@ export default function SupplierForm({
       <div className="flex justify-end pt-6">
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={
+            isSubmitting ||
+            directoryLoading ||
+            (isRecoveringExistingUser && loadingLinkedUser)
+          }
           className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
         >
           {isSubmitting ? (

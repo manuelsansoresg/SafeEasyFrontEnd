@@ -7,45 +7,41 @@ import { CheckCircle, ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { getFeaturedSuppliers, FeaturedSupplier } from "@/services/homeService";
 
 export function HomeFeaturedSuppliers() {
-  const [suppliers, setSuppliers] = useState<FeaturedSupplier[]>([]);
+  const [allSuppliers, setAllSuppliers] = useState<FeaturedSupplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [skip, setSkip] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
   const limit = 3;
 
-  const fetchSuppliers = async (skipValue: number) => {
+  const fetchSuppliers = async () => {
     setLoading(true);
     try {
-      // Fetch one more item to check if there are more pages
-      const data = await getFeaturedSuppliers(skipValue, limit + 1);
-      if (data.length > limit) {
-        setHasMore(true);
-        setSuppliers(data.slice(0, limit));
-      } else {
-        setHasMore(false);
-        setSuppliers(data);
-      }
+      const data = await getFeaturedSuppliers(0, 100);
+      setAllSuppliers(data);
+      setSkip(0);
     } catch (error) {
       console.error(error);
-      setHasMore(false);
+      setAllSuppliers([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSuppliers(skip);
-  }, [skip]);
+    void fetchSuppliers();
+  }, []);
+
+  const suppliers = allSuppliers.slice(skip, skip + limit);
+  const hasMore = skip + limit < allSuppliers.length;
 
   const handleNext = () => {
     if (hasMore) {
-      setSkip(prev => prev + limit);
+      setSkip((previous) => previous + limit);
     }
   };
 
   const handlePrev = () => {
     if (skip >= limit) {
-      setSkip(prev => prev - limit);
+      setSkip((previous) => Math.max(0, previous - limit));
     }
   };
 

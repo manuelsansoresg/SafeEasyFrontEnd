@@ -2,10 +2,13 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Store, Image, ShieldCheck, Package } from 'lucide-react';
+import { Store, Image as ImageIcon, ShieldCheck, Package, BriefcaseBusiness } from 'lucide-react';
 import { PageHero } from '@/components/ui/PageHero';
+import { useMyDirectorySubscription } from '@/hooks/useMyDirectorySubscription';
 
 export default function SupplierDashboard() {
+  const { isDirectory } = useMyDirectorySubscription();
+
   return (
     <div className="w-full">
       <motion.div
@@ -17,14 +20,18 @@ export default function SupplierDashboard() {
         <div className="mb-12">
           <PageHero
             title="Bienvenido a Drooopy"
-            subtitle="Gestione su empresa, personalice su sitio y administre sus productos desde aquí."
+            subtitle={
+              isDirectory
+                ? "Administra tu perfil profesional, presenta tus servicios y mantén actualizada la información de tu empresa."
+                : "Gestione su empresa, personalice su sitio y administre sus productos desde aquí."
+            }
           />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <DashboardCard 
             href="/admin/my-company?tab=carousel"
-            icon={<Image className="w-8 h-8 text-primary" />}
+            icon={<ImageIcon className="w-8 h-8 text-primary" />}
             title="Personalizar Sitio"
             description="Personalice el encabezado de su sitio con imágenes o video."
             delay={0.1}
@@ -47,10 +54,20 @@ export default function SupplierDashboard() {
           />
 
           <DashboardCard 
-            href="/admin/products"
-            icon={<Package className="w-8 h-8 text-primary" />}
-            title="Mis Productos"
-            description="Administre su inventario de productos."
+            href={isDirectory ? "/admin/services" : "/admin/products"}
+            icon={
+              isDirectory ? (
+                <BriefcaseBusiness className="w-8 h-8 text-primary" />
+              ) : (
+                <Package className="w-8 h-8 text-primary" />
+              )
+            }
+            title={isDirectory ? "Mis Servicios" : "Mis Productos"}
+            description={
+              isDirectory
+                ? "Administra la galería de servicios de tu perfil profesional."
+                : "Administre su inventario de productos."
+            }
             delay={0.4}
           />
         </div>
