@@ -93,24 +93,6 @@ function asSupplier(value: unknown): CurrentSupplier | null {
   };
 }
 
-function matchSupplierForUser(items: Record<string, unknown>[], user: NonNullable<AuthUser>) {
-  const userId = Number(user.id);
-  const email = String(user.email || "").trim().toLowerCase();
-
-  const exactByUser = items.find((item) => toNumber(item.user_id ?? item.userId) === userId);
-  if (exactByUser) return asSupplier(exactByUser);
-
-  if (email) {
-    const exactByEmail = items.find((item) => {
-      const itemEmail = String(item.email ?? item.public_email ?? item.user_email ?? "").trim().toLowerCase();
-      return itemEmail === email;
-    });
-    if (exactByEmail) return asSupplier(exactByEmail);
-  }
-
-  return items.length === 1 ? asSupplier(items[0]) : null;
-}
-
 async function readJson(url: string, options?: SupplierLookupOptions) {
   const response = await fetchWithAuth(url, {
     signal: options?.signal,
@@ -127,6 +109,21 @@ async function readJson(url: string, options?: SupplierLookupOptions) {
 async function fetchSupplierById(id: number, options?: SupplierLookupOptions) {
   const data = await readJson(`/api/suppliers/${encodeURIComponent(String(id))}`, options);
   return asSupplier(data);
+}
+
+async function fetchSuppliersPage(skip: number, limit: number, options?: SupplierLookupOptions) {
+  const candidateUrls = [
+    `/api/suppliers/?skip=${skip}&limit=${limit}`,
+    `/api/suppliers?skip=${skip}&limit=${limit}`,
+  ];
+  for (const url of candidateUrls) {
+    const data = await readJson(url, options);
+    const items = unwrapList(data);
+    if (items.length > 0 || url === candidateUrls[candidateUrls.length - 1]) {
+      return items;
+    }
+  }
+  return [];
 }
 
 export async function resolveCurrentSupplier(user: AuthUser, options?: SupplierLookupOptions) {
@@ -146,16 +143,41 @@ export async function resolveCurrentSupplier(user: AuthUser, options?: SupplierL
     if (supplier) return supplier;
   }
 
-  const userId = encodeURIComponent(String(user.id));
-  const supplierListUrls = [
-    `/api/suppliers/?skip=0&limit=100&user_id=${userId}`,
-    `/api/suppliers?skip=0&limit=100&user_id=${userId}`,
-  ];
+  // The backend's GET /suppliers/ does not accept user_id as a filter, so we
+  // paginate the list and match by user_id on the client side. We cap the
+  // scan at MAX_PAGES * PAGE_SIZE suppliers to avoid runaway requests.
+  const userId = Number(user.id);
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 10;
+  const email = String(user.email || "").trim().toLowerCase();
 
-  for (const url of supplierListUrls) {
-    const data = await readJson(url, options);
-    const supplier = matchSupplierForUser(unwrapList(data), user);
-    if (supplier) return supplier;
+  let scanned = 0;
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const skip = page * PAGE_SIZE;
+    const items = await fetchSuppliersPage(skip, PAGE_SIZE, options);
+    if (items.length === 0) break;
+    scanned += items.length;
+
+    const exactByUser = items.find((item) => toNumber(item.user_id ?? item.userId) === userId);
+    if (exactByUser) return asSupplier(exactByUser);
+
+    if (email) {
+      const exactByEmail = items.find((item) => {
+        const itemEmail = String(item.email ?? item.public_email ?? item.user_email ?? "")
+          .trim()
+          .toLowerCase();
+        return itemEmail === email;
+      });
+      if (exactByEmail) return asSupplier(exactByEmail);
+    }
+
+    if (items.length < PAGE_SIZE) break;
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    console.warn(
+      `[resolveCurrentSupplier] No supplier matched user_id=${userId} after scanning ${scanned} suppliers.`,
+    );
   }
 
   return null;

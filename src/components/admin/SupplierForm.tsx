@@ -74,6 +74,21 @@ interface Supplier {
   accepts_pickup?: boolean;
   accepts_courier?: boolean;
   map_location?: string | LatLngLiteral | null;
+  category_id?: number | null;
+  subcategory_id?: number | null;
+}
+
+interface Category {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+interface Subcategory {
+  id: number;
+  name: string;
+  category_id: number;
+  slug: string;
 }
 
 function parseSupplierMapLocation(value: unknown): LatLngLiteral | null {
@@ -586,6 +601,8 @@ export default function SupplierForm({
       initialData?.has_store === false || initialData?.accepts_delivery === false
         ? false
         : (initialData?.accepts_courier ?? false),
+    category_id: initialData?.category_id ?? null,
+    subcategory_id: initialData?.subcategory_id ?? null,
   });
 
   const [mapLocation, setMapLocation] = useState<LatLngLiteral | null>(() =>
@@ -613,6 +630,8 @@ export default function SupplierForm({
     countries: false,
     states: false,
     cities: false,
+    categories: false,
+    subcategories: false,
   });
   const [countries, setCountries] = useState<SupplierCatalogOption[]>([DEFAULT_COUNTRY_OPTION]);
   const [states, setStates] = useState<SupplierCatalogOption[]>([]);
@@ -620,6 +639,8 @@ export default function SupplierForm({
   const [selectedCountryId, setSelectedCountryId] = useState<number | null>(DEFAULT_COUNTRY_ID);
   const [selectedStateId, setSelectedStateId] = useState<number | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const inputClassName = "h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500";
 
   useEffect(() => {
@@ -760,6 +781,66 @@ export default function SupplierForm({
     };
   }, [selectedStateId, formData.city]);
 
+  const fetchCategories = useCallback(async () => {
+    if (!token) return;
+    setCatalogLoading((prev) => ({ ...prev, categories: true }));
+    try {
+      const response = await fetchWithAuth("/api/categories/?skip=0&limit=200");
+      if (!response.ok) return;
+      const data = await response.json();
+      setCategories(Array.isArray(data) ? (data as Category[]) : []);
+    } catch (error) {
+      console.error("Error loading supplier categories", error);
+    } finally {
+      setCatalogLoading((prev) => ({ ...prev, categories: false }));
+    }
+  }, [token]);
+
+  const fetchSubcategories = useCallback(
+    async (categoryId: number) => {
+      if (!token || !Number.isFinite(categoryId)) return;
+      setCatalogLoading((prev) => ({ ...prev, subcategories: true }));
+      try {
+        const response = await fetchWithAuth(
+          `/api/subcategories/?category_id=${categoryId}&skip=0&limit=200`,
+        );
+        if (!response.ok) {
+          setSubcategories([]);
+          return;
+        }
+        const data = await response.json();
+        setSubcategories(Array.isArray(data) ? (data as Subcategory[]) : []);
+      } catch (error) {
+        console.error("Error loading supplier subcategories", error);
+        setSubcategories([]);
+      } finally {
+        setCatalogLoading((prev) => ({ ...prev, subcategories: false }));
+      }
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    if (!isDirectory) {
+      setCategories([]);
+      setSubcategories([]);
+      return;
+    }
+    fetchCategories();
+  }, [isDirectory, fetchCategories]);
+
+  useEffect(() => {
+    if (!isDirectory) {
+      setSubcategories([]);
+      return;
+    }
+    if (formData.category_id && Number.isFinite(formData.category_id)) {
+      fetchSubcategories(formData.category_id);
+    } else {
+      setSubcategories([]);
+    }
+  }, [formData.category_id, isDirectory, fetchSubcategories]);
+
   const buildMapAddressQuery = () => {
     const street = String(formData.address || "").trim();
     let streetPart = street;
@@ -866,6 +947,21 @@ export default function SupplierForm({
       }
       if (name === "accepts_courier" && !prev.accepts_delivery) {
         return prev;
+      }
+      if (name === "category_id") {
+        const categoryId = val === "" || val == null ? null : Number(val);
+        return {
+          ...prev,
+          category_id: Number.isFinite(categoryId) ? categoryId : null,
+          subcategory_id: null,
+        };
+      }
+      if (name === "subcategory_id") {
+        const subcategoryId = val === "" || val == null ? null : Number(val);
+        return {
+          ...prev,
+          subcategory_id: Number.isFinite(subcategoryId) ? subcategoryId : null,
+        };
       }
       return { ...prev, [name]: val };
     });
@@ -1144,6 +1240,15 @@ export default function SupplierForm({
         data.append("accepts_courier", String(isDirectory ? false : formData.accepts_courier));
         if (resolvedMapLocation) {
           data.append("map_location", serializeMapLocation(resolvedMapLocation));
+        }
+
+        if (isDirectory) {
+          if (formData.category_id && Number.isFinite(formData.category_id)) {
+            data.append("category_id", String(formData.category_id));
+          }
+          if (formData.subcategory_id && Number.isFinite(formData.subcategory_id)) {
+            data.append("subcategory_id", String(formData.subcategory_id));
+          }
         }
 
         data.append("user_id", String(finalUserId));
@@ -1476,6 +1581,53 @@ export default function SupplierForm({
               />
             </div>
           </div>
+
+          {isDirectory && !directoryLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                <select
+                  name="category_id"
+                  value={formData.category_id ?? ""}
+                  onChange={handleInputChange}
+                  disabled={catalogLoading.categories}
+                  className={inputClassName}
+                >
+                  <option value="">
+                    {catalogLoading.categories ? "Cargando categorías..." : "Selecciona una categoría"}
+                  </option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subcategoría</label>
+                <select
+                  name="subcategory_id"
+                  value={formData.subcategory_id ?? ""}
+                  onChange={handleInputChange}
+                  disabled={!formData.category_id || catalogLoading.subcategories}
+                  className={inputClassName}
+                >
+                  <option value="">
+                    {!formData.category_id
+                      ? "Selecciona primero una categoría"
+                      : catalogLoading.subcategories
+                        ? "Cargando subcategorías..."
+                        : "Selecciona una subcategoría"}
+                  </option>
+                  {subcategories.map((subcategory) => (
+                    <option key={subcategory.id} value={subcategory.id}>
+                      {subcategory.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : null}
 
           {showMercadoPagoSection && (
             <div className="pt-4 mt-2 border-t border-gray-200 space-y-3">
