@@ -24,6 +24,12 @@ export interface Conversation {
   user_id: number;
   buyer_id?: number; // Backend field
   supplier_id: number;
+  /**
+   * Backend field. The actual user_id of the supplier who owns this conversation
+   * (different from `supplier_id` which is the supplier COMPANY/record id).
+   * Required for the client-side role fallback when `my_role` is missing.
+   */
+  supplier_user_id?: number | null;
   product_id?: string | number | null;
   created_at: string;
   updated_at: string;

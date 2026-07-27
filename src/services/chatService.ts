@@ -22,6 +22,14 @@ interface ApiConversation {
   buyer_name?: string;
   supplier_name?: string;
   buyer_id?: number;
+  supplier_id?: number;
+  /**
+   * The user_id of the supplier who owns the conversation.
+   * Critical: `supplier_id` is the supplier COMPANY id, not the user id.
+   * This is the only reliable way to identify the supplier user for role
+   * detection on the client (e.g. for directory conversations).
+   */
+  supplier_user_id?: number | null;
   user_id?: number;
   user_name?: string;
   user?: {
@@ -115,6 +123,8 @@ export const chatService = {
 
           user_id: c.buyer_id || c.user_id,
           buyer_id: c.buyer_id,
+          supplier_id: c.supplier_id,
+          supplier_user_id: c.supplier_user_id ?? null,
 
           // Fallbacks de nombre
           user_name:
@@ -246,9 +256,11 @@ export const chatService = {
         other_party_name: data.other_party_name,
         buyer_name: data.buyer_name,
         supplier_name: data.supplier_name,
-        
+
         user_id: data.buyer_id || data.user_id,
-        buyer_id: data.buyer_id
+        buyer_id: data.buyer_id,
+        supplier_id: data.supplier_id,
+        supplier_user_id: data.supplier_user_id ?? null
     } as Conversation;
   },
   

@@ -16,6 +16,34 @@ type DropdownItem =
   | { type: "marketplace"; conversation: Conversation; date: string; unread: number }
   | { type: "support"; conversation: SupportConversation; date: string; unread: number };
 
+/**
+ * Resolve the current user's role inside a conversation.
+ *
+ * IMPORTANT: `conversation.supplier_id` is the supplier COMPANY/record id,
+ * NOT the user id. For directory conversations (and in general) the backend
+ * also returns `conversation.supplier_user_id`, which is the real user id
+ * of the supplier. We must compare against `supplier_user_id` first, and
+ * fall back to `supplier_id` only when `supplier_user_id` is missing.
+ */
+const resolveMyRoleInConversation = (
+  conv: Conversation,
+  myId: string,
+): "supplier" | "client" | undefined => {
+  if (conv.my_role === "supplier" || conv.my_role === "client") {
+    return conv.my_role;
+  }
+  const supplierUserId =
+    conv.supplier_user_id !== undefined && conv.supplier_user_id !== null
+      ? String(conv.supplier_user_id)
+      : "";
+  const supplierId = String(conv.supplier_id);
+  const buyerId = String(conv.user_id || conv.buyer_id);
+  if (supplierUserId === myId) return "supplier";
+  if (supplierId === myId) return "supplier"; // legacy fallback
+  if (buyerId === myId) return "client";
+  return undefined;
+};
+
 export function MessagesDropdown() {
   const { user, token } = useAuthStore();
   const { openChat } = useChat();
@@ -107,9 +135,7 @@ export function MessagesDropdown() {
         const myId = String(user.id);
         const supplierId = String(c.supplier_id);
         const buyerId = String(c.user_id || c.buyer_id);
-        const effectiveMyRole =
-          c.my_role ||
-          (supplierId === myId ? "supplier" : buyerId === myId ? "client" : undefined);
+        const effectiveMyRole = resolveMyRoleInConversation(c, myId);
         const userIsSupplier = user.role === "supplier" || user.role === "admin";
 
         if (userIsSupplier && effectiveMyRole !== "supplier") return false;
@@ -129,22 +155,25 @@ export function MessagesDropdown() {
 
      const myId = String(user.id);
      const supplierId = String(conv.supplier_id);
+     const supplierUserId =
+       conv.supplier_user_id !== undefined && conv.supplier_user_id !== null
+         ? String(conv.supplier_user_id)
+         : "";
      const buyerId = String(conv.user_id || conv.buyer_id);
-     
+
      // Construct my name for comparison
       const myName = (user.name || '').trim();
-     const effectiveMyRole =
-       conv.my_role ||
-       (myId === supplierId ? "supplier" : myId === buyerId ? "client" : undefined);
+     const effectiveMyRole = resolveMyRoleInConversation(conv, myId);
+     const iAmSupplierSide =
+       effectiveMyRole === "supplier" ||
+       supplierUserId === myId ||
+       supplierId === myId ||
+       user.role === "supplier" ||
+       user.role === "admin";
 
      // 1. Am I the Supplier? (Or Admin acting as Supplier)
      // If my ID matches the supplier_id, I MUST see the Client's Name.
-     if (
-       effectiveMyRole === "supplier" ||
-       myId === supplierId ||
-       user.role === "supplier" ||
-       user.role === "admin"
-     ) {
+     if (iAmSupplierSide) {
          if (conv.buyer_name && conv.buyer_name.trim()) {
              return conv.buyer_name;
          }
@@ -158,26 +187,26 @@ export function MessagesDropdown() {
                  if (name && name.toLowerCase() !== myName.toLowerCase()) return name;
              }
          }
-         
+
          // Fallback to flat fields
          // PRIORITIZE buyer_name, as that is explicitly the client.
          // Use user_name if different from me
          if (conv.user_name && conv.user_name.trim() && conv.user_name.trim().toLowerCase() !== myName.toLowerCase()) {
              return conv.user_name;
          }
-         
+
          // IGNORE supplier_name completely for suppliers.
          // CHECK other_party_name carefully.
          if (conv.other_party_name) {
              const opName = conv.other_party_name.trim().toLowerCase();
              // If other_party_name is NOT me, and NOT the supplier name (which is likely me)
              const sName = (conv.supplier_name || '').trim().toLowerCase();
-             
+
              if (opName !== myName.toLowerCase() && opName !== sName) {
                  return conv.other_party_name;
              }
          }
-         
+
          // Absolute last resort
          return `Cliente #${buyerId}`;
      }
@@ -198,15 +227,18 @@ export function MessagesDropdown() {
 
        const myId = String(user.id);
        const supplierId = String(conv.supplier_id);
+       const supplierUserId =
+         conv.supplier_user_id !== undefined && conv.supplier_user_id !== null
+           ? String(conv.supplier_user_id)
+           : "";
        const buyerId = String(conv.user_id || conv.buyer_id);
-       const effectiveMyRole =
-         conv.my_role ||
-         (myId === supplierId ? "supplier" : myId === buyerId ? "client" : undefined);
+       const effectiveMyRole = resolveMyRoleInConversation(conv, myId);
 
        // 1. Am I the Supplier? -> Show Client Image
         if (
           effectiveMyRole === "supplier" ||
-          myId === supplierId ||
+          supplierUserId === myId ||
+          supplierId === myId ||
           user.role === "supplier" ||
           user.role === "admin"
         ) {
@@ -251,15 +283,17 @@ export function MessagesDropdown() {
 
   const displayConversations = useMemo(() => {
     if (!chatEnabled || !user) return [];
-    
+
     return conversations
         .filter((conv, index, self) => {
             const myId = String(user.id);
             const supplierId = String(conv.supplier_id);
+            const supplierUserId =
+              conv.supplier_user_id !== undefined && conv.supplier_user_id !== null
+                ? String(conv.supplier_user_id)
+                : "";
             const buyerId = String(conv.user_id || conv.buyer_id);
-            const effectiveMyRole =
-              conv.my_role ||
-              (supplierId === myId ? "supplier" : buyerId === myId ? "client" : undefined);
+            const effectiveMyRole = resolveMyRoleInConversation(conv, myId);
             const userIsSupplier = user.role === "supplier" || user.role === "admin";
 
             if (userIsSupplier) {
@@ -268,7 +302,7 @@ export function MessagesDropdown() {
 
             // 1. Identify if I am involved
             let otherId = '';
-            if (supplierId === myId) otherId = buyerId;
+            if (supplierUserId === myId || supplierId === myId) otherId = buyerId;
             else if (buyerId === myId) otherId = supplierId;
             else if (effectiveMyRole === "supplier") otherId = buyerId;
             else if (effectiveMyRole === "client") otherId = supplierId;
@@ -281,22 +315,24 @@ export function MessagesDropdown() {
             const key = otherId;
             const firstIndex = self.findIndex(c => {
                 const cSupplierId = String(c.supplier_id);
+                const cSupplierUserId =
+                  c.supplier_user_id !== undefined && c.supplier_user_id !== null
+                    ? String(c.supplier_user_id)
+                    : "";
                 const cBuyerId = String(c.user_id || c.buyer_id);
-                const cEffectiveMyRole =
-                  c.my_role ||
-                  (cSupplierId === myId ? "supplier" : cBuyerId === myId ? "client" : undefined);
+                const cEffectiveMyRole = resolveMyRoleInConversation(c, myId);
                 let cOtherId = '';
-                
-                if (cSupplierId === myId) cOtherId = cBuyerId;
+
+                if (cSupplierUserId === myId || cSupplierId === myId) cOtherId = cBuyerId;
                 else if (cBuyerId === myId) cOtherId = cSupplierId;
                 else if (cEffectiveMyRole === "supplier") cOtherId = cBuyerId;
                 else if (cEffectiveMyRole === "client") cOtherId = cSupplierId;
                 else return false;
-                
+
                 // Compare only the other party ID
                 return cOtherId === key;
             });
-            
+
             return firstIndex === index;
         })
         .slice(0, 5);

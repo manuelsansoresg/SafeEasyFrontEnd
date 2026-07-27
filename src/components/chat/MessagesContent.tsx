@@ -9,12 +9,34 @@ import { useChatInboxWebSocket, useChatWebSocket } from "@/hooks/useChatWebSocke
 import { fetchWithAuth } from "@/lib/api";
 import { getTrustedAssetUrl } from "@/lib/security";
 import { PageHero } from "@/components/ui/PageHero";
-import { 
-  Send, Search, MessageSquare, Info, Package, CheckCheck, 
+import {
+  Send, Search, MessageSquare, Info, Package, CheckCheck,
   FileText, Download, Image as ImageIcon, Loader2, Paperclip, X,
   MoreHorizontal, Phone, Video, Smile, PlusCircle, ShoppingBag, ChevronRight, Clock
 } from "lucide-react";
 import Image from "next/image";
+
+/**
+ * Returns true when the current user is the supplier side of the conversation.
+ * IMPORTANT: `supplier_id` is the supplier COMPANY id, not the user id.
+ * For directory conversations the supplier's actual user id lives in
+ * `supplier_user_id` and we MUST check that first.
+ */
+const isCurrentUserSupplierOf = (
+  conv: { supplier_id?: number | string | null; supplier_user_id?: number | null } | null | undefined,
+  userId: number | string | null | undefined,
+  userRole?: string | null,
+): boolean => {
+  if (!conv || userId === null || userId === undefined) return false;
+  const myId = String(userId);
+  if (conv.supplier_user_id !== undefined && conv.supplier_user_id !== null) {
+    if (String(conv.supplier_user_id) === myId) return true;
+  }
+  if (conv.supplier_id !== undefined && conv.supplier_id !== null) {
+    if (String(conv.supplier_id) === myId) return true;
+  }
+  return userRole === "supplier" || userRole === "admin";
+};
 
 // Local interfaces for product data
 interface ProductDetail {
@@ -347,14 +369,23 @@ export function MessagesContent() {
 
      const myId = String(user.id);
      const supplierId = String(conv.supplier_id);
+     const supplierUserId =
+       conv.supplier_user_id !== undefined && conv.supplier_user_id !== null
+         ? String(conv.supplier_user_id)
+         : "";
      const buyerId = String(conv.user_id || conv.buyer_id);
-     
+
      // Construct my name for comparison
       const myName = (user.name || '').trim();
 
      // 1. Am I the Supplier? (Or Admin acting as Supplier)
-     // If my ID matches the supplier_id, I MUST see the Client's Name.
-     if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+     // If my ID matches the supplier_id (or supplier_user_id for directory chats), I MUST see the Client's Name.
+     if (
+       supplierUserId === myId ||
+       myId === supplierId ||
+       user.role === 'supplier' ||
+       user.role === 'admin'
+     ) {
          // Check structured user object first
          if (conv.user) {
              const convUserId = String(conv.user.id);
@@ -406,10 +437,19 @@ export function MessagesContent() {
 
       const myId = String(user.id);
       const supplierId = String(conv.supplier_id);
+      const supplierUserId =
+        conv.supplier_user_id !== undefined && conv.supplier_user_id !== null
+          ? String(conv.supplier_user_id)
+          : "";
       const buyerId = String(conv.user_id || conv.buyer_id);
 
       // 1. Am I the Supplier? -> Show Client Image
-      if (myId === supplierId || user.role === 'supplier' || user.role === 'admin') {
+      if (
+        supplierUserId === myId ||
+        myId === supplierId ||
+        user.role === 'supplier' ||
+        user.role === 'admin'
+      ) {
           // Use 'any' cast to check properties not in strict interface
           const userObj = conv.user as any;
           if (userObj && String(userObj.id) !== myId) {
@@ -505,9 +545,13 @@ export function MessagesContent() {
                 // 1. Identify if I am involved and who the other party is
                 let otherId = '';
                 const supplierId = String(conv.supplier_id);
+                const supplierUserId =
+                  conv.supplier_user_id !== undefined && conv.supplier_user_id !== null
+                    ? String(conv.supplier_user_id)
+                    : "";
                 const buyerId = String(conv.user_id || conv.buyer_id);
 
-                if (supplierId === myId) {
+                if (supplierUserId === myId || supplierId === myId) {
                     otherId = buyerId;
                 } else if (buyerId === myId) {
                     otherId = supplierId;
@@ -520,25 +564,29 @@ export function MessagesContent() {
                 // 2. Filter out Self-Chats (where I am both supplier and buyer)
                 // This handles cases where database has bad data or test data
                 if (otherId === myId) return false;
-                
+
                 // 3. Deduplicate by OtherID ONLY (Merge multiple product chats from same person)
                 // We want only ONE conversation per OtherUser in the list.
                 // If there are duplicates, we keep the first one (which is sorted by recent activity)
                 const key = otherId;
-                
+
                 const firstIndex = self.findIndex(c => {
                     const cSupplierId = String(c.supplier_id);
+                    const cSupplierUserId =
+                      c.supplier_user_id !== undefined && c.supplier_user_id !== null
+                        ? String(c.supplier_user_id)
+                        : "";
                     const cBuyerId = String(c.user_id || c.buyer_id);
                     let cOtherId = '';
-                    
-                    if (cSupplierId === myId) cOtherId = cBuyerId;
+
+                    if (cSupplierUserId === myId || cSupplierId === myId) cOtherId = cBuyerId;
                     else if (cBuyerId === myId) cOtherId = cSupplierId;
                     else return false;
-                    
+
                     // Compare only the other party ID
                     return cOtherId === key;
                 });
-                
+
                 return firstIndex === index;
             })
             .map((conv) => (
@@ -636,10 +684,10 @@ export function MessagesContent() {
             
             {/* Product Context Bar (Only if sidebar is hidden, to save space) */}
             {/* HIDDEN for suppliers as requested ("solo el nombre") */}
-            {!showRightSidebar && (activeConversation.product_title || productData) && !(user?.role === 'supplier' || user?.role === 'admin' || (user?.id && String(user.id) === String(activeConversation.supplier_id))) && (
+            {!showRightSidebar && (activeConversation.product_title || productData) && !isCurrentUserSupplierOf(activeConversation, user?.id, user?.role) && (
                 <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center gap-3">
                     {/* Hide image for suppliers (User request: "solo el nombre") */}
-                    {!(user?.id && String(user.id) === String(activeConversation.supplier_id)) && (
+                    {!isCurrentUserSupplierOf(activeConversation, user?.id, user?.role) && (
                         <div className="w-8 h-8 rounded bg-gray-100 border border-gray-200 shrink-0 overflow-hidden flex items-center justify-center">
                                 {productData?.image ? (
                                     <img src={productData.image} alt="" className="w-full h-full object-cover" />
@@ -649,7 +697,7 @@ export function MessagesContent() {
                         </div>
                     )}
                     <div className="flex flex-col min-w-0">
-                        {!(user?.id && String(user.id) === String(activeConversation.supplier_id)) && (
+                        {!isCurrentUserSupplierOf(activeConversation, user?.id, user?.role) && (
                             <span className="text-xs text-gray-500">Producto de interés:</span>
                         )}
                         <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={activeConversation.product_title || productData?.title}>
@@ -909,7 +957,7 @@ export function MessagesContent() {
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Contexto Actual</h4>
                     <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                         {/* Hide Image and Price for Supplier (User request: "solo el nombre") */}
-                        {!(user?.id && String(user.id) === String(activeConversation.supplier_id)) && (
+                        {!isCurrentUserSupplierOf(activeConversation, user?.id, user?.role) && (
                             <div className="relative aspect-square rounded-lg overflow-hidden bg-white mb-2">
                                 {productData.image ? (
                                     <img src={productData.image} alt={productData.title} className="w-full h-full object-cover" />
@@ -921,11 +969,11 @@ export function MessagesContent() {
                         
                         <h5 className="font-medium text-sm text-gray-900 line-clamp-2 mb-1">{productData.title}</h5>
                         
-                        {!(user?.id && String(user.id) === String(activeConversation.supplier_id)) && (
+                        {!isCurrentUserSupplierOf(activeConversation, user?.id, user?.role) && (
                             <div className="font-bold text-primary mb-2">${productData.price.toLocaleString()}</div>
                         )}
                         
-                        {!(user?.id && String(user.id) === String(activeConversation.supplier_id)) && (
+                        {!isCurrentUserSupplierOf(activeConversation, user?.id, user?.role) && (
                             <button 
                                 onClick={() => handleSendProduct(productData)}
                                 disabled={sending}

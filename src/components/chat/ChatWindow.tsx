@@ -16,6 +16,27 @@ import StarRating from "../StarRating";
 import { fetchWithAuth } from "@/lib/api";
 import { getTrustedAssetUrl } from "@/lib/security";
 
+/**
+ * Returns true when the current user is the supplier side of the conversation.
+ * IMPORTANT: `supplier_id` is the supplier COMPANY id, not the user id.
+ * For directory conversations the supplier's actual user id lives in
+ * `supplier_user_id` and we MUST check that first.
+ */
+const isCurrentUserSupplierOf = (
+  conv: { supplier_id?: number | string | null; supplier_user_id?: number | null } | null | undefined,
+  userId: number | string | null | undefined,
+): boolean => {
+  if (!conv || userId === null || userId === undefined) return false;
+  const myId = String(userId);
+  if (conv.supplier_user_id !== undefined && conv.supplier_user_id !== null) {
+    if (String(conv.supplier_user_id) === myId) return true;
+  }
+  if (conv.supplier_id !== undefined && conv.supplier_id !== null) {
+    if (String(conv.supplier_id) === myId) return true;
+  }
+  return false;
+};
+
 interface ChatWindowProps {
   initialConversation?: Conversation;
   productId: string | number | null;
@@ -118,9 +139,9 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
   const [isVendorMode, setIsVendorMode] = useState(() => {
     if (initialConversation?.my_role === "supplier") return true;
     if (initialConversation?.my_role === "client") return false;
-    // If explicitly told it's owner, or IDs match
+    // If explicitly told it's owner, or IDs match (including supplier_user_id for directory chats)
     if (isOwner) return true;
-    return !!(user?.id && supplierId && String(user.id) === String(supplierId));
+    return !!(user?.id && isCurrentUserSupplierOf(initialConversation, user?.id));
   });
 
   // Sync isVendorMode with props if they change and match strictly
@@ -133,7 +154,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
       setIsVendorMode(false);
       return;
     }
-    if (isOwner || (user?.id && supplierId && String(user.id) === String(supplierId))) {
+    if (isOwner || (user?.id && isCurrentUserSupplierOf(initialConversation, user?.id))) {
         setIsVendorMode(true);
         return;
     }
@@ -588,12 +609,14 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
         setLoading(true);
         setError(null);
         try {
-          // Check explicit ID match
+          // Check explicit ID match (include supplier_user_id for directory conversations)
           // FORCE Vendor Mode if isOwner prop is true, regardless of ID match (trust the parent)
           // We remove the aggressive check for role === 'supplier' to prevent buyers (who are also suppliers) from being forced into vendor mode.
           // Only Admin remains as a privileged role that might default to Vendor, but even that is risky if they want to buy.
           // Let's rely primarily on IDs and Conversations.
-          let currentIsVendor = isOwner || String(user.id) === String(supplierId);
+          let currentIsVendor =
+            isOwner ||
+            (user.id !== undefined && user.id !== null && String(user.id) === String(supplierId));
           
           // Auto-detect Vendor Mode if ID match fails but user is supplier/admin
           // This handles cases where supplierId is a Profile ID vs User ID
@@ -611,8 +634,10 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
                 // If we find conversations for this product where we are the SUPPLIER,
                 // then we are definitely the vendor.
                 // UPDATED: Check 'my_role' if available from backend (chat.md compliance)
+                // and ALSO check supplier_user_id (the actual user id) for directory chats.
                 const amISupplier = productConvos.some(c => 
                     c.my_role === 'supplier' || 
+                    (c.supplier_user_id !== undefined && c.supplier_user_id !== null && String(c.supplier_user_id) === String(user.id)) ||
                     String(c.supplier_id) === String(user.id)
                 );
                 
@@ -676,8 +701,10 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
                 let finalConversations = productConversations;
                 if (productConversations.length === 0) {
                      if (process.env.NODE_ENV === "development") console.log("[ChatWindow] Strict filter returned 0. Trying broader filter by Supplier Role...");
-                     const broader = allConversations.filter(c => 
-                        c.my_role === 'supplier' || String(c.supplier_id) === String(user.id) || 
+                     const broader = allConversations.filter(c =>
+                        c.my_role === 'supplier' ||
+                        (c.supplier_user_id !== undefined && c.supplier_user_id !== null && String(c.supplier_user_id) === String(user.id)) ||
+                        String(c.supplier_id) === String(user.id) ||
                         (String(user.id) === String(supplierId) && !c.product_id) // Match if I am the supplier of this page and convo has no product attached
                      );
                      
@@ -874,8 +901,10 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
             // Fallback: If strict filtering returns empty, try broader
             let finalConversations = productConversations;
             if (productConversations.length === 0) {
-                 const broader = allConversations.filter(c => 
-                    c.my_role === 'supplier' || (user?.id && String(c.supplier_id) === String(user.id)) || 
+                 const broader = allConversations.filter(c =>
+                    c.my_role === 'supplier' ||
+                    (user?.id && c.supplier_user_id !== undefined && c.supplier_user_id !== null && String(c.supplier_user_id) === String(user.id)) ||
+                    (user?.id && String(c.supplier_id) === String(user.id)) ||
                     (user?.id && String(user.id) === String(supplierId) && !c.product_id)
                  );
                  
@@ -1157,7 +1186,7 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
                   {conversations.length === 0 ? (
                       <div className="flex flex-col">
                           {/* Admin Warning for Missing Chats */}
-                          {isVendorMode && String(user?.id) !== String(supplierId) && (
+                          {isVendorMode && !isCurrentUserSupplierOf(initialConversation, user?.id) && (
                             <div className="mx-4 mt-4 p-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md text-left">
                                 <p className="font-bold mb-1">⚠️ Aviso de Administrador</p>
                                 <p>Estás logueado como ID {user?.id} ({user?.role}), pero este producto pertenece al Proveedor ID {supplierId}.</p>

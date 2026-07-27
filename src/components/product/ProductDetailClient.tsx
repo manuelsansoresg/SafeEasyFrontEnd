@@ -562,7 +562,16 @@ export default function ProductDetailPage() {
         product.supplier?.name ||
         `${product.supplier?.first_name || ''} ${product.supplier?.last_name || ''}`.trim() ||
         'Proveedor';
-    const chatRole = String(user.id) === String(product.supplier_id) ? 'supplier' : 'client';
+    // NOTE: product.supplier_id is the company id. Compare against the actual
+    // user id (product.supplier?.user_id or product.supplier_user_id) so directory
+    // owners are correctly detected as the supplier.
+    const supplierActualUserId =
+      product.supplier?.user_id ?? product.supplier_user_id ?? null;
+    const chatRole =
+      (supplierActualUserId !== null && String(user.id) === String(supplierActualUserId)) ||
+      (String(user.role || "").toLowerCase() === "supplier" && String(user.id) === String(product.supplier_id))
+        ? 'supplier'
+        : 'client';
 
     let latestConversations = conversations || [];
     try {
