@@ -24,7 +24,7 @@ const ALLOWED_IMAGE_TYPES = new Set([
   "image/webp",
 ]);
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const MAX_IMAGES = 5;
+const MAX_IMAGES = 1;
 const fieldClassName =
   "w-full rounded-xl border border-gray-200 px-4 py-2 text-gray-900 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
@@ -49,71 +49,53 @@ function validateFiles(files: File[], availableSlots: number) {
 function ExistingGallery({
   service,
   busyImageId,
-  onSetCover,
   onDelete,
 }: {
   service: SupplierService;
   busyImageId: number | null;
-  onSetCover: (imageId: number) => void;
   onDelete: (imageId: number) => void;
 }) {
-  const sortedImages = [...service.images].sort(
-    (a, b) => a.position - b.position,
-  );
+  const image = service.images[0];
+  if (!image) return null;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {sortedImages.map((image) => (
-        <article
-          key={image.id}
-          className="group overflow-hidden rounded-xl border border-gray-200 bg-white"
-        >
-          <div className="relative aspect-[4/3] bg-[#f2f3f4]">
-            <Image
-              src={image.thumbnail_url || image.image_url}
-              alt={`Imagen ${image.position + 1} de ${service.title}`}
-              fill
-              unoptimized
-              sizes="(max-width: 640px) 100vw, 33vw"
-              className="object-cover"
-            />
-            {image.is_cover ? (
-              <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
-                <Crown size={13} />
-                Portada
-              </span>
-            ) : null}
-          </div>
-          <div className="flex items-center justify-between gap-2 p-3">
-            <button
-              type="button"
-              disabled={image.is_cover || busyImageId !== null}
-              onClick={() => onSetCover(image.id)}
-              className="rounded-lg px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Usar de portada
-            </button>
-            <button
-              type="button"
-              disabled={service.images.length === 1 || busyImageId !== null}
-              onClick={() => onDelete(image.id)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
-              aria-label="Eliminar imagen"
-              title={
-                service.images.length === 1
-                  ? "El servicio debe conservar una imagen"
-                  : "Eliminar imagen"
-              }
-            >
-              {busyImageId === image.id ? (
-                <Loader2 size={17} className="animate-spin" />
-              ) : (
-                <Trash2 size={17} />
-              )}
-            </button>
-          </div>
-        </article>
-      ))}
+    <div className="grid gap-4 sm:grid-cols-2">
+      <article className="group overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="relative aspect-[4/3] bg-[#f2f3f4]">
+          <Image
+            src={image.thumbnail_url || image.image_url}
+            alt={`Imagen de ${service.title}`}
+            fill
+            unoptimized
+            sizes="(max-width: 640px) 100vw, 50vw"
+            className="object-cover"
+          />
+          <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
+            <Crown size={13} />
+            Portada
+          </span>
+        </div>
+        <div className="flex items-center justify-end gap-2 p-3">
+          <button
+            type="button"
+            disabled={service.images.length === 1 || busyImageId !== null}
+            onClick={() => onDelete(image.id)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
+            aria-label="Eliminar imagen"
+            title={
+              service.images.length === 1
+                ? "El servicio debe conservar una imagen"
+                : "Eliminar imagen"
+            }
+          >
+            {busyImageId === image.id ? (
+              <Loader2 size={17} className="animate-spin" />
+            ) : (
+              <Trash2 size={17} />
+            )}
+          </button>
+        </div>
+      </article>
     </div>
   );
 }
@@ -134,7 +116,6 @@ export function ServiceForm({
   const [price, setPrice] = useState(String(initialService?.price ?? ""));
   const [isActive, setIsActive] = useState(initialService?.is_active ?? true);
   const [files, setFiles] = useState<File[]>([]);
-  const [coverIndex, setCoverIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [busyImageId, setBusyImageId] = useState<number | null>(null);
@@ -160,7 +141,14 @@ export function ServiceForm({
   const availableSlots = MAX_IMAGES - existingCount;
 
   const addFiles = (selected: File[]) => {
-    const nextFiles = [...files, ...selected];
+    if (availableSlots <= 0) {
+      setToast({
+        type: "info",
+        message: "El servicio ya tiene su imagen. Elimínala para cambiarla.",
+      });
+      return;
+    }
+    const nextFiles = [...files, ...selected].slice(0, MAX_IMAGES);
     const error = validateFiles(nextFiles, availableSlots);
     if (error) {
       setToast({ type: "error", message: error });
@@ -171,10 +159,6 @@ export function ServiceForm({
 
   const removeFile = (index: number) => {
     setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
-    setCoverIndex((current) => {
-      if (current === index) return 0;
-      return current > index ? current - 1 : current;
-    });
   };
 
   const validateFields = () => {
@@ -225,7 +209,7 @@ export function ServiceForm({
           description: description.trim(),
           price: Number(price),
           isActive,
-          coverIndex,
+          coverIndex: 0,
           images: files,
         });
         router.replace(`/admin/services/${created.id}`);
@@ -250,14 +234,13 @@ export function ServiceForm({
       const updated = await servicesService.addImages(
         service.id,
         files,
-        coverIndex,
+        0,
       );
       setService(updated);
       setFiles([]);
-      setCoverIndex(0);
       setToast({
         type: "success",
-        message: "Las imágenes se agregaron al servicio.",
+        message: "La imagen se agregó al servicio.",
       });
     } catch (error) {
       setToast({
@@ -265,27 +248,10 @@ export function ServiceForm({
         message:
           error instanceof Error
             ? error.message
-            : "No se pudieron agregar las imágenes.",
+            : "No se pudo agregar la imagen.",
       });
     } finally {
       setUploading(false);
-    }
-  };
-
-  const setCover = async (imageId: number) => {
-    if (!service) return;
-    setBusyImageId(imageId);
-    try {
-      setService(await servicesService.setCover(service.id, imageId));
-      setToast({ type: "success", message: "La portada se actualizó." });
-    } catch (error) {
-      setToast({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "No se cambió la portada.",
-      });
-    } finally {
-      setBusyImageId(null);
     }
   };
 
@@ -400,10 +366,11 @@ export function ServiceForm({
         <section className="space-y-4 pt-4">
           <div>
             <h2 className="border-b pb-2 text-lg font-semibold text-gray-700">
-              Galería
+              Imagen del servicio
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              Entre 1 y 5 imágenes JPG, PNG o WebP, de hasta 5 MB cada una.
+              Sube 1 imagen JPG, PNG o WebP, de hasta 5 MB. Esta imagen se
+              mostrará como portada del servicio.
             </p>
           </div>
           <div className="space-y-5">
@@ -411,7 +378,6 @@ export function ServiceForm({
               <ExistingGallery
                 service={service}
                 busyImageId={busyImageId}
-                onSetCover={setCover}
                 onDelete={deleteImage}
               />
             ) : null}
@@ -427,10 +393,10 @@ export function ServiceForm({
                 </span>
                 <span className="text-sm font-medium text-gray-900">
                   <span className="text-primary">Haz clic para subir</span> o
-                  selecciona imágenes
+                  selecciona una imagen
                 </span>
                 <span className="mt-1 text-xs text-gray-500">
-                  JPG, PNG o WebP · Puedes agregar {availableSlots} más
+                  JPG, PNG o WebP · Hasta 5 MB
                 </span>
               </button>
             ) : null}
@@ -438,7 +404,6 @@ export function ServiceForm({
               ref={inputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
-              multiple
               className="hidden"
               onChange={(event) => {
                 addFiles(Array.from(event.target.files ?? []));
@@ -447,7 +412,7 @@ export function ServiceForm({
             />
 
             {previews.length ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2">
                 {previews.map(({ file, url }, index) => (
                   <article
                     key={`${file.name}-${file.lastModified}`}
@@ -459,15 +424,9 @@ export function ServiceForm({
                         alt={file.name}
                         fill
                         unoptimized
-                        sizes="(max-width: 640px) 100vw, 33vw"
+                        sizes="(max-width: 640px) 100vw, 50vw"
                         className="object-cover"
                       />
-                      {coverIndex === index ? (
-                        <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white">
-                          <Check size={13} />
-                          Nueva portada
-                        </span>
-                      ) : null}
                       <button
                         type="button"
                         onClick={() => removeFile(index)}
@@ -477,15 +436,9 @@ export function ServiceForm({
                         <X size={17} />
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setCoverIndex(index)}
-                      className="w-full px-3 py-3 text-left text-xs font-semibold text-primary transition-colors hover:bg-primary/5"
-                    >
-                      {coverIndex === index
-                        ? "Seleccionada como portada"
-                        : "Usar como portada"}
-                    </button>
+                    <p className="px-3 py-3 text-left text-xs font-medium text-gray-500">
+                      {file.name}
+                    </p>
                   </article>
                 ))}
               </div>
@@ -503,7 +456,7 @@ export function ServiceForm({
                 ) : (
                   <ImagePlus size={17} />
                 )}
-                Subir imágenes seleccionadas
+                Subir imagen seleccionada
               </button>
             ) : null}
           </div>
