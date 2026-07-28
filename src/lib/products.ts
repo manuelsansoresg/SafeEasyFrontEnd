@@ -41,6 +41,12 @@ export interface Supplier {
   about: string | null;
   title_about?: string | null;
   subtitle_about?: string | null;
+  intro_title?: string | null;
+  intro_description?: string | null;
+  intro_image_url?: string | null;
+  facebook_url?: string | null;
+  instagram_url?: string | null;
+  x_url?: string | null;
   short_description: string | null;
   description: string | null;
   address: string | null;

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, type ClipboardEvent } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { usePathname, useRouter } from "next/navigation";
-import { Loader2, CheckCircle, Users, Store, Truck } from "lucide-react";
+import { Loader2, CheckCircle, Users, Store, Truck, Facebook, Instagram, X as XIcon } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { loadGoogleMaps, parseMapLocation, type LatLngLiteral } from "@/lib/googleMaps";
 import FileUpload from "@/components/ui/FileUpload";
@@ -65,6 +65,12 @@ interface Supplier {
   about_media_url?: string;
   about_image?: string;
   about_image_url?: string;
+  intro_title?: string;
+  intro_description?: string;
+  intro_image_url?: string;
+  facebook_url?: string;
+  instagram_url?: string;
+  x_url?: string;
   transfer_accepted?: boolean;
   transfer_clabe?: string;
   transfer_bank?: string;
@@ -590,6 +596,11 @@ export default function SupplierForm({
     title_about: formText(initialData?.title_about),
     subtitle_about: formText(initialData?.subtitle_about),
     about: formText(initialData?.about),
+    intro_title: formText(initialData?.intro_title),
+    intro_description: formText(initialData?.intro_description),
+    facebook_url: formText(initialData?.facebook_url),
+    instagram_url: formText(initialData?.instagram_url),
+    x_url: formText(initialData?.x_url),
     transfer_accepted: initialData?.transfer_accepted || false,
     transfer_clabe: formText(initialData?.transfer_clabe),
     transfer_bank: formText(initialData?.transfer_bank),
@@ -623,6 +634,11 @@ export default function SupplierForm({
   );
   const [clearLogo, setClearLogo] = useState(false);
   const [clearAboutMedia, setClearAboutMedia] = useState(false);
+  const [introImage, setIntroImage] = useState<File | null>(null);
+  const [introImagePreviewUrl, setIntroImagePreviewUrl] = useState<string | null>(
+    initialData?.intro_image_url || null,
+  );
+  const [deletingIntroImage, setDeletingIntroImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [mapSearchQuery] = useState("");
@@ -652,6 +668,7 @@ export default function SupplierForm({
         initialData?.about_image_url ||
         null
     );
+    setIntroImagePreviewUrl(initialData?.intro_image_url || null);
     const parsed = parseSupplierMapLocation(initialData?.map_location ?? null);
     if (process.env.NODE_ENV === "development") console.log("[SupplierForm] initialData.map_location raw:", initialData?.map_location);
     if (process.env.NODE_ENV === "development") console.log("[SupplierForm] initialData.map_location parsed:", parsed);
@@ -1031,6 +1048,48 @@ export default function SupplierForm({
     }
   };
 
+  const handleIntroImageChange = (file: File | null) => {
+    if (!file && isEditMode && introImagePreviewUrl) {
+      // El usuario quitó la imagen existente desde la X del FileUpload.
+      // Borramos directo en el backend sin esperar al Guardar.
+      const confirmed = typeof window !== "undefined"
+        ? window.confirm("¿Eliminar la imagen de introducción? Esta acción no se puede deshacer.")
+        : true;
+      if (!confirmed) return;
+
+      setDeletingIntroImage(true);
+      void (async () => {
+        try {
+          const res = await fetchWithAuth(
+            `/api/suppliers/${initialData.id}/intro-image`,
+            { method: "DELETE" },
+          );
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            throw new Error(text || `Error ${res.status}`);
+          }
+          setIntroImagePreviewUrl(null);
+          setIntroImage(null);
+          setToast({ type: "success", message: "Imagen de introducción eliminada." });
+        } catch (e: unknown) {
+          const msg =
+            e && typeof e === "object" && "message" in e && typeof (e as Record<string, unknown>).message === "string"
+              ? String((e as Record<string, unknown>).message)
+              : "No se pudo eliminar la imagen de introducción.";
+          setToast({ type: "error", message: msg });
+        } finally {
+          setDeletingIntroImage(false);
+        }
+      })();
+      return;
+    }
+
+    setIntroImage(file);
+    if (!file && !isEditMode) {
+      setIntroImagePreviewUrl(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     if (process.env.NODE_ENV === "development") console.log("[SupplierForm] handleSubmit called, preventing default");
     e.preventDefault();
@@ -1234,6 +1293,11 @@ export default function SupplierForm({
         appendIfPresent("title_about", formData.title_about);
         appendIfPresent("subtitle_about", formData.subtitle_about);
         appendIfPresent("about", formData.about);
+        appendIfPresent("intro_title", formData.intro_title);
+        appendIfPresent("intro_description", formData.intro_description);
+        appendIfPresent("facebook_url", formData.facebook_url);
+        appendIfPresent("instagram_url", formData.instagram_url);
+        appendIfPresent("x_url", formData.x_url);
         data.append("has_store", String(isDirectory ? false : formData.has_store));
         data.append("accepts_delivery", String(isDirectory ? false : formData.accepts_delivery));
         data.append("accepts_pickup", String(isDirectory ? false : formData.accepts_pickup));
@@ -1257,6 +1321,9 @@ export default function SupplierForm({
         if (aboutImage) {
           data.append("about_media", aboutImage);
           data.append("about_image", aboutImage);
+        }
+        if (introImage) {
+          data.append("intro_image_url", introImage);
         }
         if (isEdit && clearLogo) {
           data.append("clear_logo", "true");
@@ -1426,6 +1493,10 @@ export default function SupplierForm({
           (typeof rec.about_image === "string" ? rec.about_image : null) ||
           (typeof rec.about_image_url === "string" ? rec.about_image_url : null) ||
           null;
+        const newIntroImageUrl =
+          (typeof rec.intro_image_url === "string" ? rec.intro_image_url : null) ||
+          (typeof rec.intro_image === "string" ? rec.intro_image : null) ||
+          null;
         const updatedMapLocation = parseSupplierMapLocation(rec.map_location);
 
         if (typeof newLogoUrl !== 'undefined') {
@@ -1433,6 +1504,9 @@ export default function SupplierForm({
         }
         if (typeof newAboutMediaUrl !== 'undefined') {
           setAboutMediaPreviewUrl(newAboutMediaUrl);
+        }
+        if (typeof newIntroImageUrl !== 'undefined') {
+          setIntroImagePreviewUrl(newIntroImageUrl);
         }
         if (updatedMapLocation) {
           setMapLocation(updatedMapLocation);
@@ -1443,6 +1517,7 @@ export default function SupplierForm({
       setAboutImage(null);
       setClearLogo(false);
       setClearAboutMedia(false);
+      setIntroImage(null);
 
       setSuccess(true);
       if (process.env.NODE_ENV === "development") console.log("[SupplierForm] Save successful, calling onSaved");
@@ -2056,6 +2131,126 @@ export default function SupplierForm({
 
         </div>
       </div>
+
+      {/* Redes Sociales — visible para directorio y tienda */}
+      <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
+        <div className="border-b border-gray-200 pb-2">
+          <h3 className="text-lg font-semibold text-gray-900">Redes Sociales</h3>
+          <p className="mt-1 text-xs leading-5 text-gray-500">
+            Pega la URL completa de cada red. Déjalas vacías si no aplican. Se mostrarán en tu perfil público.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              <span className="inline-flex items-center gap-1.5">
+                <Facebook size={14} className="text-[#1877F2]" />
+                Facebook
+              </span>
+            </label>
+            <input
+              type="url"
+              name="facebook_url"
+              value={formData.facebook_url}
+              onChange={handleInputChange}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              placeholder="https://facebook.com/miempresa"
+              autoComplete="off"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              <span className="inline-flex items-center gap-1.5">
+                <Instagram size={14} className="text-[#E4405F]" />
+                Instagram
+              </span>
+            </label>
+            <input
+              type="url"
+              name="instagram_url"
+              value={formData.instagram_url}
+              onChange={handleInputChange}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              placeholder="https://instagram.com/miempresa"
+              autoComplete="off"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              <span className="inline-flex items-center gap-1.5">
+                <XIcon size={14} className="text-gray-900" />
+                X (antes Twitter)
+              </span>
+            </label>
+            <input
+              type="url"
+              name="x_url"
+              value={formData.x_url}
+              onChange={handleInputChange}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              placeholder="https://x.com/miempresa"
+              autoComplete="off"
+            />
+          </div>
+        </div>
+      </section>
+
+      {isDirectory ? (
+        <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
+          <div className="border-b border-gray-200 pb-2">
+            <h3 className="text-lg font-semibold text-gray-900">Introducción</h3>
+            <p className="mt-1 text-xs leading-5 text-gray-500">
+              Esta sección se muestra al inicio de tu página de directorio. Usa una imagen llamativa y un texto breve para enganchar al visitante.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Título de la introducción
+            </label>
+            <input
+              type="text"
+              name="intro_title"
+              value={formData.intro_title}
+              onChange={handleInputChange}
+              maxLength={120}
+              placeholder="Ej. Tu aliado estratégico en meditación y bienestar"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Descripción
+            </label>
+            <textarea
+              name="intro_description"
+              value={formData.intro_description}
+              onChange={handleInputChange}
+              rows={4}
+              maxLength={600}
+              placeholder="Cuenta brevemente quién eres, qué ofreces y por qué te deberían elegir."
+              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              {formData.intro_description.length}/600 caracteres
+            </p>
+          </div>
+
+          <div>
+            <FileUpload
+              label="Imagen de introducción"
+              value={introImage}
+              onChange={handleIntroImageChange}
+              accept="image/*"
+              currentImageUrl={introImagePreviewUrl || undefined}
+              disabled={deletingIntroImage}
+              helperText="Formatos recomendados: JPG/PNG/WebP. Tamaño sugerido 1600x900px."
+            />
+          </div>
+        </section>
+      ) : null}
 
       <div className="flex justify-end pt-6">
         <button

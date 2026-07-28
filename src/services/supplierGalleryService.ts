@@ -24,6 +24,7 @@ function unwrapList(data: unknown): SupplierGalleryImage[] {
     record.data,
     record.images,
     record.gallery,
+    record.uploaded,
   ];
   for (const candidate of candidates) {
     if (Array.isArray(candidate)) return candidate as SupplierGalleryImage[];
@@ -89,12 +90,17 @@ async function requireOk(response: Response, fallback: string) {
 
 export const supplierGalleryService = {
   /**
-   * GET /suppliers/{supplier_id}/gallery — público
+   * GET /suppliers/{supplier_id}/gallery — usado por la página pública.
    * Devuelve las imágenes ordenadas por position.
+   *
+   * Nota: en producción el endpoint público aún no está disponible (404).
+   * Como fallback usamos `fetchWithAuth` para que funcione cuando el visitante
+   * está autenticado (dueño de la empresa, admin). Si no hay sesión, el
+   * backend debería exponer el endpoint público.
    */
   async list(supplierId: number): Promise<SupplierGalleryImage[]> {
-    const response = await fetch(
-      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery`,
+    const response = await fetchWithAuth(
+      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery/`,
       { cache: "no-store" },
     );
     await requireOk(response, "No se pudo cargar la galería.");
@@ -107,7 +113,7 @@ export const supplierGalleryService = {
    */
   async listMine(supplierId: number): Promise<SupplierGalleryImage[]> {
     const response = await fetchWithAuth(
-      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery`,
+      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery/`,
       { cache: "no-store" },
     );
     await requireOk(response, "No se pudo cargar la galería.");
@@ -126,7 +132,7 @@ export const supplierGalleryService = {
     images.forEach((image) => formData.append("images", image));
 
     const response = await fetchWithAuth(
-      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery`,
+      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery/`,
       { method: "POST", body: formData },
     );
     await requireOk(response, "No se pudieron subir las imágenes.");
@@ -146,7 +152,7 @@ export const supplierGalleryService = {
    */
   async remove(supplierId: number, imageId: number): Promise<void> {
     const response = await fetchWithAuth(
-      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery/${encodeURIComponent(String(imageId))}`,
+      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery/${encodeURIComponent(String(imageId))}/`,
       { method: "DELETE" },
     );
     await requireOk(response, "No se pudo eliminar la imagen.");

@@ -77,6 +77,32 @@ export const supplierHasDirectorySubscription = (supplier: unknown) => {
   return candidates.some(isDirectorySubscription);
 };
 
+export const supplierHasActiveSubscription = (supplier: unknown) => {
+  const record = asRecord(supplier);
+  if (!record) return false;
+
+  // 1) Si el backend expone el flag has_active_subscription, úsalo como fuente de verdad.
+  if (
+    readBoolean(
+      record.has_active_subscription ??
+        record.hasActiveSubscription ??
+        record.subscription_active ??
+        record.subscriptionActive,
+    )
+  ) {
+    return true;
+  }
+
+  // 2) Si no, busca una suscripción embebida y valida con isSubscriptionActive.
+  const candidates = [
+    record.subscription,
+    record.active_subscription,
+    record.supplier_subscription,
+    record.supplierSubscription,
+  ];
+  return candidates.some(isSubscriptionActive);
+};
+
 export const productHasActiveSupplierSubscription = (product: unknown) => {
   const record = asRecord(product);
   if (!record) return true;

@@ -4,6 +4,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MobileNav } from "@/components/MobileNav";
+import { useChromeVisibilityStore } from "@/store/useChromeVisibilityStore";
 
 const legalPaths = new Set(["/politicas-de-privacidad", "/terminos-y-condiciones"]);
 const mobileEmbedParams = ["from_mobile", "is_mobile", "is_movil"];
@@ -20,7 +21,10 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const normalizedPathname = pathname.replace(/\/$/, "");
-  const hideChrome = legalPaths.has(normalizedPathname) && isMobileEmbed(searchParams);
+  const hideForDirectory = useChromeVisibilityStore((state) => state.hideForDirectory);
+  const isSupplierPage = normalizedPathname.startsWith("/empresas/");
+  const hideForLegalEmbed = legalPaths.has(normalizedPathname) && isMobileEmbed(searchParams);
+  const hideChrome = hideForLegalEmbed || (isSupplierPage && hideForDirectory);
 
   return (
     <>

@@ -254,26 +254,49 @@ export default function AdminGalleryPage() {
   const handleUpload = async () => {
     if (!supplierId || pendingFiles.length === 0 || uploading) return;
     setUploading(true);
+
+    // 1) Creamos entradas locales con la preview del archivo (blob URL).
+    //    El ID negativo activa el badge "Sincronizando" en la card.
+    const localPreviews: SupplierGalleryImage[] = pendingFiles.map((file, index) => ({
+      id: -Date.now() - index,
+      supplier_id: supplierId,
+      image_url: URL.createObjectURL(file),
+      thumbnail_url: URL.createObjectURL(file),
+      position: 0,
+      created_at: new Date().toISOString(),
+    }));
+
+    // 2) Las agregamos al estado inmediatamente para que el usuario vea su imagen.
+    setImages((current) => {
+      const next = [...current, ...localPreviews];
+      return next.map((img, idx) => ({ ...img, position: idx }));
+    });
+    clearPending();
+
+    // 3) Llamamos al MISMO endpoint que se usa al entrar a la galería
+    //    (GET /api/suppliers/{id}/gallery/) para sincronizar con el servidor.
+    //    Si el servidor aún no tiene la imagen, la preview local se queda.
     try {
-      const result = await supplierGalleryService.upload(supplierId, pendingFiles);
-      clearPending();
-      await loadGallery();
-      if (result.limit != null && result.total >= result.limit) {
-        setToast({
-          type: "success",
-          message: `Imágenes subidas. Alcanzaste el límite de tu plan (${result.limit}).`,
-        });
-      } else {
-        setToast({
-          type: "success",
-          message: `${result.uploaded.length} imagen${result.uploaded.length === 1 ? "" : "es"} subida${result.uploaded.length === 1 ? "" : "s"}.`,
-        });
-      }
+      const serverList = await supplierGalleryService.listMine(supplierId);
+      const sortedServer = [...serverList].sort((a, b) => a.position - b.position);
+      setImages((current) => {
+        // Conservamos las previews locales (ID < 0) que el servidor aún no conozca.
+        const localOnly = current.filter((img) => img.id < 0);
+        return [...sortedServer, ...localOnly].map((img, idx) => ({
+          ...img,
+          position: idx,
+        }));
+      });
+      setToast({
+        type: "success",
+        message: `${localPreviews.length} imagen${localPreviews.length === 1 ? "" : "es"} agregada${localPreviews.length === 1 ? "" : "s"}.`,
+      });
     } catch (err) {
       setToast({
-        type: "error",
-        message:
-          err instanceof Error ? err.message : "No se pudieron subir las imágenes.",
+        type: "info",
+        message: `Vista previa agregada. ${
+          err instanceof Error ? err.message : "No se pudo sincronizar con el servidor."
+        }`,
       });
     } finally {
       setUploading(false);
@@ -289,7 +312,15 @@ export default function AdminGalleryPage() {
     }
     setDeletingId(image.id);
     try {
-      await supplierGalleryService.remove(supplierId, image.id);
+      if (image.id > 0) {
+        // Imagen real del servidor: DELETE normal
+        await supplierGalleryService.remove(supplierId, image.id);
+      } else {
+        // Preview local (ID negativo): solo limpiamos el blob URL y el estado
+        if (image.image_url.startsWith("blob:")) {
+          URL.revokeObjectURL(image.image_url);
+        }
+      }
       setImages((current) => current.filter((item) => item.id !== image.id));
       setToast({ type: "success", message: "Imagen eliminada." });
     } catch (err) {
@@ -543,17 +574,20 @@ export default function AdminGalleryPage() {
                 className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white"
               >
                 <div className="relative aspect-[4/3] bg-[#f2f3f4]">
-                  <Image
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
                     src={image.thumbnail_url || image.image_url}
                     alt={`Imagen ${index + 1} de la galería`}
-                    fill
-                    unoptimized
-                    sizes="(max-width: 640px) 50vw, 25vw"
-                    className="object-cover"
+                    className="absolute inset-0 h-full w-full object-cover"
                   />
                   {index === 0 ? (
                     <span className="absolute left-2 top-2 rounded-full bg-[#004e28] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow-sm">
                       Principal
+                    </span>
+                  ) : null}
+                  {image.id < 0 ? (
+                    <span className="absolute right-2 top-2 rounded-full bg-amber-500/95 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow-sm">
+                      Sincronizando
                     </span>
                   ) : null}
                 </div>

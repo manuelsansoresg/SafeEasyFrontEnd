@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, notFound } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
 import { Supplier, CarouselImage, Certificate } from "@/lib/products";
-import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, Award, X, Calendar, ExternalLink, Play, Clock, ArrowDown, Volume2, VolumeX, Search, BriefcaseBusiness } from "lucide-react";
+import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, X, Calendar, Play, Clock, ArrowDown, Volume2, VolumeX, Search, BriefcaseBusiness, Facebook, Instagram, X as XIcon } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -16,13 +16,17 @@ import { parseMapLocation } from "@/lib/googleMaps";
 import {
   filterProductsByActiveSupplierSubscription,
   supplierHasDirectorySubscription,
+  supplierHasActiveSubscription,
 } from "@/lib/subscriptionAccess";
 import DOMPurify from "isomorphic-dompurify";
 import { useSupplierPageModeStore } from "@/store/useSupplierPageModeStore";
+import { useChromeVisibilityStore } from "@/store/useChromeVisibilityStore";
 import { servicesService } from "@/services/servicesService";
 import type { SupplierService } from "@/types/services";
 import { DirectoryRatingsSection } from "@/components/supplier/DirectoryRatingsSection";
 import { DirectoryContactButton } from "@/components/supplier/DirectoryContactButton";
+import { DirectoryTopNav } from "@/components/supplier/DirectoryTopNav";
+import { DirectoryGallerySection } from "@/components/supplier/DirectoryGallerySection";
 
 const SupplierLocationMap = dynamic(() => import("@/components/supplier/SupplierLocationMap"), {
   ssr: false,
@@ -57,6 +61,51 @@ const pickSupplierMapLocation = (source: Supplier | null) => {
       lng: record.lng ?? record.longitude ?? record.map_lng ?? record.mapLongitude,
     })
   );
+};
+
+type SocialPlatform = "facebook" | "instagram" | "x";
+
+type SocialLink = {
+  platform: SocialPlatform;
+  label: string;
+  url: string;
+};
+
+const SOCIAL_DEFS: Array<{ platform: SocialPlatform; label: string; field: keyof Supplier }> = [
+  { platform: "facebook", label: "Facebook", field: "facebook_url" },
+  { platform: "instagram", label: "Instagram", field: "instagram_url" },
+  { platform: "x", label: "X (Twitter)", field: "x_url" },
+];
+
+const sanitizeSocialUrl = (raw: unknown): string | null => {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return null;
+  // Acepta URLs con o sin esquema. Si no trae, prueba con https://.
+  const candidates = [trimmed, /^https?:\/\//i.test(trimmed) ? null : `https://${trimmed}`].filter(
+    (value): value is string => Boolean(value),
+  );
+  for (const candidate of candidates) {
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return parsed.toString();
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+};
+
+const pickSocialLinks = (source: Supplier | null): SocialLink[] => {
+  if (!source) return [];
+  const links: SocialLink[] = [];
+  for (const def of SOCIAL_DEFS) {
+    const value = (source as unknown as Record<string, unknown>)[def.field as string];
+    const safe = sanitizeSocialUrl(value);
+    if (safe) links.push({ platform: def.platform, label: def.label, url: safe });
+  }
+  return links;
 };
 
 // --- THEME CONSTANTS (From user request) ---
@@ -273,8 +322,8 @@ function DirectoryServiceCard({
     "/placeholder.png";
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-[1.65rem] border border-[#004e28]/10 bg-white shadow-[0_18px_50px_-34px_rgba(0,78,40,0.5)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_-30px_rgba(0,78,40,0.62)]">
-      <div className="relative aspect-[1.18/1] overflow-hidden bg-[#e9efeb]">
+    <article className="group flex flex-col">
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#e9efeb]">
         <Image
           src={imageUrl}
           alt={`Servicio ${service.title}`}
@@ -285,16 +334,16 @@ function DirectoryServiceCard({
         />
       </div>
 
-      <div className="flex flex-1 flex-col p-5">
-        <h3 className="text-lg font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
+      <div className="mt-5 flex flex-col">
+        <h3 className="text-lg font-bold leading-snug text-[#004e28] font-[family-name:var(--font-varela-round)]">
           {service.title}
         </h3>
         {service.description ? (
-          <p className="mt-2 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-gray-600">
+          <p className="mt-2 line-clamp-4 text-sm leading-6 text-gray-600">
             {service.description}
           </p>
         ) : null}
-        <p className="mt-5 text-sm font-bold text-[#168e00]">
+        <p className="mt-3 text-sm font-bold text-[#168e00]">
           Desde{" "}
           {new Intl.NumberFormat("es-MX", {
             style: "currency",
@@ -303,9 +352,10 @@ function DirectoryServiceCard({
         </p>
         <Link
           href={`/servicios/${service.id}`}
-          className="mt-5 inline-flex min-h-11 items-center justify-center gap-3 rounded-full border border-[#004e28] bg-white px-4 py-3 text-sm font-semibold text-[#004e28] transition-colors hover:bg-[#004e28] hover:text-white"
+          className="mt-3 inline-flex items-center gap-1.5 text-sm font-bold text-[#168e00] transition-colors hover:text-[#004e28]"
         >
-          Ver servicio
+          Ver más
+          <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">→</span>
         </Link>
       </div>
     </article>
@@ -415,6 +465,8 @@ export default function SupplierPage() {
   const { syncFavorites } = useFavoritesStore();
   const { token } = useAuthStore();
   const setDirectoryMode = useSupplierPageModeStore((state) => state.setDirectoryMode);
+  const setHideForDirectory = useChromeVisibilityStore((state) => state.setHideForDirectory);
+  const resetChromeVisibility = useChromeVisibilityStore((state) => state.reset);
   
   const observerTarget = useRef<HTMLDivElement | null>(null);
 
@@ -875,6 +927,8 @@ export default function SupplierPage() {
   );
   const hasBusinessHours = groupedHours.length > 0;
   const hasLocation = Boolean(mapLocation || supplier?.address);
+  const socialLinks = pickSocialLinks(supplier);
+  const hasSocial = socialLinks.length > 0;
   const hasContactSection =
     hasContactInfo || hasBusinessHours || hasLocation;
   const hasHeroHighlights = Boolean(
@@ -889,6 +943,18 @@ export default function SupplierPage() {
     return () => setDirectoryMode(false);
   }, [isDirectory, setDirectoryMode]);
 
+  // Cuando el proveedor es directorio, ocultamos el chrome de Drooopy
+  // (Header/Footer/MobileNav) y mostraremos el DirectoryTopNav propio del proveedor.
+  // El reset en cleanup garantiza que al salir de /empresas/* el chrome vuelva.
+  useEffect(() => {
+    if (isDirectory) {
+      setHideForDirectory(true);
+    }
+    return () => {
+      resetChromeVisibility();
+    };
+  }, [isDirectory, setHideForDirectory, resetChromeVisibility]);
+
   if (loading)
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f2f3f4]">
@@ -901,9 +967,29 @@ export default function SupplierPage() {
 
   if (!supplier) return null;
 
+  // Solo los proveedores con una suscripción activa (de cualquier tipo) tienen
+  // un perfil público. Si no hay suscripción vigente, 404 — no hay espacio.
+  if (!supplierHasActiveSubscription(supplier)) {
+    notFound();
+  }
+
   return (
     <div className="min-h-screen bg-[#ffffff] font-sans selection:bg-[#168e00] selection:text-white">
-      
+
+      {isDirectory ? (
+        <DirectoryTopNav
+          supplierName={supplier.name}
+          logoUrl={supplierLogo}
+          showAbout={Boolean(
+            supplier.about ||
+              supplier.about_media ||
+              hasCustomAboutTitle ||
+              hasCustomAboutSubtitle,
+          )}
+          showServices={Boolean(isDirectory)}
+        />
+      ) : null}
+
       {/* --- HERO SECTION --- */}
       <section
         id="inicio"
@@ -1019,19 +1105,20 @@ export default function SupplierPage() {
          )}
       </section>
 
-      {/* --- TABS NAVIGATION --- */}
+      {/* --- TABS NAVIGATION (solo tienda; directorio usa DirectoryTopNav propio) --- */}
+      {!isDirectory ? (
       <div className="sticky top-[0px] md:top-[0px] z-40 bg-white border-b border-gray-100 shadow-sm backdrop-blur-md bg-white/90">
         <div className="container mx-auto px-4 md:px-8">
            <div className="flex gap-8 overflow-x-auto no-scrollbar">
-              <button 
-                onClick={() => setActiveTab('main')} 
+              <button
+                onClick={() => setActiveTab('main')}
                 className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'main' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
               >
                 Página Principal
               </button>
               {!isDirectory ? (
-              <button 
-                onClick={() => setActiveTab('products')} 
+              <button
+                onClick={() => setActiveTab('products')}
                 className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'products' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
               >
                 Productos
@@ -1040,6 +1127,7 @@ export default function SupplierPage() {
            </div>
         </div>
       </div>
+      ) : null}
 
       {activeTab === "main" && supplier.description?.trim() ? (
         <section
@@ -1069,6 +1157,50 @@ export default function SupplierPage() {
                 />
               </div>
             </article>
+          </div>
+        </section>
+      ) : null}
+
+      {isDirectory && (supplier.about || supplier.about_media || hasCustomAboutTitle || hasCustomAboutSubtitle) ? (
+        <section
+          id="nosotros"
+          className="relative scroll-mt-20 bg-white py-16 md:py-24"
+        >
+          <div className="mx-auto max-w-6xl px-5 md:px-8">
+            <div className={`grid items-center gap-10 md:gap-16 ${supplier.about_media ? "md:grid-cols-2" : ""}`}>
+              {supplier.about_media ? (
+                <div className="relative aspect-[4/3] overflow-hidden rounded-2xl shadow-[0_20px_50px_-20px_rgba(0,0,0,0.25)]">
+                  <img
+                    src={getImageUrl(supplier.about_media)}
+                    alt={supplier.name}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ) : null}
+
+              <div>
+                {hasCustomAboutTitle || hasCustomAboutSubtitle ? (
+                  <h2 className="mb-6 text-3xl font-black leading-tight text-[#004e28] font-[family-name:var(--font-varela-round)] md:text-4xl">
+                    {hasCustomAboutTitle ? supplier.title_about : null}
+                    {hasCustomAboutTitle && hasCustomAboutSubtitle ? <br /> : null}
+                    {hasCustomAboutSubtitle ? (
+                      <span className="text-[#168e00]">{supplier.subtitle_about}</span>
+                    ) : null}
+                  </h2>
+                ) : null}
+                {supplier.about ? (
+                  <div className="text-base leading-8 text-gray-600 md:text-lg md:leading-9">
+                    <div className="ql-snow w-full">
+                      <div
+                        className="ql-editor"
+                        style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
+                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(supplier.about || "") }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
         </section>
       ) : null}
@@ -1134,12 +1266,52 @@ export default function SupplierPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div
+                className="grid gap-x-10 gap-y-12"
+                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 300px))" }}
+              >
                 {filteredServices.map((service) => (
                   <DirectoryServiceCard key={service.id} service={service} />
                 ))}
               </div>
             )}
+          </div>
+        </section>
+      ) : null}
+
+      {/* --- INTRO SECTION (Directory) --- */}
+      {isDirectory && (supplier.intro_title?.trim() || supplier.intro_description?.trim() || supplier.intro_image_url) ? (
+        <section
+          id="intro"
+          className="relative scroll-mt-20 overflow-hidden bg-[#004e28] py-16 text-white md:py-24"
+        >
+          <div className="pointer-events-none absolute -left-40 top-1/2 h-[420px] w-[420px] -translate-y-1/2 rounded-full bg-[#168e00]/15 blur-3xl" />
+          <div className="relative z-10 mx-auto grid max-w-6xl items-center gap-12 px-5 md:grid-cols-2 md:px-8">
+            <div className="order-2 md:order-1">
+              {supplier.intro_title?.trim() ? (
+                <h2 className="font-[family-name:var(--font-varela-round)] text-3xl font-black leading-tight md:text-4xl lg:text-5xl">
+                  {supplier.intro_title.trim()}
+                </h2>
+              ) : null}
+              {supplier.intro_description?.trim() ? (
+                <p className="mt-5 max-w-xl whitespace-pre-line text-base leading-8 text-white/85 md:text-lg md:leading-9">
+                  {supplier.intro_description.trim()}
+                </p>
+              ) : null}
+            </div>
+
+            {supplier.intro_image_url ? (
+              <div className="order-1 md:order-2">
+                <div className="relative mx-auto aspect-[4/3] w-full max-w-md overflow-hidden rounded-3xl border border-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.55)]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={getImageUrl(supplier.intro_image_url)}
+                    alt={supplier.intro_title?.trim() || supplier.name}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
         </section>
       ) : null}
@@ -1250,174 +1422,6 @@ export default function SupplierPage() {
         </div>
         ) : null}
 
-      {/* --- NUESTRA ESENCIA (Storytelling) --- */}
-      <section
-        id="nosotros"
-        className={`relative scroll-mt-20 overflow-hidden ${
-          useDirectoryPresentation ? "bg-[#f2f3f4] py-16 md:py-24" : "bg-white py-24"
-        }`}
-      >
-         <div className={isDirectory ? "mx-auto max-w-6xl px-5 md:px-8" : "container mx-auto px-5 md:px-12"}>
-           {useDirectoryPresentation ? (
-             <>
-               <header className="mb-8">
-                 <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[#168e00]">
-                   {supplier.name}
-                 </p>
-                 <h2 className="text-3xl font-black tracking-[-0.025em] text-[#004e28] font-[family-name:var(--font-varela-round)] sm:text-4xl">
-                   Acerca de nosotros
-                 </h2>
-               </header>
-
-               <article className="overflow-hidden rounded-[2rem] border border-[#004e28]/15 bg-white shadow-[0_28px_80px_-48px_rgba(0,78,40,0.7)]">
-                 <div className={supplier.about_media ? "grid items-stretch lg:grid-cols-2" : ""}>
-                 {supplier.about_media ? (
-                   <div className="relative min-h-[320px] overflow-hidden bg-[#e7ece8] sm:min-h-[400px] lg:min-h-[460px]">
-                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                     <img
-                       src={getImageUrl(supplier.about_media)}
-                       alt={supplier.name}
-                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 hover:scale-[1.025]"
-                     />
-                     <div className="absolute inset-0 bg-gradient-to-t from-[#002f18]/45 via-transparent to-transparent" />
-                     <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-6 sm:p-8">
-                       <p className="max-w-[75%] text-xl font-bold leading-tight text-white drop-shadow-md font-[family-name:var(--font-varela-round)] sm:text-2xl">
-                         {supplier.name}
-                       </p>
-                       {supplier.is_verified ? (
-                         <span
-                           className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/90 text-[#168e00] shadow-lg backdrop-blur"
-                           aria-label="Perfil verificado"
-                           title="Perfil verificado"
-                         >
-                           <Check size={20} strokeWidth={3} />
-                         </span>
-                       ) : null}
-                     </div>
-                   </div>
-                 ) : null}
-
-                 <div className={`relative flex flex-col justify-center bg-[#004e28] p-9 text-white sm:p-12 lg:p-14 ${supplier.about_media ? "min-h-[400px]" : ""}`}>
-                   <span className="mb-8 block h-1 w-16 rounded-full bg-[#168e00]" aria-hidden="true" />
-                   {hasCustomAboutTitle || hasCustomAboutSubtitle ? (
-                     <h3 className="max-w-xl text-2xl font-black leading-[1.15] tracking-[-0.02em] text-white font-[family-name:var(--font-varela-round)] sm:text-3xl">
-                       {hasCustomAboutTitle ? supplier.title_about : null}
-                       {hasCustomAboutTitle && hasCustomAboutSubtitle ? <br /> : null}
-                       {hasCustomAboutSubtitle ? (
-                         <span className="text-[#168e00]">{supplier.subtitle_about}</span>
-                       ) : null}
-                     </h3>
-                   ) : null}
-
-                   {supplier.about ? (
-                     <div className={`${hasCustomAboutTitle || hasCustomAboutSubtitle ? "mt-7" : ""} max-w-3xl text-base leading-8 text-white/85 sm:text-lg sm:leading-9`}>
-                       <div className="ql-snow w-full">
-                         <div
-                           className="ql-editor break-normal [&_a]:font-semibold [&_a]:text-[#7cde68] [&_a]:underline-offset-4 [&_a:hover]:underline [&_li]:mb-3 [&_p]:mb-6 [&_p:last-child]:mb-0"
-                           style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
-                           dangerouslySetInnerHTML={{
-                             __html: sanitizeHtml(supplier.about || ""),
-                           }}
-                         />
-                       </div>
-                     </div>
-                   ) : null}
-
-                   {(supplier.phone || supplier.email || supplier.address) ? (
-                     <div className="mt-10 flex flex-col gap-4 border-t border-white/15 pt-8">
-                       {supplier.phone ? (
-                         <a
-                           href={`tel:${supplier.phone}`}
-                           className="group inline-flex w-fit items-center gap-3 text-sm font-semibold text-white/90 transition-colors hover:text-white"
-                         >
-                           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-[#7cde68] transition-colors group-hover:bg-[#168e00] group-hover:text-white">
-                             <Phone size={16} aria-hidden="true" />
-                           </span>
-                           {supplier.phone}
-                         </a>
-                       ) : null}
-                       {supplier.email ? (
-                         <a
-                           href={`mailto:${supplier.email}`}
-                           className="group inline-flex w-fit items-center gap-3 text-sm font-semibold text-white/90 transition-colors hover:text-white"
-                         >
-                           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-[#7cde68] transition-colors group-hover:bg-[#168e00] group-hover:text-white">
-                             <Mail size={16} aria-hidden="true" />
-                           </span>
-                           {supplier.email}
-                         </a>
-                       ) : null}
-                       {supplier.address ? (
-                         <div className="inline-flex items-start gap-3 text-sm font-medium leading-6 text-white/75">
-                           <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#7cde68]">
-                             <MapPin size={16} aria-hidden="true" />
-                           </span>
-                           <span className="pt-1.5">{supplier.address}</span>
-                         </div>
-                       ) : null}
-                     </div>
-                   ) : null}
-                 </div>
-               </div>
-               </article>
-             </>
-           ) : (
-             <div className="bg-[#f2f3f4] rounded-[3rem] p-8 md:p-16 relative overflow-hidden group">
-                 <div className="absolute top-0 right-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5" />
-                 
-                 <div className={`relative z-10 grid grid-cols-1 items-center gap-16 ${supplier.about_media ? "md:grid-cols-2" : ""}`}>
-                     {supplier.about_media ? (
-                     <div className="order-2 md:order-1">
-                         <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-[0_20px_50px_-20px_rgba(0,0,0,0.3)] transform md:-rotate-2 hover:rotate-0 transition-transform duration-700">
-                             <img src={getImageUrl(supplier.about_media)} alt="Nosotros" className="w-full h-full object-cover" />
-                        </div>
-                    </div>
-                    ) : null}
-                    
-                    <div className="order-1 md:order-2">
-                        {hasCustomAboutTitle || hasCustomAboutSubtitle ? (
-                        <h2 className="text-3xl md:text-5xl font-black text-[#004e28] mb-8 font-[family-name:var(--font-varela-round)] leading-tight">
-                            {hasCustomAboutTitle ? supplier.title_about : null}
-                            {hasCustomAboutTitle && hasCustomAboutSubtitle ? <br/> : null}
-                            {hasCustomAboutSubtitle ? (
-                              <span className="text-[#168e00]">
-                                {supplier.subtitle_about}
-                              </span>
-                            ) : null}
-                        </h2>
-                        ) : null}
-                        {supplier.about ? (
-                        <div className="text-gray-600 w-full">
-                          <div className="ql-snow w-full">
-                            <div
-                              className="ql-editor"
-                              style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
-                              dangerouslySetInnerHTML={{
-                                __html: sanitizeHtml(supplier.about || ""),
-                              }}
-                            />
-                          </div>
-                        </div>
-                        ) : null}
-                         
-                         {supplier.is_verified ? (
-                         <div className="mt-10 flex items-center gap-4">
-                             <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-[#168e00] shadow-md">
-                                 <Award size={32} />
-                             </div>
-                             <div>
-                                 <p className="text-[#004e28] font-bold text-lg">Certificado de Calidad</p>
-                                  <p className="text-sm text-gray-500">Verificado por Drooopy</p>
-                             </div>
-                         </div>
-                         ) : null}
-                     </div>
-                 </div>
-             </div>
-           )}
-         </div>
-      </section>
-
       {/* --- CERTIFICATES SECTION --- */}
       {supplier.certificates && supplier.certificates.length > 0 && (
         <section className="py-20 bg-[#f9fafb]">
@@ -1458,7 +1462,7 @@ export default function SupplierPage() {
       {isDirectory ? (
         <DirectoryRatingsSection slug={supplier.slug || String(slug)} />
       ) : (
-      <section id="experiencia" className="scroll-mt-20 border-t border-gray-100 bg-white py-24">
+        <section id="experiencia" className="scroll-mt-20 border-t border-gray-100 bg-white py-24">
           <div className={`container mx-auto px-6 md:px-12 ${useDirectoryPresentation ? "max-w-6xl" : ""}`}>
               <div className="flex flex-col md:flex-row items-center justify-between mb-12 gap-8">
                   <div>
@@ -1471,7 +1475,7 @@ export default function SupplierPage() {
                           <span className="text-gray-400 text-sm">({ratingsTotal} reseñas)</span>
                       </div>
                   </div>
-                  
+
               </div>
 
               {ratingsLoading ? (
@@ -1495,9 +1499,9 @@ export default function SupplierPage() {
                               </div>
                               <p className="text-gray-600 italic mb-6">&quot;{rating.comment}&quot;</p>
                               <div className="flex items-center gap-3 mt-auto pt-4 border-t border-gray-200">
-                                  <img 
-                                    src={getImageUrl(rating.product_thumbnail_url || rating.product_image || null)} 
-                                    alt="" 
+                                  <img
+                                    src={getImageUrl(rating.product_thumbnail_url || rating.product_image || null)}
+                                    alt=""
                                     className="w-10 h-10 rounded-lg object-cover bg-white"
                                   />
                                   <div className="text-xs text-gray-400">
@@ -1521,6 +1525,11 @@ export default function SupplierPage() {
       </section>
       )}
 
+      {/* --- GALLERY SECTION (Directory) --- */}
+      {isDirectory ? (
+        <DirectoryGallerySection supplierId={supplier.id} />
+      ) : null}
+
       {/* --- CONTACT & MAP (Dark Mode / Expert UI) --- */}
       <section
         id="contacto"
@@ -1536,7 +1545,7 @@ export default function SupplierPage() {
               {/* TOP ROW: Info & Hours */}
               <div className={`mb-12 grid grid-cols-1 gap-8 ${hasContactInfo && hasBusinessHours ? "md:grid-cols-2" : ""}`}>
                   {/* Info Card */}
-                  {hasContactInfo ? (
+                  {hasContactInfo || hasSocial ? (
                   <div className={`rounded-[2rem] transition-colors ${useDirectoryPresentation ? "overflow-hidden border border-[#004e28]/10 bg-white shadow-[0_24px_60px_-40px_rgba(0,78,40,0.7)]" : "bg-white/5 backdrop-blur-lg border border-white/10 p-8 hover:bg-white/10"}`}>
                       <h3 className={`text-2xl font-bold font-[family-name:var(--font-varela-round)] flex items-center gap-3 ${useDirectoryPresentation ? "bg-[#004e28] px-8 py-6 text-white" : "mb-6"}`}>
                           <MessageCircle className="text-[#168e00]" /> Contáctanos
@@ -1566,6 +1575,38 @@ export default function SupplierPage() {
                                   <span className="min-w-0 break-words text-base font-medium sm:text-lg">{supplier.address}</span>
                               </div>
                           )}
+
+                          {hasSocial ? (
+                            <div className={`pt-4 mt-2 ${useDirectoryPresentation ? "border-t border-[#004e28]/10" : "border-t border-white/10"}`}>
+                              <p className={`mb-3 text-xs font-bold uppercase tracking-widest ${useDirectoryPresentation ? "text-[#168e00]" : "text-white/70"}`}>
+                                Síguenos
+                              </p>
+                              <div className="flex flex-wrap items-center gap-3">
+                                {socialLinks.map((link) => (
+                                  <a
+                                    key={link.platform}
+                                    href={link.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label={`${link.label} — se abre en una pestaña nueva`}
+                                    className={`inline-flex h-12 w-12 items-center justify-center rounded-full transition-all hover:-translate-y-0.5 ${
+                                      useDirectoryPresentation
+                                        ? "bg-[#004e28]/10 text-[#004e28] hover:bg-[#004e28] hover:text-white"
+                                        : "bg-white/10 text-white hover:bg-white hover:text-[#004e28]"
+                                    }`}
+                                  >
+                                    {link.platform === "facebook" ? (
+                                      <Facebook size={20} />
+                                    ) : link.platform === "instagram" ? (
+                                      <Instagram size={20} />
+                                    ) : (
+                                      <XIcon size={18} />
+                                    )}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                       </div>
                   </div>
                   ) : null}
