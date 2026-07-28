@@ -4,9 +4,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { ProductCard } from "@/components/ProductCard";
 import { RecommendationsSidebar } from "./RecommendationsSidebar";
-import { searchAll, SearchService, SearchResponse } from "@/lib/search";
+import { searchAll, SearchService, SearchDirectory, SearchResponse } from "@/lib/search";
 import { Product } from "@/lib/products";
 import { getRecommendations, getFallbackProducts } from "@/lib/interactions";
+import { DirectoryCard } from "./DirectoryCard";
 import { Search, Filter } from "lucide-react";
 import { useLocationStore } from "@/store/useLocationStore";
 
@@ -95,11 +96,13 @@ export function RecommendationsSection({
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<SearchService[]>([]);
+  const [directories, setDirectories] = useState<SearchDirectory[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [skip, setSkip] = useState(0);
   const [productCount, setProductCount] = useState(0);
   const [serviceCount, setServiceCount] = useState(0);
+  const [directoryCount, setDirectoryCount] = useState(0);
   const limit = 20;
 
   // Filters
@@ -150,14 +153,18 @@ export function RecommendationsSection({
     try {
       let productsArr: Product[] = [];
       let servicesArr: SearchService[] = [];
+      let directoriesArr: SearchDirectory[] = [];
       let productTotal = 0;
       let serviceTotal = 0;
+      let directoryTotal = 0;
 
       if (!hasQuery) {
         // No active query → fall back to the personalized recommendations
-        // endpoint for products, and ask the unified search for services with
-        // an empty query so we still surface featured services.
-        const [recommended, servicesOnly] = await Promise.all([
+        // endpoint for products, and ask the unified search (type_filter=all)
+        // for both products and directories. The backend now rejects
+        // type_filter=services with 422, so we use "all" to also surface
+        // featured directories (businesses with a plan).
+        const [recommended, searchEmpty] = await Promise.all([
           getRecommendations(20, currentSkip).then(async (list) => {
             if (Array.isArray(list) && list.length > 0) return list;
             return getFallbackProducts(20);
@@ -165,7 +172,7 @@ export function RecommendationsSection({
           currentSkip === 0
             ? searchAll({
                 query: "",
-                type_filter: "services",
+                type_filter: "all",
                 per_type: 8,
                 allowEmptyQuery: true,
                 disableLocation: true,
@@ -174,9 +181,16 @@ export function RecommendationsSection({
         ]);
 
         productsArr = Array.isArray(recommended) ? recommended : [];
-        servicesArr = Array.isArray(servicesOnly?.services) ? servicesOnly!.services : [];
+        servicesArr = [];
+        // If the personalized endpoint didn't return products, fall back to
+        // whatever the unified search surfaced (so we never end up empty here).
+        if (productsArr.length === 0 && Array.isArray(searchEmpty?.products)) {
+          productsArr = searchEmpty.products;
+        }
+        directoriesArr = Array.isArray(searchEmpty?.directories) ? searchEmpty!.directories : [];
         productTotal = productsArr.length;
         serviceTotal = servicesArr.length;
+        directoryTotal = directoriesArr.length;
       } else {
         const locationParam =
           filterCity || filterState
@@ -215,6 +229,23 @@ export function RecommendationsSection({
               })
             : null;
 
+        // 3) Backup call for directories only (no location) — same reason as
+        // services: a directory with `city=null` is dropped when the user has
+        // a city cookie set, so we always re-query without location to surface
+        // those national/remote directories. Then we merge into `directoriesArr`.
+        const directoriesOnly =
+          debouncedSearch.trim() && currentSkip === 0
+            ? await searchAll({
+                query: debouncedSearch,
+                type_filter: "directories",
+                skip: 0,
+                limit,
+                category,
+                subcategory,
+                disableLocation: true,
+              })
+            : null;
+
         // Client-side filter: if there's a query, only keep products whose
         // title/description actually mention it. The backend's unified search
         // sometimes returns unrelated rows when location is set, and this avoids
@@ -230,6 +261,7 @@ export function RecommendationsSection({
           : allProducts;
 
         servicesArr = Array.isArray(response?.services) ? response.services : [];
+        directoriesArr = Array.isArray(response?.directories) ? response.directories : [];
 
         // De-duplicate services by id, prefer the unified response
         if (servicesOnly?.services?.length) {
@@ -242,13 +274,27 @@ export function RecommendationsSection({
           }
         }
 
+        // Merge directories from the location-bypassing backup into the unified
+        // response, preferring the unified response (already in `directoriesArr`).
+        if (directoriesOnly?.directories?.length) {
+          const seenDirs = new Set(directoriesArr.map((d) => d.id));
+          for (const dir of directoriesOnly.directories) {
+            if (!seenDirs.has(dir.id)) {
+              directoriesArr = [...directoriesArr, dir];
+              seenDirs.add(dir.id);
+            }
+          }
+        }
+
         productTotal = normalizedQuery ? productsArr.length : response.counts.products;
         serviceTotal = servicesArr.length;
+        directoryTotal = directoriesArr.length;
       }
 
       if (reset) {
         setProducts(productsArr);
         setServices(servicesArr);
+        setDirectories(directoriesArr);
         setSkip(0);
       } else {
         setProducts(prev => [...prev, ...productsArr]);
@@ -263,10 +309,22 @@ export function RecommendationsSection({
           }
           return next;
         });
+        setDirectories(prev => {
+          const seen = new Set(prev.map((d) => d.id));
+          const next = [...prev];
+          for (const dir of directoriesArr) {
+            if (!seen.has(dir.id)) {
+              next.push(dir);
+              seen.add(dir.id);
+            }
+          }
+          return next;
+        });
       }
 
       setProductCount(productTotal);
       setServiceCount(serviceTotal);
+      setDirectoryCount(directoryTotal);
       setHasMore(productsArr.length === limit || servicesArr.length === limit);
     } catch (error) {
       console.error("Error fetching search results:", error);
@@ -319,7 +377,7 @@ export function RecommendationsSection({
     setFilterState(undefined);
   };
 
-  const hasAnyResults = products.length > 0 || services.length > 0;
+  const hasAnyResults = products.length > 0 || services.length > 0 || directories.length > 0;
 
   return (
     <div id="recommendations-section" className="bg-white py-8">
@@ -414,7 +472,7 @@ export function RecommendationsSection({
                 </header>
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                   {products.map((product, index) => {
-                    const isLast = products.length === index + 1 && services.length === 0;
+                    const isLast = products.length === index + 1 && services.length === 0 && directories.length === 0;
                     const wrapperProps = isLast ? { ref: lastResultElementRef } : {};
                     return (
                       <div {...wrapperProps} key={`product-${product.id}-${index}`}>
@@ -428,6 +486,30 @@ export function RecommendationsSection({
                           sales={product.sales_count || 0}
                           supplier={product.supplier}
                         />
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {directories.length > 0 && (
+              <section className="mb-10">
+                <header className="flex items-baseline justify-between mb-4">
+                  <h3 className="text-lg md:text-xl font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
+                    Negocios
+                  </h3>
+                  <span className="text-xs text-gray-500">
+                    {directoryCount} resultado{directoryCount === 1 ? "" : "s"}
+                  </span>
+                </header>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {directories.map((directory, index) => {
+                    const isLast = directories.length === index + 1 && services.length === 0 && products.length === 0;
+                    const wrapperProps = isLast ? { ref: lastResultElementRef } : {};
+                    return (
+                      <div {...wrapperProps} key={`directory-${directory.id}-${index}`}>
+                        <DirectoryCard directory={directory} />
                       </div>
                     );
                   })}
