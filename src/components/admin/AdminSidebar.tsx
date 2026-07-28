@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { BriefcaseBusiness } from "lucide-react";
 import { Image as ImageIcon } from "lucide-react";
+import { Images } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -184,6 +185,16 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
       icon: isDirectory ? BriefcaseBusiness : Package,
       roles: ['admin', 'superuser', 'supplier']
     },
+    ...(isSupplier && isDirectory
+      ? [
+          {
+            title: "Galería",
+            path: "/admin/gallery",
+            icon: Images,
+            roles: ['supplier'] as AdminRole[],
+          },
+        ]
+      : []),
     {
       title: "Soporte",
       path: "/admin/support",

@@ -23,6 +23,7 @@ export interface Plan {
   access_code?: string | null;
   max_active_products?: number | null;
   max_images_per_product?: number | null;
+  max_gallery_images?: number | null;
   created_at?: string;
 }
 
