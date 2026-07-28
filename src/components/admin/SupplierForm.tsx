@@ -1060,6 +1060,7 @@ export default function SupplierForm({
       setDeletingIntroImage(true);
       void (async () => {
         try {
+          if (!initialData?.id) return;
           const res = await fetchWithAuth(
             `/api/suppliers/${initialData.id}/intro-image`,
             { method: "DELETE" },
