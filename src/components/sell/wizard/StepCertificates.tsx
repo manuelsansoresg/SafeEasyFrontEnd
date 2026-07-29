@@ -31,6 +31,9 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [certificatesTitle, setCertificatesTitle] = useState<string>('Certificados y Reconocimientos');
+  const [savingTitle, setSavingTitle] = useState(false);
+  const [titleSaveStatus, setTitleSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
 
   // Form
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -63,7 +66,7 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
       if (res.ok) {
         const data = await res.json();
         if (process.env.NODE_ENV === "development") console.log("Certificate Items Response:", data);
-        
+
         let certs: CertificateItem[] = [];
         // The response is the supplier object, so we look for certificates array
         if (data.certificates && Array.isArray(data.certificates)) {
@@ -72,7 +75,13 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
             // Fallback just in case
             certs = data;
         }
-        
+
+        const titleFromSupplier =
+          (typeof data.certificates_title === 'string' && data.certificates_title.trim()) ||
+          (typeof data.title === 'string' && data.title.trim()) ||
+          null;
+        if (titleFromSupplier) setCertificatesTitle(titleFromSupplier);
+
         setItems(certs);
       } else {
         console.error("StepCertificates: Failed to fetch supplier details", res.status);
@@ -121,43 +130,54 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!image && !editingId) {
-      setError("La imagen del certificado es obligatoria para nuevos elementos");
-      return;
+    const hasCertificateDraft = Boolean(description || place || link || image || editingId);
+
+    if (hasCertificateDraft) {
+      if (!image && !editingId) {
+        setError("La imagen del certificado es obligatoria para nuevos elementos");
+        return;
+      }
     }
-    
+
     setLoading(true);
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('name', description);
-      formData.append('description', description);
-      formData.append('place', place);
-      if (link) formData.append('link', link);
-      if (certificateDate) formData.append('certificate_date', new Date(certificateDate).toISOString());
-      if (expirationDate) formData.append('expiration_date', new Date(expirationDate).toISOString());
-      if (image) formData.append('image', image);
+      if (hasCertificateDraft) {
+        const formData = new FormData();
+        formData.append('name', description);
+        formData.append('description', description);
+        formData.append('place', place);
+        if (link) formData.append('link', link);
+        if (certificateDate) formData.append('certificate_date', new Date(certificateDate).toISOString());
+        if (expirationDate) formData.append('expiration_date', new Date(expirationDate).toISOString());
+        if (image) formData.append('image', image);
 
-      const url = editingId 
-        ? `/api/suppliers/certificates/${editingId}`
-        : `/api/suppliers/${supplierId}/certificates`;
-      
-      const method = editingId ? 'PUT' : 'POST';
+        const url = editingId
+          ? `/api/suppliers/certificates/${editingId}`
+          : `/api/suppliers/${supplierId}/certificates`;
 
-      const res = await fetch(url, {
-        method: method,
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
+        const method = editingId ? 'PUT' : 'POST';
 
-      if (!res.ok) {
-        throw new Error(`Error al ${editingId ? 'actualizar' : 'subir'} certificado`);
+        const res = await fetch(url, {
+          method: method,
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Error al ${editingId ? 'actualizar' : 'subir'} certificado`);
+        }
+
+        await fetchItems();
+        handleCancelEdit();
       }
 
-      await fetchItems();
-      handleCancelEdit();
-      
+      // Always save the section title alongside the certificate submission
+      const titleSaved = await handleTitleSave();
+      if (hasCertificateDraft && !titleSaved) {
+        throw new Error('El certificado se guardó, pero no se pudo guardar el título de la sección');
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -167,14 +187,14 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
 
   const handleDelete = async (itemId: number) => {
     if (!confirm('¿Estás seguro de eliminar este certificado?')) return;
-    
+
     try {
       // Updated to match the requested endpoint structure: DELETE /suppliers/certificates/{certificate_id}
       const res = await fetch(`/api/suppliers/certificates/${itemId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (res.ok) {
         fetchItems();
         if (editingId === itemId) {
@@ -186,9 +206,36 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
     }
   };
 
+  const handleTitleSave = async (): Promise<boolean> => {
+    const target = slug ?? String(supplierId);
+    if (!target) return false;
+    setSavingTitle(true);
+    setTitleSaveStatus('idle');
+    try {
+      const res = await fetch(`/api/suppliers/${target}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ certificates_title: certificatesTitle }),
+      });
+      if (!res.ok) throw new Error(`Error al guardar el título (${res.status})`);
+      setTitleSaveStatus('saved');
+      window.setTimeout(() => setTitleSaveStatus('idle'), 2000);
+      return true;
+    } catch (e) {
+      console.error('Error saving certificates_title', e);
+      setTitleSaveStatus('error');
+      return false;
+    } finally {
+      setSavingTitle(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold text-center mb-6">Certificados y Reconocimientos</h2>
+      <h2 className="text-2xl font-bold text-center mb-6">{certificatesTitle}</h2>
       <p className="text-gray-600 text-center mb-8">
         Aumente la confianza de los compradores mostrando sus certificaciones.
       </p>
@@ -213,12 +260,41 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
         
         <form id="certificate-form" onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
+            <label className="block text-sm font-medium mb-1 text-gray-700">Título de la sección</label>
+            <input
+              type="text"
+              value={certificatesTitle}
+              onChange={(e) => {
+                setCertificatesTitle(e.target.value);
+                setTitleSaveStatus('idle');
+              }}
+              maxLength={120}
+              placeholder="Ej. Certificados y Reconocimientos"
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Encabezado que verá el visitante al inicio de tu sección de certificados.
+            </p>
+            {(savingTitle || titleSaveStatus !== 'idle') && (
+              <div className="text-xs mt-1">
+                {savingTitle && <span className="text-gray-500">Guardando...</span>}
+                {!savingTitle && titleSaveStatus === 'saved' && (
+                  <span className="text-green-600">Guardado ✓</span>
+                )}
+                {!savingTitle && titleSaveStatus === 'error' && (
+                  <span className="text-red-600">No se pudo guardar</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="md:col-span-2">
             <label className="block text-sm font-medium mb-1 text-gray-700">Nombre/Descripción del Certificado</label>
-            <input 
-              type="text" 
-              value={description} 
-              onChange={(e) => setDescription(e.target.value)} 
-              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
               required
               placeholder="Ej. ISO 9001:2015"
             />

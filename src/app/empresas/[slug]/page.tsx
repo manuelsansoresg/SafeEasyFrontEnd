@@ -1428,7 +1428,7 @@ export default function SupplierPage() {
             <div className={isDirectory ? "mx-auto max-w-6xl px-5 md:px-8" : "container mx-auto px-6 md:px-12"}>
                 <div className="text-center mb-16">
                     <h2 className="text-3xl md:text-4xl font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]">
-                        Calidad Certificada
+                        {supplier.certificates_title || 'Calidad Certificada'}
                     </h2>
                 </div>
 

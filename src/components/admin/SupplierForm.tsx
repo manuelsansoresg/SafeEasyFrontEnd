@@ -1622,7 +1622,7 @@ export default function SupplierForm({
         {/* Left Column: Basic Info */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Datos Generales</h3>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Empresa</label>
             <input
@@ -2033,7 +2033,7 @@ export default function SupplierForm({
           <div className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
            <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
-              Descripción corta (encabezado y SEO)
+              Descripción corta 
             </label>
             <input
               type="text"
