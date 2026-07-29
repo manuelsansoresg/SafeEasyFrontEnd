@@ -6,13 +6,15 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
+import { DeletedBadge, DeletedUserControls } from "@/components/admin/DeletedUserControls";
 import {
   CheckCircle,
   Edit,
+  Eye,
+  EyeOff,
   Plus,
   Search,
   Store,
-  Trash2,
   User as UserIcon,
   XCircle,
 } from "lucide-react";
@@ -26,6 +28,7 @@ interface User {
   name?: string | null;
   full_name?: string | null;
   role?: string | null;
+  user_deleted_at?: string | null;
   user?: {
     id?: number;
     email?: string | null;
@@ -33,6 +36,7 @@ interface User {
     name?: string | null;
     full_name?: string | null;
     role?: string | null;
+    deleted_at?: string | null;
   } | null;
 }
 
@@ -50,6 +54,12 @@ const sellerName = (seller: User) => seller.full_name ?? seller.name ?? sellerUs
 const sellerLabel = (seller: User) => sellerName(seller) || sellerEmail(seller) || "Sin nombre";
 
 const sellerIsActive = (seller: User) => seller.is_active ?? sellerUser(seller)?.is_active ?? false;
+
+const sellerDeletedAt = (seller: User): string | null => {
+  if (seller.user_deleted_at) return seller.user_deleted_at;
+  if (seller.user && seller.user.deleted_at) return seller.user.deleted_at;
+  return null;
+};
 
 const normalizedText = (value: string | number | null | undefined) => String(value ?? "").toLowerCase();
 
@@ -102,6 +112,7 @@ export default function SellersPage() {
   const [sellers, setSellers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showDeleted, setShowDeleted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
@@ -127,6 +138,7 @@ export default function SellersPage() {
           limit: "500",
         });
         if (searchTerm.trim()) params.set("search", searchTerm.trim());
+        if (showDeleted) params.set("include_deleted", "true");
 
         const response = await fetchWithAuth(apiUrl(`/sellers/?${params.toString()}`));
 
@@ -162,7 +174,7 @@ export default function SellersPage() {
     };
 
     fetchSellers();
-  }, [searchTerm, token]);
+  }, [searchTerm, showDeleted, token]);
 
   const deleteSeller = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este vendedor?")) return;
@@ -175,9 +187,20 @@ export default function SellersPage() {
       });
 
       if (response.ok) {
-        setSellers((prev) => prev.filter((seller) => sellerDisplayId(seller) !== id));
-        setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id));
         setToast({ type: "success", message: "Vendedor eliminado correctamente." });
+        // Re-fetch with current filters so the row disappears (or moves to the
+        // "Mostrar eliminados" section if the toggle is on).
+        setSearchTerm((prev) => prev);
+        if (showDeleted) {
+          setSellers((prev) => prev.map((s) =>
+            sellerDisplayId(s) === id
+              ? { ...s, user_deleted_at: new Date().toISOString() }
+              : s
+          ));
+        } else {
+          setSellers((prev) => prev.filter((seller) => sellerDisplayId(seller) !== id));
+        }
+        setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id));
       } else {
         const message = await readErrorMessage(response);
         setToast({ type: "error", message: message || "Error al eliminar vendedor." });
@@ -185,6 +208,36 @@ export default function SellersPage() {
     } catch (error) {
       console.error("Error deleting seller:", error);
       setToast({ type: "error", message: "Error de red al eliminar vendedor." });
+    }
+  };
+
+  const restoreSeller = async (id: number) => {
+    if (!confirm("¿Restaurar este vendedor?")) return;
+    if (!token) return;
+
+    try {
+      const response = await fetchWithAuth(`/api/admin/users/${id}/restore`, {
+        method: "PATCH",
+      });
+
+      if (response.ok) {
+        setToast({ type: "success", message: "Vendedor restaurado correctamente." });
+        if (showDeleted) {
+          setSellers((prev) => prev.filter((seller) => sellerDisplayId(seller) !== id));
+        } else {
+          setSellers((prev) => prev.map((s) =>
+            sellerDisplayId(s) === id
+              ? { ...s, user_deleted_at: null }
+              : s
+          ));
+        }
+      } else {
+        const message = await readErrorMessage(response);
+        setToast({ type: "error", message: message || "Error al restaurar vendedor." });
+      }
+    } catch (error) {
+      console.error("Error restoring seller:", error);
+      setToast({ type: "error", message: "Error de red al restaurar vendedor." });
     }
   };
 
@@ -272,8 +325,8 @@ export default function SellersPage() {
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex gap-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-4">
+          <div className="relative flex-1 min-w-[220px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
@@ -283,6 +336,16 @@ export default function SellersPage() {
               className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             />
           </div>
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600 select-none">
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={(event) => setShowDeleted(event.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            {showDeleted ? <Eye size={16} className="text-primary" /> : <EyeOff size={16} />}
+            Mostrar eliminados
+          </label>
         </div>
 
         <div className="hidden overflow-x-auto md:block">
@@ -318,14 +381,17 @@ export default function SellersPage() {
                   </td>
                 </tr>
               ) : (
-                filteredSellers.map((seller) => (
-                  <tr key={seller.id} className="hover:bg-gray-50/50 transition-colors">
+                filteredSellers.map((seller) => {
+                  const deletedAt = sellerDeletedAt(seller);
+                  return (
+                  <tr key={seller.id} className={`hover:bg-gray-50/50 transition-colors ${deletedAt ? "bg-red-50/30" : ""}`}>
                     <td className="px-6 py-4">
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(sellerDisplayId(seller))}
                         onChange={() => toggleSelect(sellerDisplayId(seller))}
-                        className="h-4 w-4 rounded border-gray-300 text-primary"
+                        disabled={!!deletedAt}
+                        className="h-4 w-4 rounded border-gray-300 text-primary disabled:cursor-not-allowed disabled:opacity-40"
                         aria-label={`Seleccionar vendedor ${sellerLabel(seller)}`}
                       />
                     </td>
@@ -349,44 +415,48 @@ export default function SellersPage() {
                         <span className="text-sm text-gray-400">Sin código</span>
                       )}
                     </td>
-                  
+
                     <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          sellerIsActive(seller)
-                            ? "bg-green-50 text-green-700 border border-green-100"
-                            : "bg-red-50 text-red-700 border border-red-100"
-                        }`}
-                      >
-                        {sellerIsActive(seller) ? (
-                          <>
-                            <CheckCircle size={12} /> Activo
-                          </>
-                        ) : (
-                          <>
-                            <XCircle size={12} /> Inactivo
-                          </>
-                        )}
-                      </span>
+                      <div className="flex flex-col items-start gap-1.5">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            sellerIsActive(seller)
+                              ? "bg-green-50 text-green-700 border border-green-100"
+                              : "bg-red-50 text-red-700 border border-red-100"
+                          }`}
+                        >
+                          {sellerIsActive(seller) ? (
+                            <>
+                              <CheckCircle size={12} /> Activo
+                            </>
+                          ) : (
+                            <>
+                              <XCircle size={12} /> Inactivo
+                            </>
+                          )}
+                        </span>
+                        <DeletedBadge deletedAt={deletedAt} />
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end items-center gap-1">
                         <Link
                           href={`/admin/sellers/${sellerDisplayId(seller)}`}
                           className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                         >
                           <Edit size={18} />
                         </Link>
-                        <button
-                          onClick={() => deleteSeller(sellerDisplayId(seller))}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        <DeletedUserControls
+                          deletedAt={deletedAt}
+                          isActive={sellerIsActive(seller)}
+                          onDelete={() => deleteSeller(sellerDisplayId(seller))}
+                          onRestore={() => restoreSeller(sellerDisplayId(seller))}
+                        />
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -397,14 +467,17 @@ export default function SellersPage() {
           ) : filteredSellers.length === 0 ? (
             <div className="px-4 py-8 text-center text-gray-500">No se encontraron vendedores</div>
           ) : (
-            filteredSellers.map((seller) => (
-              <article key={seller.id} className="p-4">
+            filteredSellers.map((seller) => {
+              const deletedAt = sellerDeletedAt(seller);
+              return (
+              <article key={seller.id} className={`p-4 ${deletedAt ? "bg-red-50/30" : ""}`}>
                 <div className="flex items-start gap-3">
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(sellerDisplayId(seller))}
                     onChange={() => toggleSelect(sellerDisplayId(seller))}
-                    className="mt-3 h-4 w-4 rounded border-gray-300 text-primary"
+                    disabled={!!deletedAt}
+                    className="mt-3 h-4 w-4 rounded border-gray-300 text-primary disabled:cursor-not-allowed disabled:opacity-40"
                     aria-label={`Seleccionar vendedor ${sellerLabel(seller)}`}
                   />
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -426,24 +499,31 @@ export default function SellersPage() {
                       </span>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-3">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border ${
-                        sellerIsActive(seller) ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"
-                      }`}>
-                        {sellerIsActive(seller) ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
-                      </span>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col items-start gap-1.5">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border ${
+                          sellerIsActive(seller) ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"
+                        }`}>
+                          {sellerIsActive(seller) ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
+                        </span>
+                        <DeletedBadge deletedAt={deletedAt} />
+                      </div>
+                      <div className="flex items-center gap-1">
                         <Link href={`/admin/sellers/${sellerDisplayId(seller)}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary">
                           <Edit size={18} />
                         </Link>
-                        <button type="button" onClick={() => deleteSeller(sellerDisplayId(seller))} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500">
-                          <Trash2 size={18} />
-                        </button>
+                        <DeletedUserControls
+                          deletedAt={deletedAt}
+                          isActive={sellerIsActive(seller)}
+                          onDelete={() => deleteSeller(sellerDisplayId(seller))}
+                          onRestore={() => restoreSeller(sellerDisplayId(seller))}
+                        />
                       </div>
                     </div>
                   </div>
                 </div>
               </article>
-            ))
+              );
+            })
           )}
         </div>
 
