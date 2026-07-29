@@ -75,7 +75,7 @@ export default function UsersPage() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [skip, setSkip] = useState(0);
-  const [limit] = useState(50);
+  const [limit, setLimit] = useState(50);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
 
@@ -94,9 +94,14 @@ export default function UsersPage() {
     setLoading(true);
     setError(null);
     try {
+      // When "Mostrar eliminados" is on, fetch everything (no pagination) so
+      // soft-deleted users are guaranteed to show up — otherwise the first
+      // page (limit=50) might only contain active users and the user thinks
+      // the toggle is broken.
+      const effectiveLimit = showDeleted ? 1000 : limit;
       const params = new URLSearchParams({
-        skip: String(skip),
-        limit: String(limit),
+        skip: String(showDeleted ? 0 : skip),
+        limit: String(effectiveLimit),
       });
       if (searchTerm.trim()) params.set("search", searchTerm.trim());
       if (showDeleted) params.set("include_deleted", "true");
