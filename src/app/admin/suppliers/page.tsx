@@ -6,8 +6,6 @@ import {
   Plus,
   Search,
   Edit2,
-  Eye,
-  EyeOff,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -127,7 +125,6 @@ export default function AdminSuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showDeleted, setShowDeleted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [verifyingId, setVerifyingId] = useState<number | null>(null);
   const [subscriptionsBySupplier, setSubscriptionsBySupplier] = useState<Record<number, Subscription>>({});
@@ -156,10 +153,9 @@ export default function AdminSuppliersPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const includeDeletedParam = showDeleted ? "&include_deleted=true" : "";
       const [response, usersResponse] = await Promise.all([
-        fetchWithAuth(`/api/suppliers/?skip=${skip}&limit=${limit}${includeDeletedParam}`),
-        fetchWithAuth(`/api/users/?skip=0&limit=1000${includeDeletedParam}`),
+        fetchWithAuth(`/api/suppliers/?skip=${skip}&limit=${limit}&include_deleted=true`),
+        fetchWithAuth(`/api/users/?skip=0&limit=1000&include_deleted=true`),
       ]);
       
       if (response.ok) {
@@ -336,7 +332,7 @@ export default function AdminSuppliersPage() {
     } finally {
       setLoading(false);
     }
-  }, [limit, skip, showDeleted, token]);
+  }, [limit, skip, token]);
 
   useEffect(() => {
     fetchSuppliers();
@@ -610,13 +606,9 @@ export default function AdminSuppliersPage() {
 
       if (response.ok) {
         setToast({ type: "success", message: "Proveedor restaurado correctamente." });
-        if (showDeleted) {
-          setSuppliers((prev) => prev.filter((s) => Number(s.user_id) !== Number(userId)));
-        } else {
-          setSuppliers((prev) => prev.map((s) =>
-            Number(s.user_id) === Number(userId) ? { ...s, user_deleted_at: null } : s
-          ));
-        }
+        setSuppliers((prev) => prev.map((s) =>
+          Number(s.user_id) === Number(userId) ? { ...s, user_deleted_at: null } : s
+        ));
       } else {
         const text = await response.text().catch(() => "");
         setToast({ type: "error", message: text || "Error al restaurar proveedor." });
@@ -839,16 +831,6 @@ export default function AdminSuppliersPage() {
               className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             />
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600 select-none">
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={(event) => setShowDeleted(event.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-            />
-            {showDeleted ? <Eye size={16} className="text-primary" /> : <EyeOff size={16} />}
-            Mostrar eliminados
-          </label>
         </div>
         {loading ? (
           <div className="p-8 flex justify-center">
@@ -875,13 +857,14 @@ export default function AdminSuppliersPage() {
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Estado</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Suscripción</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Verificado</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Eliminado</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredSuppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="p-8 text-center text-gray-500">
+                    <td colSpan={10} className="p-8 text-center text-gray-500">
                       No se encontraron proveedores.
                     </td>
                   </tr>
@@ -931,8 +914,10 @@ export default function AdminSuppliersPage() {
                                   ? "Activo"
                                   : "Inactivo"}
                             </span>
-                            <DeletedBadge deletedAt={supplier.user_deleted_at ?? null} />
                           </div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <DeletedBadge deletedAt={supplier.user_deleted_at ?? null} />
                         </td>
                         <td className="px-6 py-4 text-center">
                           {supplier.profile_pending ? (
@@ -1061,11 +1046,9 @@ export default function AdminSuppliersPage() {
                               Perfil empresarial pendiente
                             </p>
                           ) : null}
-                          {supplier.user_deleted_at ? (
-                            <div className="mt-1">
-                              <DeletedBadge deletedAt={supplier.user_deleted_at} />
-                            </div>
-                          ) : null}
+                          <div className="mt-1">
+                            <DeletedBadge deletedAt={supplier.user_deleted_at ?? null} />
+                          </div>
                         </div>
                         <span className={cn(
                           "shrink-0 inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",

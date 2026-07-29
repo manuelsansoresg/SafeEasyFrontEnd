@@ -10,8 +10,6 @@ import { DeletedBadge, DeletedUserControls } from "@/components/admin/DeletedUse
 import {
   CheckCircle,
   Edit,
-  Eye,
-  EyeOff,
   Plus,
   Search,
   Store,
@@ -112,7 +110,6 @@ export default function SellersPage() {
   const [sellers, setSellers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showDeleted, setShowDeleted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
@@ -136,9 +133,9 @@ export default function SellersPage() {
         const params = new URLSearchParams({
           skip: "0",
           limit: "500",
+          include_deleted: "true",
         });
         if (searchTerm.trim()) params.set("search", searchTerm.trim());
-        if (showDeleted) params.set("include_deleted", "true");
 
         const response = await fetchWithAuth(apiUrl(`/sellers/?${params.toString()}`));
 
@@ -174,7 +171,7 @@ export default function SellersPage() {
     };
 
     fetchSellers();
-  }, [searchTerm, showDeleted, token]);
+  }, [searchTerm, token]);
 
   const deleteSeller = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este vendedor?")) return;
@@ -188,18 +185,11 @@ export default function SellersPage() {
 
       if (response.ok) {
         setToast({ type: "success", message: "Vendedor eliminado correctamente." });
-        // Re-fetch with current filters so the row disappears (or moves to the
-        // "Mostrar eliminados" section if the toggle is on).
-        setSearchTerm((prev) => prev);
-        if (showDeleted) {
-          setSellers((prev) => prev.map((s) =>
-            sellerDisplayId(s) === id
-              ? { ...s, user_deleted_at: new Date().toISOString() }
-              : s
-          ));
-        } else {
-          setSellers((prev) => prev.filter((seller) => sellerDisplayId(seller) !== id));
-        }
+        setSellers((prev) => prev.map((s) =>
+          sellerDisplayId(s) === id
+            ? { ...s, user_deleted_at: new Date().toISOString() }
+            : s
+        ));
         setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id));
       } else {
         const message = await readErrorMessage(response);
@@ -222,15 +212,11 @@ export default function SellersPage() {
 
       if (response.ok) {
         setToast({ type: "success", message: "Vendedor restaurado correctamente." });
-        if (showDeleted) {
-          setSellers((prev) => prev.filter((seller) => sellerDisplayId(seller) !== id));
-        } else {
-          setSellers((prev) => prev.map((s) =>
-            sellerDisplayId(s) === id
-              ? { ...s, user_deleted_at: null }
-              : s
-          ));
-        }
+        setSellers((prev) => prev.map((s) =>
+          sellerDisplayId(s) === id
+            ? { ...s, user_deleted_at: null }
+            : s
+        ));
       } else {
         const message = await readErrorMessage(response);
         setToast({ type: "error", message: message || "Error al restaurar vendedor." });
@@ -336,16 +322,6 @@ export default function SellersPage() {
               className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             />
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600 select-none">
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={(event) => setShowDeleted(event.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-            />
-            {showDeleted ? <Eye size={16} className="text-primary" /> : <EyeOff size={16} />}
-            Mostrar eliminados
-          </label>
         </div>
 
         <div className="hidden overflow-x-auto md:block">
@@ -364,19 +340,20 @@ export default function SellersPage() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Vendedor</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Código de vinculación</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Eliminado</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     Cargando vendedores...
                   </td>
                 </tr>
               ) : filteredSellers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     No se encontraron vendedores
                   </td>
                 </tr>
@@ -435,8 +412,10 @@ export default function SellersPage() {
                             </>
                           )}
                         </span>
-                        <DeletedBadge deletedAt={deletedAt} />
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <DeletedBadge deletedAt={deletedAt} />
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end items-center gap-1">

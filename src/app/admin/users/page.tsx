@@ -11,8 +11,6 @@ import {
   Plus,
   Search,
   Edit,
-  Eye,
-  EyeOff,
   ChevronLeft,
   ChevronRight,
   Shield,
@@ -72,10 +70,9 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showDeleted, setShowDeleted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [skip, setSkip] = useState(0);
-  const [limit, setLimit] = useState(50);
+  const [limit] = useState(50);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
 
@@ -94,17 +91,12 @@ export default function UsersPage() {
     setLoading(true);
     setError(null);
     try {
-      // When "Mostrar eliminados" is on, fetch everything (no pagination) so
-      // soft-deleted users are guaranteed to show up — otherwise the first
-      // page (limit=50) might only contain active users and the user thinks
-      // the toggle is broken.
-      const effectiveLimit = showDeleted ? 1000 : limit;
       const params = new URLSearchParams({
-        skip: String(showDeleted ? 0 : skip),
-        limit: String(effectiveLimit),
+        skip: String(skip),
+        limit: String(limit),
+        include_deleted: "true",
       });
       if (searchTerm.trim()) params.set("search", searchTerm.trim());
-      if (showDeleted) params.set("include_deleted", "true");
 
       const response = await fetchWithAuth(apiUrl(`/users/?${params.toString()}`));
 
@@ -123,7 +115,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [limit, searchTerm, showDeleted, skip, token]);
+  }, [limit, searchTerm, skip, token]);
 
   useEffect(() => {
     fetchUsers();
@@ -141,13 +133,9 @@ export default function UsersPage() {
 
       if (response.ok) {
         setToast({ type: "success", message: "Usuario eliminado correctamente." });
-        if (showDeleted) {
-          setUsers((prev) => prev.map((u) =>
-            u.id === id ? { ...u, deleted_at: new Date().toISOString() } : u
-          ));
-        } else {
-          setUsers(prev => prev.filter(u => u.id !== id));
-        }
+        setUsers((prev) => prev.map((u) =>
+          u.id === id ? { ...u, deleted_at: new Date().toISOString() } : u
+        ));
         setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id));
       } else {
         const message = await readErrorMessage(response);
@@ -170,13 +158,9 @@ export default function UsersPage() {
 
       if (response.ok) {
         setToast({ type: "success", message: "Usuario restaurado correctamente." });
-        if (showDeleted) {
-          setUsers((prev) => prev.filter((u) => u.id !== id));
-        } else {
-          setUsers((prev) => prev.map((u) =>
-            u.id === id ? { ...u, deleted_at: null } : u
-          ));
-        }
+        setUsers((prev) => prev.map((u) =>
+          u.id === id ? { ...u, deleted_at: null } : u
+        ));
       } else {
         const message = await readErrorMessage(response);
         setToast({ type: "error", message: message || "Error al restaurar usuario." });
@@ -218,7 +202,9 @@ export default function UsersPage() {
         return;
       }
 
-      setUsers((prev) => prev.filter((user) => !selectedIds.includes(user.id)));
+      setUsers((prev) => prev.map((u) =>
+        selectedIds.includes(u.id) ? { ...u, deleted_at: new Date().toISOString() } : u
+      ));
       setSelectedIds([]);
       setToast({ type: "success", message: "Usuarios seleccionados eliminados correctamente." });
     } catch (error) {
@@ -277,19 +263,6 @@ export default function UsersPage() {
               className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             />
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600 select-none">
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={(event) => {
-                setShowDeleted(event.target.checked);
-                setSkip(0);
-              }}
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-            />
-            {showDeleted ? <Eye size={16} className="text-primary" /> : <EyeOff size={16} />}
-            Mostrar eliminados
-          </label>
         </div>
 
         <div className="hidden overflow-x-auto md:block">
@@ -308,19 +281,20 @@ export default function UsersPage() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Usuario</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Rol</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Eliminado</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     Cargando usuarios...
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     No se encontraron usuarios
                   </td>
                 </tr>
@@ -370,8 +344,10 @@ export default function UsersPage() {
                             </>
                           )}
                         </span>
-                        <DeletedBadge deletedAt={user.deleted_at ?? null} />
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <DeletedBadge deletedAt={user.deleted_at ?? null} />
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end items-center gap-1">
@@ -434,6 +410,8 @@ export default function UsersPage() {
                           ${user.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
                           {user.is_active ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
                         </span>
+                      </div>
+                      <div className="mt-2">
                         <DeletedBadge deletedAt={user.deleted_at ?? null} />
                       </div>
                       <div className="flex items-center gap-1">

@@ -10,8 +10,6 @@ import { DeletedBadge, DeletedUserControls } from "@/components/admin/DeletedUse
 import {
   CheckCircle,
   Edit,
-  Eye,
-  EyeOff,
   Plus,
   Search,
   Truck,
@@ -63,7 +61,6 @@ export default function CouriersPage() {
   const [couriers, setCouriers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showDeleted, setShowDeleted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
@@ -87,9 +84,9 @@ export default function CouriersPage() {
         const params = new URLSearchParams({
           skip: "0",
           limit: "1000",
+          include_deleted: "true",
         });
         if (searchTerm.trim()) params.set("search", searchTerm.trim());
-        if (showDeleted) params.set("include_deleted", "true");
 
         const response = await fetchWithAuth(apiUrl(`/users/?${params.toString()}`));
 
@@ -111,7 +108,7 @@ export default function CouriersPage() {
     };
 
     fetchCouriers();
-  }, [searchTerm, showDeleted, token]);
+  }, [searchTerm, token]);
 
   const deleteCourier = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este repartidor?")) return;
@@ -124,13 +121,9 @@ export default function CouriersPage() {
 
       if (response.ok) {
         setToast({ type: "success", message: "Repartidor eliminado correctamente." });
-        if (showDeleted) {
-          setCouriers((prev) => prev.map((c) =>
-            c.id === id ? { ...c, deleted_at: new Date().toISOString() } : c
-          ));
-        } else {
-          setCouriers((prev) => prev.filter((courier) => courier.id !== id));
-        }
+        setCouriers((prev) => prev.map((c) =>
+          c.id === id ? { ...c, deleted_at: new Date().toISOString() } : c
+        ));
         setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id));
       } else {
         const message = await readErrorMessage(response);
@@ -153,13 +146,9 @@ export default function CouriersPage() {
 
       if (response.ok) {
         setToast({ type: "success", message: "Repartidor restaurado correctamente." });
-        if (showDeleted) {
-          setCouriers((prev) => prev.filter((c) => c.id !== id));
-        } else {
-          setCouriers((prev) => prev.map((c) =>
-            c.id === id ? { ...c, deleted_at: null } : c
-          ));
-        }
+        setCouriers((prev) => prev.map((c) =>
+          c.id === id ? { ...c, deleted_at: null } : c
+        ));
       } else {
         const message = await readErrorMessage(response);
         setToast({ type: "error", message: message || "Error al restaurar repartidor." });
@@ -264,16 +253,6 @@ export default function CouriersPage() {
               className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             />
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600 select-none">
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={(event) => setShowDeleted(event.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-            />
-            {showDeleted ? <Eye size={16} className="text-primary" /> : <EyeOff size={16} />}
-            Mostrar eliminados
-          </label>
         </div>
 
         <div className="hidden overflow-x-auto md:block">
@@ -291,19 +270,20 @@ export default function CouriersPage() {
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Repartidor</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Eliminado</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     Cargando repartidores...
                   </td>
                 </tr>
               ) : filteredCouriers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     No se encontraron repartidores
                   </td>
                 </tr>
@@ -353,8 +333,10 @@ export default function CouriersPage() {
                             </>
                           )}
                         </span>
-                        <DeletedBadge deletedAt={deletedAt} />
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <DeletedBadge deletedAt={deletedAt} />
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end items-center gap-1">
