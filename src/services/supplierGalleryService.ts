@@ -100,7 +100,7 @@ export const supplierGalleryService = {
    */
   async list(supplierId: number): Promise<SupplierGalleryImage[]> {
     const response = await fetchWithAuth(
-      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery/`,
+      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery`,
       { cache: "no-store" },
     );
     await requireOk(response, "No se pudo cargar la galería.");
@@ -113,7 +113,7 @@ export const supplierGalleryService = {
    */
   async listMine(supplierId: number): Promise<SupplierGalleryImage[]> {
     const response = await fetchWithAuth(
-      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery/`,
+      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery`,
       { cache: "no-store" },
     );
     await requireOk(response, "No se pudo cargar la galería.");
@@ -132,7 +132,7 @@ export const supplierGalleryService = {
     images.forEach((image) => formData.append("images", image));
 
     const response = await fetchWithAuth(
-      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery/`,
+      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery`,
       { method: "POST", body: formData },
     );
     await requireOk(response, "No se pudieron subir las imágenes.");
@@ -152,7 +152,7 @@ export const supplierGalleryService = {
    */
   async remove(supplierId: number, imageId: number): Promise<void> {
     const response = await fetchWithAuth(
-      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery/${encodeURIComponent(String(imageId))}/`,
+      `/api/suppliers/${encodeURIComponent(String(supplierId))}/gallery/${encodeURIComponent(String(imageId))}`,
       { method: "DELETE" },
     );
     await requireOk(response, "No se pudo eliminar la imagen.");

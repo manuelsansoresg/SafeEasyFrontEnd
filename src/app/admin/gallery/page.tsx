@@ -274,7 +274,7 @@ export default function AdminGalleryPage() {
     clearPending();
 
     // 3) Llamamos al MISMO endpoint que se usa al entrar a la galería
-    //    (GET /api/suppliers/{id}/gallery/) para sincronizar con el servidor.
+    //    (GET /api/suppliers/{id}/gallery) para sincronizar con el servidor.
     //    Si el servidor aún no tiene la imagen, la preview local se queda.
     try {
       const serverList = await supplierGalleryService.listMine(supplierId);
