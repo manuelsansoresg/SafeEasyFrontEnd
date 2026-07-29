@@ -2,12 +2,11 @@
 
 import { useState, useEffect, Fragment, useCallback } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
-import {
-  Plus,
-  Search,
-  Edit2,
-  Eye,
-  EyeOff,
+import { 
+  Plus, 
+  Search, 
+  Edit2, 
+  Trash2, 
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -20,7 +19,6 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
-import { DeletedBadge, DeletedUserControls } from "@/components/admin/DeletedUserControls";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { fetchWithAuth } from "@/lib/api";
@@ -43,7 +41,6 @@ interface Supplier {
   userId?: number;
   owner_id?: number;
   email?: string;
-  user_deleted_at?: string | null;
   user?: {
     id?: number;
     email?: string;
@@ -60,7 +57,6 @@ interface UserSummary {
   role_name?: string;
   user_role?: string;
   is_active?: boolean;
-  deleted_at?: string | null;
 }
 
 const apiUrl = (path: string) => {
@@ -127,7 +123,6 @@ export default function AdminSuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showDeleted, setShowDeleted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [verifyingId, setVerifyingId] = useState<number | null>(null);
   const [subscriptionsBySupplier, setSubscriptionsBySupplier] = useState<Record<number, Subscription>>({});
@@ -156,10 +151,9 @@ export default function AdminSuppliersPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const includeDeletedParam = showDeleted ? "&include_deleted=true" : "";
       const [response, usersResponse] = await Promise.all([
-        fetchWithAuth(`/api/suppliers/?skip=${skip}&limit=${limit}${includeDeletedParam}`),
-        fetchWithAuth(`/api/users/?skip=0&limit=1000${includeDeletedParam}`),
+        fetchWithAuth(`/api/suppliers/?skip=${skip}&limit=${limit}`),
+        fetchWithAuth("/api/users/?skip=0&limit=1000"),
       ]);
       
       if (response.ok) {
@@ -336,7 +330,7 @@ export default function AdminSuppliersPage() {
     } finally {
       setLoading(false);
     }
-  }, [limit, skip, showDeleted, token]);
+  }, [limit, skip, token]);
 
   useEffect(() => {
     fetchSuppliers();
@@ -599,34 +593,6 @@ export default function AdminSuppliersPage() {
     }
   };
 
-  const restoreSupplierUser = async (userId: number) => {
-    if (!confirm("¿Restaurar este proveedor?")) return;
-    if (!token) return;
-
-    try {
-      const response = await fetchWithAuth(`/api/admin/users/${userId}/restore`, {
-        method: "PATCH",
-      });
-
-      if (response.ok) {
-        setToast({ type: "success", message: "Proveedor restaurado correctamente." });
-        if (showDeleted) {
-          setSuppliers((prev) => prev.filter((s) => Number(s.user_id) !== Number(userId)));
-        } else {
-          setSuppliers((prev) => prev.map((s) =>
-            Number(s.user_id) === Number(userId) ? { ...s, user_deleted_at: null } : s
-          ));
-        }
-      } else {
-        const text = await response.text().catch(() => "");
-        setToast({ type: "error", message: text || "Error al restaurar proveedor." });
-      }
-    } catch (error) {
-      console.error("Error restoring supplier:", error);
-      setToast({ type: "error", message: "Error de red al restaurar proveedor." });
-    }
-  };
-
   const handleDelete = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este proveedor?")) return;
     
@@ -828,8 +794,8 @@ export default function AdminSuppliersPage() {
       />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-4">
-          <div className="relative flex-1 min-w-[220px] max-w-md">
+        <div className="p-4 border-b border-gray-100 flex gap-4">
+          <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
@@ -839,16 +805,6 @@ export default function AdminSuppliersPage() {
               className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             />
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600 select-none">
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={(event) => setShowDeleted(event.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-            />
-            {showDeleted ? <Eye size={16} className="text-primary" /> : <EyeOff size={16} />}
-            Mostrar eliminados
-          </label>
         </div>
         {loading ? (
           <div className="p-8 flex justify-center">
@@ -916,23 +872,20 @@ export default function AdminSuppliersPage() {
                         <td className="px-6 py-4 text-sm text-gray-600 hidden md:table-cell">{supplier.phone || '-'}</td>
                         <td className="px-6 py-4 text-sm text-gray-600 hidden lg:table-cell">{supplier.user_email || '-'}</td>
                         <td className="px-6 py-4 text-center">
-                          <div className="flex flex-col items-center gap-1.5">
-                            <span className={cn(
-                              "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border",
-                              supplier.profile_pending
-                                ? "bg-amber-50 text-amber-700 border-amber-100"
-                                : supplier.is_active
-                                ? "bg-green-50 text-green-700 border-green-100"
-                                : "bg-gray-50 text-gray-600 border-gray-100"
-                            )}>
-                              {supplier.profile_pending
-                                ? "Pendiente"
-                                : supplier.is_active
-                                  ? "Activo"
-                                  : "Inactivo"}
-                            </span>
-                            <DeletedBadge deletedAt={supplier.user_deleted_at ?? null} />
-                          </div>
+                          <span className={cn(
+                            "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border",
+                            supplier.profile_pending
+                              ? "bg-amber-50 text-amber-700 border-amber-100"
+                              : supplier.is_active
+                              ? "bg-green-50 text-green-700 border-green-100" 
+                              : "bg-gray-50 text-gray-600 border-gray-100"
+                          )}>
+                            {supplier.profile_pending
+                              ? "Pendiente"
+                              : supplier.is_active
+                                ? "Activo"
+                                : "Inactivo"}
+                          </span>
                         </td>
                         <td className="px-6 py-4 text-center">
                           {supplier.profile_pending ? (
@@ -1014,19 +967,21 @@ export default function AdminSuppliersPage() {
                                 <CreditCard size={18} />
                               </button>
                             ) : null}
-                            <Link
+                            <Link 
                               href={`/admin/suppliers/${supplier.id}`}
                               className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                               title="Editar"
                             >
                               <Edit2 size={18} />
                             </Link>
-                            <DeletedUserControls
-                              deletedAt={supplier.user_deleted_at ?? null}
-                              isActive={supplier.is_active}
-                              onDelete={() => handleDelete(supplier.id)}
-                              onRestore={() => restoreSupplierUser(Number(supplier.user_id))}
-                            />
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(supplier.id)}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={18} />
+                            </button>
                             </div>
                           )}
                         </td>
@@ -1060,11 +1015,6 @@ export default function AdminSuppliersPage() {
                             <p className="mt-1 text-xs font-medium text-amber-700">
                               Perfil empresarial pendiente
                             </p>
-                          ) : null}
-                          {supplier.user_deleted_at ? (
-                            <div className="mt-1">
-                              <DeletedBadge deletedAt={supplier.user_deleted_at} />
-                            </div>
                           ) : null}
                         </div>
                         <span className={cn(
@@ -1168,12 +1118,9 @@ export default function AdminSuppliersPage() {
                           <Link href={`/admin/suppliers/${supplier.id}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary" title="Editar">
                             <Edit2 size={18} />
                           </Link>
-                          <DeletedUserControls
-                            deletedAt={supplier.user_deleted_at ?? null}
-                            isActive={supplier.is_active}
-                            onDelete={() => handleDelete(supplier.id)}
-                            onRestore={() => restoreSupplierUser(Number(supplier.user_id))}
-                          />
+                          <button type="button" onClick={() => handleDelete(supplier.id)} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500" title="Eliminar">
+                            <Trash2 size={18} />
+                          </button>
                           </div>
                         )}
                       </div>
