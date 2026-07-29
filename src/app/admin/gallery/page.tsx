@@ -255,8 +255,8 @@ export default function AdminGalleryPage() {
     if (!supplierId || pendingFiles.length === 0 || uploading) return;
     setUploading(true);
 
-    // 1) Creamos entradas locales con la preview del archivo (blob URL).
-    //    El ID negativo activa el badge "Sincronizando" en la card.
+    // Mostramos la preview local (blob URL) para feedback inmediato.
+    // El ID negativo activa el badge "Sincronizando" en la card.
     const localPreviews: SupplierGalleryImage[] = pendingFiles.map((file, index) => ({
       id: -Date.now() - index,
       supplier_id: supplierId,
@@ -265,38 +265,38 @@ export default function AdminGalleryPage() {
       position: 0,
       created_at: new Date().toISOString(),
     }));
-
-    // 2) Las agregamos al estado inmediatamente para que el usuario vea su imagen.
     setImages((current) => {
       const next = [...current, ...localPreviews];
       return next.map((img, idx) => ({ ...img, position: idx }));
     });
     clearPending();
 
-    // 3) Llamamos al MISMO endpoint que se usa al entrar a la galería
-    //    (GET /api/suppliers/{id}/gallery) para sincronizar con el servidor.
-    //    Si el servidor aún no tiene la imagen, la preview local se queda.
     try {
-      const serverList = await supplierGalleryService.listMine(supplierId);
-      const sortedServer = [...serverList].sort((a, b) => a.position - b.position);
+      // Subimos al backend con POST /api/suppliers/{id}/gallery (multipart/form-data).
+      // El service hace la llamada y devuelve las imágenes ya persistidas con su id real.
+      const result = await supplierGalleryService.upload(supplierId, pendingFiles);
       setImages((current) => {
-        // Conservamos las previews locales (ID < 0) que el servidor aún no conozca.
-        const localOnly = current.filter((img) => img.id < 0);
-        return [...sortedServer, ...localOnly].map((img, idx) => ({
+        // Reemplazamos las previews locales (id < 0) por las del servidor (id > 0).
+        const serverOnly = current.filter((img) => img.id > 0);
+        return [...serverOnly, ...result.uploaded].map((img, idx) => ({
           ...img,
           position: idx,
         }));
       });
       setToast({
         type: "success",
-        message: `${localPreviews.length} imagen${localPreviews.length === 1 ? "" : "es"} agregada${localPreviews.length === 1 ? "" : "s"}.`,
+        message: `${result.uploaded.length} imagen${
+          result.uploaded.length === 1 ? "" : "es"
+        } subida${result.uploaded.length === 1 ? "" : "s"}.`,
       });
     } catch (err) {
+      // Si falla la subida, dejamos la preview local y avisamos.
       setToast({
-        type: "info",
-        message: `Vista previa agregada. ${
-          err instanceof Error ? err.message : "No se pudo sincronizar con el servidor."
-        }`,
+        type: "error",
+        message:
+          err instanceof Error
+            ? err.message
+            : "No se pudieron subir las imágenes.",
       });
     } finally {
       setUploading(false);
