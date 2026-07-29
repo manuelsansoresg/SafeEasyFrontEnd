@@ -6,12 +6,14 @@ import { fetchWithAuth } from "@/lib/api";
 import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
-import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  ChevronLeft, 
+import { DeletedBadge, DeletedUserControls } from "@/components/admin/DeletedUserControls";
+import {
+  Plus,
+  Search,
+  Edit,
+  Eye,
+  EyeOff,
+  ChevronLeft,
   ChevronRight,
   Shield,
   User as UserIcon,
@@ -26,6 +28,7 @@ interface User {
   name?: string;
   full_name?: string;
   role?: string;
+  deleted_at?: string | null;
 }
 
 const readErrorMessage = async (response: Response) => {
@@ -69,6 +72,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showDeleted, setShowDeleted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [skip, setSkip] = useState(0);
   const [limit] = useState(50);
@@ -95,6 +99,7 @@ export default function UsersPage() {
         limit: String(limit),
       });
       if (searchTerm.trim()) params.set("search", searchTerm.trim());
+      if (showDeleted) params.set("include_deleted", "true");
 
       const response = await fetchWithAuth(apiUrl(`/users/?${params.toString()}`));
 
@@ -113,7 +118,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [limit, searchTerm, skip, token]);
+  }, [limit, searchTerm, showDeleted, skip, token]);
 
   useEffect(() => {
     fetchUsers();
@@ -122,7 +127,7 @@ export default function UsersPage() {
   const deleteUser = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este usuario?")) return;
     if (!token) return;
-    
+
     try {
       const response = await fetch(apiUrl(`/admin/users/${id}`), {
         method: "DELETE",
@@ -130,11 +135,46 @@ export default function UsersPage() {
       });
 
       if (response.ok) {
-        setUsers(prev => prev.filter(u => u.id !== id));
+        setToast({ type: "success", message: "Usuario eliminado correctamente." });
+        if (showDeleted) {
+          setUsers((prev) => prev.map((u) =>
+            u.id === id ? { ...u, deleted_at: new Date().toISOString() } : u
+          ));
+        } else {
+          setUsers(prev => prev.filter(u => u.id !== id));
+        }
         setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id));
       } else {
         const message = await readErrorMessage(response);
         setToast({ type: "error", message: message || "Error al eliminar usuario." });
+      }
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      setToast({ type: "error", message: "Error de red al eliminar usuario." });
+    }
+  };
+
+  const restoreUser = async (id: number) => {
+    if (!confirm("¿Restaurar este usuario?")) return;
+    if (!token) return;
+
+    try {
+      const response = await fetchWithAuth(`/api/admin/users/${id}/restore`, {
+        method: "PATCH",
+      });
+
+      if (response.ok) {
+        setToast({ type: "success", message: "Usuario restaurado correctamente." });
+        if (showDeleted) {
+          setUsers((prev) => prev.filter((u) => u.id !== id));
+        } else {
+          setUsers((prev) => prev.map((u) =>
+            u.id === id ? { ...u, deleted_at: null } : u
+          ));
+        }
+      } else {
+        const message = await readErrorMessage(response);
+        setToast({ type: "error", message: message || "Error al restaurar usuario." });
       }
     } catch (error) {
       console.error("Error deleting user:", error);
@@ -218,12 +258,12 @@ export default function UsersPage() {
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex gap-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-4">
+          <div className="relative flex-1 min-w-[220px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-            <input 
+            <input
               type="text"
-              placeholder="Buscar usuarios..." 
+              placeholder="Buscar usuarios..."
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -232,6 +272,19 @@ export default function UsersPage() {
               className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             />
           </div>
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600 select-none">
+            <input
+              type="checkbox"
+              checked={showDeleted}
+              onChange={(event) => {
+                setShowDeleted(event.target.checked);
+                setSkip(0);
+              }}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            {showDeleted ? <Eye size={16} className="text-primary" /> : <EyeOff size={16} />}
+            Mostrar eliminados
+          </label>
         </div>
 
         <div className="hidden overflow-x-auto md:block">
@@ -299,33 +352,36 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium
-                        ${user.is_active ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
-                        {user.is_active ? (
-                          <>
-                            <CheckCircle size={12} /> Activo
-                          </>
-                        ) : (
-                          <>
-                            <XCircle size={12} /> Inactivo
-                          </>
-                        )}
-                      </span>
+                      <div className="flex flex-col items-start gap-1.5">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium
+                          ${user.is_active ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                          {user.is_active ? (
+                            <>
+                              <CheckCircle size={12} /> Activo
+                            </>
+                          ) : (
+                            <>
+                              <XCircle size={12} /> Inactivo
+                            </>
+                          )}
+                        </span>
+                        <DeletedBadge deletedAt={user.deleted_at ?? null} />
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <Link 
+                      <div className="flex justify-end items-center gap-1">
+                        <Link
                           href={`/admin/users/${user.id}`}
                           className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                         >
                           <Edit size={18} />
                         </Link>
-                        <button 
-                          onClick={() => deleteUser(user.id)}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        <DeletedUserControls
+                          deletedAt={user.deleted_at ?? null}
+                          isActive={user.is_active}
+                          onDelete={() => deleteUser(user.id)}
+                          onRestore={() => restoreUser(user.id)}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -368,17 +424,23 @@ export default function UsersPage() {
                       </span>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-3">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border
-                        ${user.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
-                        {user.is_active ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
-                      </span>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col items-start gap-1.5">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border
+                          ${user.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+                          {user.is_active ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
+                        </span>
+                        <DeletedBadge deletedAt={user.deleted_at ?? null} />
+                      </div>
+                      <div className="flex items-center gap-1">
                         <Link href={`/admin/users/${user.id}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary">
                           <Edit size={18} />
                         </Link>
-                        <button type="button" onClick={() => deleteUser(user.id)} className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500">
-                          <Trash2 size={18} />
-                        </button>
+                        <DeletedUserControls
+                          deletedAt={user.deleted_at ?? null}
+                          isActive={user.is_active}
+                          onDelete={() => deleteUser(user.id)}
+                          onRestore={() => restoreUser(user.id)}
+                        />
                       </div>
                     </div>
                   </div>

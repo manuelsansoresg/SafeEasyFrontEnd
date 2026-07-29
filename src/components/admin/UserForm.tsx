@@ -376,8 +376,18 @@ export default function UserForm({
       };
 
       // Only include password if it's provided (or if creating a new user)
-      if (formData.password) {
-        payload.password = formData.password;
+      // Trim to defend against accidental whitespace from copy/paste, and surface
+      // what is actually being sent so a failed login can be debugged.
+      const trimmedPassword = formData.password.trim();
+      if (trimmedPassword) {
+        payload.password = trimmedPassword;
+        if (process.env.NODE_ENV === "development") {
+          console.log("[UserForm] PUT password payload", {
+            userId: initialData?.id,
+            passwordLength: trimmedPassword.length,
+            passwordPreview: `${trimmedPassword.slice(0, 2)}…${trimmedPassword.slice(-2)}`,
+          });
+        }
       } else if (!isEditMode) {
         throw new Error("La contraseña es obligatoria para nuevos usuarios");
       }
