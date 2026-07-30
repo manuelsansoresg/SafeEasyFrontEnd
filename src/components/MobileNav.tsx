@@ -97,7 +97,7 @@ export function MobileNav() {
   const { user, isAuthenticated } = useAuthStore();
   const isDirectorySupplier = useSupplierPageModeStore((state) => state.isDirectory);
 
-  const navItems = getNavItems(pathname, user?.role, isDirectorySupplier, isAuthenticated);
+  const navItems = getNavItems(pathname, user?.role as Role, isDirectorySupplier, isAuthenticated);
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-50 pb-safe">
