@@ -909,8 +909,15 @@ export default function SupplierPage() {
         )
       : true,
   );
-  const contactHref = supplier?.phone
-    ? `https://wa.me/${supplier.phone.replace(/[^0-9]/g, "")}`
+  const normalizeWhatsAppPhone = (phone: string): string => {
+  const digits = phone.replace(/[^0-9]/g, "");
+  if (digits.startsWith("52") && digits.length >= 12) return digits;
+  if (digits.startsWith("52")) return digits;
+  return `52${digits}`;
+};
+
+const contactHref = supplier?.phone
+    ? `https://wa.me/${normalizeWhatsAppPhone(supplier.phone)}`
     : supplier?.email
       ? `mailto:${supplier.email}`
       : null;
@@ -1687,7 +1694,7 @@ export default function SupplierPage() {
                         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
                           {supplier.phone ? (
                             <a
-                              href={`https://wa.me/${supplier.phone.replace(/[^0-9]/g, "")}`}
+                              href={`https://wa.me/${normalizeWhatsAppPhone(supplier.phone)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex min-h-14 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-white px-8 py-4 text-base font-bold text-[#004e28] shadow-xl transition-all hover:-translate-y-1 hover:bg-gray-100"

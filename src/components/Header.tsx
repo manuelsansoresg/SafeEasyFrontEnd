@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Search, ChevronDown, LogOut, Menu, X, Bell } from "lucide-react";
+import { Search, LogOut, Menu, X, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -216,13 +216,9 @@ export function Header() {
               </div>
 
               {/* Mobile Actions */}
-              <div className="md:hidden flex items-center gap-2">
-                {isAuthenticated && (
-                  <Link href="/client/notifications" className="relative flex items-center justify-center w-10 h-10 rounded-full text-white hover:text-[#7ed957] transition-all">
-                    <Bell size={24} />
-                  </Link>
-                )}
-                <button 
+              <div className="md:hidden flex items-center gap-1">
+                {isAuthenticated && <NotificationsBadge />}
+                <button
                   className="text-white hover:text-secondary transition-colors"
                   onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 >
@@ -254,12 +250,52 @@ export function Header() {
                             <Link href="/contacto" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Contacto</Link>
                             <Link href="/sell" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Vender en Drooopy</Link>
                             {isAuthenticated ? (
-                              <Link
-                                href={user?.role === "client" ? "/client/profile" : "/admin/dashboard"}
-                                className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors"
-                              >
-                                Mi cuenta
-                              </Link>
+                              <>
+                                {(user?.role === "admin" || user?.role === "supplier" || user?.role === "seller") && (
+                                  <Link href="/admin/dashboard" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-3">
+                                    <span>🛡️</span> {user.role === "supplier" ? "Mi Empresa" : "Panel Admin"}
+                                  </Link>
+                                )}
+                                {user?.role === "client" && (
+                                  <Link href="/client/profile" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-3">
+                                    <User size={18} /> Mi perfil
+                                  </Link>
+                                )}
+                                <Link href="/client/favorites" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-3">
+                                  <span>❤️</span> Favoritos
+                                </Link>
+                                {(user?.role === "client" || user?.role === "admin") && (
+                                  <>
+                                    <Link href="/client/orders" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-3">
+                                      <span>📦</span> Mis Pedidos
+                                    </Link>
+                                    <Link href="/cart" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-3">
+                                      <span>🛒</span> Mi Carrito
+                                    </Link>
+                                  </>
+                                )}
+                                {user?.role === "client" && (
+                                  <Link href="/client/become-supplier" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-3">
+                                    <span>🏪</span> Volverme proveedor
+                                  </Link>
+                                )}
+                                <div className="h-px bg-white/10 my-1" />
+                                <Link
+                                  href={user?.role === "client" ? "/client/profile" : "/admin/profile"}
+                                  className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-3"
+                                >
+                                  <User size={18} /> Mi cuenta
+                                </Link>
+                                <button
+                                  onClick={() => {
+                                    logout();
+                                    router.push("/login");
+                                  }}
+                                  className="py-2 px-4 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-3 text-red-300 text-left w-full"
+                                >
+                                  <LogOut size={18} /> Cerrar Sesión
+                                </button>
+                              </>
                             ) : (
                               <Link href="/login" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">
                                 Iniciar sesión

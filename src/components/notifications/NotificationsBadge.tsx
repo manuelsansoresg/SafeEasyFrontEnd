@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Search } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { notificationService, NotificationItem } from "@/services/notificationService";
+import { createPortal } from "react-dom";
 
 export default function NotificationsBadge() {
   const [count, setCount] = useState<number>(0);
@@ -119,8 +120,8 @@ export default function NotificationsBadge() {
         )}
       </button>
 
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] md:w-96 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+      {isOpen && (typeof document !== "undefined" ? createPortal(
+        <div className="fixed left-4 right-4 top-20 md:left-auto md:right-4 md:top-auto md:w-96 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-[10050] animate-in fade-in zoom-in-95 duration-100 origin-top-left md:origin-top-right">
           <div className="p-4 flex items-center justify-between border-b border-gray-50">
             <div>
               <h3 className="font-bold text-xl text-gray-900">Notificaciones</h3>
@@ -201,8 +202,9 @@ export default function NotificationsBadge() {
               </div>
             )}
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      ) : null)}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Trash2, Edit2, X, Award, Calendar, Link as LinkIcon, MapPin, FileText, Loader2 } from 'lucide-react';
 import FileUpload from '@/components/ui/FileUpload';
+import { fetchWithAuth } from '@/lib/api';
 
 interface StepCertificatesProps {
   supplierId: number;
@@ -26,7 +27,7 @@ interface CertificateItem {
   expiration_date?: string;
 }
 
-export default function StepCertificates({ supplierId, slug, token, onNext }: StepCertificatesProps) {
+export default function StepCertificates({ supplierId, token, onNext }: StepCertificatesProps) {
   const [items, setItems] = useState<CertificateItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -46,20 +47,17 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
 
   const fetchItems = async () => {
-    // If we don't have a slug, we can't reliably fetch details since ID fetch is broken on backend
-    if (!slug) {
-        console.warn("StepCertificates: No slug provided, cannot fetch certificates yet.");
+    if (!supplierId) {
+        console.warn("StepCertificates: No supplierId provided, cannot fetch certificates yet.");
         return;
     }
 
     setFetching(true);
     try {
-      // Always use the slug endpoint as it is the only one confirmed to work for reading details
-      const url = `/api/suppliers/${slug}`;
+      const url = `/api/suppliers/${supplierId}`;
       if (process.env.NODE_ENV === "development") console.log(`StepCertificates: Fetching from ${url}`);
       
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetchWithAuth(url, {
         cache: 'no-store'
       });
       
@@ -95,7 +93,7 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
 
   useEffect(() => {
     fetchItems();
-  }, [slug, token]);
+  }, [supplierId, token]);
 
   const getImageUrl = (path: string | null) => {
     if (!path) return "/placeholder.png";
@@ -159,9 +157,8 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
 
         const method = editingId ? 'PUT' : 'POST';
 
-        const res = await fetch(url, {
+        const res = await fetchWithAuth(url, {
           method: method,
-          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         });
 
@@ -190,9 +187,8 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
 
     try {
       // Updated to match the requested endpoint structure: DELETE /suppliers/certificates/{certificate_id}
-      const res = await fetch(`/api/suppliers/certificates/${itemId}`, {
+      const res = await fetchWithAuth(`/api/suppliers/certificates/${itemId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.ok) {
@@ -207,20 +203,28 @@ export default function StepCertificates({ supplierId, slug, token, onNext }: St
   };
 
   const handleTitleSave = async (): Promise<boolean> => {
-    const target = slug ?? String(supplierId);
-    if (!target) return false;
+    if (!supplierId) return false;
     setSavingTitle(true);
     setTitleSaveStatus('idle');
     try {
-      const res = await fetch(`/api/suppliers/${target}`, {
+      const formData = new FormData();
+      formData.append('certificates_title', certificatesTitle);
+      
+      const res = await fetchWithAuth(`/api/suppliers/${supplierId}`, {
         method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ certificates_title: certificatesTitle }),
+        body: formData,
       });
-      if (!res.ok) throw new Error(`Error al guardar el título (${res.status})`);
+      
+      if (!res.ok) {
+        const errorBody = await res.text().catch(() => 'No response body');
+        console.error('Error saving certificates_title:', {
+          status: res.status,
+          body: errorBody,
+          supplierId,
+          certificatesTitle
+        });
+        throw new Error(`Error al guardar el título (${res.status})`);
+      }
       setTitleSaveStatus('saved');
       window.setTimeout(() => setTitleSaveStatus('idle'), 2000);
       return true;

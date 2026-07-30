@@ -658,7 +658,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                         )}
                         </div>
                         
-                        <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-3 right-3 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <button 
                             onClick={() => handleEdit(item)}
                             className="p-2 bg-white text-blue-600 rounded-full shadow-sm hover:bg-blue-50 transition-colors"

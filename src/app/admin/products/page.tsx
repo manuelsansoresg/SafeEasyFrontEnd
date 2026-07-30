@@ -192,15 +192,14 @@ export default function AdminProductsPage() {
     if (!confirm("¿Estás seguro de eliminar este producto?")) return;
     if (!token) return;
     try {
-      const response = await fetch(`/api/products/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        fetchProducts();
-      } else {
-        setToast({ type: "error", message: "Error al eliminar producto." });
-      }
+    const res = await fetchWithAuth(`/api/products/${id}`, { method: 'DELETE' });
+    const bodyText = await res.text().catch(() => '');
+    console.log('[deleteProduct] status:', res.status, 'body:', bodyText);
+    if (res.ok) {
+      fetchProducts();
+    } else {
+      setToast({ type: "error", message: `Error al eliminar producto (${res.status}).` });
+    }
     } catch (error) {
       console.error("Error deleting product:", error);
     }
