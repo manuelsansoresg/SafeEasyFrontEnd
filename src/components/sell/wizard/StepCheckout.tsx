@@ -115,7 +115,13 @@ const translateBackendMessage = (message: string | null, fallback: string) => {
   if (lower.includes('internal server error')) {
     return `${fallback} El servidor respondió con un error interno. Puede deberse a una validación o configuración del backend; intenta de nuevo y, si continúa, revisa los logs del servidor.`;
   }
-  if (lower.includes('already exists') || lower.includes('duplicate') || lower.includes('unique')) {
+  if (
+    lower.includes('already exists') ||
+    lower.includes('duplicate') ||
+    lower.includes('unique') ||
+    lower.includes('correo electrónico ya está registrado') ||
+    lower.includes('email')
+  ) {
     return 'Ese correo ya está registrado. Inicia sesión o usa otro correo para crear la cuenta.';
   }
   if (lower.includes('field required')) {

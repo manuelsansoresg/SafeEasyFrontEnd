@@ -57,7 +57,7 @@ export default function RegisterPage() {
             if (typeof msg !== "string") {
                  throw new Error('Error al registrar usuario. Intenta más tarde.');
             }
-            if (msg.includes("already exists")) {
+            if (msg.includes("already exists") || msg.includes("correo electrónico ya está registrado") || msg.includes("email")) {
                  throw new Error('Este correo electrónico ya está registrado.');
             }
             throw new Error(msg);
