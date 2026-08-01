@@ -769,6 +769,10 @@ export default function SupplierPage() {
     fetchProducts(identifier, page, true);
   }, [page, slug]);
 
+    const [logoError, setLogoError] = useState(false);
+    const [aboutError, setAboutError] = useState(false);
+    const [introError, setIntroError] = useState(false);
+
   const getImageUrl = (path: string | null) => {
     if (!path) return "/placeholder.png";
     if (path.startsWith('http')) return path;
@@ -1026,9 +1030,9 @@ const contactHref = supplier?.phone
          {/* Content */}
          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 pb-28 text-center md:items-start md:px-20 md:pb-0 md:text-left lg:px-32">
              <div className="animate-in fade-in slide-in-from-left-10 w-full max-w-4xl duration-1000">
-                {supplierLogo && (
+                {supplierLogo && !logoError && (
                     <div className="mx-auto mb-8 h-24 w-24 rounded-3xl border border-white/20 bg-white/10 p-4 shadow-2xl backdrop-blur-md md:mx-0 md:h-32 md:w-32">
-                        <img src={getImageUrl(supplierLogo)} alt={supplier.name} className="w-full h-full object-contain drop-shadow-md" />
+                        <img src={getImageUrl(supplierLogo)} alt={supplier.name} className="w-full h-full object-contain drop-shadow-md" onError={() => setLogoError(true)} />
                     </div>
                 )}
                 
@@ -1175,12 +1179,13 @@ const contactHref = supplier?.phone
         >
           <div className="mx-auto max-w-6xl px-5 md:px-8">
             <div className={`grid items-center gap-10 md:gap-16 ${supplier.about_media ? "md:grid-cols-2" : ""}`}>
-              {supplier.about_media ? (
+              {supplier.about_media && !aboutError ? (
                 <div className="relative aspect-[4/3] overflow-hidden rounded-2xl shadow-[0_20px_50px_-20px_rgba(0,0,0,0.25)]">
                   <img
                     src={getImageUrl(supplier.about_media)}
                     alt={supplier.name}
                     className="h-full w-full object-cover"
+                    onError={() => setAboutError(true)}
                   />
                 </div>
               ) : null}
@@ -1307,7 +1312,7 @@ const contactHref = supplier?.phone
               ) : null}
             </div>
 
-            {supplier.intro_image_url ? (
+            {supplier.intro_image_url && !introError ? (
               <div className="order-1 md:order-2">
                 <div className="relative mx-auto aspect-[4/3] w-full max-w-md overflow-hidden rounded-3xl border border-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.55)]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1315,6 +1320,7 @@ const contactHref = supplier?.phone
                     src={getImageUrl(supplier.intro_image_url)}
                     alt={supplier.intro_title?.trim() || supplier.name}
                     className="absolute inset-0 h-full w-full object-cover"
+                    onError={() => setIntroError(true)}
                   />
                 </div>
               </div>

@@ -39,7 +39,23 @@ export function ProductCard({
   const { isAuthenticated } = useAuthStore();
   const { isFavorite, toggleFavorite } = useFavoritesStore();
   const isFav = isFavorite(id);
+  const [imgError, setImgError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+
+  useEffect(() => {
+    setImgError(false);
+    setRetryCount(0);
+  }, [image]);
+
+  useEffect(() => {
+    if (!imgError || retryCount >= 3) return;
+    const timer = window.setTimeout(() => {
+      setImgError(false);
+      setRetryCount((c) => c + 1);
+    }, 1000 * (retryCount + 1));
+    return () => window.clearTimeout(timer);
+  }, [imgError, retryCount]);
 
   useEffect(() => {
     if (!toast) return;
@@ -114,11 +130,15 @@ export function ProductCard({
             onClick={handleCardClick}
             className="block w-full h-full relative"
         >
-            {image ? (
+            {image && !imgError ? (
             <img 
+                key={`${image}-${retryCount}`}
                 src={getImageUrl(image)} 
                 alt={title} 
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out" 
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out"
+                loading="lazy"
+                decoding="async"
+                onError={() => setImgError(true)}
             />
             ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-300 bg-[#f2f3f4]">
