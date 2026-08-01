@@ -105,6 +105,11 @@ export function ProductCard({
 
   const displayPrice = (typeof price === 'number' ? price : 0).toFixed(0);
 
+  const handleImgError = () => {
+    console.warn(`[ProductCard] Image load failed for "${title}":`, getImageUrl(image));
+    setImgError(true);
+  };
+
   return (
     <div className="group block h-full relative bg-white rounded-[2rem] overflow-hidden transition-all duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,78,40,0.2)] hover:-translate-y-2">
       {/* Image Container - Premium Aspect Ratio */}
@@ -136,9 +141,7 @@ export function ProductCard({
                 src={getImageUrl(image)} 
                 alt={title} 
                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out"
-                loading="lazy"
-                decoding="async"
-                onError={() => setImgError(true)}
+                onError={handleImgError}
             />
             ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-300 bg-[#f2f3f4]">
