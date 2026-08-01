@@ -47,6 +47,45 @@ function unwrapProducts(data: unknown): Product[] {
   return [];
 }
 
+function AdminProductImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [error, setError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    setError(false);
+    setRetryCount(0);
+    setRetryKey(0);
+  }, [src]);
+
+  useEffect(() => {
+    if (!error || retryCount >= 3) return;
+    const timer = window.setTimeout(() => {
+      setError(false);
+      setRetryKey((k) => k + 1);
+      setRetryCount((c) => c + 1);
+    }, 1000 * (retryCount + 1));
+    return () => window.clearTimeout(timer);
+  }, [error, retryCount]);
+
+  if (!src || error) {
+    return <Package className="text-gray-300" size={24} />;
+  }
+
+  return (
+    <img
+      key={`${src}-${retryKey}`}
+      src={src}
+      alt={alt}
+      className={className}
+      onError={() => {
+        console.warn(`[AdminProductImage] Failed to load: ${src}`);
+        setError(true);
+      }}
+    />
+  );
+}
+
 const EDIT_PRODUCT_CACHE_KEY = "admin-edit-product";
 
 export default function AdminProductsPage() {
@@ -300,9 +339,9 @@ export default function AdminProductsPage() {
                       <td className="px-6 py-4">
                         <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center border border-gray-200">
                           {product.thumbnail_url ? (
-                            <img 
-                              src={product.thumbnail_url} 
-                              alt={product.title} 
+                            <AdminProductImage
+                              src={product.thumbnail_url}
+                              alt={product.title}
                               className="w-full h-full object-cover"
                             />
                           ) : (
@@ -364,7 +403,7 @@ export default function AdminProductsPage() {
                   <div className="flex items-start gap-3">
                     <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-100 flex items-center justify-center">
                       {product.thumbnail_url ? (
-                        <img
+                        <AdminProductImage
                           src={product.thumbnail_url}
                           alt={product.title}
                           className="h-full w-full object-cover"
