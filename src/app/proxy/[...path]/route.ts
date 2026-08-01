@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PROXY_VERSION = "2026-04-15-body-replay-2";
+const PROXY_VERSION = "2026-08-01-trailing-slash-retry";
 
 const sanitizeBaseUrl = (value: string | undefined) => {
   const trimmed = String(value || "").trim();
@@ -166,6 +166,22 @@ async function handler(request: NextRequest) {
         }
 
         response = await fetch(newUrlString, buildFetchOptions());
+      }
+    }
+
+    // FastAPI expone los endpoints de detalle SIN slash final (ej. /suppliers/78),
+    // pero Next (trailingSlash: true) fuerza el slash en las URLs del proxy.
+    // Si el backend responde 404 a una URL que termina en "/", reintenta sin el slash.
+    // No aplica a bodies streameados: el stream ya se consumió en el primer intento.
+    if (
+      response.status === 404 &&
+      !isStreamingBody &&
+      relativePath.length > 1 &&
+      relativePath.endsWith("/")
+    ) {
+      const retryTarget = targetUrl.replace(/\/+(\?|$)/, "$1");
+      if (retryTarget !== targetUrl) {
+        response = await fetch(retryTarget, buildFetchOptions());
       }
     }
 

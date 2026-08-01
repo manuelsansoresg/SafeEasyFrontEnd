@@ -976,7 +976,7 @@ const contactHref = supplier?.phone
       </div>
     );
 
-  if (!supplier) return null;
+  if (!supplier) notFound();
 
   // Solo los proveedores con una suscripción activa (de cualquier tipo) tienen
   // un perfil público. Si no hay suscripción vigente, 404 — no hay espacio.
