@@ -7,7 +7,7 @@ export type WizardStep = 'plan' | 'account' | 'supplier' | 'payment';
 
 export default function WizardContainer() {
   const searchParams = useSearchParams();
-  const selectedPlan = searchParams.get('plan') || 'estándar';
+  const selectedPlan = searchParams.get('plan') || '1';
   const referralCode = searchParams.get('referral_code') || '';
 
   return (

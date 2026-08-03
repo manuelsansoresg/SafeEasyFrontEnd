@@ -110,9 +110,9 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => ({
       : null,
 });
 
-const buildRegisterHref = (planName: string, referralCode: string) => {
+const buildRegisterHref = (planId: number, referralCode: string) => {
   const params = new URLSearchParams({
-    plan: planName.toLowerCase(),
+    plan: String(planId),
   });
   if (referralCode) params.set('referral_code', referralCode);
   return `/sell/register?${params.toString()}`;
@@ -398,7 +398,7 @@ export default function SellPlans({ accessCode = '', referralCode = '' }: SellPl
                 key={plan.id}
                 plan={plan}
                 highlight={index === 1}
-                registerHref={buildRegisterHref(plan.name, normalizedReferralCode)}
+                registerHref={buildRegisterHref(plan.id, normalizedReferralCode)}
               />
             ))}
         </div>

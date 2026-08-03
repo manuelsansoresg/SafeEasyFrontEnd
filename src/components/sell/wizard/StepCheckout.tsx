@@ -30,23 +30,13 @@ type FormState = {
   confirmPassword: string;
 };
 
-const fallbackPlans: Record<string, CheckoutPlan> = {
-  estandar: {
-    id: 1,
-    name: 'Estándar',
-    price: 3600,
-    period: 'año',
-    description: 'Ideal para negocios establecidos.',
-    features: ['Hasta 500 productos', 'Perfil verificado', 'Soporte por correo'],
-  },
-  profesional: {
-    id: 2,
-    name: 'Profesional',
-    price: 4600,
-    period: 'año',
-    description: 'Para maximizar sus ventas.',
-    features: ['Productos ilimitados', 'Prioridad en búsquedas', 'Soporte prioritario'],
-  },
+const fallbackPlan: CheckoutPlan = {
+  id: 1,
+  name: 'Estándar',
+  price: 3600,
+  period: 'año',
+  description: 'Ideal para negocios establecidos.',
+  features: ['Hasta 500 productos', 'Perfil verificado', 'Soporte por correo'],
 };
 
 const normalize = (value: string) =>
@@ -225,8 +215,7 @@ interface StepCheckoutProps {
 
 export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCheckoutProps) {
   const { login } = useAuthStore();
-  const selectedKey = normalize(selectedPlan || 'estandar');
-  const fallbackPlan = fallbackPlans[selectedKey] ?? fallbackPlans.estandar;
+  const planId = parseInt(selectedPlan || '1', 10);
   const fixedReferralCode = sanitizeInput(referralCode);
   const hasFixedReferralCode = fixedReferralCode.length > 0;
   const [serverPlans, setServerPlans] = useState<Plan[]>([]);
@@ -277,7 +266,7 @@ export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCh
   }, []);
 
   const plan = useMemo<CheckoutPlan>(() => {
-    const matched = serverPlans.find((item) => normalize(item.title).includes(selectedKey));
+    const matched = serverPlans.find((item) => item.id === planId);
     if (!matched) return fallbackPlan;
     const featureLines = normalizePlanFeatures(matched.features, matched.description);
 
@@ -290,7 +279,7 @@ export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCh
       description: matched.description || fallbackPlan.description,
       features: featureLines.length > 0 ? featureLines : fallbackPlan.features,
     };
-  }, [fallbackPlan, selectedKey, serverPlans]);
+  }, [fallbackPlan, planId, serverPlans]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
