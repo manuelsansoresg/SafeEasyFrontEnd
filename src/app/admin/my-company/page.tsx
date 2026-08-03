@@ -9,6 +9,7 @@ import SupplierForm from '@/components/admin/SupplierForm';
 import StepCarousel from '@/components/sell/wizard/StepCarousel';
 import StepCertificates from '@/components/sell/wizard/StepCertificates';
 import BusinessHoursEditor from '@/components/admin/BusinessHoursEditor';
+import QRPanel from '@/components/admin/QRPanel';
 import { PageHero } from '@/components/ui/PageHero';
 import { useSearchParams, useRouter } from 'next/navigation';
 
@@ -19,21 +20,21 @@ function MyCompanyContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  const normalizeTab = (value: string | null): 'info' | 'carousel' | 'certificates' | 'hours' => {
-    if (value === 'carousel' || value === 'certificates' || value === 'hours' || value === 'info') return value;
+  const normalizeTab = (value: string | null): 'info' | 'carousel' | 'certificates' | 'hours' | 'qr' => {
+    if (value === 'carousel' || value === 'certificates' || value === 'hours' || value === 'info' || value === 'qr') return value;
     return 'info';
   };
   const initialTab = normalizeTab(searchParams.get('tab'));
   
   const [supplier, setSupplier] = useState<SupplierForForm | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'info' | 'carousel' | 'certificates' | 'hours'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'info' | 'carousel' | 'certificates' | 'hours' | 'qr'>(initialTab);
 
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  const handleTabChange = (tab: 'info' | 'carousel' | 'certificates' | 'hours') => {
+  const handleTabChange = (tab: 'info' | 'carousel' | 'certificates' | 'hours' | 'qr') => {
     setActiveTab(tab);
     // Optional: Update URL without reload to reflect tab change
     router.replace(`/admin/my-company?tab=${tab}`);
@@ -88,7 +89,7 @@ function MyCompanyContent() {
     <div className="space-y-6">
       <PageHero
         title="Gestionar Mi Empresa"
-        subtitle="Actualiza los datos, encabezado, certificados y horarios de tu negocio."
+        subtitle="Actualiza los datos, encabezado, certificados, horarios y código QR de tu negocio."
         actions={
           supplier && supplier.slug ? (
             <a
@@ -146,6 +147,16 @@ function MyCompanyContent() {
         >
           Horarios de Atención
         </button>
+        <button
+          onClick={() => handleTabChange('qr')}
+          className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 ${
+            activeTab === 'qr' 
+              ? 'border-primary text-primary' 
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          QR
+        </button>
       </div>
 
       {/* Content */}
@@ -176,6 +187,12 @@ function MyCompanyContent() {
           <BusinessHoursEditor
             supplierId={supplier.id}
             token={token}
+          />
+        )}
+
+        {activeTab === 'qr' && (
+          <QRPanel
+            supplierId={supplier.id}
           />
         )}
       </div>
