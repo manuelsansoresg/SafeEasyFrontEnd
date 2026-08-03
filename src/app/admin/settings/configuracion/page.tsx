@@ -13,12 +13,19 @@ type AdminSettings = {
   extra_cost_per_km: number;
   commission_type: "percentage" | "fixed";
   commission_value: number;
-  seller_commission_type: "percentage" | "fixed";
-  seller_commission_value: number;
-  subscription_linked_commission_user_id: number | null;
-  subscription_linked_commission_type: "percentage" | "fixed";
-  subscription_linked_commission_value: number;
-  subscription_linked_commission_is_active: boolean;
+};
+
+type AdminPlan = {
+  id: number;
+  title?: string;
+  price?: number;
+  seller_commission_type?: "percentage" | "fixed" | null;
+  seller_commission_value?: number | null;
+  subscription_linked_commission_user_id?: number | null;
+  subscription_linked_commission_type?: "percentage" | "fixed" | null;
+  subscription_linked_commission_value?: number | null;
+  subscription_linked_commission_is_active?: boolean | null;
+  [key: string]: unknown;
 };
 
 type AdminUser = {
@@ -34,12 +41,6 @@ const DEFAULT_SETTINGS: AdminSettings = {
   extra_cost_per_km: 0,
   commission_type: "percentage",
   commission_value: 10,
-  seller_commission_type: "percentage",
-  seller_commission_value: 5,
-  subscription_linked_commission_user_id: null,
-  subscription_linked_commission_type: "percentage",
-  subscription_linked_commission_value: 0,
-  subscription_linked_commission_is_active: false,
 };
 
 const parseNumber = (value: unknown, fallback: number) => {
@@ -61,29 +62,22 @@ const pickSettingsRecord = (data: unknown): Record<string, unknown> | null => {
   return nested || rec;
 };
 
-const parseBoolean = (value: unknown, fallback: boolean) => {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value === 1;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["true", "1", "yes", "si", "sí"].includes(normalized)) return true;
-    if (["false", "0", "no"].includes(normalized)) return false;
-  }
-  return fallback;
-};
-
-const parseNullableId = (value: unknown) => {
-  if (value === null || value === undefined || value === "") return null;
-  const parsed = typeof value === "number" ? value : Number.parseInt(String(value), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-};
-
 const unwrapUsers = (data: unknown): AdminUser[] => {
   if (Array.isArray(data)) return data as AdminUser[];
   if (data && typeof data === "object") {
     const record = data as Record<string, unknown>;
     const items = record.items ?? record.results ?? record.data ?? record.users;
     if (Array.isArray(items)) return items as AdminUser[];
+  }
+  return [];
+};
+
+const unwrapPlans = (data: unknown): AdminPlan[] => {
+  if (Array.isArray(data)) return data as AdminPlan[];
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    const items = record.items ?? record.results ?? record.data ?? record.plans;
+    if (Array.isArray(items)) return items as AdminPlan[];
   }
   return [];
 };
@@ -109,26 +103,14 @@ const applySettings = (
   setters: {
     setCommissionType: (value: "percentage" | "fixed") => void;
     setCommissionValue: (value: string) => void;
-    setSellerCommissionType: (value: "percentage" | "fixed") => void;
-    setSellerCommissionValue: (value: string) => void;
     setMinDistanceKm: (value: string) => void;
     setExtraCostPerKm: (value: string) => void;
-    setSubscriptionLinkedCommissionUserId: (value: string) => void;
-    setSubscriptionLinkedCommissionType: (value: "percentage" | "fixed") => void;
-    setSubscriptionLinkedCommissionValue: (value: string) => void;
-    setSubscriptionLinkedCommissionIsActive: (value: boolean) => void;
   },
 ) => {
   setters.setCommissionType(settings.commission_type);
   setters.setCommissionValue(String(settings.commission_value));
-  setters.setSellerCommissionType(settings.seller_commission_type);
-  setters.setSellerCommissionValue(String(settings.seller_commission_value));
   setters.setMinDistanceKm(String(settings.min_distance_km));
   setters.setExtraCostPerKm(String(settings.extra_cost_per_km));
-  setters.setSubscriptionLinkedCommissionUserId(settings.subscription_linked_commission_user_id?.toString() || "");
-  setters.setSubscriptionLinkedCommissionType(settings.subscription_linked_commission_type);
-  setters.setSubscriptionLinkedCommissionValue(String(settings.subscription_linked_commission_value));
-  setters.setSubscriptionLinkedCommissionIsActive(settings.subscription_linked_commission_is_active);
 };
 
 export default function ConfiguracionPage() {
@@ -155,32 +137,24 @@ export default function ConfiguracionPage() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [userSelectOpen, setUserSelectOpen] = useState(false);
+  const [plans, setPlans] = useState<AdminPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+  const [savingCommission, setSavingCommission] = useState(false);
+
+  const selectedPlan = useMemo(
+    () => plans.find((plan) => String(plan.id) === selectedPlanId) || null,
+    [plans, selectedPlanId],
+  );
 
   const canSubmit = useMemo(() => {
     const comm = Number.parseFloat(commissionValue);
-    const sellerComm = Number.parseFloat(sellerCommissionValue);
-    const linkedComm = Number.parseFloat(subscriptionLinkedCommissionValue);
-    const linkedUserId = Number.parseInt(subscriptionLinkedCommissionUserId, 10);
     const min = Number.parseFloat(minDistanceKm);
     const extra = Number.parseFloat(extraCostPerKm);
     const commOk =
       Number.isFinite(comm) && comm >= 0 && (commissionType === "fixed" || (commissionType === "percentage" && comm <= 100));
-    const sellerCommOk =
-      Number.isFinite(sellerComm) &&
-      sellerComm >= 0 &&
-      (sellerCommissionType === "fixed" || (sellerCommissionType === "percentage" && sellerComm <= 100));
-    const linkedCommOk =
-      !subscriptionLinkedCommissionIsActive ||
-      (Number.isFinite(linkedComm) &&
-        linkedComm >= 0 &&
-        Number.isFinite(linkedUserId) &&
-        linkedUserId > 0 &&
-        (subscriptionLinkedCommissionType === "fixed" ||
-          (subscriptionLinkedCommissionType === "percentage" && linkedComm <= 100)));
     return (
       commOk &&
-      sellerCommOk &&
-      linkedCommOk &&
       Number.isFinite(min) &&
       min >= 0 &&
       Number.isFinite(extra) &&
@@ -188,19 +162,36 @@ export default function ConfiguracionPage() {
       !saving &&
       !loading
     );
+  }, [commissionValue, commissionType, minDistanceKm, extraCostPerKm, saving, loading]);
+
+  const canSubmitPlanCommission = useMemo(() => {
+    if (!selectedPlan || savingCommission) return false;
+    const sellerComm = Number.parseFloat(sellerCommissionValue);
+    const sellerCommOk =
+      Number.isFinite(sellerComm) &&
+      sellerComm >= 0 &&
+      (sellerCommissionType === "fixed" || (sellerCommissionType === "percentage" && sellerComm <= 100));
+    if (!sellerCommOk) return false;
+    if (!subscriptionLinkedCommissionIsActive) return true;
+    const linkedComm = Number.parseFloat(subscriptionLinkedCommissionValue);
+    const linkedUserId = Number.parseInt(subscriptionLinkedCommissionUserId, 10);
+    return (
+      Number.isFinite(linkedComm) &&
+      linkedComm >= 0 &&
+      Number.isFinite(linkedUserId) &&
+      linkedUserId > 0 &&
+      (subscriptionLinkedCommissionType === "fixed" ||
+        (subscriptionLinkedCommissionType === "percentage" && linkedComm <= 100))
+    );
   }, [
-    commissionValue,
-    commissionType,
+    selectedPlan,
+    savingCommission,
     sellerCommissionValue,
     sellerCommissionType,
     subscriptionLinkedCommissionIsActive,
     subscriptionLinkedCommissionType,
     subscriptionLinkedCommissionUserId,
     subscriptionLinkedCommissionValue,
-    minDistanceKm,
-    extraCostPerKm,
-    saving,
-    loading,
   ]);
 
   const selectedLinkedUser = useMemo(
@@ -231,7 +222,7 @@ export default function ConfiguracionPage() {
   }, [token, user, isAdmin, router]);
 
   useEffect(() => {
-    if (!token || !isAdmin) return;
+    if (!token || !isAdmin || !selectedPlanId || !subscriptionLinkedCommissionIsActive) return;
     const controller = new AbortController();
     const id = window.setTimeout(async () => {
       setUsersLoading(true);
@@ -256,7 +247,7 @@ export default function ConfiguracionPage() {
       window.clearTimeout(id);
       controller.abort();
     };
-  }, [token, isAdmin, userSearch]);
+  }, [token, isAdmin, userSearch, selectedPlanId, subscriptionLinkedCommissionIsActive]);
 
   const loadSettings = async () => {
     if (!token) {
@@ -275,14 +266,8 @@ export default function ConfiguracionPage() {
         applySettings(DEFAULT_SETTINGS, {
           setCommissionType,
           setCommissionValue,
-          setSellerCommissionType,
-          setSellerCommissionValue,
           setMinDistanceKm,
           setExtraCostPerKm,
-          setSubscriptionLinkedCommissionUserId,
-          setSubscriptionLinkedCommissionType,
-          setSubscriptionLinkedCommissionValue,
-          setSubscriptionLinkedCommissionIsActive,
         });
         setError(null);
         return;
@@ -297,48 +282,20 @@ export default function ConfiguracionPage() {
           | "percentage"
           | "fixed",
         commission_value: Math.max(0, parseNumber(src.commission_value, 0)),
-        seller_commission_type: (String(src.seller_commission_type ?? "").trim() === "fixed" ? "fixed" : "percentage") as
-          | "percentage"
-          | "fixed",
-        seller_commission_value: Math.max(0, parseNumber(src.seller_commission_value, DEFAULT_SETTINGS.seller_commission_value)),
-        subscription_linked_commission_user_id: parseNullableId(src.subscription_linked_commission_user_id),
-        subscription_linked_commission_type: (String(src.subscription_linked_commission_type ?? "").trim() === "fixed"
-          ? "fixed"
-          : "percentage") as "percentage" | "fixed",
-        subscription_linked_commission_value: Math.max(
-          0,
-          parseNumber(src.subscription_linked_commission_value, DEFAULT_SETTINGS.subscription_linked_commission_value),
-        ),
-        subscription_linked_commission_is_active: parseBoolean(
-          src.subscription_linked_commission_is_active,
-          DEFAULT_SETTINGS.subscription_linked_commission_is_active,
-        ),
       };
 
       applySettings(settings, {
         setCommissionType,
         setCommissionValue,
-        setSellerCommissionType,
-        setSellerCommissionValue,
         setMinDistanceKm,
         setExtraCostPerKm,
-        setSubscriptionLinkedCommissionUserId,
-        setSubscriptionLinkedCommissionType,
-        setSubscriptionLinkedCommissionValue,
-        setSubscriptionLinkedCommissionIsActive,
       });
     } catch {
       applySettings(DEFAULT_SETTINGS, {
         setCommissionType,
         setCommissionValue,
-        setSellerCommissionType,
-        setSellerCommissionValue,
         setMinDistanceKm,
         setExtraCostPerKm,
-        setSubscriptionLinkedCommissionUserId,
-        setSubscriptionLinkedCommissionType,
-        setSubscriptionLinkedCommissionValue,
-        setSubscriptionLinkedCommissionIsActive,
       });
       setError(null);
     } finally {
@@ -350,11 +307,26 @@ export default function ConfiguracionPage() {
     loadSettings();
   }, [token, isAdmin]);
 
+  useEffect(() => {
+    if (!token || !isAdmin) return;
+    const loadPlans = async () => {
+      setPlansLoading(true);
+      try {
+        const res = await fetchWithAuth("/api/plans/?skip=0&limit=1000", { headers: { Accept: "application/json" } });
+        if (!res.ok) return;
+        const data: unknown = await res.json().catch(() => null);
+        setPlans(unwrapPlans(data));
+      } catch {
+        setPlans([]);
+      } finally {
+        setPlansLoading(false);
+      }
+    };
+    loadPlans();
+  }, [token, isAdmin]);
+
   const saveSettings = async () => {
     const comm = Number.parseFloat(commissionValue);
-    const sellerComm = Number.parseFloat(sellerCommissionValue);
-    const linkedComm = Number.parseFloat(subscriptionLinkedCommissionValue);
-    const linkedUserId = Number.parseInt(subscriptionLinkedCommissionUserId, 10);
     const min = Number.parseFloat(minDistanceKm);
     const extra = Number.parseFloat(extraCostPerKm);
     if (!Number.isFinite(comm) || comm < 0 || (commissionType === "percentage" && comm > 100)) {
@@ -364,6 +336,70 @@ export default function ConfiguracionPage() {
       });
       return;
     }
+    if (!Number.isFinite(min) || min < 0) {
+      setToast({ type: "error", message: "Distancia mínima inválida." });
+      return;
+    }
+    if (!Number.isFinite(extra) || extra < 0) {
+      setToast({ type: "error", message: "Costo extra por km inválido." });
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const body = {
+        min_distance_km: min,
+        extra_cost_per_km: extra,
+        commission_type: commissionType,
+        commission_value: comm,
+      };
+
+      const res = await fetchWithAuth("/api/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify(body),
+        headers: { Accept: "application/json" },
+      });
+
+      if (!res.ok) {
+        const msg = await getResponseMessage(res, "No se pudo guardar la configuración.");
+        setToast({ type: "error", message: msg });
+        return;
+      }
+
+      setToast({ type: "success", message: "Configuración guardada correctamente." });
+    } catch {
+      setToast({ type: "error", message: "Error de conexión al guardar la configuración." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const applyPlanCommission = (plan: AdminPlan | null) => {
+    setSellerCommissionType(plan?.seller_commission_type === "fixed" ? "fixed" : "percentage");
+    setSellerCommissionValue(String(plan?.seller_commission_value ?? 0));
+    setSubscriptionLinkedCommissionUserId(plan?.subscription_linked_commission_user_id?.toString() || "");
+    setSubscriptionLinkedCommissionType(plan?.subscription_linked_commission_type === "fixed" ? "fixed" : "percentage");
+    setSubscriptionLinkedCommissionValue(String(plan?.subscription_linked_commission_value ?? 0));
+    setSubscriptionLinkedCommissionIsActive(Boolean(plan?.subscription_linked_commission_is_active));
+  };
+
+  const handlePlanChange = (planId: string) => {
+    setSelectedPlanId(planId);
+    setUserSearch("");
+    setUserSelectOpen(false);
+    applyPlanCommission(plans.find((plan) => String(plan.id) === planId) || null);
+  };
+
+  const savePlanCommission = async () => {
+    const planId = Number.parseInt(selectedPlanId, 10);
+    if (!selectedPlan || !Number.isFinite(planId)) {
+      setToast({ type: "error", message: "Selecciona un plan para configurar su comisión." });
+      return;
+    }
+    const sellerComm = Number.parseFloat(sellerCommissionValue);
+    const linkedComm = Number.parseFloat(subscriptionLinkedCommissionValue);
+    const linkedUserId = Number.parseInt(subscriptionLinkedCommissionUserId, 10);
     if (!Number.isFinite(sellerComm) || sellerComm < 0 || (sellerCommissionType === "percentage" && sellerComm > 100)) {
       setToast({
         type: "error",
@@ -393,48 +429,45 @@ export default function ConfiguracionPage() {
       });
       return;
     }
-    if (!Number.isFinite(min) || min < 0) {
-      setToast({ type: "error", message: "Distancia mínima inválida." });
-      return;
-    }
-    if (!Number.isFinite(extra) || extra < 0) {
-      setToast({ type: "error", message: "Costo extra por km inválido." });
-      return;
-    }
 
-    setSaving(true);
-    setError(null);
+    setSavingCommission(true);
     try {
-      const body = {
-        min_distance_km: min,
-        extra_cost_per_km: extra,
-        commission_type: commissionType,
-        commission_value: comm,
+      // El backend usa PlanUpdate con exclude_unset=True (semántica PATCH):
+      // enviamos SOLO las keys de comisión; el resto del plan nunca se toca.
+      const payload = {
         seller_commission_type: sellerCommissionType,
         seller_commission_value: sellerComm,
-        subscription_linked_commission_user_id: Number.isFinite(linkedUserId) && linkedUserId > 0 ? linkedUserId : null,
-        subscription_linked_commission_type: subscriptionLinkedCommissionType,
-        subscription_linked_commission_value: Number.isFinite(linkedComm) ? linkedComm : 0,
+        subscription_linked_commission_user_id:
+          subscriptionLinkedCommissionIsActive && Number.isFinite(linkedUserId) && linkedUserId > 0 ? linkedUserId : null,
+        subscription_linked_commission_type: subscriptionLinkedCommissionIsActive ? subscriptionLinkedCommissionType : null,
+        subscription_linked_commission_value:
+          subscriptionLinkedCommissionIsActive && Number.isFinite(linkedComm) ? linkedComm : 0,
         subscription_linked_commission_is_active: subscriptionLinkedCommissionIsActive,
       };
 
-      const res = await fetchWithAuth("/api/admin/settings", {
+      const res = await fetchWithAuth(`/api/plans/${planId}`, {
         method: "PUT",
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
         headers: { Accept: "application/json" },
       });
 
       if (!res.ok) {
-        const msg = await getResponseMessage(res, "No se pudo guardar la configuración.");
+        const msg = await getResponseMessage(res, "No se pudo guardar la comisión del plan.");
         setToast({ type: "error", message: msg });
         return;
       }
 
-      setToast({ type: "success", message: "Configuración guardada correctamente." });
+      const updated = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      setPlans((prev) =>
+        prev.map((plan) =>
+          plan.id === planId ? ({ ...plan, ...payload, ...(updated || {}) } as AdminPlan) : plan,
+        ),
+      );
+      setToast({ type: "success", message: "Comisión del plan guardada correctamente." });
     } catch {
-      setToast({ type: "error", message: "Error de conexión al guardar la configuración." });
+      setToast({ type: "error", message: "Error de conexión al guardar la comisión del plan." });
     } finally {
-      setSaving(false);
+      setSavingCommission(false);
     }
   };
 
@@ -524,8 +557,27 @@ export default function ConfiguracionPage() {
               <div>
                 <h2 className="text-base font-semibold text-gray-900">Comisión por venta de suscripción</h2>
                 <p className="mt-1 text-sm text-gray-600">
-                  Monto que recibirá el vendedor cuando venda una suscripción a un proveedor.
+                  Monto que recibirá el vendedor cuando venda una suscripción a un proveedor. Se configura por plan.
                 </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Plan a configurar</label>
+                <select
+                  value={selectedPlanId}
+                  onChange={(e) => handlePlanChange(e.target.value)}
+                  disabled={plansLoading}
+                  className="h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                >
+                  <option value="">{plansLoading ? "Cargando planes..." : "Selecciona un plan"}</option>
+                  {plans.map((plan) => (
+                    <option key={plan.id} value={String(plan.id)}>
+                      {plan.title || `Plan #${plan.id}`}
+                      {typeof plan.price === "number" ? ` — $${plan.price}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500">La comisión se guarda de forma independiente para cada plan.</p>
               </div>
 
               <div className="grid gap-5 md:grid-cols-2">
@@ -534,12 +586,13 @@ export default function ConfiguracionPage() {
                   <select
                     value={sellerCommissionType}
                     onChange={(e) => setSellerCommissionType(e.target.value === "fixed" ? "fixed" : "percentage")}
-                    className="h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                    disabled={!selectedPlan}
+                    className="h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                   >
                     <option value="percentage">Porcentaje</option>
                     <option value="fixed">Valor fijo</option>
                   </select>
-                  <p className="text-xs text-gray-500">Aplica sobre el precio de la suscripción vendida.</p>
+                  <p className="text-xs text-gray-500">Aplica sobre el precio del plan vendido.</p>
                 </div>
 
                 <div className="space-y-2">
@@ -552,7 +605,8 @@ export default function ConfiguracionPage() {
                     step="0.01"
                     value={sellerCommissionValue}
                     onChange={(e) => setSellerCommissionValue(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white"
+                    disabled={!selectedPlan}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                     placeholder={sellerCommissionType === "percentage" ? "5" : "100.00"}
                   />
                   <p className="text-xs text-gray-500">
@@ -577,9 +631,10 @@ export default function ConfiguracionPage() {
                       type="checkbox"
                       checked={subscriptionLinkedCommissionIsActive}
                       onChange={(e) => setSubscriptionLinkedCommissionIsActive(e.target.checked)}
+                      disabled={!selectedPlan}
                       className="peer sr-only"
                     />
-                    <span className="relative h-6 w-11 rounded-full bg-gray-300 transition-colors after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-primary peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30" />
+                    <span className="relative h-6 w-11 rounded-full bg-gray-300 transition-colors after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-primary peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30 peer-disabled:cursor-not-allowed peer-disabled:opacity-50" />
                   </label>
                 </div>
 
@@ -609,7 +664,7 @@ export default function ConfiguracionPage() {
                         }}
                         className="h-11 w-full rounded-xl border border-gray-200 bg-white px-10 pr-11 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                         placeholder="Buscar usuario por nombre o correo"
-                        disabled={!subscriptionLinkedCommissionIsActive}
+                        disabled={!subscriptionLinkedCommissionIsActive || !selectedPlan}
                         role="combobox"
                         aria-expanded={userSelectOpen}
                         aria-controls="linked-user-options"
@@ -621,7 +676,7 @@ export default function ConfiguracionPage() {
                         size={18}
                       />
 
-                      {userSelectOpen && subscriptionLinkedCommissionIsActive ? (
+                      {userSelectOpen && subscriptionLinkedCommissionIsActive && selectedPlan ? (
                         <div className="absolute z-20 mt-2 max-h-64 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
                           <div id="linked-user-options" role="listbox" className="max-h-64 overflow-y-auto py-1">
                             {usersLoading ? (
@@ -667,7 +722,7 @@ export default function ConfiguracionPage() {
                     <select
                       value={subscriptionLinkedCommissionType}
                       onChange={(e) => setSubscriptionLinkedCommissionType(e.target.value === "fixed" ? "fixed" : "percentage")}
-                      disabled={!subscriptionLinkedCommissionIsActive}
+                      disabled={!subscriptionLinkedCommissionIsActive || !selectedPlan}
                       className="h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                     >
                       <option value="percentage">Porcentaje</option>
@@ -686,7 +741,7 @@ export default function ConfiguracionPage() {
                       step="0.01"
                       value={subscriptionLinkedCommissionValue}
                       onChange={(e) => setSubscriptionLinkedCommissionValue(e.target.value)}
-                      disabled={!subscriptionLinkedCommissionIsActive}
+                      disabled={!subscriptionLinkedCommissionIsActive || !selectedPlan}
                       className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-white disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                       placeholder={subscriptionLinkedCommissionType === "percentage" ? "5" : "500.00"}
                     />
@@ -697,6 +752,27 @@ export default function ConfiguracionPage() {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <div className="flex justify-end border-t border-primary/10 pt-5">
+                <button
+                  type="button"
+                  onClick={savePlanCommission}
+                  disabled={!canSubmitPlanCommission}
+                  className="w-full bg-primary text-white py-3 px-8 rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 flex items-center justify-center gap-2 font-medium disabled:opacity-70 disabled:cursor-not-allowed sm:w-auto"
+                >
+                  {savingCommission ? (
+                    <>
+                      <Loader2 className="animate-spin" size={20} />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={20} />
+                      Guardar comisión del plan
+                    </>
+                  )}
+                </button>
               </div>
             </section>
 
