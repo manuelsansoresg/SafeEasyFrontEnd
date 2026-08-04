@@ -191,9 +191,7 @@ function MyCompanyContent() {
         )}
 
         {activeTab === 'qr' && (
-          <QRPanel
-            supplierId={supplier.id}
-          />
+          <QRPanel />
         )}
       </div>
     </div>

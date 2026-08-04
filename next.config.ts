@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
       "font-src 'self' data: https://fonts.gstatic.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://www.googletagmanager.com",
-      "connect-src 'self' https://drooopy.com https://www.drooopy.com https://maps.googleapis.com https://*.googleapis.com https://*.mercadopago.com https://*.mercadopago.com.mx wss://drooopy.com wss://www.drooopy.com",
+      "connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 https://drooopy.com https://www.drooopy.com https://drooopy-storage.s3.us-east-1.amazonaws.com https://maps.googleapis.com https://*.googleapis.com https://*.mercadopago.com https://*.mercadopago.com.mx wss://drooopy.com wss://www.drooopy.com",
       "frame-src 'self' https://*.mercadopago.com https://*.mercadopago.com.mx",
     ].join("; ");
 
@@ -81,6 +81,10 @@ const nextConfig: NextConfig = {
       {
         source: '/api/backend/:path*',
         destination: `${apiBase}/api/:path*`,
+      },
+      {
+        source: '/qr/:path*',
+        destination: `${apiBase}/qr/:path*`,
       },
     ];
   },
