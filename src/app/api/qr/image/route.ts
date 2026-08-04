@@ -16,8 +16,6 @@ export async function GET(request: NextRequest) {
   }
 
   const url = buildBackendUrl("/qr/me/image");
-  console.log("[qr/image] Fetching:", url);
-  console.log("[qr/image] Auth header present:", !!auth);
 
   try {
     const response = await fetch(url, {
@@ -28,39 +26,24 @@ export async function GET(request: NextRequest) {
       signal: AbortSignal.timeout(30000),
     });
 
-    console.log("[qr/image] Response status:", response.status);
-    console.log("[qr/image] Response content-type:", response.headers.get("content-type"));
-
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      console.log("[qr/image] Error body:", text);
       return new NextResponse(text || "No se pudo obtener el código QR", {
         status: response.status,
         headers: { "Content-Type": "text/plain" },
       });
     }
 
-    const contentType = response.headers.get("content-type") || "image/png";
-
-    if (contentType.includes("application/json")) {
-      const json = await response.json();
-      console.log("[qr/image] JSON response:", JSON.stringify(json));
-      const imgUrl = json.image_url || json.qr_url;
-      if (imgUrl) {
-        return NextResponse.redirect(imgUrl);
-      }
-      return NextResponse.json({ error: "Sin imagen" }, { status: 404 });
+    // El backend ahora devuelve JSON con qr_image_url
+    const json = await response.json();
+    const imgUrl = json.qr_image_url || json.image_url || json.qr_url;
+    
+    if (imgUrl) {
+      // Redirect a la URL de S3
+      return NextResponse.redirect(imgUrl);
     }
-
-    const buffer = Buffer.from(await response.arrayBuffer());
-    console.log("[qr/image] Image size:", buffer.length, "bytes");
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": contentType,
-        "Content-Length": buffer.length.toString(),
-        "Cache-Control": "public, max-age=3600",
-      },
-    });
+    
+    return NextResponse.json({ error: "Sin imagen" }, { status: 404 });
   } catch (error) {
     console.error("[qr/image] Error:", error);
     return NextResponse.json(
