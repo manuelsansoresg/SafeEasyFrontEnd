@@ -26,9 +26,9 @@ const helpLinks = [
 ];
 
 const socialLinks = [
-  { label: "Facebook", href: "https://www.facebook.com/drooopy", icon: Facebook },
-  { label: "Instagram", href: "https://www.instagram.com/drooopy", icon: Instagram },
-  { label: "X", href: "https://x.com/drooopy", icon: Twitter },
+  { label: "Facebook", href: "https://www.facebook.com/drooopymx", icon: Facebook },
+  { label: "Instagram", href: "https://www.instagram.com/drooopymx", icon: Instagram },
+  { label: "X", href: "https://x.com/drooopymx", icon: Twitter },
 ];
 
 const defaultShareUrl = "https://drooopy.com";
