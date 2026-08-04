@@ -1,8 +1,8 @@
-'use client';
+use client;
 
-import { useState, useCallback } from 'react';
-import { qrService, type QRInfo } from '@/services/qrService';
-import { Download, RefreshCw, QrCode, AlertCircle, Key } from 'lucide-react';
+import { useState, useCallback, useEffect } from react;
+import { qrService, type QRInfo } from @/services/qrService;
+import { Download, RefreshCw, QrCode, AlertCircle, Key } from lucide-react;
 
 export default function QRPanel() {
   const [qrInfo, setQrInfo] = useState<QRInfo | null>(null);
@@ -20,7 +20,16 @@ export default function QRPanel() {
       const imageUrl = await qrService.getQRImageBlob();
       setQrImageUrl(imageUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar el QR');
+      const errorMsg = err instanceof Error ? err.message : Error al cargar el QR;
+      
+      // Mensaje más específico según el error
+      if (errorMsg.includes(404) || errorMsg.includes(Supplier not found)) {
+        setError(No se encontró tu empresa en el sistema. Verificá que tu cuenta tenga una empresa asociada en tu perfil.);
+      } else if (errorMsg.includes(401) || errorMsg.includes(No autorizado)) {
+        setError(Sesión expirada. Por favor, volvé a iniciar sesión.);
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -33,17 +42,17 @@ export default function QRPanel() {
       setQrImageUrl(null);
       const info = await qrService.generateQRToken();
       if (!info?.token) {
-        setError('El servidor no devolvió un token válido. Verificá que tu empresa esté correctamente registrada.');
+        setError(El servidor no devolvió un token válido. Verificá que tu empresa esté correctamente registrada.);
         return;
       }
       setQrInfo(info);
       await fetchQRImage();
-      setSuccess('Token generado exitosamente. Tu código QR está listo.');
+      setSuccess(Token generado exitosamente. Tu código QR está listo.);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error al generar el token';
-      if (msg.includes('404') || msg.includes('not found')) {
-        setError('No se encontró tu empresa en el sistema. Verificá que tu cuenta tenga una empresa asociada.');
+      const msg = err instanceof Error ? err.message : Error al generar el token;
+      if (msg.includes(404) || msg.includes(not found)) {
+        setError(No se encontró tu empresa en el sistema. Verificá que tu cuenta tenga una empresa asociada en tu perfil.);
       } else {
         setError(msg);
       }
@@ -61,12 +70,12 @@ export default function QRPanel() {
       const info = await qrService.regenerateQR();
       setQrInfo(info);
       await fetchQRImage();
-      setSuccess('Código QR regenerado exitosamente');
+      setSuccess(Código QR regenerado exitosamente);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error al regenerar el QR';
-      if (msg.includes('404') || msg.includes('not found')) {
-        setError('No se encontró tu empresa en el sistema.');
+      const msg = err instanceof Error ? err.message : Error al regenerar el QR;
+      if (msg.includes(404) || msg.includes(not found)) {
+        setError(No se encontró tu empresa en el sistema.);
       } else {
         setError(msg);
       }
@@ -81,7 +90,7 @@ export default function QRPanel() {
       const response = await fetch(qrImageUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement(a);
       link.href = url;
       link.download = `qr-empresa.png`;
       document.body.appendChild(link);
@@ -89,19 +98,19 @@ export default function QRPanel() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch {
-      setError('Error al descargar el QR');
+      setError(Error al descargar el QR);
     }
   };
 
-  const qrUrl = qrInfo?.token ? qrService.getQRUrl(qrInfo.token) : '';
+  const qrUrl = qrInfo?.token ? qrService.getQRUrl(qrInfo.token) : ;
 
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(qrUrl);
-      setSuccess('Enlace copiado al portapapeles');
+      setSuccess(Enlace copiado al portapapeles);
       setTimeout(() => setSuccess(null), 3000);
     } catch {
-      setError('Error al copiar el enlace');
+      setError(Error al copiar el enlace);
     }
   };
 
@@ -155,8 +164,8 @@ export default function QRPanel() {
             disabled={generatingToken}
             className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <Key size={18} className={generatingToken ? 'animate-pulse' : ''} />
-            {generatingToken ? 'Generando token...' : 'Generar código QR'}
+            <Key size={18} className={generatingToken ? animate-pulse : } />
+            {generatingToken ? Generando token... : Generar código QR}
           </button>
         </div>
       ) : (
@@ -214,8 +223,8 @@ export default function QRPanel() {
               disabled={regenerating}
               className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <RefreshCw size={18} className={regenerating ? 'animate-spin' : ''} />
-              {regenerating ? 'Regenerando...' : 'Regenerar QR'}
+              <RefreshCw size={18} className={regenerating ? animate-spin : } />
+              {regenerating ? Regenerando... : Regenerar QR}
             </button>
           </div>
         </>
