@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/client/layout,_N_T_/client/become-supplier/layout,_N_T_/client/become-supplier/page,_N_T_/client/become-supplier/"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/client/become-supplier/__PAGE__",
+    "/client/become-supplier",
+    "/client",
+    "/_index",
+    "/_head"
+  ]
+}

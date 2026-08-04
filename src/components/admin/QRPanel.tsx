@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { qrService, type QRInfo } from '@/services/qrService';
 import { Download, RefreshCw, QrCode, AlertCircle, Key } from 'lucide-react';
 
@@ -22,9 +22,9 @@ export default function QRPanel() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Error al cargar el QR';
       
-      if (errorMsg.includes('404') || errorMsg.includes('Supplier not found')) {
-        setError('No se encontró tu empresa en el sistema. Verificá que tu cuenta tenga una empresa asociada en tu perfil.');
-      } else if (errorMsg.includes('401') || errorMsg.includes('No autorizado')) {
+      if (errorMsg.includes('404') || errorMsg.includes('Supplier not found') || errorMsg.includes('no supplier')) {
+        setError('No se encontró tu empresa en el sistema. Verificá que tu cuenta tenga una empresa asociada.');
+      } else if (errorMsg.includes('401') || errorMsg.includes('No autorizado') || errorMsg.includes('Sesión')) {
         setError('Sesión expirada. Por favor, volvé a iniciar sesión.');
       } else {
         setError(errorMsg);
@@ -41,7 +41,7 @@ export default function QRPanel() {
       setQrImageUrl(null);
       const info = await qrService.generateQRToken();
       if (!info?.token) {
-        setError('El servidor no devolvió un token válido. Verificá que tu empresa esté correctamente registrada.');
+        setError('El servidor no devolvió un token válido.');
         return;
       }
       setQrInfo(info);
@@ -50,8 +50,8 @@ export default function QRPanel() {
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al generar el token';
-      if (msg.includes('404') || msg.includes('not found')) {
-        setError('No se encontró tu empresa en el sistema. Verificá que tu cuenta tenga una empresa asociada en tu perfil.');
+      if (msg.includes('404') || msg.includes('not found') || msg.includes('no supplier')) {
+        setError('No se encontró tu empresa en el sistema. Verificá que tu cuenta tenga una empresa asociada.');
       } else {
         setError(msg);
       }

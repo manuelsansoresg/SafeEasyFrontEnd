@@ -1,9 +1,9 @@
-import { fetchWithAuth } from "@/lib/api";
-import { useAuthStore } from "@/store/useAuthStore";
+import { fetchWithAuth } from '@/lib/api';
+import { useAuthStore } from '@/store/useAuthStore';
 
 const apiUrl = (path: string) => {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-  return `${base.replace(/\/$/, "")}${path}`;
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://drooopy.com/api';
+  return `${base.replace(/\/$/, '')}${path}`;
 };
 
 export type QRInfo = {
@@ -39,7 +39,7 @@ async function handleResponse<T>(response: Response, context: string): Promise<T
 }
 
 function normalizeQRInfo(data: Record<string, unknown>): QRInfo {
-  const token = (data.token || data.qr_token || data.qr_url || "") as string;
+  const token = (data.token || data.qr_token || data.qr_url || '') as string;
   return {
     id: data.id as number | undefined,
     supplier_id: data.supplier_id as number | undefined,
@@ -63,10 +63,13 @@ function getAuthToken(): string | null {
 export const qrService = {
   async getQRImageBlob(): Promise<string> {
     const token = getAuthToken();
-    const url = token ? `/api/qr/image?t=${encodeURIComponent(token)}` : "/api/qr/image";
-    const response = await fetch(url);
+    
+    // Usar fetchWithAuth para manejar refresh de token automáticamente
+    const url = apiUrl('/qr/me/image');
+    const response = await fetchWithAuth(url);
+    
     if (!response.ok) {
-      let message = "No se pudo obtener el código QR";
+      let message = 'No se pudo obtener el código QR';
       try {
         const body = await response.text();
         if (body) {
@@ -82,22 +85,30 @@ export const qrService = {
       }
       throw new Error(`${message} (HTTP ${response.status})`);
     }
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
+    
+    // La respuesta ahora es JSON con qr_image_url
+    const json = await response.json();
+    const imgUrl = json.qr_image_url || json.image_url;
+    
+    if (!imgUrl) {
+      throw new Error('No se recibió la URL de la imagen (HTTP 404)');
+    }
+    
+    return imgUrl;
   },
 
   async generateQRToken(): Promise<QRInfo> {
     const data = await handleResponse<Record<string, unknown>>(
-      await fetchWithAuth(apiUrl("/qr/me/token"), { method: "POST" }),
-      "No se pudo generar el token del código QR"
+      await fetchWithAuth(apiUrl('/qr/me/token'), { method: 'POST' }),
+      'No se pudo generar el token del código QR'
     );
     return normalizeQRInfo(data);
   },
 
   async regenerateQR(): Promise<QRInfo> {
     const data = await handleResponse<Record<string, unknown>>(
-      await fetchWithAuth(apiUrl("/qr/me/regenerate"), { method: "POST" }),
-      "No se pudo regenerar el código QR"
+      await fetchWithAuth(apiUrl('/qr/me/regenerate'), { method: 'POST' }),
+      'No se pudo regenerar el código QR'
     );
     return normalizeQRInfo(data);
   },
