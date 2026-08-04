@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const getApiBase = () =>
-  process.env.API_INTERNAL_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "https://drooopy.com/api";
+function getBackendBase(): string {
+  if (process.env.API_INTERNAL_URL) {
+    return process.env.API_INTERNAL_URL.replace(/\/$/, "");
+  }
+  const publicBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return publicBase.replace(/\/api\/?$/, "").replace(/\/$/, "");
+}
 
 export async function GET(request: NextRequest) {
   const tokenParam = request.nextUrl.searchParams.get("t");
@@ -14,17 +17,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const apiBase = getApiBase();
+  const backendBase = getBackendBase();
+  const url = `${backendBase}/api/qr/me/image`;
 
   try {
-    const response = await fetch(`${apiBase}/qr/me/image`, {
-      headers: { Authorization: auth },
+    const response = await fetch(url, {
+      headers: {
+        Authorization: auth,
+      },
+      cache: "no-store",
       signal: AbortSignal.timeout(30000),
     });
 
     if (!response.ok) {
+      const text = await response.text().catch(() => "");
       return NextResponse.json(
-        { error: "No se pudo obtener el código QR" },
+        { error: text || "No se pudo obtener el código QR" },
         { status: response.status }
       );
     }
