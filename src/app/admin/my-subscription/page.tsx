@@ -101,6 +101,8 @@ export default function MySubscriptionPage() {
   const [loadingProductUsage, setLoadingProductUsage] = useState(false);
   const isDirectory = isDirectorySubscription(subscription);
 
+  const [callbackMessage, setCallbackMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
   const fetchMySubscription = useCallback(async () => {
     if (!token || !isSupplier) {
       setLoading(false);
@@ -234,8 +236,11 @@ export default function MySubscriptionPage() {
     setPaying(true);
     setError(null);
     try {
-      const purchase = await subscriptionsService.purchase(selectedPlan.id);
-      const safeInitPoint = getSafeMercadoPagoUrl(purchase.init_point);
+      const purchase = await subscriptionsService.purchase(selectedPlan.id, 'transfer');
+      const isDev = process.env.NODE_ENV === 'development';
+      const safeInitPoint = isDev
+        ? (getSafeMercadoPagoUrl(purchase.sandbox_init_point || '') || getSafeMercadoPagoUrl(purchase.init_point || ''))
+        : getSafeMercadoPagoUrl(purchase.init_point || '');
       if (!safeInitPoint) {
         throw new Error("Mercado Pago no devolvió una liga de pago.");
       }
@@ -276,6 +281,21 @@ export default function MySubscriptionPage() {
     };
   }, [fetchMySubscription, token, isSupplier]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const mpStatus = searchParams.get("status") || searchParams.get("collection_status");
+    if (!mpStatus) return;
+
+    if (mpStatus === "success" || mpStatus === "approved") {
+      setCallbackMessage({ type: 'success', text: '¡Pago exitoso! Tu plan está activo.' });
+    } else if (mpStatus === "failure" || mpStatus === "rejected") {
+      setCallbackMessage({ type: 'error', text: 'El pago falló. Intenta de nuevo.' });
+    } else if (mpStatus === "pending") {
+      setCallbackMessage({ type: 'info', text: 'Pago pendiente. Recibirás confirmación pronto.' });
+    }
+  }, []);
+
   if (!isSupplier) {
     return (
       <div className="space-y-6">
@@ -294,6 +314,18 @@ export default function MySubscriptionPage() {
   return (
     <div className="space-y-6">
       <PageHero title="Mi Subscripción" subtitle="Información de tu plan y pagos." />
+
+      {callbackMessage && (
+        <div className={`rounded-2xl border p-4 text-sm font-medium ${
+          callbackMessage.type === 'success'
+            ? 'border-green-200 bg-green-50 text-green-800'
+            : callbackMessage.type === 'error'
+              ? 'border-red-200 bg-red-50 text-red-800'
+              : 'border-blue-200 bg-blue-50 text-blue-800'
+        }`}>
+          {callbackMessage.text}
+        </div>
+      )}
 
       {loading ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">

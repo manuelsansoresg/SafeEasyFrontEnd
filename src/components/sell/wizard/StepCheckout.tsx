@@ -534,23 +534,46 @@ export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCh
         body: buildSupplierFormData(userId, formData.companyName, formData.email.trim(), formData.sellerCode),
       });
 
-      if (!supplierResponse.ok) {
+      if (supplierResponse.status === 409) {
         const supplierBody = await readResponseBody(supplierResponse);
         const backendMessage = extractBackendMessage(supplierBody);
         const lowerMessage = String(backendMessage || '').toLowerCase();
-        
-        if (lowerMessage.includes('supplier with this name already exists') || 
+        if (lowerMessage.includes('ya tiene un perfil') || lowerMessage.includes('already has') || lowerMessage.includes('409')) {
+          // El backend auto-crea el supplier al registrar con role: 'supplier'.
+          // Un 409 aquí significa que ya existe. Intentamos obtener el existente.
+          try {
+            const existingSupplierResponse = await fetchWithAuth('/api/suppliers/me');
+            if (existingSupplierResponse.ok) {
+              const existingSupplier = await existingSupplierResponse.json() as { id?: number };
+              if (existingSupplier?.id) {
+                // Supplier existente encontrado, continuar con la compra
+              }
+            }
+          } catch {
+            // Si no podemos obtener el supplier existente, continuar igual — la compra lo resolverá
+          }
+        } else {
+          setCompanyNameError('Ya existe una empresa registrada con ese nombre. Por favor, elige un nombre diferente para tu empresa.');
+          setLoading(false);
+          return;
+        }
+      } else if (!supplierResponse.ok) {
+        const supplierBody = await readResponseBody(supplierResponse);
+        const backendMessage = extractBackendMessage(supplierBody);
+        const lowerMessage = String(backendMessage || '').toLowerCase();
+
+        if (lowerMessage.includes('supplier with this name already exists') ||
             lowerMessage.includes('a supplier with this name')) {
           setCompanyNameError('Ya existe una empresa registrada con ese nombre. Por favor, elige un nombre diferente para tu empresa.');
           setLoading(false);
           return;
         }
-        
+
         const safeMessage = DOMPurify.sanitize(backendMessage || '', {
           ALLOWED_TAGS: [],
           KEEP_CONTENT: true,
         });
-        
+
         throw new Error(translateBackendMessage(safeMessage, 'Cuenta creada, pero no pudimos registrar tu empresa.'));
       }
 
@@ -560,11 +583,16 @@ export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCh
 
       let purchase;
       try {
-        purchase = await subscriptionsService.purchase(plan.id);
+        purchase = await subscriptionsService.purchase(plan.id, 'transfer');
       } catch (purchaseError) {
         throw new Error(translateBackendMessage(getMessage(purchaseError), 'No pudimos crear la ficha de pago. La cuenta fue creada pero el pago no se pudo iniciar. Contactá soporte si el problema persiste.'));
       }
-      const safeInitPoint = getSafeMercadoPagoUrl(purchase.init_point);
+
+      const isDev = process.env.NODE_ENV === 'development';
+      const safeInitPoint = isDev
+        ? (getSafeMercadoPagoUrl(purchase.sandbox_init_point || '') || getSafeMercadoPagoUrl(purchase.init_point || ''))
+        : getSafeMercadoPagoUrl(purchase.init_point || '');
+
       if (!safeInitPoint) {
         throw new Error('No pudimos generar el enlace de pago. Contactá soporte.');
       }

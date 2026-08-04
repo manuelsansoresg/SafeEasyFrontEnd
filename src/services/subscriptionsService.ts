@@ -371,13 +371,13 @@ export const subscriptionsService = {
     return readJson<unknown>(response);
   },
 
-  async purchase(planId: number, paymentMethod?: "card" | "card_terminal", supplierId?: number): Promise<PurchaseResponse> {
+  async purchase(planId: number, paymentMethod: "transfer" | "card" | "card_terminal" = "transfer", supplierId?: number): Promise<PurchaseResponse> {
     const body = JSON.stringify({
       plan_id: planId,
-      ...(paymentMethod ? { payment_method: paymentMethod } : {}),
+      payment_method: paymentMethod,
       ...(typeof supplierId === "number" ? { supplier_id: supplierId } : {}),
     });
-    const options = { method: "POST", body };
+    const options = { method: "POST", body, headers: { "Content-Type": "application/json" } };
     const tryUrls = [`/api/subscriptions/purchase`, `/api/subscriptions/purchase/`, apiUrl(`/subscriptions/purchase`), apiUrl(`/subscriptions/purchase/`)];
     let response: Response | null = null;
     for (const url of tryUrls) {

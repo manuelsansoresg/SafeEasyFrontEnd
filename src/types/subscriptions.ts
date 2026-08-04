@@ -86,6 +86,7 @@ export interface SupplierSubscriptionOption {
 
 export interface PurchaseResponse {
   init_point?: string;
+  sandbox_init_point?: string;
   preference_id?: string;
   subscription_payment_id?: number;
   id?: number;
