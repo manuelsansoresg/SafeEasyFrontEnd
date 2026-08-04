@@ -1324,7 +1324,7 @@ export default function SupplierForm({
           data.append("about_image", aboutImage);
         }
         if (introImage) {
-          data.append("intro_image_url", introImage);
+          data.append("intro_image", introImage);
         }
         if (isEdit && clearLogo) {
           data.append("clear_logo", "true");
