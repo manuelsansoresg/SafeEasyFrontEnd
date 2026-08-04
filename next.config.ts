@@ -83,7 +83,7 @@ const nextConfig: NextConfig = {
         destination: `${apiBase}/api/:path*`,
       },
       {
-        source: '/qr/:path*',
+        source: '/qr/((?!me/):path*)',
         destination: `${apiBase}/qr/:path*`,
       },
     ];
