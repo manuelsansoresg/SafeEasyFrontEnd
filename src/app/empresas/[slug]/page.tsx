@@ -1048,9 +1048,9 @@ const contactHref = supplier?.phone
 
                 <div className="mb-8 flex w-full flex-col flex-wrap items-stretch justify-center gap-4 sm:flex-row sm:items-center md:justify-start">
                       {!isDirectory ? (
-                        <a href={isDirectory ? "#servicios" : "#productos"} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#168e00] px-8 py-4 text-lg font-bold text-white shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] transition-all hover:-translate-y-1 hover:bg-[#137a00] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] font-[family-name:var(--font-varela-round)] sm:w-auto">
-                            {isDirectory ? "Servicios" : "Ver Catálogo"} <ArrowDown size={20} />
-                        </a>
+                        <button type="button" onClick={() => setActiveTab('products')} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#168e00] px-8 py-4 text-lg font-bold text-white shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] transition-all hover:-translate-y-1 hover:bg-[#137a00] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] font-[family-name:var(--font-varela-round)] sm:w-auto">
+                            Ver Catálogo <ArrowDown size={20} />
+                        </button>
                       ) : null}
                       {isDirectory ? (
                         <DirectoryContactButton
