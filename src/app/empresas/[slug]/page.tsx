@@ -407,6 +407,12 @@ export default function SupplierPage() {
   const supplierViewSentRef = useRef<Set<string>>(new Set());
   const [isHeaderVideoPlaying, setIsHeaderVideoPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const tabsRef = useRef<HTMLDivElement>(null);
+
+  const handleShowProducts = () => {
+    setActiveTab('products');
+    tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     if (headerVideoRef.current) {
@@ -1048,7 +1054,7 @@ const contactHref = supplier?.phone
 
                 <div className="mb-8 flex w-full flex-col flex-wrap items-stretch justify-center gap-4 sm:flex-row sm:items-center md:justify-start">
                       {!isDirectory ? (
-                        <button type="button" onClick={() => setActiveTab('products')} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#168e00] px-8 py-4 text-lg font-bold text-white shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] transition-all hover:-translate-y-1 hover:bg-[#137a00] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] font-[family-name:var(--font-varela-round)] sm:w-auto">
+                        <button type="button" onClick={handleShowProducts} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#168e00] px-8 py-4 text-lg font-bold text-white shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] transition-all hover:-translate-y-1 hover:bg-[#137a00] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] font-[family-name:var(--font-varela-round)] sm:w-auto">
                             Ver Catálogo <ArrowDown size={20} />
                         </button>
                       ) : null}
@@ -1118,7 +1124,7 @@ const contactHref = supplier?.phone
 
       {/* --- TABS NAVIGATION (solo tienda; directorio usa DirectoryTopNav propio) --- */}
       {!isDirectory ? (
-      <div className="sticky top-[0px] md:top-[0px] z-40 bg-white border-b border-gray-100 shadow-sm backdrop-blur-md bg-white/90">
+       <div ref={tabsRef} className="sticky top-[0px] md:top-[0px] z-40 bg-white border-b border-gray-100 shadow-sm backdrop-blur-md bg-white/90">
         <div className="container mx-auto px-4 md:px-8">
            <div className="flex gap-8 overflow-x-auto no-scrollbar">
               <button
