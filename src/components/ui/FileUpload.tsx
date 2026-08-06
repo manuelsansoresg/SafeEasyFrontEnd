@@ -14,6 +14,7 @@ interface FileUploadProps {
   helperText?: string;
   disabled?: boolean;
   removeBehavior?: "clear_all" | "clear_selection";
+  onRemoveExisting?: () => void;
 }
 
 export default function FileUpload({
@@ -25,7 +26,8 @@ export default function FileUpload({
   className = "",
   helperText = "Arrastra y suelta o haz clic para seleccionar",
   disabled = false,
-  removeBehavior = "clear_all"
+  removeBehavior = "clear_all",
+  onRemoveExisting
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -155,7 +157,10 @@ export default function FileUpload({
     onChange(null);
     setPreview(null);
     if (removeBehavior === "clear_all") {
-      if (currentImageUrl) setClearedExistingUrl(currentImageUrl);
+      if (currentImageUrl) {
+        setClearedExistingUrl(currentImageUrl);
+        onRemoveExisting?.();
+      }
     }
     if (inputRef.current) {
       inputRef.current.value = '';

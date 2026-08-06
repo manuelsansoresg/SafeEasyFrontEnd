@@ -53,6 +53,8 @@ export const adsService = {
       link_url?: string | null;
       image?: File | null;
       image_mobile?: File | null;
+      delete_image_desktop?: boolean;
+      delete_image_mobile?: boolean;
     }
   ): Promise<AdItem | null> => {
     const form = new FormData();
@@ -62,6 +64,8 @@ export const adsService = {
     if (typeof payload.link_url !== "undefined") form.append("link_url", payload.link_url ?? "");
     if (payload.image) form.append("image", payload.image);
     if (payload.image_mobile) form.append("image_mobile", payload.image_mobile);
+    if (payload.delete_image_desktop) form.append("delete_image_desktop", "true");
+    if (payload.delete_image_mobile) form.append("delete_image_mobile", "true");
     const res = await fetchWithAuth(`/api/admin/ads/${id}`, { method: "PUT", body: form });
     if (!res.ok) {
       console.error(`adsService.update failed: ${res.status}`, await res.text());

@@ -29,6 +29,8 @@ export default function AdminAdsPage() {
   const [editActive, setEditActive] = useState(true);
   const [editFile, setEditFile] = useState<File | null>(null);
   const [editMobileFile, setEditMobileFile] = useState<File | null>(null);
+  const [deleteDesktopImage, setDeleteDesktopImage] = useState(false);
+  const [deleteMobileImage, setDeleteMobileImage] = useState(false);
 
   const skip = (page - 1) * PAGE_LIMIT;
 
@@ -143,6 +145,13 @@ export default function AdminAdsPage() {
     if (!src) return null;
     const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
     return src.startsWith("http") ? src : `${base.replace(/\/$/, "")}${src.startsWith("/") ? "" : "/"}${src}`;
+  };
+
+  const computeImageUrlFromPath = (path?: string | null) => {
+    if (!path) return null;
+    if (path.startsWith("http")) return path;
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+    return `${base.replace(/\/$/, "")}${path.startsWith("/") ? "" : "/"}${path}`;
   };
 
   const hasMore = items.length === PAGE_LIMIT;
@@ -350,6 +359,8 @@ export default function AdminAdsPage() {
                             setEditActive(!!ad.is_active);
                             setEditFile(null);
                             setEditMobileFile(null);
+                            setDeleteDesktopImage(false);
+                            setDeleteMobileImage(false);
                             setIsEditOpen(true);
                           }}
                           className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
@@ -431,9 +442,13 @@ export default function AdminAdsPage() {
                   <FileUpload
                     accept="image/*"
                     value={editFile}
-                    currentImageUrl={editItem.image_desktop ? computeImageUrl({ ...editItem, image_desktop: editItem.image_desktop }) : null}
-                    removeBehavior="clear_selection"
-                    onChange={setEditFile}
+                    currentImageUrl={computeImageUrlFromPath(editItem.image_desktop)}
+                    removeBehavior="clear_all"
+                    onChange={(f) => {
+                      setEditFile(f);
+                      if (f) setDeleteDesktopImage(false);
+                    }}
+                    onRemoveExisting={() => setDeleteDesktopImage(true)}
                     disabled={updatingId === editItem.id}
                     helperText="Arrastra y suelta o haz clic para seleccionar"
                   />
@@ -443,9 +458,13 @@ export default function AdminAdsPage() {
                   <FileUpload
                     accept="image/*"
                     value={editMobileFile}
-                    currentImageUrl={editItem.image_mobile ? computeImageUrl({ ...editItem, image_desktop: editItem.image_mobile }) : null}
-                    removeBehavior="clear_selection"
-                    onChange={setEditMobileFile}
+                    currentImageUrl={computeImageUrlFromPath(editItem.image_mobile)}
+                    removeBehavior="clear_all"
+                    onChange={(f) => {
+                      setEditMobileFile(f);
+                      if (f) setDeleteMobileImage(false);
+                    }}
+                    onRemoveExisting={() => setDeleteMobileImage(true)}
                     disabled={updatingId === editItem.id}
                     helperText="Arrastra y suelta o haz clic para seleccionar"
                   />
@@ -511,7 +530,13 @@ export default function AdminAdsPage() {
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setIsEditOpen(false)}
+                onClick={() => {
+                  setIsEditOpen(false);
+                  setEditFile(null);
+                  setEditMobileFile(null);
+                  setDeleteDesktopImage(false);
+                  setDeleteMobileImage(false);
+                }}
                 className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 bg-white"
               >
                 Cancelar
@@ -530,6 +555,8 @@ export default function AdminAdsPage() {
                       is_active: editActive,
                       image: editFile || null,
                       image_mobile: editMobileFile || null,
+                      delete_image_desktop: deleteDesktopImage || false,
+                      delete_image_mobile: deleteMobileImage || false,
                     });
                     if (!updated) {
                       setError("No se pudo actualizar el anuncio.");
@@ -538,6 +565,8 @@ export default function AdminAdsPage() {
                       setIsEditOpen(false);
                       setEditFile(null);
                       setEditMobileFile(null);
+                      setDeleteDesktopImage(false);
+                      setDeleteMobileImage(false);
                     }
                   } catch {
                     setError("Ocurrió un error al actualizar.");
