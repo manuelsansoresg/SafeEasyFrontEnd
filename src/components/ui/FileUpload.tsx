@@ -86,15 +86,17 @@ export default function FileUpload({
   };
 
   // Update preview when value changes
-  if (value && !preview) {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreview(reader.result as string);
-    };
-    reader.readAsDataURL(value);
-  } else if (!value && preview) {
-    setPreview(null);
-  }
+  useEffect(() => {
+    if (value) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result as string);
+      };
+      reader.readAsDataURL(value);
+    } else {
+      setPreview(null);
+    }
+  }, [value]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
