@@ -22,6 +22,7 @@ export const adsService = {
 
   create: async (params: {
     image: File;
+    image_mobile?: File | null;
     link_url?: string | null;
     city?: string | null;
     state?: string | null;
@@ -30,6 +31,7 @@ export const adsService = {
   }): Promise<AdItem | null> => {
     const form = new FormData();
     form.append("image", params.image);
+    if (params.image_mobile) form.append("image_mobile", params.image_mobile);
     if (params.link_url) form.append("link_url", params.link_url);
     form.append("city", params.city ?? "");
     form.append("state", params.state ?? "");
@@ -50,6 +52,7 @@ export const adsService = {
       is_active?: boolean; 
       link_url?: string | null;
       image?: File | null;
+      image_mobile?: File | null;
     }
   ): Promise<AdItem | null> => {
     const form = new FormData();
@@ -58,6 +61,7 @@ export const adsService = {
     if (typeof payload.is_active !== "undefined") form.append("is_active", String(payload.is_active));
     if (typeof payload.link_url !== "undefined") form.append("link_url", payload.link_url ?? "");
     if (payload.image) form.append("image", payload.image);
+    if (payload.image_mobile) form.append("image_mobile", payload.image_mobile);
     const res = await fetchWithAuth(`/api/admin/ads/${id}`, { method: "PUT", body: form });
     if (!res.ok) {
       console.error(`adsService.update failed: ${res.status}`, await res.text());

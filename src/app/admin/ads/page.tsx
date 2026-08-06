@@ -16,6 +16,7 @@ export default function AdminAdsPage() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [mobileFile, setMobileFile] = useState<File | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
   const [displayOrder, setDisplayOrder] = useState("0");
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +28,7 @@ export default function AdminAdsPage() {
   const [editState, setEditState] = useState("Yucatán");
   const [editActive, setEditActive] = useState(true);
   const [editFile, setEditFile] = useState<File | null>(null);
+  const [editMobileFile, setEditMobileFile] = useState<File | null>(null);
 
   const skip = (page - 1) * PAGE_LIMIT;
 
@@ -73,6 +75,7 @@ export default function AdminAdsPage() {
     try {
       const created = await adsService.create({
         image: file,
+        image_mobile: mobileFile || null,
         link_url: linkUrl || undefined,
         city: "Mérida",
         state: "Yucatán",
@@ -85,6 +88,7 @@ export default function AdminAdsPage() {
         setLinkUrl("");
         setDisplayOrder("0");
         setFile(null);
+        setMobileFile(null);
         await load();
       }
     } catch {
@@ -180,11 +184,21 @@ export default function AdminAdsPage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-700">Imagen del banner *</p>
+            <p className="text-sm font-medium text-gray-700">Imagen desktop *</p>
             <FileUpload
               accept="image/*"
               value={file}
               onChange={handleFileChange}
+              disabled={creating}
+              helperText="Arrastra y suelta o haz clic para seleccionar"
+            />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-gray-700">Imagen mobile (opcional)</p>
+            <FileUpload
+              accept="image/*"
+              value={mobileFile}
+              onChange={setMobileFile}
               disabled={creating}
               helperText="Arrastra y suelta o haz clic para seleccionar"
             />
@@ -335,6 +349,7 @@ export default function AdminAdsPage() {
                             setEditState(ad.state || "Yucatán");
                             setEditActive(!!ad.is_active);
                             setEditFile(null);
+                            setEditMobileFile(null);
                             setIsEditOpen(true);
                           }}
                           className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
@@ -410,17 +425,31 @@ export default function AdminAdsPage() {
             </div>
 
             <div className="space-y-3">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-gray-700">Imagen del banner (opcional)</p>
-                <FileUpload
-                  accept="image/*"
-                  value={editFile}
-                  currentImageUrl={computeImageUrl(editItem)}
-                  removeBehavior="clear_selection"
-                  onChange={setEditFile}
-                  disabled={updatingId === editItem.id}
-                  helperText="Arrastra y suelta o haz clic para seleccionar"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Imagen desktop (opcional)</p>
+                  <FileUpload
+                    accept="image/*"
+                    value={editFile}
+                    currentImageUrl={editItem.image_desktop ? computeImageUrl({ ...editItem, image_desktop: editItem.image_desktop }) : null}
+                    removeBehavior="clear_selection"
+                    onChange={setEditFile}
+                    disabled={updatingId === editItem.id}
+                    helperText="Arrastra y suelta o haz clic para seleccionar"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Imagen mobile (opcional)</p>
+                  <FileUpload
+                    accept="image/*"
+                    value={editMobileFile}
+                    currentImageUrl={editItem.image_mobile ? computeImageUrl({ ...editItem, image_desktop: editItem.image_mobile }) : null}
+                    removeBehavior="clear_selection"
+                    onChange={setEditMobileFile}
+                    disabled={updatingId === editItem.id}
+                    helperText="Arrastra y suelta o haz clic para seleccionar"
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">
@@ -500,12 +529,15 @@ export default function AdminAdsPage() {
                       state: editState || null,
                       is_active: editActive,
                       image: editFile || null,
+                      image_mobile: editMobileFile || null,
                     });
                     if (!updated) {
                       setError("No se pudo actualizar el anuncio.");
                     } else {
                       setItems((prev) => prev.map((i) => (i.id === editItem.id ? updated : i)));
                       setIsEditOpen(false);
+                      setEditFile(null);
+                      setEditMobileFile(null);
                     }
                   } catch {
                     setError("Ocurrió un error al actualizar.");
