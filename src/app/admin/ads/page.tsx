@@ -72,7 +72,6 @@ export default function AdminAdsPage() {
       setError("Selecciona una imagen para el anuncio.");
       return;
     }
-    console.log("[handleCreate] file:", file.name, "mobileFile:", mobileFile?.name || "null");
     setCreating(true);
     setError(null);
     try {
@@ -88,7 +87,6 @@ export default function AdminAdsPage() {
       if (!created) {
         setError("No se pudo crear el anuncio.");
       } else {
-        console.log("[handleCreate] Created:", created);
         setLinkUrl("");
         setDisplayOrder("0");
         setFile(null);
@@ -548,8 +546,6 @@ export default function AdminAdsPage() {
                 type="button"
                 onClick={async () => {
                   if (!editItem) return;
-                  console.log("[handleSave] editItem.id:", editItem.id, "editFile:", editFile?.name || "null", "editMobileFile:", editMobileFile?.name || "null");
-                  console.log("[handleSave] deleteDesktopImage:", deleteDesktopImage, "deleteMobileImage:", deleteMobileImage);
                   setUpdatingId(editItem.id);
                   setError(null);
                   try {
@@ -567,7 +563,6 @@ export default function AdminAdsPage() {
                     if (!updated) {
                       setError("No se pudo actualizar el anuncio.");
                     } else {
-                      console.log("[handleSave] Updated:", updated);
                       setItems((prev) => prev.map((i) => (i.id === editItem.id ? updated : i)));
                       setIsEditOpen(false);
                       setEditFile(null);

@@ -31,12 +31,7 @@ export const adsService = {
   }): Promise<AdItem | null> => {
     const form = new FormData();
     form.append("image", params.image, params.image.name);
-    if (params.image_mobile) {
-      console.log("[adsService.create] Sending image_mobile:", params.image_mobile.name, params.image_mobile.size);
-      form.append("image_mobile", params.image_mobile, params.image_mobile.name);
-    } else {
-      console.log("[adsService.create] No image_mobile provided");
-    }
+    if (params.image_mobile) form.append("image_mobile", params.image_mobile, params.image_mobile.name);
     if (params.link_url) form.append("link_url", params.link_url);
     form.append("city", params.city ?? "");
     form.append("state", params.state ?? "");
@@ -45,10 +40,7 @@ export const adsService = {
     }
     form.append("is_active", String(params.is_active));
     const res = await fetchWithAuth(`/api/admin/ads`, { method: "POST", body: form });
-    if (!res.ok) {
-      console.error("[adsService.create] Failed:", res.status, await res.text());
-      return null;
-    }
+    if (!res.ok) return null;
     return res.json();
   },
 
@@ -72,25 +64,13 @@ export const adsService = {
     if (typeof payload.display_order !== "undefined") form.append("display_order", String(payload.display_order ?? 0));
     if (typeof payload.is_active !== "undefined") form.append("is_active", String(payload.is_active));
     if (typeof payload.link_url !== "undefined") form.append("link_url", payload.link_url ?? "");
-    if (payload.image) {
-      console.log("[adsService.update] Sending image:", payload.image.name, payload.image.size);
-      form.append("image", payload.image, payload.image.name);
-    }
-    if (payload.image_mobile) {
-      console.log("[adsService.update] Sending image_mobile:", payload.image_mobile.name, payload.image_mobile.size);
-      form.append("image_mobile", payload.image_mobile, payload.image_mobile.name);
-    }
-    if (payload.delete_image_desktop) {
-      console.log("[adsService.update] Deleting image_desktop");
-      form.append("delete_image_desktop", "true");
-    }
-    if (payload.delete_image_mobile) {
-      console.log("[adsService.update] Deleting image_mobile");
-      form.append("delete_image_mobile", "true");
-    }
+    if (payload.image) form.append("image", payload.image, payload.image.name);
+    if (payload.image_mobile) form.append("image_mobile", payload.image_mobile, payload.image_mobile.name);
+    if (payload.delete_image_desktop) form.append("delete_image_desktop", "true");
+    if (payload.delete_image_mobile) form.append("delete_image_mobile", "true");
     const res = await fetchWithAuth(`/api/admin/ads/${id}`, { method: "PUT", body: form });
     if (!res.ok) {
-      console.error("[adsService.update] Failed:", res.status, await res.text());
+      console.error(`adsService.update failed: ${res.status}`, await res.text());
       return null;
     }
     return res.json();

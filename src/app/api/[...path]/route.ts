@@ -288,10 +288,34 @@ async function handler(request: NextRequest) {
     // This includes multipart/form-data — without buffering, the first failed upstream candidate
     // would consume the stream and retries would send an empty body.
     let bufferedBody: ArrayBuffer | null = null;
+    let formDataBody: FormData | null = null;
     const methodHasBody = !['GET', 'HEAD'].includes(request.method);
+    const isMultipart = methodHasBody && (request.headers.get('content-type') || '').includes('multipart/form-data');
 
     if (methodHasBody) {
-      bufferedBody = await request.arrayBuffer();
+      if (isMultipart) {
+        // For multipart/form-data, parse and reconstruct to preserve file boundaries correctly.
+        // Using arrayBuffer() can corrupt multipart bodies with multiple files in Next.js.
+        try {
+          const incomingForm = await request.formData();
+          formDataBody = new FormData();
+          for (const [key, value] of incomingForm.entries()) {
+            if (value instanceof File) {
+              formDataBody.append(key, value, value.name);
+            } else {
+              formDataBody.append(key, value);
+            }
+          }
+          // Remove content-type so fetch sets it fresh with correct boundary
+          forwardHeaders.delete('content-type');
+          forwardHeaders.delete('content-length');
+        } catch (e) {
+          console.error('[Generic Proxy] Failed to parse multipart form data:', e);
+          bufferedBody = await request.arrayBuffer();
+        }
+      } else {
+        bufferedBody = await request.arrayBuffer();
+      }
     }
 
     const buildFetchOptions = (timeoutMs: number): RequestInit => {
@@ -302,7 +326,9 @@ async function handler(request: NextRequest) {
         cache: 'no-store',
         signal: AbortSignal.timeout(timeoutMs),
       };
-      if (bufferedBody) {
+      if (formDataBody) {
+        opts.body = formDataBody;
+      } else if (bufferedBody) {
         opts.body = bufferedBody.slice(0);
       }
       return opts;
