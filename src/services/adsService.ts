@@ -49,6 +49,7 @@ export const adsService = {
     payload: { 
       city?: string | null; 
       state?: string | null; 
+      display_order?: number | null;
       is_active?: boolean; 
       link_url?: string | null;
       image?: File | null;
@@ -60,6 +61,7 @@ export const adsService = {
     const form = new FormData();
     if (typeof payload.city !== "undefined") form.append("city", payload.city ?? "");
     if (typeof payload.state !== "undefined") form.append("state", payload.state ?? "");
+    if (typeof payload.display_order !== "undefined") form.append("display_order", String(payload.display_order ?? 0));
     if (typeof payload.is_active !== "undefined") form.append("is_active", String(payload.is_active));
     if (typeof payload.link_url !== "undefined") form.append("link_url", payload.link_url ?? "");
     if (payload.image) form.append("image", payload.image);

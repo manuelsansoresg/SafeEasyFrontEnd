@@ -107,6 +107,7 @@ export default function AdminAdsPage() {
       const updated = await adsService.update(ad.id, {
         city: ad.city ?? "Mérida",
         state: ad.state ?? "Yucatán",
+        display_order: ad.display_order ?? 0,
         is_active: !ad.is_active,
         link_url: ad.link_url ?? undefined,
       });
@@ -552,6 +553,7 @@ export default function AdminAdsPage() {
                       link_url: editLinkUrl || null,
                       city: editCity || null,
                       state: editState || null,
+                      display_order: Number(editDisplayOrder) || 0,
                       is_active: editActive,
                       image: editFile || null,
                       image_mobile: editMobileFile || null,
