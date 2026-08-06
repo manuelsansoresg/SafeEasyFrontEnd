@@ -137,7 +137,7 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
 
   return (
     <div
-      className="relative w-full mb-6 rounded-2xl overflow-hidden bg-gray-100 aspect-[16/7] md:aspect-[16/6]"
+      className="relative w-full mb-6 rounded-2xl overflow-hidden bg-gray-100 md:aspect-[16/6]"
       onClick={handleClick}
     >
       <picture>
@@ -151,7 +151,7 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
           <img
             src={fallbackSrc}
             alt=""
-            className="w-full h-full object-cover"
+            className="w-full h-auto md:h-full md:object-cover"
           />
         )}
       </picture>
