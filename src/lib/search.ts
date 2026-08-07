@@ -187,7 +187,7 @@ export async function searchAll(params: SearchParams): Promise<SearchResponse> {
 
   try {
     const deviceId = getDeviceId();
-    const url = `/api/search?${queryParams.toString()}`;
+    const url = `/api/search/?${queryParams.toString()}`;
     if (process.env.NODE_ENV === "development") {
       console.log("🔎 Unified search:", url);
     }
