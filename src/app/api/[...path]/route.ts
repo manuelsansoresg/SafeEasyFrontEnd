@@ -184,41 +184,44 @@ async function handler(request: NextRequest) {
   if (relativePath) {
       const segments = relativePath.split('/').filter(Boolean);
       const lastSegment = segments[segments.length - 1] || '';
-      
+
       // Resource/action endpoints that should NOT have trailing slashes
       const resourceEndpoints = [
-          'me', 'my', 'has-role', 'map-location', 'stats', 'business-hours', 
-          'carousel', 'certificates', 'header-video', 'ratings', 'directory-ratings', 'views', 
-          'earnings', 'availability', 'location', 'mp-status', 
-          'active-delivery', 'deliveries', 'payouts', 'manual', 
-          'offers', 'current', 'accept', 'reject', 'cancel', 
-          'mark-picked-up', 'status', 'history', 'payment-info', 
-          'receipt', 'refresh-preference', 'refunds', 'approve', 
-          'mark-refunded', 'verify-code', 'delivery-code', 'complete', 
-          'mark-ready', 'customer-pickup', 'courier-pickup', 
-          'start-checkout', 'shipping-quote', 'add', 'update', 
-          'clear', 'item', 'read', 'claim', 'close', 'mark-read', 
-          'resolve', 'unassigned', 'connect', 'disconnect', 'callback', 
-          'events', 'purchase', 'payments', 'refresh', 'device-token', 
+          'me', 'my', 'has-role', 'map-location', 'stats', 'business-hours',
+          'carousel', 'certificates', 'header-video', 'ratings', 'directory-ratings', 'views',
+          'earnings', 'availability', 'location', 'mp-status',
+          'active-delivery', 'deliveries', 'payouts', 'manual',
+          'offers', 'current', 'accept', 'reject', 'cancel',
+          'mark-picked-up', 'status', 'history', 'payment-info',
+          'receipt', 'refresh-preference', 'refunds', 'approve',
+          'mark-refunded', 'verify-code', 'delivery-code', 'complete',
+          'mark-ready', 'customer-pickup', 'courier-pickup',
+          'start-checkout', 'shipping-quote', 'add', 'update',
+          'clear', 'item', 'read', 'claim', 'close', 'mark-read',
+          'resolve', 'unassigned', 'connect', 'disconnect', 'callback',
+          'events', 'purchase', 'payments', 'refresh', 'device-token',
           'recommendations', 'similar', 'by-supplier', 'featured',
           'recommended', 'media', 'dashboard', 'legal', 'sell-faq',
           'settings', 'results', 'countries', 'states', 'cities', 'catalogs',
           'conversations', 'messages', 'presence', 'orders',
           'gallery', 'intro-image'
       ];
-      
+
       // Admin endpoints should NOT have trailing slashes
       const isAdminEndpoint = segments[0] === 'admin';
       const isChatEndpoint = segments[0] === 'chat';
-      
+
       // Check if path contains a numeric ID or UUID
-      const hasResourceId = segments.some(seg => 
+      const hasResourceId = segments.some(seg =>
           /^\d+$/.test(seg) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)
       );
-      
+
       // Remove trailing slash for resource endpoints, paths with resource IDs, or admin endpoints
       if (resourceEndpoints.includes(lastSegment) || hasResourceId || isAdminEndpoint || isChatEndpoint) {
           relativePath = relativePath.replace(/\/+$/, '');
+      } else if (!relativePath.endsWith('/')) {
+          // Ensure trailing slash for all other endpoints (including search)
+          relativePath = relativePath + '/';
       }
   }
   
