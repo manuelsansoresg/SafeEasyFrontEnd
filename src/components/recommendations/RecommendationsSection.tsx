@@ -146,9 +146,35 @@ export function RecommendationsSection({
   }, [loading, hasMore]);
 
   const fetchResults = async (reset = false) => {
+    console.log(" fetchResults called with:", {
+      reset,
+      skip,
+      category,
+      subcategory,
+      minPrice,
+      maxPrice,
+      bestRated,
+      debouncedSearch,
+      filterCity,
+      filterState,
+    });
+
     setLoading(true);
     const currentSkip = reset ? 0 : skip;
     const hasQuery = debouncedSearch.trim().length > 0;
+
+    // Check if any filters are active
+    const hasActiveFilters = !!(
+      category ||
+      subcategory ||
+      minPrice !== undefined ||
+      maxPrice !== undefined ||
+      bestRated ||
+      filterCity ||
+      filterState
+    );
+
+    console.log("🔍 Filter state:", { hasQuery, hasActiveFilters });
 
     try {
       let productsArr: Product[] = [];
@@ -158,8 +184,8 @@ export function RecommendationsSection({
       let serviceTotal = 0;
       let directoryTotal = 0;
 
-      if (!hasQuery) {
-        // No active query → fall back to the personalized recommendations
+      if (!hasQuery && !hasActiveFilters) {
+        // No active query and no filters → fall back to the personalized recommendations
         // endpoint for products, and ask the unified search (type_filter=all)
         // for both products and directories. The backend now rejects
         // type_filter=services with 422, so we use "all" to also surface
@@ -192,14 +218,26 @@ export function RecommendationsSection({
         serviceTotal = servicesArr.length;
         directoryTotal = directoriesArr.length;
       } else {
+        // Only send location if the user explicitly selected it in the filter.
+        // Don't auto-apply location from cookies when other filters are active,
+        // as it can cause no results (e.g., no products in Mérida with price <= 400).
         const locationParam =
           filterCity || filterState
             ? { city: filterCity || null, state: filterState || null }
-            : city
-              ? { city, state }
-              : null;
+            : null;
 
         // 1) Unified call (filters by query + location, returns products + services)
+        console.log(" Fetching with filters:", {
+          query: debouncedSearch,
+          category,
+          subcategory,
+          minPrice,
+          maxPrice,
+          bestRated,
+          location: locationParam,
+          hasQuery,
+        });
+
         const response: SearchResponse = await searchAll({
           query: debouncedSearch,
           type_filter: "all",
@@ -211,40 +249,14 @@ export function RecommendationsSection({
           max_price: maxPrice,
           best_rated: bestRated,
           location: locationParam,
+          allowEmptyQuery: !hasQuery,
         });
 
-        // 2) Backup call for services only (no location) — the unified call
-        // sometimes filters services by city, so we always try a services-only
-        // call to surface them. disableLocation:true bypasses the user_city cookie.
-        const servicesOnly =
-          debouncedSearch.trim() && currentSkip === 0
-            ? await searchAll({
-                query: debouncedSearch,
-                type_filter: "services",
-                skip: 0,
-                limit,
-                category,
-                subcategory,
-                disableLocation: true,
-              })
-            : null;
-
-        // 3) Backup call for directories only (no location) — same reason as
-        // services: a directory with `city=null` is dropped when the user has
-        // a city cookie set, so we always re-query without location to surface
-        // those national/remote directories. Then we merge into `directoriesArr`.
-        const directoriesOnly =
-          debouncedSearch.trim() && currentSkip === 0
-            ? await searchAll({
-                query: debouncedSearch,
-                type_filter: "directories",
-                skip: 0,
-                limit,
-                category,
-                subcategory,
-                disableLocation: true,
-              })
-            : null;
+        console.log(" Search response:", {
+          products: response?.products?.length || 0,
+          services: response?.services?.length || 0,
+          directories: response?.directories?.length || 0,
+        });
 
         // Client-side filter: if there's a query, only keep products whose
         // title/description actually mention it. The backend's unified search
@@ -262,29 +274,6 @@ export function RecommendationsSection({
 
         servicesArr = Array.isArray(response?.services) ? response.services : [];
         directoriesArr = Array.isArray(response?.directories) ? response.directories : [];
-
-        // De-duplicate services by id, prefer the unified response
-        if (servicesOnly?.services?.length) {
-          const seen = new Set(servicesArr.map((s) => s.id));
-          for (const svc of servicesOnly.services) {
-            if (!seen.has(svc.id)) {
-              servicesArr = [...servicesArr, svc];
-              seen.add(svc.id);
-            }
-          }
-        }
-
-        // Merge directories from the location-bypassing backup into the unified
-        // response, preferring the unified response (already in `directoriesArr`).
-        if (directoriesOnly?.directories?.length) {
-          const seenDirs = new Set(directoriesArr.map((d) => d.id));
-          for (const dir of directoriesOnly.directories) {
-            if (!seenDirs.has(dir.id)) {
-              directoriesArr = [...directoriesArr, dir];
-              seenDirs.add(dir.id);
-            }
-          }
-        }
 
         productTotal = normalizedQuery ? productsArr.length : response.counts.products;
         serviceTotal = servicesArr.length;
