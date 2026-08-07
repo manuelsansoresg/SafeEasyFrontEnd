@@ -225,6 +225,7 @@ export function RecommendationsSection({
           filterCity || filterState
             ? { city: filterCity || null, state: filterState || null }
             : null;
+        const disableLocation = !filterCity && !filterState;
 
         // 1) Unified call (filters by query + location, returns products + services)
         console.log(" Fetching with filters:", {
@@ -235,6 +236,7 @@ export function RecommendationsSection({
           maxPrice,
           bestRated,
           location: locationParam,
+          disableLocation,
           hasQuery,
         });
 
@@ -248,6 +250,7 @@ export function RecommendationsSection({
           min_price: minPrice,
           max_price: maxPrice,
           best_rated: bestRated,
+          disableLocation,
           location: locationParam,
           allowEmptyQuery: !hasQuery,
         });
