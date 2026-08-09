@@ -1178,7 +1178,7 @@ const contactHref = supplier?.phone
         </section>
       ) : null}
 
-      {isDirectory && (supplier.about || supplier.about_media || hasCustomAboutTitle || hasCustomAboutSubtitle) ? (
+      {(supplier.about || supplier.about_media || hasCustomAboutTitle || hasCustomAboutSubtitle) ? (
         <section
           id="nosotros"
           className="relative scroll-mt-20 bg-white py-16 md:py-24"
