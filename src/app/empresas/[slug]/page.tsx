@@ -939,6 +939,12 @@ const contactHref = supplier?.phone
     supplier?.subtitle_about?.trim() &&
       supplier.subtitle_about.trim().toLowerCase() !== "tu aliado estratégico.",
   );
+  const hasAboutContent = Boolean(
+    supplier?.about ||
+      supplier?.about_media ||
+      hasCustomAboutTitle ||
+      hasCustomAboutSubtitle,
+  );
   const hasContactInfo = Boolean(
     supplier?.phone || supplier?.email || supplier?.address,
   );
@@ -1397,7 +1403,7 @@ const contactHref = supplier?.phone
         ) : null}
 
       {/* --- NUESTRA ESENCIA (Storytelling) --- */}
-      {(supplier.about || supplier.about_media || hasCustomAboutTitle || hasCustomAboutSubtitle) ? (
+      {(!isDirectory || hasAboutContent) ? (
         <section
           id="nosotros"
           className={`relative scroll-mt-20 overflow-hidden ${
@@ -1512,7 +1518,7 @@ const contactHref = supplier?.phone
               <div className="bg-[#f2f3f4] rounded-[3rem] p-8 md:p-16 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5" />
 
-                <div className={`relative z-10 grid grid-cols-1 items-center gap-16 ${supplier.about_media ? "md:grid-cols-2" : ""}`}>
+                <div className={`relative z-10 grid grid-cols-1 items-center gap-16 ${supplier.about_media || !isDirectory ? "md:grid-cols-2" : ""}`}>
                   {supplier.about_media && !aboutError ? (
                     <div className="order-2 md:order-1">
                       <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-[0_20px_50px_-20px_rgba(0,0,0,0.3)] transform md:-rotate-2 hover:rotate-0 transition-transform duration-700">
@@ -1524,28 +1530,47 @@ const contactHref = supplier?.phone
                         />
                       </div>
                     </div>
+                  ) : !isDirectory ? (
+                    <div className="order-2 md:order-1">
+                      <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-gray-300 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.3)] transition-transform duration-700 md:-rotate-2 md:hover:rotate-0">
+                        <div className="flex h-full w-full items-center justify-center">
+                          <Store size={64} className="text-gray-400" aria-hidden="true" />
+                        </div>
+                      </div>
+                    </div>
                   ) : null}
 
                   <div className="order-1 md:order-2">
-                    {hasCustomAboutTitle || hasCustomAboutSubtitle ? (
+                    {!isDirectory || hasCustomAboutTitle || hasCustomAboutSubtitle ? (
                       <h2 className="text-3xl md:text-5xl font-black text-[#004e28] mb-8 font-[family-name:var(--font-varela-round)] leading-tight">
-                        {hasCustomAboutTitle ? supplier.title_about : null}
-                        {hasCustomAboutTitle && hasCustomAboutSubtitle ? <br/> : null}
-                        {hasCustomAboutSubtitle ? (
+                        {!isDirectory
+                          ? supplier.title_about?.trim() || "Más que un proveedor,"
+                          : hasCustomAboutTitle
+                            ? supplier.title_about
+                            : null}
+                        {(!isDirectory || (hasCustomAboutTitle && hasCustomAboutSubtitle)) ? <br/> : null}
+                        {!isDirectory || hasCustomAboutSubtitle ? (
                           <span className="text-[#168e00]">
-                            {supplier.subtitle_about}
+                            {!isDirectory
+                              ? supplier.subtitle_about?.trim() || "tu aliado estratégico."
+                              : supplier.subtitle_about}
                           </span>
                         ) : null}
                       </h2>
                     ) : null}
-                    {supplier.about ? (
+                    {!isDirectory || supplier.about ? (
                       <div className="text-gray-600 w-full">
                         <div className="ql-snow w-full">
                           <div
                             className="ql-editor"
                             style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
                             dangerouslySetInnerHTML={{
-                              __html: sanitizeHtml(supplier.about || ""),
+                              __html: sanitizeHtml(
+                                supplier.about ||
+                                  (!isDirectory
+                                    ? "Comprometidos con la excelencia y el servicio al cliente."
+                                    : ""),
+                              ),
                             }}
                           />
                         </div>
@@ -1579,6 +1604,11 @@ const contactHref = supplier?.phone
                     <h2 className="text-3xl md:text-4xl font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]">
                         {supplier.certificates_title || 'Calidad Certificada'}
                     </h2>
+                    {!isDirectory ? (
+                      <p className="mx-auto max-w-2xl text-gray-500">
+                        Nuestros procesos y productos cumplen con los más altos estándares internacionales.
+                      </p>
+                    ) : null}
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
