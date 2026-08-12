@@ -414,6 +414,23 @@ export default function SupplierPage() {
     tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const handleContactClick = () => {
+    if (activeTab !== 'main') {
+      setActiveTab('main');
+      setTimeout(() => {
+        const section = document.getElementById('contacto');
+        if (section) {
+          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+    } else {
+      const section = document.getElementById('contacto');
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
   useEffect(() => {
     if (headerVideoRef.current) {
       if (isHeaderVideoPlaying) {
@@ -1074,9 +1091,9 @@ const contactHref = supplier?.phone
                         />
                       ) : null}
                       {hasContactSection ? (
-                        <a href="#contacto" className="inline-flex w-full items-center justify-center rounded-full border border-white/30 bg-white/10 px-8 py-4 text-lg font-bold text-white backdrop-blur-md transition-all hover:-translate-y-1 hover:bg-white/20 font-[family-name:var(--font-varela-round)] sm:w-auto">
-                          {isDirectory ? "Contacto" : "Contactar Ahora"}
-                        </a>
+                        <button type="button" onClick={handleContactClick} className="inline-flex w-full items-center justify-center rounded-full border border-white/30 bg-white/10 px-8 py-4 text-lg font-bold text-white backdrop-blur-md transition-all hover:-translate-y-1 hover:bg-white/20 font-[family-name:var(--font-varela-round)] sm:w-auto">
+                          Contactar Ahora
+                        </button>
                       ) : null}
                 </div>
              </div>
