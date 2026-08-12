@@ -408,6 +408,7 @@ export default function SupplierPage() {
   const [isHeaderVideoPlaying, setIsHeaderVideoPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const tabsRef = useRef<HTMLDivElement>(null);
+  const [shouldScrollToContact, setShouldScrollToContact] = useState(false);
 
   const handleShowProducts = () => {
     setActiveTab('products');
@@ -417,19 +418,39 @@ export default function SupplierPage() {
   const handleContactClick = () => {
     if (activeTab !== 'main') {
       setActiveTab('main');
-      setTimeout(() => {
-        const section = document.getElementById('contacto');
-        if (section) {
-          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 100);
+      setShouldScrollToContact(true);
     } else {
       const section = document.getElementById('contacto');
       if (section) {
-        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const headerOffset = 80;
+        const elementPosition = section.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        });
       }
     }
   };
+
+  useEffect(() => {
+    if (shouldScrollToContact && activeTab === 'main') {
+      const timer = setTimeout(() => {
+        const section = document.getElementById('contacto');
+        if (section) {
+          const headerOffset = 80;
+          const elementPosition = section.getBoundingClientRect().top;
+          const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+          });
+        }
+        setShouldScrollToContact(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldScrollToContact, activeTab]);
 
   useEffect(() => {
     if (headerVideoRef.current) {
