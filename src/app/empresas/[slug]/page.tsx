@@ -1467,11 +1467,11 @@ const contactHref = supplier?.phone
                 <article className="overflow-hidden rounded-[2rem] border border-[#004e28]/15 bg-white shadow-[0_28px_80px_-48px_rgba(0,78,40,0.7)]">
                   <div className={supplier.about_media ? "grid items-stretch lg:grid-cols-2" : ""}>
                     {supplier.about_media && !aboutError ? (
-                      <div className="relative min-h-[320px] overflow-hidden bg-[#e7ece8] sm:min-h-[400px] lg:min-h-[460px]">
+                      <div className="relative min-h-[320px] overflow-hidden bg-white sm:min-h-[400px] lg:min-h-[460px]">
                         <img
                           src={getImageUrl(supplier.about_media)}
                           alt={supplier.name}
-                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 hover:scale-[1.025]"
+                          className="absolute inset-0 h-full w-full object-contain"
                           onError={() => setAboutError(true)}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#002f18]/45 via-transparent to-transparent" />
@@ -1563,11 +1563,11 @@ const contactHref = supplier?.phone
                 <div className={`relative z-10 grid grid-cols-1 items-center gap-16 ${supplier.about_media || !isDirectory ? "md:grid-cols-2" : ""}`}>
                   {supplier.about_media && !aboutError ? (
                     <div className="order-2 md:order-1">
-                      <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-[0_20px_50px_-20px_rgba(0,0,0,0.3)] transform md:-rotate-2 hover:rotate-0 transition-transform duration-700">
+                      <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-white shadow-[0_20px_50px_-20px_rgba(0,0,0,0.3)] transition-transform duration-700 md:-rotate-2 md:hover:rotate-0">
                         <img
                           src={getImageUrl(supplier.about_media)}
                           alt="Nosotros"
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-contain"
                           onError={() => setAboutError(true)}
                         />
                       </div>
