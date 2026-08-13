@@ -107,6 +107,8 @@ export default function PublicServicePage() {
     images[activeImage]?.image_url ||
     service.cover_image_url ||
     "/placeholder.png";
+  const price = Number(service.price);
+  const hasPrice = Number.isFinite(price) && price > 0;
 
   return (
     <main className="min-h-screen bg-[#f2f3f4] pb-20 pt-28 md:pt-32">
@@ -206,16 +208,20 @@ export default function PublicServicePage() {
               {service.description}
             </p>
             <div className="mt-auto pt-9">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-400">
-                Precio desde
-              </p>
-              <p className="mt-1 font-[family-name:var(--font-varela-round)] text-3xl font-black text-[#168e00]">
-                {new Intl.NumberFormat("es-MX", {
-                  style: "currency",
-                  currency: "MXN",
-                }).format(service.price)}
-              </p>
-              <div className="mt-7">
+              {hasPrice ? (
+                <>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-400">
+                    Precio desde
+                  </p>
+                  <p className="mt-1 font-[family-name:var(--font-varela-round)] text-3xl font-black text-[#168e00]">
+                    {new Intl.NumberFormat("es-MX", {
+                      style: "currency",
+                      currency: "MXN",
+                    }).format(price)}
+                  </p>
+                </>
+              ) : null}
+              <div className={hasPrice ? "mt-7" : ""}>
                 <DirectoryContactButton
                   supplierId={service.supplier_id}
                   supplierName={supplier?.name}

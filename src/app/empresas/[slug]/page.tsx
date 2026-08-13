@@ -316,6 +316,8 @@ function DirectoryServiceCard({
 }: {
   service: SupplierService;
 }) {
+  const price = Number(service.price);
+  const hasPrice = Number.isFinite(price) && price > 0;
   const imageUrl =
     service.cover_thumbnail_url ||
     service.cover_image_url ||
@@ -343,13 +345,15 @@ function DirectoryServiceCard({
             {service.description}
           </p>
         ) : null}
-        <p className="mt-3 text-sm font-bold text-[#168e00]">
-          Desde{" "}
-          {new Intl.NumberFormat("es-MX", {
-            style: "currency",
-            currency: "MXN",
-          }).format(service.price)}
-        </p>
+        {hasPrice ? (
+          <p className="mt-3 text-sm font-bold text-[#168e00]">
+            Desde{" "}
+            {new Intl.NumberFormat("es-MX", {
+              style: "currency",
+              currency: "MXN",
+            }).format(price)}
+          </p>
+        ) : null}
         <Link
           href={`/servicios/${service.id}`}
           className="mt-3 inline-flex items-center gap-1.5 text-sm font-bold text-[#168e00] transition-colors hover:text-[#004e28]"

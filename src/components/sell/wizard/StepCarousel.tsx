@@ -580,18 +580,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                 
                 {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
                 
-                <form id="image-form" onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700">Título</label>
-                    <input 
-                    type="text" 
-                    value={title} 
-                    onChange={(e) => setTitle(e.target.value)} 
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
-                    placeholder="Ej. Bienvenidos a mi tienda"
-                    />
-                </div>
-                
+                <form id="image-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-4">
                 <div className="md:col-span-2">
                     <FileUpload
                         label={editingId ? "Cambiar Imagen (Opcional)" : "Imagen del Carrusel"}
@@ -599,16 +588,6 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                         onChange={handleImageChange}
                         currentImageUrl={currentImageUrl}
                         helperText="Imagen horizontal recomendada. El sitio la adapta automáticamente para escritorio y móvil. Máx 4MB. Formatos: JPG, PNG, WEBP."
-                    />
-                </div>
-                <div className="md:col-span-2">
-                    <label className="block text-sm font-medium mb-1 text-gray-700">Descripción</label>
-                    <textarea 
-                    value={description} 
-                    onChange={(e) => setDescription(e.target.value)} 
-                    className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" 
-                    rows={2}
-                    placeholder="Una breve descripción para tus clientes..."
                     />
                 </div>
                 {!editingId && items.length >= 3 && (
