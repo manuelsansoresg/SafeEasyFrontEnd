@@ -96,7 +96,9 @@ export interface CarouselImage {
   title: string;
   description: string;
   image: string;
+  image_movil?: string | null;
   thumbnail: string;
+  thumbnail_movil?: string | null;
   supplier_id: number;
 }
 

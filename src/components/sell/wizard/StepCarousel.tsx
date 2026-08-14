@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Trash2, Edit2, X, Video, Image as ImageIcon, Loader2 } from 'lucide-react';
 import FileUpload from '@/components/ui/FileUpload';
 import { fetchWithAuth } from '@/lib/api';
@@ -21,9 +21,12 @@ interface CarouselItem {
   path?: string;
   image?: string;
   thumbnail?: string;
+  image_movil?: string;
+  thumbnail_movil?: string;
 }
 
 export default function StepCarousel({ supplierId, slug, token, onNext }: StepCarouselProps) {
+  const submitInFlightRef = useRef(false);
   const [items, setItems] = useState<CarouselItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -41,13 +44,18 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState<File | null>(null);
+  const [mobileImage, setMobileImage] = useState<File | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const [currentMobileImageUrl, setCurrentMobileImageUrl] = useState<string | null>(null);
 
   const toRecord = (value: unknown) =>
     value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 
   const pickCarouselImageUrl = (item: CarouselItem) =>
     item.thumbnail || item.image_url || item.url || item.path || item.image || null;
+
+  const pickCarouselMobileImageUrl = (item: CarouselItem) =>
+    item.thumbnail_movil || item.image_movil || null;
 
   const normalizeCarouselItem = (value: unknown): CarouselItem | null => {
     const rec = toRecord(value);
@@ -73,6 +81,18 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
       path: typeof rec.path === "string" ? rec.path : undefined,
       image: typeof rec.image === "string" ? rec.image : undefined,
       thumbnail: typeof rec.thumbnail === "string" ? rec.thumbnail : undefined,
+      image_movil:
+        typeof rec.image_movil === "string"
+          ? rec.image_movil
+          : typeof rec.image_mobile === "string"
+            ? rec.image_mobile
+            : undefined,
+      thumbnail_movil:
+        typeof rec.thumbnail_movil === "string"
+          ? rec.thumbnail_movil
+          : typeof rec.mobile_thumbnail === "string"
+            ? rec.mobile_thumbnail
+            : undefined,
     };
   };
 
@@ -204,6 +224,9 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
   const handleVideoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!headerVideo) return;
+    if (submitInFlightRef.current) return;
+
+    submitInFlightRef.current = true;
     
     setIsVideoLoading(true);
     setError(null);
@@ -284,6 +307,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
     } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Error al subir video");
     } finally {
+        submitInFlightRef.current = false;
         setIsVideoLoading(false);
     }
   };
@@ -325,11 +349,14 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
   };
 
   const handleEdit = (item: CarouselItem) => {
+    const mobileImageUrl = pickCarouselMobileImageUrl(item);
     setEditingId(item.id);
     setTitle(item.title || '');
     setDescription(item.description || '');
     setCurrentImageUrl(getImageUrl(pickCarouselImageUrl(item)));
+    setCurrentMobileImageUrl(mobileImageUrl ? getImageUrl(mobileImageUrl) : null);
     setImage(null);
+    setMobileImage(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -338,7 +365,9 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
     setTitle('');
     setDescription('');
     setImage(null);
+    setMobileImage(null);
     setCurrentImageUrl(null);
+    setCurrentMobileImageUrl(null);
   };
 
   const handleImageChange = (file: File | null) => {
@@ -353,12 +382,32 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
     if (file) setError(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!image && !editingId) {
-      setError("La imagen es obligatoria para nuevos elementos");
+  const handleMobileImageChange = (file: File | null) => {
+    if (file && file.size > 4 * 1024 * 1024) {
+      setError("La imagen móvil es demasiado grande. El tamaño máximo permitido es 4MB.");
       return;
     }
+    setMobileImage(file);
+    if (file) setError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const editingItem = editingId ? items.find((item) => item.id === editingId) : null;
+    const hasDesktopImage = Boolean(editingItem && pickCarouselImageUrl(editingItem));
+    const hasMobileImage = Boolean(editingItem && pickCarouselMobileImageUrl(editingItem));
+
+    if (!image && !hasDesktopImage) {
+      setError("La imagen de escritorio es obligatoria.");
+      return;
+    }
+    if (!mobileImage && !hasMobileImage) {
+      setError("La imagen móvil es obligatoria para cada elemento del carrusel.");
+      return;
+    }
+    if (submitInFlightRef.current) return;
+
+    submitInFlightRef.current = true;
     
     setLoading(true);
     setError(null);
@@ -370,6 +419,9 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
       formData.append('header_media_type', 'image');
       if (image) {
         formData.append('image', image);
+      }
+      if (mobileImage) {
+        formData.append('image_movil', mobileImage);
       }
 
       const url = editingId 
@@ -448,12 +500,13 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Ocurrió un error al guardar");
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const handleDelete = async (itemId: number) => {
-    if (!confirm('¿Estás seguro de eliminar esta imagen?')) return;
+    if (!confirm('¿Deseas eliminar las versiones de escritorio y móvil de esta imagen?')) return;
     
     try {
       // Updated to match the requested endpoint structure: DELETE /suppliers/carousel/{carousel_id}
@@ -461,14 +514,16 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
         method: 'DELETE',
       });
       
-      if (res.ok) {
-        fetchItems();
-        if (editingId === itemId) {
-          handleCancelEdit();
-        }
+      if (!res.ok) {
+        throw new Error(`No se pudo eliminar la imagen (${res.status}).`);
       }
-    } catch (e) {
-      console.warn("Error deleting", e);
+
+      await fetchItems();
+      if (editingId === itemId) {
+        handleCancelEdit();
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar la imagen.");
     }
   };
 
@@ -575,19 +630,32 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                 </div>
 
                 <p className="text-gray-600 mb-6 text-sm">
-                    Sube una imagen horizontal para el banner principal. Resolución recomendada: 2100x740 px, con el contenido principal centrado para que se adapte bien a escritorio y móvil.
+                    Sube las dos versiones del banner: una horizontal para escritorio y otra vertical para móvil. Ambas se guardan dentro del mismo elemento del carrusel.
                 </p>
                 
                 {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
                 
-                <form id="image-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-4">
-                <div className="md:col-span-2">
+                <form id="image-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <div>
                     <FileUpload
-                        label={editingId ? "Cambiar Imagen (Opcional)" : "Imagen del Carrusel"}
+                        key={`desktop-${editingId ?? 'new'}`}
+                        label={currentImageUrl ? "Cambiar imagen de escritorio (opcional)" : "Imagen de escritorio"}
                         value={image}
                         onChange={handleImageChange}
                         currentImageUrl={currentImageUrl}
-                        helperText="Imagen horizontal recomendada. El sitio la adapta automáticamente para escritorio y móvil. Máx 4MB. Formatos: JPG, PNG, WEBP."
+                        removeBehavior="clear_selection"
+                        helperText="Horizontal, recomendada 2100 × 740 px. Máx. 4 MB. JPG, PNG o WEBP."
+                    />
+                </div>
+                <div>
+                    <FileUpload
+                        key={`mobile-${editingId ?? 'new'}`}
+                        label={currentMobileImageUrl ? "Cambiar imagen móvil (opcional)" : "Imagen móvil"}
+                        value={mobileImage}
+                        onChange={handleMobileImageChange}
+                        currentImageUrl={currentMobileImageUrl}
+                        removeBehavior="clear_selection"
+                        helperText="Resolución recomendada: 1080 × 1350 px (proporción 4:5). Máx. 4 MB. JPG, PNG o WEBP."
                     />
                 </div>
                 {!editingId && items.length >= 3 && (
@@ -615,17 +683,42 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                     {items.map((item) => (
                     <div 
                         key={item.id} 
-                        className={`relative group border rounded-2xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all bg-white ${
+                        className={`relative border rounded-2xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all bg-white ${
                         editingId === item.id ? 'ring-2 ring-primary border-primary' : 'border-gray-200'
                         }`}
                     >
-                        <div className="h-48 bg-gray-100 relative overflow-hidden">
-                        <img 
-                            src={getImageUrl(pickCarouselImageUrl(item))} 
-                            alt={item.title} 
-                            className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500" 
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                        <div className="grid grid-cols-[minmax(0,1fr)_7.5rem] gap-2 bg-gray-100 p-2">
+                          <figure className="min-w-0">
+                            <div className="relative h-44 overflow-hidden rounded-xl bg-gray-200">
+                              <img
+                                src={getImageUrl(pickCarouselImageUrl(item))}
+                                alt={`Versión de escritorio${item.title ? ` de ${item.title}` : ''}`}
+                                className="h-full w-full object-cover"
+                              />
+                              <figcaption className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-white">
+                                Escritorio
+                              </figcaption>
+                            </div>
+                          </figure>
+                          <figure className="min-w-0">
+                            <div className="relative h-44 overflow-hidden rounded-xl bg-gray-200">
+                              {pickCarouselMobileImageUrl(item) ? (
+                                <img
+                                  src={getImageUrl(pickCarouselMobileImageUrl(item))}
+                                  alt={`Versión móvil${item.title ? ` de ${item.title}` : ''}`}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full flex-col items-center justify-center gap-2 px-2 text-center text-xs text-gray-500">
+                                  <ImageIcon size={22} aria-hidden="true" />
+                                  Sin imagen móvil
+                                </div>
+                              )}
+                              <figcaption className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-white">
+                                Móvil
+                              </figcaption>
+                            </div>
+                          </figure>
                         </div>
                         
                         <div className="p-5 flex-grow">
@@ -637,20 +730,22 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                         )}
                         </div>
                         
-                        <div className="absolute top-3 right-3 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-2 border-t border-gray-100 px-5 py-3">
                         <button 
+                            type="button"
                             onClick={() => handleEdit(item)}
-                            className="p-2 bg-white text-blue-600 rounded-full shadow-sm hover:bg-blue-50 transition-colors"
-                            title="Editar"
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-[#004e28] transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2"
                         >
-                            <Edit2 size={16} />
+                            <Edit2 size={16} aria-hidden="true" />
+                            Editar
                         </button>
                         <button 
+                            type="button"
                             onClick={() => handleDelete(item.id)}
-                            className="p-2 bg-white text-red-600 rounded-full shadow-sm hover:bg-red-50 transition-colors"
-                            title="Eliminar"
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
                         >
-                            <Trash2 size={16} />
+                            <Trash2 size={16} aria-hidden="true" />
+                            Eliminar
                         </button>
                         </div>
                     </div>
@@ -674,6 +769,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
         <button
           type="submit"
           form={activeTab === 'video' ? 'video-form' : 'image-form'}
+          aria-busy={activeTab === 'video' ? isVideoLoading : loading}
           disabled={activeTab === 'video' ? (isVideoLoading || !headerVideo) : (loading || (!editingId && items.length >= 3))}
           className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
         >

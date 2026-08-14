@@ -226,6 +226,9 @@ function Carousel({ images }: { images: CarouselImage[] }) {
       const cleanPath = path.startsWith('/') ? path : `/${path}`;
       return `${baseUrl}${cleanPath}`.replace(/([^:])\/{2,}/g, '$1/');
     };
+
+    const getMobileImage = (image: CarouselImage) =>
+      image.image_movil || image.thumbnail_movil || image.image;
   
     if (!images || images.length === 0) return null;
   
@@ -239,18 +242,24 @@ function Carousel({ images }: { images: CarouselImage[] }) {
             }`}
           >
             <div className="absolute inset-0 bg-black" />
-            <img
-              src={getImageUrl(img.image)}
-              alt=""
-              aria-hidden="true"
-              className="absolute inset-0 h-full w-full scale-125 object-cover opacity-70 blur-3xl saturate-125"
-            />
+            <picture className="absolute inset-0">
+              <source media="(max-width: 767px)" srcSet={getImageUrl(getMobileImage(img))} />
+              <img
+                src={getImageUrl(img.image)}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 h-full w-full scale-125 object-cover opacity-70 blur-3xl saturate-125"
+              />
+            </picture>
             <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-black/35" />
-            <img
-              src={getImageUrl(img.image)}
-              alt={`Slide ${index + 1}`}
-              className="relative z-10 h-full w-full object-contain drop-shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
-            />
+            <picture className="relative z-10 block h-full w-full">
+              <source media="(max-width: 767px)" srcSet={getImageUrl(getMobileImage(img))} />
+              <img
+                src={getImageUrl(img.image)}
+                alt={`Imagen ${index + 1} del encabezado`}
+                className="h-full w-full object-contain drop-shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+              />
+            </picture>
             <div className="absolute inset-0 z-20 bg-gradient-to-r from-black/75 via-black/15 to-black/20" />
             <div className="absolute inset-x-0 bottom-0 z-20 h-1/2 bg-gradient-to-t from-black/45 to-transparent" />
           </div>

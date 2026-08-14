@@ -263,10 +263,24 @@ export default function FileUpload({
                       crossOrigin="anonymous"
                     />
                   </div>
+                ) : !inlineError && !isPdf ? (
+                  <div className="relative group/image flex w-full items-center justify-center">
+                    <img
+                      src={effectiveCurrentUrl}
+                      alt="Vista previa del archivo actual"
+                      className="max-h-48 rounded-lg object-contain shadow-sm"
+                      onError={() => setInlineError(true)}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 opacity-0 transition-opacity group-hover/image:opacity-100">
+                      <p className="text-sm font-medium text-white">Cambiar archivo</p>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center text-center gap-2">
                     {isVideo ? (
                       <Video size={40} className="text-primary" />
+                    ) : isPdf ? (
+                      <FileText size={40} className="text-primary" />
                     ) : (
                       <ImageIcon size={40} className="text-primary" />
                     )}
