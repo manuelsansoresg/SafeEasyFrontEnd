@@ -258,7 +258,7 @@ function Carousel({ images }: { images: CarouselImage[] }) {
                 <img
                   src={mobileSrc}
                   alt={`Imagen ${index + 1} del encabezado`}
-                  className="h-full w-full object-contain drop-shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+                  className="h-full w-full object-cover object-center drop-shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
                 />
               </picture>
               <div className="absolute inset-0 z-20 bg-gradient-to-r from-black/75 via-black/15 to-black/20" />
