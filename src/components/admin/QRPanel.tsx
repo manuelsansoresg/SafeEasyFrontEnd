@@ -124,11 +124,11 @@ export default function QRPanel() {
     try {
       setDownloading(true);
       setError(null);
-      const blob = await qrService.downloadQRImage();
+      const { blob, filename } = await qrService.downloadQRImage();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'qr-empresa.png';
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

@@ -80,6 +80,22 @@ function tokenFromQRUrl(qrUrl?: string): string | undefined {
   }
 }
 
+function downloadFilename(contentDisposition: string | null): string {
+  if (!contentDisposition) return 'mi-qr.png';
+
+  const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  const plainMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+  const rawFilename = encodedMatch?.[1] || plainMatch?.[1];
+
+  if (!rawFilename) return 'mi-qr.png';
+
+  try {
+    return decodeURIComponent(rawFilename).replace(/[\\/]/g, '-') || 'mi-qr.png';
+  } catch {
+    return rawFilename.replace(/[\\/]/g, '-') || 'mi-qr.png';
+  }
+}
+
 function normalizeQRInfo(data: unknown): QRInfo {
   const qrUrl = stringField(data, ['qr_url', 'qrUrl', 'redirect_url', 'redirectUrl']);
   const imageUrl = stringField(data, ['qr_image_url', 'image_url', 'imageUrl']);
@@ -148,8 +164,8 @@ export const qrService = {
     return requestMyQRImage();
   },
 
-  async downloadQRImage(): Promise<Blob> {
-    const response = await fetchWithAuth('/api/qr/image?download=1', {
+  async downloadQRImage(): Promise<{ blob: Blob; filename: string }> {
+    const response = await fetchWithAuth(apiUrl('/qr/me/image/download'), {
       cache: 'no-store',
     });
 
@@ -162,7 +178,11 @@ export const qrService = {
     if (!blob.type.startsWith('image/')) {
       throw new Error('El servidor no devolvió una imagen válida.');
     }
-    return blob;
+
+    return {
+      blob,
+      filename: downloadFilename(response.headers.get('content-disposition')),
+    };
   },
 
   async generateQRToken(): Promise<QRInfo> {
