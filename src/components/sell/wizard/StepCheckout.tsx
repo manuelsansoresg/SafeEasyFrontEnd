@@ -7,7 +7,7 @@ import { fetchWithAuth } from '@/lib/api';
 import { getSafeMercadoPagoUrl } from '@/lib/security';
 import { subscriptionsService } from '@/services/subscriptionsService';
 import type { Plan } from '@/types/subscriptions';
-import { normalizePlanFeatures } from '@/components/sell/planText';
+import { getPlanFeatureLines } from '@/components/sell/planText';
 import { Check, CreditCard, Eye, EyeOff, Loader2, LockKeyhole, ReceiptText, ShieldCheck } from 'lucide-react';
 
 type CheckoutPlan = {
@@ -268,7 +268,11 @@ export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCh
   const plan = useMemo<CheckoutPlan>(() => {
     const matched = serverPlans.find((item) => item.id === planId);
     if (!matched) return fallbackPlan;
-    const featureLines = normalizePlanFeatures(matched.features, matched.description);
+    const featureLines = getPlanFeatureLines({
+      features: matched.features,
+      description: matched.description,
+      isDirectory: matched.is_directory,
+    });
 
     return {
       ...fallbackPlan,
@@ -277,9 +281,12 @@ export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCh
       price: matched.price,
       period: matched.duration === 'monthly' ? 'mes' : 'año',
       description: matched.description || fallbackPlan.description,
-      features: featureLines.length > 0 ? featureLines : fallbackPlan.features,
+      features:
+        featureLines.length > 0 || matched.is_directory
+          ? featureLines
+          : fallbackPlan.features,
     };
-  }, [fallbackPlan, planId, serverPlans]);
+  }, [planId, serverPlans]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;

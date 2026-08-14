@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
-import { normalizePlanFeatures } from "@/components/sell/planText";
+import { getPlanFeatureLines } from "@/components/sell/planText";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { PurchaseResponse } from "@/types/subscriptions";
@@ -377,7 +377,14 @@ export default function SellerSupplierWizard() {
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               {plans.map((plan) => {
                 const active = plan.id === selectedPlan?.id;
-                const features = normalizePlanFeatures(plan.features, plan.description).slice(0, 5);
+                const planFeatureLines = getPlanFeatureLines({
+                  features: plan.features,
+                  description: plan.description,
+                  isDirectory: plan.is_directory,
+                });
+                const features = plan.is_directory
+                  ? planFeatureLines
+                  : planFeatureLines.slice(0, 5);
 
                 return (
                   <button
@@ -592,7 +599,14 @@ function WizardProgress({ step }: { step: WizardStep }) {
 }
 
 function SummaryPanel({ plan }: { plan: Plan | null }) {
-  const features = plan ? normalizePlanFeatures(plan.features, plan.description).slice(0, 6) : [];
+  const planFeatureLines = plan
+    ? getPlanFeatureLines({
+        features: plan.features,
+        description: plan.description,
+        isDirectory: plan.is_directory,
+      })
+    : [];
+  const features = plan?.is_directory ? planFeatureLines : planFeatureLines.slice(0, 6);
 
   return (
     <div>

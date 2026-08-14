@@ -3,16 +3,22 @@ const FEATURE_START_PATTERN =
 
 const cleanLine = (value: string) => value.replace(/\s+/g, ' ').trim();
 
-export const splitPlanText = (value?: string | null) => {
-  const text = cleanLine(String(value || ''));
-  if (!text) return [];
+export const splitPlanDescriptionLines = (value?: string | null) =>
+  String(value || '')
+    .split(/\r?\n/g)
+    .map(cleanLine)
+    .filter(Boolean);
 
-  const explicitParts = text
+export const splitPlanText = (value?: string | null) => {
+  const explicitParts = String(value || '')
     .split(/\r?\n|[•;]+/g)
     .map(cleanLine)
     .filter(Boolean);
 
   if (explicitParts.length > 1) return explicitParts;
+
+  const text = explicitParts[0] || '';
+  if (!text) return [];
 
   return text
     .split(FEATURE_START_PATTERN)
@@ -32,3 +38,16 @@ export const normalizePlanFeatures = (features: unknown, fallbackText?: string |
 
   return splitPlanText(fallbackText);
 };
+
+export const getPlanFeatureLines = ({
+  features,
+  description,
+  isDirectory,
+}: {
+  features: unknown;
+  description?: string | null;
+  isDirectory?: boolean;
+}) =>
+  isDirectory
+    ? splitPlanDescriptionLines(description)
+    : normalizePlanFeatures(features, description);

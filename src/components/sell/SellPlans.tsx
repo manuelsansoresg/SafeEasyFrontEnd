@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { normalizePlanFeatures } from '@/components/sell/planText';
+import { getPlanFeatureLines } from '@/components/sell/planText';
 import { ArrowRight, BriefcaseBusiness, Check, ImageIcon, Images, Package, Sparkles } from 'lucide-react';
 
 type PlanDuration = 'monthly' | 'yearly';
@@ -33,42 +33,6 @@ type SellPlan = {
   maxImagesPerProduct: number | null;
   maxGalleryImages: number | null;
 };
-
-const fallbackPlans: SellPlan[] = [
-  {
-    id: 1,
-    name: 'Estándar',
-    price: '$3,600',
-    period: '/año',
-    description: 'Ideal para negocios establecidos.',
-    featureLines: [
-      'Perfil verificado',
-      'Soporte por correo',
-      'Acceso al mercado global',
-    ],
-    isDirectory: false,
-    maxActiveProducts: 500,
-    maxImagesPerProduct: 5,
-    maxGalleryImages: null,
-  },
-  {
-    id: 2,
-    name: 'Profesional',
-    price: '$4,600',
-    period: '/año',
-    description: 'Para maximizar sus ventas.',
-    featureLines: [
-      'Perfil verificado + Badge',
-      'Prioridad en búsquedas',
-      'Soporte prioritario 24/7',
-      'Analíticas avanzadas',
-    ],
-    isDirectory: false,
-    maxActiveProducts: 2000,
-    maxImagesPerProduct: 15,
-    maxGalleryImages: null,
-  },
-];
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('es-MX', {
@@ -102,7 +66,11 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => ({
   price: formatCurrency(Number(plan.price || 0)),
   period: formatPeriod(plan.duration),
   description: plan.description || 'Plan diseñado para impulsar su negocio.',
-  featureLines: normalizePlanFeatures(plan.features, plan.description),
+  featureLines: getPlanFeatureLines({
+    features: plan.features,
+    description: plan.description,
+    isDirectory: plan.is_directory,
+  }),
   isDirectory: Boolean(plan.is_directory),
   maxActiveProducts:
     typeof plan.max_active_products === 'number' && Number.isFinite(plan.max_active_products)
@@ -213,13 +181,15 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
           >
             {plan.name}
           </h3>
-          <p
-            className={`mt-2 text-sm leading-6 ${
-              highlight ? 'text-white/75' : 'text-gray-500'
-            }`}
-          >
-            {plan.description}
-          </p>
+          {!plan.isDirectory && (
+            <p
+              className={`mt-2 text-sm leading-6 ${
+                highlight ? 'text-white/75' : 'text-gray-500'
+              }`}
+            >
+              {plan.description}
+            </p>
+          )}
         </div>
 
         <div className="mt-6 flex items-baseline gap-1.5">
@@ -278,9 +248,9 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
           }`}
         />
 
-        <ul className="space-y-3.5 text-sm leading-6 md:text-[15px]">
-          {(plan.featureLines.length > 0 ? plan.featureLines : [plan.description]).map(
-            (line, lineIndex) => (
+        {plan.featureLines.length > 0 && (
+          <ul className="space-y-3.5 text-sm leading-6 md:text-[15px]">
+            {plan.featureLines.map((line, lineIndex) => (
               <li key={`${line}-${lineIndex}`} className="flex items-start gap-3">
                 <span
                   className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
@@ -291,9 +261,9 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
                 </span>
                 <span className={highlight ? 'text-white/85' : 'text-gray-700'}>{line}</span>
               </li>
-            ),
-          )}
-        </ul>
+            ))}
+          </ul>
+        )}
 
         <div className="mt-auto pt-8">
           <Link
@@ -323,7 +293,6 @@ export default function SellPlans({ accessCode = '', referralCode = '' }: SellPl
   const [isLoading, setIsLoading] = useState(true);
   const normalizedAccessCode = accessCode.trim();
   const normalizedReferralCode = referralCode.trim();
-  const hasAccessCode = normalizedAccessCode.length > 0;
 
   useEffect(() => {
     let mounted = true;
@@ -369,11 +338,6 @@ export default function SellPlans({ accessCode = '', referralCode = '' }: SellPl
     };
   }, [normalizedAccessCode]);
 
-  const plans = useMemo(
-    () => (serverPlans.length > 0 || hasAccessCode ? serverPlans : fallbackPlans),
-    [hasAccessCode, serverPlans]
-  );
-
   return (
     <section id="plans" className="relative overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white py-20 md:py-28">
       <div className="pointer-events-none absolute inset-0">
@@ -395,17 +359,13 @@ export default function SellPlans({ accessCode = '', referralCode = '' }: SellPl
         </div>
 
         <div className="mx-auto grid max-w-7xl grid-cols-1 items-stretch gap-6 md:grid-cols-2 md:gap-7 xl:grid-cols-3">
-          {isLoading &&
-            fallbackPlans.map((plan, index) => (
-              <PlanCard
-                key={`loading-${plan.id}`}
-                plan={plan}
-                highlight={index === 1}
-                registerHref="#"
-              />
-            ))}
+          {isLoading && (
+            <div className="flex min-h-80 items-center justify-center rounded-3xl border border-gray-200 bg-white text-sm text-gray-500 shadow-sm md:col-span-2 xl:col-span-3">
+              Cargando planes...
+            </div>
+          )}
 
-          {!isLoading && plans.length === 0 && (
+          {!isLoading && serverPlans.length === 0 && (
             <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm md:col-span-2 xl:col-span-3">
               <h3 className="text-2xl font-bold text-gray-900">No hay planes disponibles</h3>
               <p className="mt-3 text-gray-600">
@@ -415,7 +375,7 @@ export default function SellPlans({ accessCode = '', referralCode = '' }: SellPl
           )}
 
           {!isLoading &&
-            plans.map((plan, index) => (
+            serverPlans.map((plan, index) => (
               <PlanCard
                 key={plan.id}
                 plan={plan}

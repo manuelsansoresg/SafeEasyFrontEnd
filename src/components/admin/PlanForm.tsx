@@ -414,6 +414,11 @@ export default function PlanForm({ initialData }: PlanFormProps) {
             value={formData.description}
             onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
           />
+          {formData.is_directory ? (
+            <p className="text-xs leading-5 text-gray-500">
+              En el plan directorio, cada renglón se mostrará como un elemento independiente.
+            </p>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">

@@ -13,7 +13,7 @@ import {
   Store,
 } from "lucide-react";
 import { PageHero } from "@/components/ui/PageHero";
-import { normalizePlanFeatures } from "@/components/sell/planText";
+import { getPlanFeatureLines } from "@/components/sell/planText";
 import { fetchWithAuth } from "@/lib/api";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { subscriptionsService } from "@/services/subscriptionsService";
@@ -311,7 +311,14 @@ export default function BecomeSupplierPage() {
             <div className="grid gap-4 lg:grid-cols-2">
               {plans.map((plan, index) => {
                 const active = plan.id === selectedPlan?.id;
-                const features = normalizePlanFeatures(plan.features, plan.description).slice(0, 5);
+                const planFeatureLines = getPlanFeatureLines({
+                  features: plan.features,
+                  description: plan.description,
+                  isDirectory: plan.is_directory,
+                });
+                const features = plan.is_directory
+                  ? planFeatureLines
+                  : planFeatureLines.slice(0, 5);
 
                 return (
                   <button
@@ -342,7 +349,7 @@ export default function BecomeSupplierPage() {
                     </div>
 
                     <ul className="mt-auto space-y-3">
-                      {(features.length > 0 ? features : ["Perfil verificado"]).map((feature, featureIndex) => (
+                      {features.map((feature, featureIndex) => (
                         <li key={`${plan.id}-${featureIndex}`} className="flex items-start gap-3 text-sm text-gray-600">
                           <Check className="mt-0.5 shrink-0 text-[#168e00]" size={18} />
                           <span>{feature}</span>
