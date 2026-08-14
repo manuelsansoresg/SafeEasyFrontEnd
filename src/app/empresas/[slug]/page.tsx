@@ -242,27 +242,25 @@ function Carousel({ images }: { images: CarouselImage[] }) {
                 index === currentIndex ? "opacity-100" : "opacity-0"
               }`}
             >
-              <div className="absolute inset-0 bg-black" />
+              <div className="absolute inset-0 bg-neutral-950" />
               <picture className="absolute inset-0 block">
                 <source media="(min-width: 768px)" srcSet={desktopSrc} />
                 <img
                   src={mobileSrc}
                   alt=""
                   aria-hidden="true"
-                  className="absolute inset-0 h-full w-full scale-125 object-cover opacity-70 blur-3xl saturate-125"
+                  className="absolute inset-0 h-full w-full scale-110 object-cover opacity-80 blur-2xl saturate-125"
                 />
               </picture>
-              <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-black/35" />
+              <div className="absolute inset-0 bg-black/15" />
               <picture className="relative z-10 block h-full w-full">
                 <source media="(min-width: 768px)" srcSet={desktopSrc} />
                 <img
                   src={mobileSrc}
                   alt={`Imagen ${index + 1} del encabezado`}
-                  className="h-full w-full object-cover object-center drop-shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+                  className="h-full w-full object-contain object-center drop-shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
                 />
               </picture>
-              <div className="absolute inset-0 z-20 bg-gradient-to-r from-black/75 via-black/15 to-black/20" />
-              <div className="absolute inset-x-0 bottom-0 z-20 h-1/2 bg-gradient-to-t from-black/45 to-transparent" />
             </div>
           );
         })}
@@ -1089,8 +1087,8 @@ const contactHref = supplier?.phone
          )}
 
          {/* Soft readability overlay without tinting the media */}
-         <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-transparent z-10" />
-         <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/45 to-transparent z-10" />
+         <div className="absolute inset-0 z-10 bg-black/40 md:bg-gradient-to-r md:from-black/70 md:via-black/20 md:to-transparent" />
+         <div className="absolute inset-x-0 bottom-0 z-10 h-32 bg-gradient-to-t from-black/40 to-transparent md:h-56" />
 
          {/* Content */}
          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 pb-28 text-center md:items-start md:px-20 md:pb-0 md:text-left lg:px-32">
