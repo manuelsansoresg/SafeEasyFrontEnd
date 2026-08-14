@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { servicesService } from "@/services/servicesService";
+import { supplierGalleryService } from "@/services/supplierGalleryService";
 import { fetchWithAuth } from "@/lib/api";
 import { resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
@@ -99,6 +100,8 @@ export default function MySubscriptionPage() {
   const [paying, setPaying] = useState(false);
   const [activeProductsCount, setActiveProductsCount] = useState(0);
   const [loadingProductUsage, setLoadingProductUsage] = useState(false);
+  const [galleryImagesCount, setGalleryImagesCount] = useState(0);
+  const [loadingGalleryImages, setLoadingGalleryImages] = useState(false);
   const isDirectory = isDirectorySubscription(subscription);
 
   const [callbackMessage, setCallbackMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -174,6 +177,37 @@ export default function MySubscriptionPage() {
     };
 
     loadProductUsage();
+    return () => {
+      mounted = false;
+    };
+  }, [isDirectory, isSupplier, token, user]);
+
+  // Load gallery images count for directory suppliers
+  useEffect(() => {
+    if (!token || !isSupplier || !user || !isDirectory) return;
+    let mounted = true;
+
+    const loadGalleryImagesCount = async () => {
+      setLoadingGalleryImages(true);
+      try {
+        const supplier = await resolveCurrentSupplier(user);
+        const supplierId = supplier?.id ?? null;
+        if (!supplierId) {
+          if (mounted) setGalleryImagesCount(0);
+          return;
+        }
+
+        const images = await supplierGalleryService.listMine(supplierId);
+        if (mounted) setGalleryImagesCount(images.length);
+      } catch (error) {
+        console.error("Error loading gallery images count:", error);
+        if (mounted) setGalleryImagesCount(0);
+      } finally {
+        if (mounted) setLoadingGalleryImages(false);
+      }
+    };
+
+    loadGalleryImagesCount();
     return () => {
       mounted = false;
     };
@@ -555,11 +589,45 @@ export default function MySubscriptionPage() {
 
                       {hasGalleryImagesLimit ? (
                         <div className="rounded-xl bg-gray-50 p-4">
-                          <div className="text-sm text-gray-500">Imágenes en galería</div>
-                          <div className="mt-1 text-2xl font-bold text-gray-950">{formatNumber(galleryImagesLimit)}</div>
-                          <p className="mt-2 text-xs text-gray-500">
-                            Cantidad máxima de imágenes que puedes subir a la galería de tu directorio.
-                          </p>
+                          {loadingGalleryImages ? (
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <Loader2 className="animate-spin text-primary" size={16} />
+                              Cargando imágenes...
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-end justify-between gap-4">
+                                <div>
+                                  <div className="text-sm text-gray-500">Imágenes en galería</div>
+                                  <div className="mt-1 text-2xl font-bold text-gray-950">
+                                    {formatNumber(galleryImagesCount)}
+                                    <span className="text-base font-semibold text-gray-400"> / {formatNumber(galleryImagesLimit)}</span>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm text-gray-500">Restantes</div>
+                                  <div className="mt-1 text-lg font-bold text-primary">
+                                    {formatNumber(Math.max(0, galleryImagesLimit - galleryImagesCount))}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-700 ${
+                                    galleryImagesCount >= galleryImagesLimit ? "bg-amber-400" : "bg-primary"
+                                  }`}
+                                  style={{ width: `${Math.min(100, Math.max(0, (galleryImagesCount / galleryImagesLimit) * 100))}%` }}
+                                />
+                              </div>
+
+                              <p className="mt-2 text-xs text-gray-500">
+                                {galleryImagesCount >= galleryImagesLimit
+                                  ? "Ya alcanzaste el límite de imágenes de tu plan."
+                                  : `Puedes subir ${formatNumber(galleryImagesLimit - galleryImagesCount)} imagen${galleryImagesLimit - galleryImagesCount === 1 ? "" : "es"} más.`}
+                              </p>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
