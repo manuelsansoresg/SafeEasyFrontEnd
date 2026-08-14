@@ -62,8 +62,14 @@ function getNavItems(pathname: string, userRole: Role, isDirectorySupplier: bool
     );
   } else if (userRole === "supplier") {
     base.push(
-      { href: "/admin/products", label: "Productos", icon: Package },
-      { href: "/admin/orders", label: "Órdenes", icon: ShoppingCart },
+      {
+        href: isDirectorySupplier ? "/admin/services" : "/admin/products",
+        label: isDirectorySupplier ? "Servicios" : "Productos",
+        icon: isDirectorySupplier ? BriefcaseBusiness : Package,
+      },
+      ...(isDirectorySupplier
+        ? []
+        : [{ href: "/admin/orders", label: "Órdenes", icon: ShoppingCart }]),
       { href: "/admin/messages", label: "Mensajes", icon: MessageSquare },
       { href: accountHref, label: accountLabel, icon: User },
     );

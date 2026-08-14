@@ -195,23 +195,27 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
           },
         ]
       : []),
+    ...(isSupplier && !isDirectory
+      ? [
+          {
+            title: "Órdenes",
+            path: "/admin/orders",
+            icon: ShoppingCart,
+            roles: ['supplier'] as AdminRole[],
+          },
+          {
+            title: "Estadísticas",
+            path: "/admin/stats",
+            icon: BarChart3,
+            roles: ['supplier'] as AdminRole[],
+          },
+        ]
+      : []),
     {
       title: "Soporte",
       path: "/admin/support",
       icon: LifeBuoy,
       roles: ['admin', 'superuser']
-    },
-    { 
-      title: "Órdenes", 
-      path: "/admin/orders", 
-      icon: ShoppingCart,
-      roles: ['supplier']
-    },
-    { 
-      title: "Estadísticas", 
-      path: "/admin/stats", 
-      icon: BarChart3,
-      roles: ['supplier']
     },
     {
       title: "Mi Subscripción",
