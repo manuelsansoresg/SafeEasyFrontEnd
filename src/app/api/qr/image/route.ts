@@ -34,13 +34,36 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // El backend ahora devuelve JSON con qr_image_url
     const json = await response.json();
     const imgUrl = json.qr_image_url || json.image_url || json.qr_url;
     
     if (imgUrl) {
-      // Redirect a la URL de S3
-      return NextResponse.redirect(imgUrl);
+      const resolvedImageUrl = new URL(imgUrl, url).toString();
+      const imageResponse = await fetch(resolvedImageUrl, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (!imageResponse.ok) {
+        return NextResponse.json(
+          { error: "No se pudo descargar la imagen del código QR" },
+          { status: imageResponse.status },
+        );
+      }
+
+      const contentType = imageResponse.headers.get("content-type");
+      return new NextResponse(imageResponse.body, {
+        status: 200,
+        headers: {
+          "Content-Type": contentType?.startsWith("image/")
+            ? contentType
+            : "image/png",
+          "Content-Disposition": request.nextUrl.searchParams.has("download")
+            ? 'attachment; filename="qr-empresa.png"'
+            : 'inline; filename="qr-empresa.png"',
+          "Cache-Control": "private, no-store",
+        },
+      });
     }
     
     return NextResponse.json({ error: "Sin imagen" }, { status: 404 });

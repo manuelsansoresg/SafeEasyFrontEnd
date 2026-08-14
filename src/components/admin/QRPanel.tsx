@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { qrService, type QRInfo } from '@/services/qrService';
 import { Download, RefreshCw, QrCode, AlertCircle, Key } from 'lucide-react';
 
 export default function QRPanel() {
   const [qrInfo, setQrInfo] = useState<QRInfo | null>(null);
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
   const [generatingToken, setGeneratingToken] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,8 +18,9 @@ export default function QRPanel() {
     try {
       setLoading(true);
       setError(null);
-      const imageUrl = await qrService.getQRImageBlob();
+      const { imageUrl, info } = await qrService.getQRImage();
       setQrImageUrl(imageUrl);
+      if (info) setQrInfo(info);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Error al cargar el QR';
       
@@ -32,6 +34,40 @@ export default function QRPanel() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadExistingQR = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const { imageUrl, info } = await qrService.getQRImage();
+        if (cancelled) return;
+        setQrInfo(info);
+        setQrImageUrl(imageUrl);
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'Error al cargar el QR';
+        const isMissingQR = /404|not found|sin imagen|no se recibi[oó]|token.*not assigned/i.test(message);
+
+        setQrInfo(null);
+        setQrImageUrl(null);
+        if (!isMissingQR) {
+          setError(message);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void loadExistingQR();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleGenerateToken = async () => {
@@ -86,8 +122,9 @@ export default function QRPanel() {
   const handleDownload = async () => {
     if (!qrImageUrl) return;
     try {
-      const response = await fetch(qrImageUrl);
-      const blob = await response.blob();
+      setDownloading(true);
+      setError(null);
+      const blob = await qrService.downloadQRImage();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -95,9 +132,11 @@ export default function QRPanel() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch {
-      setError('Error al descargar el QR');
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al descargar el QR');
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -113,7 +152,7 @@ export default function QRPanel() {
     }
   };
 
-  const needsToken = !qrInfo?.token;
+  const needsToken = !qrInfo?.token && !qrImageUrl;
 
   return (
     <div className='max-w-2xl mx-auto'>
@@ -148,7 +187,14 @@ export default function QRPanel() {
         </div>
       )}
 
-      {needsToken ? (
+      {loading && !qrInfo && !qrImageUrl ? (
+        <div className='flex min-h-72 items-center justify-center rounded-xl border border-gray-200 bg-gray-50'>
+          <div className='text-center text-gray-500'>
+            <div className='mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-b-primary' />
+            <p className='text-sm font-medium'>Cargando código QR...</p>
+          </div>
+        </div>
+      ) : needsToken ? (
         <div className='bg-amber-50 border border-amber-200 rounded-xl p-8 text-center'>
           <Key className='mx-auto mb-4 text-amber-600' size={48} />
           <h4 className='text-lg font-semibold text-amber-900 mb-2'>
@@ -189,33 +235,35 @@ export default function QRPanel() {
                 </div>
               )}
 
-              <div className='mt-6 w-full max-w-md'>
-                <div className='bg-white rounded-lg p-4 border border-gray-200'>
-                  <p className='text-xs font-medium text-gray-500 mb-2'>Enlace directo:</p>
-                  <div className='flex items-center gap-2'>
-                    <code className='flex-1 text-sm text-gray-700 truncate bg-gray-50 px-3 py-2 rounded'>
-                      {qrUrl}
-                    </code>
-                    <button
-                      onClick={copyToClipboard}
-                      className='shrink-0 px-3 py-2 text-sm font-medium text-primary bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors'
-                    >
-                      Copiar
-                    </button>
+              {qrUrl ? (
+                <div className='mt-6 w-full max-w-md'>
+                  <div className='bg-white rounded-lg p-4 border border-gray-200'>
+                    <p className='text-xs font-medium text-gray-500 mb-2'>Enlace directo:</p>
+                    <div className='flex items-center gap-2'>
+                      <code className='flex-1 text-sm text-gray-700 truncate bg-gray-50 px-3 py-2 rounded'>
+                        {qrUrl}
+                      </code>
+                      <button
+                        onClick={copyToClipboard}
+                        className='shrink-0 px-3 py-2 text-sm font-medium text-primary bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors'
+                      >
+                        Copiar
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : null}
             </div>
           </div>
 
           <div className='mt-6 flex flex-col sm:flex-row gap-3'>
             <button
               onClick={handleDownload}
-              disabled={!qrImageUrl || loading}
+              disabled={!qrImageUrl || loading || downloading}
               className='flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
             >
               <Download size={18} />
-              Descargar PNG
+              {downloading ? 'Descargando...' : 'Descargar PNG'}
             </button>
             <button
               onClick={handleRegenerate}
