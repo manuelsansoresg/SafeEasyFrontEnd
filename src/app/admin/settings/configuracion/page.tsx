@@ -52,6 +52,16 @@ const parseNumber = (value: unknown, fallback: number) => {
   return fallback;
 };
 
+const formatPrice = (value: unknown) => {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) return "-";
+  try {
+    return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(num);
+  } catch {
+    return `$${num.toFixed(2)}`;
+  }
+};
+
 const pickSettingsRecord = (data: unknown): Record<string, unknown> | null => {
   if (!data || typeof data !== "object") return null;
   const rec = data as Record<string, unknown>;
@@ -573,7 +583,7 @@ export default function ConfiguracionPage() {
                   {plans.map((plan) => (
                     <option key={plan.id} value={String(plan.id)}>
                       {plan.title || `Plan #${plan.id}`}
-                      {typeof plan.price === "number" ? ` — $${plan.price}` : ""}
+                      {typeof plan.price === "number" ? ` — ${formatPrice(plan.price)}` : ""}
                     </option>
                   ))}
                 </select>

@@ -80,6 +80,16 @@ const unwrapArray = <T,>(data: unknown, keys: string[]): T[] => {
   return [];
 };
 
+const formatPrice = (value: unknown) => {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) return "-";
+  try {
+    return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(num);
+  } catch {
+    return `$${num.toFixed(2)}`;
+  }
+};
+
 const isSupplierRole = (role: unknown) =>
   ["supplier", "proveedor", "provider", "vendor"].includes(
     String(role || "").trim().toLowerCase(),
@@ -734,7 +744,7 @@ export default function AdminSuppliersPage() {
                   {plans.length === 0 ? <option value="">No hay planes activos</option> : null}
                   {plans.map((plan) => (
                     <option key={plan.id} value={plan.id}>
-                      {plan.title} · ${plan.price} · {plan.duration === "yearly" ? "Anual" : "Mensual"}
+                      {plan.title} · {formatPrice(plan.price)} · {plan.duration === "yearly" ? "Anual" : "Mensual"}
                     </option>
                   ))}
                 </select>

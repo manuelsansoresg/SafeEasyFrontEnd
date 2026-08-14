@@ -240,7 +240,7 @@ export default function AdminDashboardPage() {
                       axisLine={false} 
                       tickLine={false} 
                       tick={{ fill: '#6b7280', fontSize: 12 }}
-                      tickFormatter={(value) => `$${value}`}
+                      tickFormatter={(value) => `$${Number(value).toLocaleString("es-MX")}`}
                     />
                     <Tooltip 
                       cursor={{ fill: '#f9fafb' }}

@@ -65,6 +65,16 @@ const statusLabel = (subscription: Subscription | null) => {
 const formatNumber = (value: number) =>
   new Intl.NumberFormat("es-MX").format(value);
 
+const formatCurrency = (value: number | undefined | null) => {
+  if (value == null) return "$0";
+  return new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
 type ProductSummary = {
   id: string | number;
   supplier_id?: number | string | null;
@@ -438,7 +448,7 @@ export default function MySubscriptionPage() {
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-2xl font-bold text-gray-900">${subscription.plan?.price}</div>
+                    <div className="text-2xl font-bold text-gray-900">{formatCurrency(subscription.plan?.price)}</div>
                     <div className="text-xs text-gray-500">
                       {subscription.plan?.duration === "yearly" ? "por año" : "por mes"}
                     </div>
@@ -525,7 +535,7 @@ export default function MySubscriptionPage() {
                 </div>
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm text-gray-600">Precio</span>
-                  <span className="text-sm font-bold text-gray-900">${subscription.plan?.price}</span>
+                  <span className="text-sm font-bold text-gray-900">{formatCurrency(subscription.plan?.price)}</span>
                 </div>
               </div>
             </div>
@@ -780,7 +790,7 @@ function PaymentPlanPanel({
                   </div>
                   {active ? <CheckCircle className="text-[#168e00]" size={18} /> : null}
                 </div>
-                <div className="mt-3 text-2xl font-bold text-primary">${plan.price}</div>
+                <div className="mt-3 text-2xl font-bold text-primary">{formatCurrency(plan.price)}</div>
               </button>
             );
           })

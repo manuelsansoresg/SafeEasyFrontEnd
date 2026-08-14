@@ -47,6 +47,16 @@ function unwrapProducts(data: unknown): Product[] {
   return [];
 }
 
+const formatPrice = (value: unknown) => {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) return "-";
+  try {
+    return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(num);
+  } catch {
+    return `$${num.toFixed(2)}`;
+  }
+};
+
 function AdminProductImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
   const [error, setError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -357,7 +367,7 @@ export default function AdminProductsPage() {
                         />
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{product.sku}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-800">${product.price}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-800">{formatPrice(product.price)}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">{product.stock}</td>
                       <td className="px-6 py-4 text-center">
                         <span className={cn(
@@ -443,7 +453,7 @@ export default function AdminProductsPage() {
                         </div>
                         <div className="rounded-xl bg-gray-50 p-2">
                           <div className="font-semibold uppercase tracking-wide text-gray-400">Precio</div>
-                          <div className="mt-1 font-semibold text-gray-900">${product.price}</div>
+                          <div className="mt-1 font-semibold text-gray-900">{formatPrice(product.price)}</div>
                         </div>
                         <div className="rounded-xl bg-gray-50 p-2">
                           <div className="font-semibold uppercase tracking-wide text-gray-400">Stock</div>
