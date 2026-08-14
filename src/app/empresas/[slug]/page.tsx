@@ -208,7 +208,7 @@ function InlineVideo({ src, poster }: { src: string; poster?: string }) {
   );
 }
 
-function Carousel({ images }: { images: CarouselImage[] }) {
+function Carousel({ images, isDirectory }: { images: CarouselImage[]; isDirectory: boolean }) {
     const [currentIndex, setCurrentIndex] = useState(0);
   
     useEffect(() => {
@@ -252,7 +252,7 @@ function Carousel({ images }: { images: CarouselImage[] }) {
                   className="absolute inset-0 h-full w-full scale-110 object-cover opacity-80 blur-2xl saturate-125"
                 />
               </picture>
-              <div className="absolute inset-0 bg-black/15" />
+              <div className={`absolute inset-0 ${isDirectory ? "bg-black/0" : "bg-black/15"}`} />
               <picture className="relative z-10 block h-full w-full">
                 <source media="(min-width: 768px)" srcSet={desktopSrc} />
                 <img
@@ -1067,7 +1067,11 @@ const contactHref = supplier?.phone
       {/* --- HERO SECTION --- */}
       <section
         id="inicio"
-        className="relative h-[92svh] min-h-[760px] w-full scroll-mt-20 overflow-hidden bg-black group md:h-[90vh] md:min-h-[680px]"
+        className={`group relative w-full scroll-mt-20 overflow-hidden bg-black ${
+          isDirectory
+            ? "h-[clamp(680px,125vw,900px)] md:h-[clamp(620px,35.25vw,760px)]"
+            : "h-[92svh] min-h-[760px] md:h-[90vh] md:min-h-[680px]"
+        }`}
       >
          {/* Media Background */}
          {supplier.header_media_type === 'video' && supplier.header_video ? (
@@ -1082,16 +1086,33 @@ const contactHref = supplier?.phone
              />
          ) : (
              <div className="absolute inset-0 w-full h-full">
-                <Carousel images={(supplier.carousel_images || []).slice(0, 3)} />
+                <Carousel
+                  images={(supplier.carousel_images || []).slice(0, 3)}
+                  isDirectory={isDirectory}
+                />
              </div>
          )}
 
          {/* Soft readability overlay without tinting the media */}
-         <div className="absolute inset-0 z-10 bg-black/40 md:bg-gradient-to-r md:from-black/70 md:via-black/20 md:to-transparent" />
-         <div className="absolute inset-x-0 bottom-0 z-10 h-32 bg-gradient-to-t from-black/40 to-transparent md:h-56" />
+         <div
+           className={`absolute inset-0 z-10 ${
+             isDirectory
+               ? "bg-black/20 md:bg-gradient-to-r md:from-black/55 md:via-black/10 md:to-transparent"
+               : "bg-black/40 md:bg-gradient-to-r md:from-black/70 md:via-black/20 md:to-transparent"
+           }`}
+         />
+         <div
+           className={`absolute inset-x-0 bottom-0 z-10 h-32 bg-gradient-to-t to-transparent md:h-56 ${
+             isDirectory ? "from-black/20" : "from-black/40"
+           }`}
+         />
 
          {/* Content */}
-         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 pb-28 text-center md:items-start md:px-20 md:pb-0 md:text-left lg:px-32">
+         <div
+           className={`absolute inset-0 z-20 flex flex-col items-center justify-center px-6 text-center md:items-start md:px-20 md:text-left lg:px-32 ${
+             hasHeroHighlights ? "pb-28 md:pb-0" : "pb-0"
+           }`}
+         >
              <div className="animate-in fade-in slide-in-from-left-10 w-full max-w-4xl duration-1000">
                 {supplierLogo && !logoError && (
                     <div className="mx-auto mb-8 h-24 w-24 rounded-3xl border border-white/20 bg-white/10 p-4 shadow-2xl backdrop-blur-md md:mx-0 md:h-32 md:w-32">
