@@ -87,14 +87,22 @@ export default function FileUpload({
 
   // Update preview when value changes
   useEffect(() => {
+    let cancelled = false;
+
     if (value) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPreview(reader.result as string);
+        if (!cancelled) setPreview(reader.result as string);
       };
       reader.readAsDataURL(value);
+
+      return () => {
+        cancelled = true;
+        if (reader.readyState === FileReader.LOADING) reader.abort();
+      };
     } else {
       setPreview(null);
+      if (inputRef.current) inputRef.current.value = '';
     }
   }, [value]);
 
@@ -123,12 +131,6 @@ export default function FileUpload({
       if (!isAllowedFile(file)) return;
 
       onChange(file);
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -144,12 +146,6 @@ export default function FileUpload({
       }
 
       onChange(file);
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -221,6 +217,9 @@ export default function FileUpload({
           type="file"
           className="hidden"
           accept={accept}
+          onClick={(e) => {
+            e.currentTarget.value = '';
+          }}
           onChange={handleChange}
           disabled={disabled}
         />
