@@ -227,6 +227,12 @@ export default function MySubscriptionPage() {
     ? Math.min(100, Math.max(0, (activeProductsCount / productLimit) * 100))
     : 0;
 
+  const imagesPerProductLimit = Number(subscription?.plan?.max_images_per_product ?? 0);
+  const hasImagesPerProductLimit = Number.isFinite(imagesPerProductLimit) && imagesPerProductLimit > 0;
+
+  const galleryImagesLimit = Number(subscription?.plan?.max_gallery_images ?? 0);
+  const hasGalleryImagesLimit = Number.isFinite(galleryImagesLimit) && galleryImagesLimit > 0;
+
   const handlePaySelectedPlan = async () => {
     if (!selectedPlan) {
       setError("Selecciona un plan para continuar con el pago.");
@@ -503,42 +509,119 @@ export default function MySubscriptionPage() {
                   <Loader2 className="animate-spin text-primary" size={18} />
                   Cargando {isDirectory ? "servicios" : "productos"} activos...
                 </div>
-              ) : hasProductLimit ? (
-                <>
-                  <div className="flex items-end justify-between gap-4">
-                    <div>
-                      <div className="text-sm text-gray-500">
-                        {isDirectory ? "Servicios activos" : "Productos activos"}
-                      </div>
-                      <div className="mt-1 text-3xl font-bold text-gray-950">
-                        {formatNumber(activeProductsCount)}
-                        <span className="text-base font-semibold text-gray-400"> / {formatNumber(productLimit)}</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-500">Restantes</div>
-                      <div className="mt-1 text-xl font-bold text-primary">{formatNumber(remainingProducts)}</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 h-3 w-full overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className={`h-full rounded-full transition-all duration-700 ${
-                        remainingProducts === 0 ? "bg-amber-400" : "bg-primary"
-                      }`}
-                      style={{ width: `${productUsagePercent}%` }}
-                    />
-                  </div>
-
-                  <p className="mt-3 text-sm text-gray-500">
-                    {remainingProducts === 0
-                      ? `Ya alcanzaste el límite de ${isDirectory ? "servicios" : "productos"} activos de tu plan.`
-                      : `Puedes activar ${formatNumber(remainingProducts)} ${isDirectory ? "servicio" : "producto"}${remainingProducts === 1 ? "" : "s"} más.`}
-                  </p>
-                </>
               ) : (
-                <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
-                  Este plan no tiene un límite de {isDirectory ? "servicios" : "productos"} configurado.
+                <div className="space-y-4">
+                  {/* Directorio: Alta de servicios (max_images_per_product) + Imágenes en galería */}
+                  {isDirectory ? (
+                    <>
+                      {hasImagesPerProductLimit ? (
+                        <div className="rounded-xl bg-gray-50 p-4">
+                          <div className="flex items-end justify-between gap-4">
+                            <div>
+                              <div className="text-sm text-gray-500">Alta de servicios</div>
+                              <div className="mt-1 text-2xl font-bold text-gray-950">
+                                {formatNumber(activeProductsCount)}
+                                <span className="text-base font-semibold text-gray-400"> / {formatNumber(imagesPerProductLimit)}</span>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm text-gray-500">Restantes</div>
+                              <div className="mt-1 text-lg font-bold text-primary">
+                                {formatNumber(Math.max(0, imagesPerProductLimit - activeProductsCount))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
+                            <div
+                              className={`h-full rounded-full transition-all duration-700 ${
+                                activeProductsCount >= imagesPerProductLimit ? "bg-amber-400" : "bg-primary"
+                              }`}
+                              style={{ width: `${Math.min(100, Math.max(0, (activeProductsCount / imagesPerProductLimit) * 100))}%` }}
+                            />
+                          </div>
+
+                          <p className="mt-2 text-xs text-gray-500">
+                            {activeProductsCount >= imagesPerProductLimit
+                              ? "Ya alcanzaste el límite de servicios de tu plan."
+                              : `Puedes registrar ${formatNumber(imagesPerProductLimit - activeProductsCount)} servicio${imagesPerProductLimit - activeProductsCount === 1 ? "" : "s"} más.`}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+                          Este plan no tiene un límite de alta de servicios configurado.
+                        </div>
+                      )}
+
+                      {hasGalleryImagesLimit ? (
+                        <div className="rounded-xl bg-gray-50 p-4">
+                          <div className="text-sm text-gray-500">Imágenes en galería</div>
+                          <div className="mt-1 text-2xl font-bold text-gray-950">{formatNumber(galleryImagesLimit)}</div>
+                          <p className="mt-2 text-xs text-gray-500">
+                            Cantidad máxima de imágenes que puedes subir a la galería de tu directorio.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+                          Este plan no tiene un límite de imágenes en galería configurado.
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* No directorio: Productos activos + Imágenes por producto */}
+                      {hasProductLimit ? (
+                        <div className="rounded-xl bg-gray-50 p-4">
+                          <div className="flex items-end justify-between gap-4">
+                            <div>
+                              <div className="text-sm text-gray-500">Productos activos</div>
+                              <div className="mt-1 text-2xl font-bold text-gray-950">
+                                {formatNumber(activeProductsCount)}
+                                <span className="text-base font-semibold text-gray-400"> / {formatNumber(productLimit)}</span>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm text-gray-500">Restantes</div>
+                              <div className="mt-1 text-lg font-bold text-primary">{formatNumber(remainingProducts)}</div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
+                            <div
+                              className={`h-full rounded-full transition-all duration-700 ${
+                                remainingProducts === 0 ? "bg-amber-400" : "bg-primary"
+                              }`}
+                              style={{ width: `${productUsagePercent}%` }}
+                            />
+                          </div>
+
+                          <p className="mt-2 text-xs text-gray-500">
+                            {remainingProducts === 0
+                              ? "Ya alcanzaste el límite de productos activos de tu plan."
+                              : `Puedes activar ${formatNumber(remainingProducts)} producto${remainingProducts === 1 ? "" : "s"} más.`}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+                          Este plan no tiene un límite de productos configurado.
+                        </div>
+                      )}
+
+                      {hasImagesPerProductLimit ? (
+                        <div className="rounded-xl bg-gray-50 p-4">
+                          <div className="text-sm text-gray-500">Imágenes por producto</div>
+                          <div className="mt-1 text-2xl font-bold text-gray-950">{formatNumber(imagesPerProductLimit)}</div>
+                          <p className="mt-2 text-xs text-gray-500">
+                            Incluye la imagen principal y las imágenes extra.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
+                          Este plan no tiene un límite de imágenes por producto configurado.
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
