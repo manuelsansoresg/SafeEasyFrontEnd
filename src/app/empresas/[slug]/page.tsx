@@ -208,7 +208,7 @@ function InlineVideo({ src, poster }: { src: string; poster?: string }) {
   );
 }
 
-function Carousel({ images, isDirectory }: { images: CarouselImage[]; isDirectory: boolean }) {
+function Carousel({ images }: { images: CarouselImage[] }) {
     const [currentIndex, setCurrentIndex] = useState(0);
   
     useEffect(() => {
@@ -252,7 +252,7 @@ function Carousel({ images, isDirectory }: { images: CarouselImage[]; isDirector
                   className="absolute inset-0 h-full w-full scale-110 object-cover opacity-80 blur-2xl saturate-125"
                 />
               </picture>
-              <div className={`absolute inset-0 ${isDirectory ? "bg-black/0" : "bg-black/15"}`} />
+              <div className="absolute inset-0 bg-black/15" />
               <picture className="relative z-10 block h-full w-full">
                 <source media="(min-width: 768px)" srcSet={desktopSrc} />
                 <img
@@ -1086,26 +1086,13 @@ const contactHref = supplier?.phone
              />
          ) : (
              <div className="absolute inset-0 w-full h-full">
-                <Carousel
-                  images={(supplier.carousel_images || []).slice(0, 3)}
-                  isDirectory={isDirectory}
-                />
+                <Carousel images={(supplier.carousel_images || []).slice(0, 3)} />
              </div>
          )}
 
          {/* Soft readability overlay without tinting the media */}
-         <div
-           className={`absolute inset-0 z-10 ${
-             isDirectory
-               ? "bg-black/20 md:bg-gradient-to-r md:from-black/55 md:via-black/10 md:to-transparent"
-               : "bg-black/40 md:bg-gradient-to-r md:from-black/70 md:via-black/20 md:to-transparent"
-           }`}
-         />
-         <div
-           className={`absolute inset-x-0 bottom-0 z-10 h-32 bg-gradient-to-t to-transparent md:h-56 ${
-             isDirectory ? "from-black/20" : "from-black/40"
-           }`}
-         />
+         <div className="absolute inset-0 z-10 bg-black/40 md:bg-gradient-to-r md:from-black/70 md:via-black/20 md:to-transparent" />
+         <div className="absolute inset-x-0 bottom-0 z-10 h-32 bg-gradient-to-t from-black/40 to-transparent md:h-56" />
 
          {/* Content */}
          <div
