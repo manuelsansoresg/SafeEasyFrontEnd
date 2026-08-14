@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { normalizePlanFeatures } from '@/components/sell/planText';
-import { ArrowRight, Check, ImageIcon, Package, Sparkles } from 'lucide-react';
+import { ArrowRight, BriefcaseBusiness, Check, ImageIcon, Images, Package, Sparkles } from 'lucide-react';
 
 type PlanDuration = 'monthly' | 'yearly';
 
@@ -18,6 +18,7 @@ type ApiPlan = {
   is_directory?: boolean;
   max_active_products?: number | null;
   max_images_per_product?: number | null;
+  max_gallery_images?: number | null;
 };
 
 type SellPlan = {
@@ -30,6 +31,7 @@ type SellPlan = {
   isDirectory: boolean;
   maxActiveProducts: number | null;
   maxImagesPerProduct: number | null;
+  maxGalleryImages: number | null;
 };
 
 const fallbackPlans: SellPlan[] = [
@@ -47,6 +49,7 @@ const fallbackPlans: SellPlan[] = [
     isDirectory: false,
     maxActiveProducts: 500,
     maxImagesPerProduct: 5,
+    maxGalleryImages: null,
   },
   {
     id: 2,
@@ -63,6 +66,7 @@ const fallbackPlans: SellPlan[] = [
     isDirectory: false,
     maxActiveProducts: 2000,
     maxImagesPerProduct: 15,
+    maxGalleryImages: null,
   },
 ];
 
@@ -107,6 +111,10 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => ({
   maxImagesPerProduct:
     typeof plan.max_images_per_product === 'number' && Number.isFinite(plan.max_images_per_product)
       ? plan.max_images_per_product
+      : null,
+  maxGalleryImages:
+    typeof plan.max_gallery_images === 'number' && Number.isFinite(plan.max_gallery_images)
+      ? plan.max_gallery_images
       : null,
 });
 
@@ -168,7 +176,9 @@ type PlanCardProps = {
 const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
   const productValue = plan.isDirectory ? null : formatLimitValue(plan.maxActiveProducts);
   const imageValue = formatLimitValue(plan.maxImagesPerProduct);
-  const showLimits = productValue !== null || imageValue !== null;
+  const galleryValue = plan.isDirectory ? formatLimitValue(plan.maxGalleryImages) : null;
+  const limitCount = [productValue, galleryValue, imageValue].filter((value) => value !== null).length;
+  const showLimits = limitCount > 0;
 
   return (
     <div
@@ -230,7 +240,7 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
         </div>
 
         {showLimits && (
-          <div className={`mt-6 grid gap-3 ${productValue !== null && imageValue !== null ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <div className={`mt-6 grid gap-3 ${limitCount > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {productValue !== null && (
               <LimitStat
                 icon={<Package className="h-[18px] w-[18px]" />}
@@ -239,11 +249,23 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
                 highlight={highlight}
               />
             )}
+            {galleryValue !== null && (
+              <LimitStat
+                icon={<Images className="h-[18px] w-[18px]" />}
+                value={galleryValue}
+                label="Imágenes en galería"
+                highlight={highlight}
+              />
+            )}
             {imageValue !== null && (
               <LimitStat
-                icon={<ImageIcon className="h-[18px] w-[18px]" />}
+                icon={
+                  plan.isDirectory
+                    ? <BriefcaseBusiness className="h-[18px] w-[18px]" />
+                    : <ImageIcon className="h-[18px] w-[18px]" />
+                }
                 value={imageValue}
-                label={plan.isDirectory ? 'Imágenes de servicios' : 'Imágenes por producto'}
+                label={plan.isDirectory ? 'Alta de servicios' : 'Imágenes por producto'}
                 highlight={highlight}
               />
             )}
