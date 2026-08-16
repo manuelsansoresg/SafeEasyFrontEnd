@@ -28,11 +28,11 @@ export function DirectoryTopNav({
 
   return (
     <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#004e28] text-white shadow-md backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 md:px-8">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5 md:px-8">
         {/* Logo + nombre del proveedor */}
         <Link
           href="#inicio"
-          className="flex min-w-0 items-center gap-3 rounded-lg px-1 py-1 transition-opacity hover:opacity-90"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 transition-opacity hover:opacity-90 sm:gap-3 lg:max-w-sm lg:flex-none"
         >
           {fullLogoUrl ? (
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10 p-1">
@@ -44,13 +44,13 @@ export function DirectoryTopNav({
               />
             </div>
           ) : null}
-          <span className="truncate font-[family-name:var(--font-varela-round)] text-base font-bold sm:text-lg">
+          <span className="truncate font-[family-name:var(--font-varela-round)] text-sm font-bold sm:text-base lg:text-lg">
             {supplierName}
           </span>
         </Link>
 
         {/* Anchor links — desktop */}
-        <div className="hidden items-center gap-6 text-sm font-semibold md:flex">
+        <div className="hidden items-center gap-5 text-sm font-semibold lg:flex xl:gap-7">
           <a
             href="#inicio"
             className="text-white/85 transition-colors hover:text-white"

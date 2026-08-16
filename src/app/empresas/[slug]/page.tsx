@@ -1069,8 +1069,8 @@ const contactHref = supplier?.phone
         id="inicio"
         className={`group relative w-full scroll-mt-20 overflow-hidden bg-black ${
           isDirectory
-            ? "h-[clamp(680px,125vw,900px)] md:h-[clamp(620px,35.25vw,760px)]"
-            : "h-[92svh] min-h-[760px] md:h-[90vh] md:min-h-[680px]"
+            ? "min-h-[calc(100svh-4rem)]"
+            : "min-h-[100svh]"
         }`}
       >
          {/* Media Background */}
@@ -1096,30 +1096,38 @@ const contactHref = supplier?.phone
 
          {/* Content */}
          <div
-           className={`absolute inset-0 z-20 flex flex-col items-center justify-center px-6 text-center md:items-start md:px-20 md:text-left lg:px-32 ${
-             hasHeroHighlights ? "pb-28 md:pb-0" : "pb-0"
+           className={`relative z-20 flex flex-col items-center justify-center px-5 py-10 text-center sm:px-8 sm:py-12 md:items-start md:px-16 md:py-14 md:text-left lg:px-24 xl:px-32 ${
+             isDirectory
+               ? "min-h-[calc(100svh-4rem)]"
+               : "min-h-[100svh] pt-28 md:pt-36"
+           } ${
+             hasHeroHighlights ? "pb-32 md:pb-28" : ""
            }`}
          >
-             <div className="animate-in fade-in slide-in-from-left-10 w-full max-w-4xl duration-1000">
+             <div className="animate-in fade-in slide-in-from-left-10 w-full max-w-[min(72rem,100%)] duration-1000 md:max-w-[min(72rem,72vw)]">
                 {supplierLogo && !logoError && (
-                    <div className="mx-auto mb-8 h-24 w-24 rounded-3xl border border-white/20 bg-white/10 p-4 shadow-2xl backdrop-blur-md md:mx-0 md:h-32 md:w-32">
+                    <div className="mx-auto mb-5 h-[clamp(4.5rem,11svh,7rem)] w-[clamp(4.5rem,11svh,7rem)] rounded-2xl border border-white/20 bg-white/10 p-3 shadow-2xl backdrop-blur-md sm:mb-6 md:mx-0 md:rounded-3xl">
                         <img src={getImageUrl(supplierLogo)} alt={supplier.name} className="w-full h-full object-contain drop-shadow-md" onError={() => setLogoError(true)} />
                     </div>
                 )}
                 
-                <h1 className="mb-6 text-4xl font-black uppercase leading-[0.9] tracking-tighter text-white drop-shadow-2xl font-[family-name:var(--font-varela-round)] sm:text-5xl md:text-7xl lg:text-9xl">
+                <h1 className={`mb-5 max-w-full break-words font-black uppercase leading-[0.92] tracking-[-0.045em] text-white drop-shadow-2xl font-[family-name:var(--font-varela-round)] sm:mb-6 ${
+                  isDirectory
+                    ? "text-[clamp(2.5rem,min(6vw,11svh),6rem)]"
+                    : "text-[clamp(2.5rem,min(5.25vw,10svh),5.5rem)]"
+                }`}>
                    {supplier.name}
                 </h1>
                 
                 {supplier.short_description ? (
-                  <p className="mx-auto mb-10 max-w-2xl border-l-0 border-[#168e00] pl-0 text-base font-light leading-relaxed text-gray-100 drop-shadow-lg font-[family-name:var(--font-poppins)] sm:text-xl md:mx-0 md:border-l-4 md:pl-6 md:text-2xl">
+                  <p className="mx-auto mb-7 max-w-3xl border-l-0 border-[#168e00] pl-0 text-[clamp(1rem,min(1.45vw,2.8svh),1.35rem)] font-light leading-relaxed text-gray-100 drop-shadow-lg font-[family-name:var(--font-poppins)] sm:mb-8 md:mx-0 md:border-l-4 md:pl-6">
                     {supplier.short_description}
                   </p>
                 ) : null}
 
-                <div className="mb-8 flex w-full flex-col flex-wrap items-stretch justify-center gap-4 sm:flex-row sm:items-center md:justify-start">
+                <div className="mb-6 flex w-full flex-col flex-wrap items-stretch justify-center gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4 md:justify-start">
                       {!isDirectory ? (
-                        <button type="button" onClick={handleShowProducts} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#168e00] px-8 py-4 text-lg font-bold text-white shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] transition-all hover:-translate-y-1 hover:bg-[#137a00] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] font-[family-name:var(--font-varela-round)] sm:w-auto">
+                        <button type="button" onClick={handleShowProducts} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#168e00] px-7 py-3 text-base font-bold text-white shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] transition-all hover:-translate-y-1 hover:bg-[#137a00] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
                             Ver Catálogo <ArrowDown size={20} />
                         </button>
                       ) : null}
@@ -1133,7 +1141,7 @@ const contactHref = supplier?.phone
                         />
                       ) : null}
                       {hasContactSection ? (
-                        <button type="button" onClick={handleContactClick} className="inline-flex w-full items-center justify-center rounded-full border border-white/30 bg-white/10 px-8 py-4 text-lg font-bold text-white backdrop-blur-md transition-all hover:-translate-y-1 hover:bg-white/20 font-[family-name:var(--font-varela-round)] sm:w-auto">
+                        <button type="button" onClick={handleContactClick} className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/30 bg-white/10 px-7 py-3 text-base font-bold text-white backdrop-blur-md transition-all hover:-translate-y-1 hover:bg-white/20 font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
                           Contactar Ahora
                         </button>
                       ) : null}
