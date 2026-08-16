@@ -258,7 +258,7 @@ function Carousel({ images }: { images: CarouselImage[] }) {
                 <img
                   src={mobileSrc}
                   alt={`Imagen ${index + 1} del encabezado`}
-                  className="h-full w-full object-contain object-center drop-shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+                  className="h-full w-full object-cover object-center drop-shadow-[0_24px_80px_rgba(0,0,0,0.45)] xl:object-contain"
                 />
               </picture>
             </div>
@@ -1069,30 +1069,45 @@ const contactHref = supplier?.phone
         id="inicio"
         className={`group relative w-full scroll-mt-20 overflow-hidden bg-black ${
           isDirectory
-            ? "min-h-[calc(100svh-4rem)]"
-            : "min-h-[100svh]"
+            ? "min-h-[calc(100svh-4rem)] xl:min-h-0"
+            : "min-h-[100svh] xl:min-h-0 xl:pt-24"
         }`}
       >
-         {/* Media Background */}
-         {supplier.header_media_type === 'video' && supplier.header_video ? (
-             <video 
-               ref={headerVideoRef}
-               src={getImageUrl(supplier.header_video)} 
-               autoPlay 
-               muted={isMuted} 
-               loop 
-               playsInline
-               className="absolute inset-0 w-full h-full object-cover opacity-90 scale-105 group-hover:scale-100 transition-transform duration-[30s] ease-linear"
-             />
-         ) : (
-             <div className="absolute inset-0 w-full h-full">
-                <Carousel images={(supplier.carousel_images || []).slice(0, 3)} />
-             </div>
-         )}
+         {/* Shared media canvas: 2100 × 740 on wide desktop for both modes. */}
+         <div
+           className={`absolute inset-0 overflow-hidden xl:inset-x-0 xl:bottom-auto xl:aspect-[2100/740] xl:h-auto ${
+             isDirectory ? "xl:top-0" : "xl:top-24"
+           }`}
+         >
+           {supplier.header_media_type === 'video' && supplier.header_video ? (
+               <video
+                 ref={headerVideoRef}
+                 src={getImageUrl(supplier.header_video)}
+                 autoPlay
+                 muted={isMuted}
+                 loop
+                 playsInline
+                 className="absolute inset-0 h-full w-full scale-105 object-cover opacity-90 transition-transform duration-[30s] ease-linear group-hover:scale-100"
+               />
+           ) : (
+               <Carousel images={(supplier.carousel_images || []).slice(0, 3)} />
+           )}
 
-         {/* Soft readability overlay without tinting the media */}
-         <div className="absolute inset-0 z-10 bg-black/40 md:bg-gradient-to-r md:from-black/70 md:via-black/20 md:to-transparent" />
-         <div className="absolute inset-x-0 bottom-0 z-10 h-32 bg-gradient-to-t from-black/40 to-transparent md:h-56" />
+           {/* Soft readability overlay without tinting the media */}
+           <div className="absolute inset-0 z-10 bg-black/40 md:bg-gradient-to-r md:from-black/70 md:via-black/20 md:to-transparent" />
+           <div className="absolute inset-x-0 bottom-0 z-10 h-32 bg-gradient-to-t from-black/40 to-transparent md:h-56" />
+
+           {/* Audio Toggle */}
+           {supplier.header_media_type === 'video' && supplier.header_video && (
+               <button
+                  onClick={toggleMute}
+                  className="absolute bottom-6 right-6 z-40 rounded-full border border-white/20 bg-black/40 p-3 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/60"
+                  aria-label={isMuted ? "Activar sonido" : "Silenciar"}
+               >
+                   {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+               </button>
+           )}
+         </div>
 
          {/* Content */}
          <div
@@ -1100,11 +1115,11 @@ const contactHref = supplier?.phone
              isDirectory
                ? "min-h-[calc(100svh-4rem)]"
                : "min-h-[100svh] pt-28 md:pt-36"
-           } ${
-             hasHeroHighlights ? "pb-32 md:pb-28" : ""
+           } xl:aspect-[2100/740] xl:min-h-0 xl:py-8 ${
+             hasHeroHighlights ? "pb-32 md:pb-28 xl:pb-8" : ""
            }`}
          >
-             <div className="animate-in fade-in slide-in-from-left-10 w-full max-w-[min(72rem,100%)] duration-1000 md:max-w-[min(72rem,72vw)]">
+             <div className="animate-in fade-in slide-in-from-left-10 w-full max-w-[min(72rem,100%)] duration-1000 md:max-w-[min(72rem,72vw)] xl:max-w-[min(78rem,80vw)]">
                 {supplierLogo && !logoError && (
                     <div className="mx-auto mb-5 h-[clamp(4.5rem,11svh,7rem)] w-[clamp(4.5rem,11svh,7rem)] rounded-2xl border border-white/20 bg-white/10 p-3 shadow-2xl backdrop-blur-md sm:mb-6 md:mx-0 md:rounded-3xl">
                         <img src={getImageUrl(supplierLogo)} alt={supplier.name} className="w-full h-full object-contain drop-shadow-md" onError={() => setLogoError(true)} />
@@ -1151,7 +1166,7 @@ const contactHref = supplier?.phone
 
          {/* Floating Stats Bar */}
          {hasHeroHighlights ? (
-         <div className="absolute bottom-0 left-0 z-30 w-full border-t border-white/10 bg-black/20 backdrop-blur-xl">
+         <div className="absolute bottom-0 left-0 z-30 w-full border-t border-white/10 bg-black/20 backdrop-blur-xl xl:relative xl:bottom-auto xl:left-auto">
              <div className="container mx-auto flex flex-wrap items-center gap-10 px-6 py-6 md:gap-16">
                  {Number(supplier.rating_count) > 0 && Number(supplier.average_rating) > 0 ? (
                    <div className="text-center md:text-left">
@@ -1182,17 +1197,6 @@ const contactHref = supplier?.phone
              </div>
          </div>
          ) : null}
-
-         {/* Audio Toggle */}
-         {supplier.header_media_type === 'video' && supplier.header_video && (
-             <button 
-                onClick={toggleMute}
-                className="absolute bottom-24 right-6 z-40 rounded-full border border-white/20 bg-black/40 p-3 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/60"
-                aria-label={isMuted ? "Activar sonido" : "Silenciar"}
-             >
-                 {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
-             </button>
-         )}
       </section>
 
       {/* --- TABS NAVIGATION (solo tienda; directorio usa DirectoryTopNav propio) --- */}
