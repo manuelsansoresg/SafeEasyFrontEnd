@@ -1314,7 +1314,7 @@ const contactHref = supplier?.phone
             ) : (
               <div
                 className="grid gap-x-10 gap-y-12"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 300px))" }}
+                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}
               >
                 {filteredServices.map((service) => (
                   <DirectoryServiceCard key={service.id} service={service} />
