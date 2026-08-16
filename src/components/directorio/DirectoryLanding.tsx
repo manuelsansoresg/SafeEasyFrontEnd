@@ -380,12 +380,12 @@ export function DirectoryLanding({ initialPlan, campaignParams }: DirectoryLandi
               <p className="mt-5 text-base leading-7 text-[#59685f]">Un espacio diseñado para que las personas conozcan rápidamente quién eres, qué ofreces y cómo contactarte.</p>
               <div className="mt-7 flex items-start gap-3 rounded-2xl bg-white p-4 text-sm font-semibold leading-6 text-[#004e28] shadow-sm">
                 <Link2 size={20} className="mt-0.5 shrink-0 text-[#168e00]" aria-hidden="true" />
-                Tu espacio también tendrá un enlace que podrás compartir con tus clientes.
+                Tu espacio también tendrá un código QR y un enlace que podrás compartir con tus clientes.
               </div>
             </div>
             <div className="relative">
               <div className="absolute -inset-5 rotate-2 rounded-[2.5rem] bg-[#dcebd8]" aria-hidden="true" />
-              <div className="relative"><BusinessPreview /></div>
+              <Image src="/directoriodesktop.png" alt="Directorio Drooopy desktop" width={800} height={600} className="relative w-full" priority />
             </div>
           </div>
         </section>
