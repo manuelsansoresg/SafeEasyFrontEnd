@@ -115,6 +115,13 @@ export default function MySubscriptionPage() {
   const isDirectory = isDirectorySubscription(subscription);
 
   const [callbackMessage, setCallbackMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [requestedPlanId, setRequestedPlanId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const planId = Number(params.get("plan"));
+    setRequestedPlanId(Number.isInteger(planId) && planId > 0 ? planId : null);
+  }, []);
 
   const fetchMySubscription = useCallback(async () => {
     if (!token || !isSupplier) {
@@ -248,12 +255,17 @@ export default function MySubscriptionPage() {
   }, [fetchMySubscription, token, isSupplier]);
 
   useEffect(() => {
-    if (selectedPlanId || plans.length === 0) return;
+    if (plans.length === 0) return;
+    if (requestedPlanId && plans.some((plan) => plan.id === requestedPlanId)) {
+      if (selectedPlanId !== requestedPlanId) setSelectedPlanId(requestedPlanId);
+      return;
+    }
+    if (selectedPlanId) return;
     const currentPlanId = subscription?.plan_id;
     const currentPlanIsAvailable = plans.some((plan) => plan.id === currentPlanId);
     const nextPlanId = currentPlanIsAvailable && typeof currentPlanId === "number" ? currentPlanId : plans[0]?.id ?? null;
     setSelectedPlanId(nextPlanId);
-  }, [plans, selectedPlanId, subscription?.plan_id]);
+  }, [plans, requestedPlanId, selectedPlanId, subscription?.plan_id]);
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan.id === selectedPlanId) ?? null,

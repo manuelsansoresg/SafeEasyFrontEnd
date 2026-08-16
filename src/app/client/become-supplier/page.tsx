@@ -83,7 +83,7 @@ const translateMessage = (message: string, fallback: string) => {
   return message;
 };
 
-const buildSupplierFormData = (userId: number, companyName: string, email: string) => {
+const buildSupplierFormData = (userId: number, companyName: string, email: string, sellerCode: string) => {
   const data = new FormData();
   const append = (key: string, value: string) => data.append(key, value.trim());
 
@@ -110,6 +110,7 @@ const buildSupplierFormData = (userId: number, companyName: string, email: strin
   data.append("accepts_delivery", "false");
   data.append("accepts_pickup", "true");
   data.append("accepts_courier", "false");
+  if (sellerCode) data.append("seller_code", sellerCode);
 
   return data;
 };
@@ -125,6 +126,15 @@ export default function BecomeSupplierPage() {
   const [checkingCompany, setCheckingCompany] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [companyError, setCompanyError] = useState<string | null>(null);
+  const [requestedPlanId, setRequestedPlanId] = useState<number | null>(null);
+  const [sellerCode, setSellerCode] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const planId = Number(params.get("plan"));
+    setRequestedPlanId(Number.isInteger(planId) && planId > 0 ? planId : null);
+    setSellerCode(cleanInput(params.get("referral_code") || ""));
+  }, []);
 
   useEffect(() => {
     if (user?.role === "supplier") {
@@ -141,7 +151,13 @@ export default function BecomeSupplierPage() {
         if (!mounted) return;
         const activePlans = items.filter((plan) => plan.is_active);
         setPlans(activePlans);
-        setSelectedPlanId((current) => current ?? activePlans[0]?.id ?? null);
+        setSelectedPlanId((current) => {
+          if (current) return current;
+          if (requestedPlanId && activePlans.some((plan) => plan.id === requestedPlanId)) {
+            return requestedPlanId;
+          }
+          return activePlans[0]?.id ?? null;
+        });
       })
       .catch(() => {
         if (mounted) setError("No pudimos cargar los paquetes disponibles.");
@@ -153,12 +169,18 @@ export default function BecomeSupplierPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [requestedPlanId]);
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan.id === selectedPlanId) ?? plans[0] ?? null,
     [plans, selectedPlanId]
   );
+
+  useEffect(() => {
+    if (requestedPlanId && plans.some((plan) => plan.id === requestedPlanId)) {
+      setSelectedPlanId(requestedPlanId);
+    }
+  }, [plans, requestedPlanId]);
 
   const checkCompanyNameAvailability = async (name: string) => {
     setCheckingCompany(true);
@@ -235,7 +257,7 @@ export default function BecomeSupplierPage() {
 
       const supplierResponse = await fetchWithAuth("/api/suppliers/", {
         method: "POST",
-        body: buildSupplierFormData(user.id, cleanCompanyName, user.email),
+        body: buildSupplierFormData(user.id, cleanCompanyName, user.email, sellerCode),
       });
       const supplierBody = await readResponseBody(supplierResponse);
 

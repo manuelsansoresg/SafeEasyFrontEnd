@@ -23,8 +23,13 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const normalizedPathname = pathname.replace(/\/$/, "");
   const hideForDirectory = useChromeVisibilityStore((state) => state.hideForDirectory);
   const isSupplierPage = normalizedPathname.startsWith("/empresas/");
+  const isDirectoryLanding = normalizedPathname === "/directorio";
   const hideForLegalEmbed = legalPaths.has(normalizedPathname) && isMobileEmbed(searchParams);
-  const hideChrome = hideForLegalEmbed || (isSupplierPage && hideForDirectory);
+  const hideChrome = isDirectoryLanding || hideForLegalEmbed || (isSupplierPage && hideForDirectory);
+
+  if (isDirectoryLanding) {
+    return <>{children}</>;
+  }
 
   return (
     <>

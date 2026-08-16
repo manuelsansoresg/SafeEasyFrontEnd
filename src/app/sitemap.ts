@@ -34,6 +34,11 @@ const staticRoutes: MetadataRoute.Sitemap = [
     priority: 0.7,
   },
   {
+    url: absoluteSiteUrl("/directorio"),
+    changeFrequency: "weekly",
+    priority: 0.8,
+  },
+  {
     url: absoluteSiteUrl("/politicas-de-privacidad"),
     changeFrequency: "yearly",
     priority: 0.3,
