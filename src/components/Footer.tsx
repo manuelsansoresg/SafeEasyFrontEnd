@@ -9,8 +9,8 @@ import {
   LinkIcon,
   Mail,
   MessageCircle,
-  Twitter,
 } from "lucide-react";
+import { FaXTwitter } from "react-icons/fa6";
 
 const mainLinks = [
   { label: "Inicio", href: "/" },
@@ -26,9 +26,9 @@ const helpLinks = [
 ];
 
 const socialLinks = [
-  { label: "Facebook", href: "https://www.facebook.com/drooopymx", icon: Facebook },
+  { label: "Facebook", href: "https://www.facebook.com/drooopymexico", icon: Facebook },
   { label: "Instagram", href: "https://www.instagram.com/drooopymx", icon: Instagram },
-  { label: "X", href: "https://x.com/drooopymx", icon: Twitter },
+  { label: "X", href: "https://x.com/drooopymx", icon: FaXTwitter },
 ];
 
 const defaultShareUrl = "https://drooopy.com";
@@ -89,7 +89,7 @@ export function Footer() {
     {
       label: "Compartir en X",
       href: `https://twitter.com/intent/tweet?url=${encodedShareUrl}&text=${shareText}`,
-      icon: Twitter,
+      icon: FaXTwitter,
     },
     {
       label: "Compartir por correo",

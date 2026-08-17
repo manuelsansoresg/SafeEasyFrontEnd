@@ -14,7 +14,6 @@ import {
   Images,
   Instagram,
   Link2,
-  Mail,
   MapPin,
   MessageCircle,
   QrCode,
@@ -25,6 +24,7 @@ import {
   UtensilsCrossed,
   Wrench,
 } from "lucide-react";
+import { FaXTwitter } from "react-icons/fa6";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getPlanFeatureLines } from "@/components/sell/planText";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -446,11 +446,41 @@ export function DirectoryLanding({ initialPlan, campaignParams }: DirectoryLandi
         </section>
       </main>
 
+      <section className="bg-white py-14">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-6 rounded-lg border border-[#004e28]/10 p-6 md:flex-row md:items-center md:justify-between md:p-8">
+            <div>
+              <h2 className="text-2xl font-bold text-[#004e28]">¿Necesitas más ayuda?</h2>
+              <p className="mt-2 text-sm leading-7 text-[#5c6b62]">
+                Escríbenos desde contacto y cuéntanos qué quieres resolver.
+              </p>
+            </div>
+            <Link
+              href="/contacto"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#004e28] px-6 font-semibold text-white transition hover:bg-[#168e00]"
+            >
+              Contactar a Drooopy
+              <ArrowRight size={18} aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <footer className="border-t border-[#004e28]/10 bg-[#fbfdfb] pb-24 pt-9 sm:pb-10">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-4 sm:px-6 md:flex-row lg:px-8">
           <Link href="/" aria-label="Drooopy, ir al inicio" className="relative h-10 w-36"><Image src="/LOGO DROOOPY NEGRO.svg" alt="Drooopy" fill className="object-contain object-left" /></Link>
           <nav aria-label="Enlaces legales" className="flex flex-wrap justify-center gap-x-5 gap-y-3 text-xs font-semibold text-[#526359] sm:text-sm"><Link href="/politicas-de-privacidad" className="hover:text-[#168e00]">Aviso de privacidad</Link><Link href="/terminos-y-condiciones" className="hover:text-[#168e00]">Términos y condiciones</Link><Link href="/contacto" className="hover:text-[#168e00]">Contacto</Link></nav>
-          <div className="flex gap-2 text-[#004e28]" aria-label="Redes sociales de Drooopy"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e9f6e6]"><Facebook size={16} aria-hidden="true" /></span><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e9f6e6]"><Instagram size={16} aria-hidden="true" /></span><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e9f6e6]"><Mail size={16} aria-hidden="true" /></span></div>
+          <div className="flex gap-2 text-[#004e28]" aria-label="Redes sociales de Drooopy">
+            <a href="https://www.facebook.com/drooopymexico" target="_blank" rel="noreferrer" aria-label="Facebook" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e9f6e6] transition hover:bg-[#168e00] hover:text-white">
+              <Facebook size={16} aria-hidden="true" />
+            </a>
+            <a href="https://www.instagram.com/drooopymx" target="_blank" rel="noreferrer" aria-label="Instagram" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e9f6e6] transition hover:bg-[#168e00] hover:text-white">
+              <Instagram size={16} aria-hidden="true" />
+            </a>
+            <a href="https://x.com/drooopymx" target="_blank" rel="noreferrer" aria-label="X" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e9f6e6] transition hover:bg-[#168e00] hover:text-white">
+              <FaXTwitter size={16} aria-hidden="true" />
+            </a>
+          </div>
         </div>
         <p className="mt-6 text-center text-xs text-[#718078]">© {new Date().getFullYear()} Drooopy</p>
       </footer>
