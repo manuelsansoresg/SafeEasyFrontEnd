@@ -38,7 +38,21 @@ type DirectoryLandingProps = {
 type MarketingEvent =
   | "directory_view"
   | "directory_cta_click"
-  | "directory_checkout_start";
+  | "directory_checkout_start"
+  | "directory_whatsapp_click";
+
+type MetaPixelWindow = Window & {
+  fbq?: (
+    action: "track" | "trackCustom",
+    eventName: string,
+    parameters?: Record<string, unknown>,
+  ) => void;
+  dataLayer?: Array<Record<string, unknown>>;
+};
+
+const WHATSAPP_URL = `https://wa.me/529992685617?text=${encodeURIComponent(
+  "Hola, vi la landing del Plan Directorio de Drooopy y quisiera recibir ayuda para registrar mi negocio.",
+)}`;
 
 const benefits = [
   { icon: ImagePlay, title: "Imagen o video de portada", text: "Destaca tu negocio desde el primer vistazo." },
@@ -107,12 +121,26 @@ const pickPlanArray = (payload: unknown): Plan[] => {
   return Array.isArray(items) ? (items as Plan[]) : [];
 };
 
-const emitMarketingEvent = (event: MarketingEvent, placement?: string) => {
+const emitMarketingEvent = (
+  event: MarketingEvent,
+  placement?: string,
+  parameters: Record<string, unknown> = {},
+) => {
   if (typeof window === "undefined") return;
-  const detail = { event, placement, path: window.location.pathname };
+  const detail = { event, placement, path: window.location.pathname, ...parameters };
   window.dispatchEvent(new CustomEvent("drooopy:marketing", { detail }));
-  const analyticsWindow = window as Window & { dataLayer?: Array<Record<string, unknown>> };
+  const analyticsWindow = window as MetaPixelWindow;
   analyticsWindow.dataLayer?.push(detail);
+
+  if (event === "directory_cta_click") {
+    analyticsWindow.fbq?.("trackCustom", "DirectoryCtaClick", { placement });
+  }
+  if (event === "directory_checkout_start") {
+    analyticsWindow.fbq?.("track", "InitiateCheckout", parameters);
+  }
+  if (event === "directory_whatsapp_click") {
+    analyticsWindow.fbq?.("track", "Contact", { content_name: "WhatsApp Directorio" });
+  }
 };
 
 function BusinessPreview({ compact = false }: { compact?: boolean }) {
@@ -291,7 +319,13 @@ export function DirectoryLanding({ initialPlan, campaignParams }: DirectoryLandi
 
   const handleCtaClick = (placement: string) => {
     emitMarketingEvent("directory_cta_click", placement);
-    emitMarketingEvent("directory_checkout_start", placement);
+    emitMarketingEvent("directory_checkout_start", placement, {
+      content_name: "Plan Directorio",
+      content_category: "Suscripción",
+      content_ids: plan ? [String(plan.id)] : undefined,
+      currency: "MXN",
+      value: plan?.price,
+    });
   };
 
   const ctaClass =
@@ -446,22 +480,28 @@ export function DirectoryLanding({ initialPlan, campaignParams }: DirectoryLandi
         </section>
       </main>
 
-      <section className="bg-white py-14">
+      <section className="bg-white py-14" aria-labelledby="directory-help-title">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-6 rounded-lg border border-[#004e28]/10 p-6 md:flex-row md:items-center md:justify-between md:p-8">
+          <div className="flex flex-col gap-6 rounded-2xl border border-[#004e28]/10 bg-[#fbfdfb] p-6 shadow-[0_18px_50px_-42px_rgba(0,78,40,0.7)] md:flex-row md:items-center md:justify-between md:p-9">
             <div>
-              <h2 className="text-2xl font-bold text-[#004e28]">¿Necesitas más ayuda?</h2>
-              <p className="mt-2 text-sm leading-7 text-[#5c6b62]">
-                Escríbenos desde contacto y cuéntanos qué quieres resolver.
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#168e00]">Atención directa</p>
+              <h2 id="directory-help-title" className="mt-2 font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28] sm:text-3xl">¿Tienes dudas sobre el Plan Directorio?</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-[#5c6b62] sm:text-base">
+                Escríbenos por WhatsApp y te ayudamos a resolver tus preguntas antes de registrar tu negocio.
               </p>
             </div>
-            <Link
-              href="/contacto"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#004e28] px-6 font-semibold text-white transition hover:bg-[#168e00]"
+            <a
+              href={WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => emitMarketingEvent("directory_whatsapp_click", "help_section")}
+              aria-label="Hablar con Drooopy por WhatsApp sobre el Plan Directorio"
+              className="group inline-flex min-h-12 shrink-0 items-center justify-center gap-2.5 rounded-full bg-[#004e28] px-6 py-3 font-semibold text-white shadow-[0_14px_30px_-18px_rgba(0,78,40,0.9)] transition hover:-translate-y-0.5 hover:bg-[#168e00] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#168e00] sm:px-8"
             >
-              Contactar a Drooopy
-              <ArrowRight size={18} aria-hidden="true" />
-            </Link>
+              <MessageCircle size={19} aria-hidden="true" />
+              Hablar por WhatsApp
+              <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" aria-hidden="true" />
+            </a>
           </div>
         </div>
       </section>

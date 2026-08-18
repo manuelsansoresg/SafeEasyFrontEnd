@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DirectoryLanding } from "@/components/directorio/DirectoryLanding";
+import { MetaPixel } from "@/components/directorio/MetaPixel";
 import { buildMetadata, getApiBaseUrl, listFromPayload } from "@/lib/seo";
 import type { Plan } from "@/types/subscriptions";
 
@@ -62,9 +63,12 @@ export default async function DirectoryPage({
   const directoryPlan = await getDirectoryPlan(accessCode);
 
   return (
-    <DirectoryLanding
-      initialPlan={directoryPlan}
-      campaignParams={entries}
-    />
+    <>
+      <MetaPixel />
+      <DirectoryLanding
+        initialPlan={directoryPlan}
+        campaignParams={entries}
+      />
+    </>
   );
 }
