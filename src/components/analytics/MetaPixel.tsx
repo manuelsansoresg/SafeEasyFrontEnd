@@ -1,11 +1,28 @@
+"use client";
+
 import Script from "next/script";
+import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 const META_PIXEL_ID = "1641497291314588";
 
+type MetaPixelWindow = Window & {
+  fbq?: (action: "track", eventName: "PageView") => void;
+};
+
 export function MetaPixel() {
+  const pathname = usePathname();
+  const previousPathname = useRef(pathname);
+
+  useEffect(() => {
+    if (previousPathname.current === pathname) return;
+    previousPathname.current = pathname;
+    (window as MetaPixelWindow).fbq?.("track", "PageView");
+  }, [pathname]);
+
   return (
     <>
-      <Script id="meta-pixel-directorio" strategy="afterInteractive">
+      <Script id="meta-pixel-base" strategy="afterInteractive">
         {`
           !function(f,b,e,v,n,t,s)
           {if(f.fbq)return;n=f.fbq=function(){n.callMethod?

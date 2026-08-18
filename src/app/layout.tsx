@@ -10,6 +10,7 @@ import { ChatOverlay } from "@/components/chat/ChatOverlay";
 import { LocationProvider } from "@/components/LocationProvider";
 import { TokenRefreshProvider } from "@/components/TokenRefreshProvider";
 import { JsonLd } from "@/components/JsonLd";
+import { MetaPixel } from "@/components/analytics/MetaPixel";
 import { absoluteSiteUrl, getSiteUrl, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 
 const poppins = Poppins({
@@ -90,6 +91,7 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${poppins.variable} ${varelaRound.variable} font-sans antialiased bg-background text-foreground`}
       >
+        <MetaPixel />
         <JsonLd
           data={[
             {
