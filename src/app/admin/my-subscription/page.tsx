@@ -116,11 +116,17 @@ export default function MySubscriptionPage() {
 
   const [callbackMessage, setCallbackMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [requestedPlanId, setRequestedPlanId] = useState<number | null>(null);
+  const [accessCode, setAccessCode] = useState("");
+  const [directoryCheckout, setDirectoryCheckout] = useState(false);
+  const [checkoutParamsReady, setCheckoutParamsReady] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const planId = Number(params.get("plan"));
     setRequestedPlanId(Number.isInteger(planId) && planId > 0 ? planId : null);
+    setAccessCode((params.get("code") || "").trim().slice(0, 255));
+    setDirectoryCheckout(params.get("checkout") === "directory");
+    setCheckoutParamsReady(true);
   }, []);
 
   const fetchMySubscription = useCallback(async () => {
@@ -231,15 +237,17 @@ export default function MySubscriptionPage() {
   }, [isDirectory, isSupplier, token, user]);
 
   useEffect(() => {
-    if (!token || !isSupplier) return;
+    if (!token || !isSupplier || !checkoutParamsReady) return;
     let mounted = true;
 
     const loadPlans = async () => {
       setLoadingPlans(true);
       try {
-        const items = await subscriptionsService.listPlans();
+        const items = await subscriptionsService.listPlans({ accessCode, onlyActive: true, listedOnly: directoryCheckout });
         if (!mounted) return;
-        const activePlans = items.filter((plan) => plan.is_active);
+        const activePlans = items.filter(
+          (plan) => plan.is_active && (!directoryCheckout || plan.is_directory === true)
+        );
         setPlans(activePlans);
       } catch (e) {
         console.error("Error loading subscription plans:", e);
@@ -252,7 +260,7 @@ export default function MySubscriptionPage() {
     return () => {
       mounted = false;
     };
-  }, [fetchMySubscription, token, isSupplier]);
+  }, [accessCode, checkoutParamsReady, directoryCheckout, fetchMySubscription, token, isSupplier]);
 
   useEffect(() => {
     if (plans.length === 0) return;
@@ -291,7 +299,11 @@ export default function MySubscriptionPage() {
 
   const handlePaySelectedPlan = async () => {
     if (!selectedPlan) {
-      setError("Selecciona un plan para continuar con el pago.");
+      setError(directoryCheckout ? "El Plan Directorio no está disponible." : "Selecciona un plan para continuar con el pago.");
+      return;
+    }
+    if (directoryCheckout && !selectedPlan.is_directory) {
+      setError("Esta compra solo permite activar el Plan Directorio.");
       return;
     }
 
@@ -423,8 +435,12 @@ export default function MySubscriptionPage() {
           selectedPlanId={selectedPlanId}
           loadingPlans={loadingPlans}
           paying={paying}
-          title="No se registró un pago"
-          description="El proveedor ya existe. Elige un plan y genera la ficha de pago sin registrarte otra vez."
+          title={directoryCheckout ? "Plan Directorio" : "No se registró un pago"}
+          description={
+            directoryCheckout
+              ? "Esta compra está reservada exclusivamente para el Plan Directorio."
+              : "El proveedor ya existe. Elige un plan y genera la ficha de pago sin registrarte otra vez."
+          }
           onSelectPlan={setSelectedPlanId}
           onPay={handlePaySelectedPlan}
         />
@@ -723,9 +739,17 @@ export default function MySubscriptionPage() {
                 selectedPlanId={selectedPlanId}
                 loadingPlans={loadingPlans}
                 paying={paying}
-                title={isSubscriptionActive(subscription) ? "Próximo a vencer" : "Pago no registrado"}
+                title={
+                  directoryCheckout
+                    ? "Plan Directorio"
+                    : isSubscriptionActive(subscription)
+                      ? "Próximo a vencer"
+                      : "Pago no registrado"
+                }
                 description={
-                  isSubscriptionActive(subscription)
+                  directoryCheckout
+                    ? "Esta compra está reservada exclusivamente para el Plan Directorio."
+                    : isSubscriptionActive(subscription)
                     ? `Te quedan ${daysRemaining(subscription.end_date)} días. Puedes pagar otro periodo.`
                     : "El plan no está activo porque no hay un pago aprobado. Elige un plan y paga ahora."
                 }

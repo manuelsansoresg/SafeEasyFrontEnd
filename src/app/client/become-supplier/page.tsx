@@ -128,12 +128,18 @@ export default function BecomeSupplierPage() {
   const [companyError, setCompanyError] = useState<string | null>(null);
   const [requestedPlanId, setRequestedPlanId] = useState<number | null>(null);
   const [sellerCode, setSellerCode] = useState("");
+  const [accessCode, setAccessCode] = useState("");
+  const [directoryCheckout, setDirectoryCheckout] = useState(false);
+  const [checkoutParamsReady, setCheckoutParamsReady] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const planId = Number(params.get("plan"));
     setRequestedPlanId(Number.isInteger(planId) && planId > 0 ? planId : null);
     setSellerCode(cleanInput(params.get("referral_code") || ""));
+    setAccessCode(cleanInput(params.get("code") || ""));
+    setDirectoryCheckout(params.get("checkout") === "directory");
+    setCheckoutParamsReady(true);
   }, []);
 
   useEffect(() => {
@@ -143,13 +149,16 @@ export default function BecomeSupplierPage() {
   }, [router, user?.role]);
 
   useEffect(() => {
+    if (!checkoutParamsReady) return;
     let mounted = true;
 
     subscriptionsService
-      .listPlans()
+      .listPlans({ accessCode, onlyActive: true, listedOnly: directoryCheckout })
       .then((items) => {
         if (!mounted) return;
-        const activePlans = items.filter((plan) => plan.is_active);
+        const activePlans = items.filter(
+          (plan) => plan.is_active && (!directoryCheckout || plan.is_directory === true)
+        );
         setPlans(activePlans);
         setSelectedPlanId((current) => {
           if (current) return current;
@@ -160,7 +169,13 @@ export default function BecomeSupplierPage() {
         });
       })
       .catch(() => {
-        if (mounted) setError("No pudimos cargar los paquetes disponibles.");
+        if (mounted) {
+          setError(
+            directoryCheckout
+              ? "No pudimos cargar el Plan Directorio."
+              : "No pudimos cargar los paquetes disponibles."
+          );
+        }
       })
       .finally(() => {
         if (mounted) setLoadingPlans(false);
@@ -169,7 +184,7 @@ export default function BecomeSupplierPage() {
     return () => {
       mounted = false;
     };
-  }, [requestedPlanId]);
+  }, [accessCode, checkoutParamsReady, directoryCheckout, requestedPlanId]);
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan.id === selectedPlanId) ?? plans[0] ?? null,
@@ -217,7 +232,12 @@ export default function BecomeSupplierPage() {
     }
 
     if (!selectedPlan) {
-      setError("Selecciona un paquete para continuar.");
+      setError(directoryCheckout ? "El Plan Directorio no está disponible." : "Selecciona un paquete para continuar.");
+      return;
+    }
+
+    if (directoryCheckout && !selectedPlan.is_directory) {
+      setError("Esta compra solo permite activar el Plan Directorio.");
       return;
     }
 
@@ -299,7 +319,14 @@ export default function BecomeSupplierPage() {
 
   return (
     <div className="space-y-6 font-[family-name:var(--font-poppins)]">
-      <PageHero title="Volverme proveedor" subtitle="Activa tu empresa con la cuenta que ya tienes registrada." />
+      <PageHero
+        title={directoryCheckout ? "Registra tu negocio en el directorio" : "Volverme proveedor"}
+        subtitle={
+          directoryCheckout
+            ? "Activa el Plan Directorio con la cuenta que ya tienes registrada."
+            : "Activa tu empresa con la cuenta que ya tienes registrada."
+        }
+      />
 
       {error ? (
         <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
@@ -313,10 +340,12 @@ export default function BecomeSupplierPage() {
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#168e00]">Paso 1</p>
               <h2 className="font-[family-name:var(--font-varela-round)] text-2xl font-bold text-gray-950">
-                Elige tu paquete
+                {directoryCheckout ? "Plan Directorio" : "Elige tu paquete"}
               </h2>
               <p className="mt-1 text-sm leading-6 text-gray-500">
-                Estos son los paquetes activos para crear tu perfil de proveedor.
+                {directoryCheckout
+                  ? "Este es el único plan disponible en esta compra."
+                  : "Estos son los paquetes activos para crear tu perfil de proveedor."}
               </p>
             </div>
             <ReceiptText className="hidden text-primary md:block" size={28} />
@@ -325,12 +354,14 @@ export default function BecomeSupplierPage() {
           {loadingPlans ? (
             <div className="flex min-h-72 items-center justify-center gap-3 text-gray-500">
               <Loader2 className="animate-spin text-primary" size={26} />
-              Cargando paquetes...
+              {directoryCheckout ? "Cargando Plan Directorio..." : "Cargando paquetes..."}
             </div>
           ) : plans.length === 0 ? (
-            <div className="rounded-xl bg-[#f2f3f4] p-5 text-sm text-gray-600">No hay paquetes activos disponibles.</div>
+            <div className="rounded-xl bg-[#f2f3f4] p-5 text-sm text-gray-600">
+              {directoryCheckout ? "El Plan Directorio no está disponible." : "No hay paquetes activos disponibles."}
+            </div>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className={`grid gap-4 ${directoryCheckout ? "grid-cols-1" : "lg:grid-cols-2"}`}>
               {plans.map((plan, index) => {
                 const active = plan.id === selectedPlan?.id;
                 const planFeatureLines = getPlanFeatureLines({
@@ -346,14 +377,17 @@ export default function BecomeSupplierPage() {
                   <button
                     key={plan.id}
                     type="button"
-                    onClick={() => setSelectedPlanId(plan.id)}
+                    disabled={directoryCheckout}
+                    onClick={() => {
+                      if (!directoryCheckout) setSelectedPlanId(plan.id);
+                    }}
                     className={`relative flex min-h-[360px] flex-col rounded-2xl border p-5 text-left transition-all ${
                       active
                         ? "border-primary bg-primary/5 shadow-sm shadow-primary/10 ring-2 ring-primary/10"
                         : "border-gray-100 bg-white hover:border-primary/30 hover:bg-[#f2f3f4]"
                     }`}
                   >
-                    {index === 1 ? (
+                    {!directoryCheckout && index === 1 ? (
                       <span className="absolute right-4 top-4 rounded-full bg-primary px-3 py-1 text-xs font-bold uppercase text-white">
                         Recomendado
                       </span>

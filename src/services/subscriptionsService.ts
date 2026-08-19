@@ -16,6 +16,12 @@ type ListSubscriptionsParams = {
   search?: string;
 };
 
+type ListPlansParams = {
+  accessCode?: string;
+  onlyActive?: boolean;
+  listedOnly?: boolean;
+};
+
 export class SubscriptionRequestError extends Error {
   status: number;
 
@@ -231,12 +237,22 @@ export const subscriptionsService = {
     return pickArray<Subscription>(json);
   },
 
-  async listPlans(): Promise<Plan[]> {
+  async listPlans(params: ListPlansParams = {}): Promise<Plan[]> {
+    const qs = new URLSearchParams({ skip: "0", limit: "1000" });
+    if (params.onlyActive) qs.set("only_active", "true");
+    if (params.accessCode?.trim()) {
+      qs.set("access_code", params.accessCode.trim());
+      qs.set("is_demo", "true");
+    } else if (params.listedOnly) {
+      qs.set("is_listed", "true");
+      qs.set("is_demo", "false");
+    }
+    const query = qs.toString();
     const tryUrls = [
-      `/api/plans/?skip=0&limit=1000`,
-      `/api/plans?skip=0&limit=1000`,
-      apiUrl(`/plans/?skip=0&limit=1000`),
-      apiUrl(`/plans?skip=0&limit=1000`),
+      `/api/plans/?${query}`,
+      `/api/plans?${query}`,
+      apiUrl(`/plans/?${query}`),
+      apiUrl(`/plans?${query}`),
     ];
     let response: Response | null = null;
     for (const url of tryUrls) {

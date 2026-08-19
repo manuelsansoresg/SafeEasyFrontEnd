@@ -211,9 +211,16 @@ const pickPlanArray = (data: unknown): Plan[] => {
 interface StepCheckoutProps {
   selectedPlan: string;
   referralCode?: string;
+  accessCode?: string;
+  directoryCheckout?: boolean;
 }
 
-export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCheckoutProps) {
+export default function StepCheckout({
+  selectedPlan,
+  referralCode = '',
+  accessCode = '',
+  directoryCheckout = false,
+}: StepCheckoutProps) {
   const { login } = useAuthStore();
   const planId = parseInt(selectedPlan || '1', 10);
   const fixedReferralCode = sanitizeInput(referralCode);
@@ -246,27 +253,50 @@ export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCh
   } | null>(null);
   const [rateLimited, setRateLimited] = useState(false);
   const [rateLimitReset, setRateLimitReset] = useState<number | null>(null);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+  const [planLoadFailed, setPlanLoadFailed] = useState(false);
 
   useEffect(() => {
     let mounted = true;
+    const params = new URLSearchParams({ skip: '0', limit: '1000', only_active: 'true' });
+    const normalizedAccessCode = accessCode.trim();
+    if (normalizedAccessCode) {
+      params.set('access_code', normalizedAccessCode);
+      params.set('is_demo', 'true');
+    } else {
+      params.set('is_listed', 'true');
+      params.set('is_demo', 'false');
+    }
 
-    fetch('/api/plans/?skip=0&limit=1000&only_active=true')
+    fetch(`/api/plans/?${params.toString()}`)
       .then((response) => (response.ok ? response.json() : []))
       .then((plans: unknown) => {
         if (!mounted) return;
         setServerPlans(pickPlanArray(plans));
       })
       .catch(() => {
-        if (mounted) setServerPlans([]);
+        if (mounted) {
+          setServerPlans([]);
+          setPlanLoadFailed(true);
+        }
+      })
+      .finally(() => {
+        if (mounted) setLoadingPlans(false);
       });
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [accessCode]);
+
+  const matchedServerPlan = useMemo(
+    () => serverPlans.find((item) => item.id === planId) ?? null,
+    [planId, serverPlans],
+  );
+  const directoryPlanIsValid = !directoryCheckout || matchedServerPlan?.is_directory === true;
 
   const plan = useMemo<CheckoutPlan>(() => {
-    const matched = serverPlans.find((item) => item.id === planId);
+    const matched = matchedServerPlan;
     if (!matched) return fallbackPlan;
     const featureLines = getPlanFeatureLines({
       features: matched.features,
@@ -286,7 +316,7 @@ export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCh
           ? featureLines
           : fallbackPlan.features,
     };
-  }, [planId, serverPlans]);
+  }, [matchedServerPlan]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -367,6 +397,11 @@ export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCh
     e.preventDefault();
     setError(null);
     setCompanyNameError(null);
+
+    if (!directoryPlanIsValid) {
+      setError('Esta compra solo permite activar el Plan Directorio.');
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setError('Las contraseñas no coinciden.');
@@ -614,6 +649,26 @@ export default function StepCheckout({ selectedPlan, referralCode = '' }: StepCh
       setLoading(false);
     }
   };
+
+  if (directoryCheckout && !directoryPlanIsValid) {
+    return (
+      <div className="flex min-h-64 items-center justify-center rounded-xl border border-gray-100 bg-white p-6 text-center shadow-sm">
+        {loadingPlans ? (
+          <div className="flex items-center gap-3 text-sm font-medium text-gray-500">
+            <Loader2 className="animate-spin text-primary" size={20} aria-hidden="true" />
+            Cargando Plan Directorio...
+          </div>
+        ) : (
+          <div>
+            <p className="font-semibold text-gray-900">El Plan Directorio no está disponible.</p>
+            <p className="mt-2 text-sm text-gray-500">
+              {planLoadFailed ? 'No pudimos cargar el plan. Intenta nuevamente.' : 'La liga no corresponde a un Plan Directorio activo.'}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">

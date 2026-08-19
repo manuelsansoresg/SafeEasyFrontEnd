@@ -288,6 +288,7 @@ export function DirectoryLanding({ initialPlan, campaignParams }: DirectoryLandi
     if (!plan) return "#precio";
     const params = new URLSearchParams(campaignParams);
     params.set("plan", String(plan.id));
+    params.set("checkout", "directory");
     const role = user?.role?.toLowerCase();
     const path = role === "supplier" || role === "admin"
       ? "/admin/my-subscription"

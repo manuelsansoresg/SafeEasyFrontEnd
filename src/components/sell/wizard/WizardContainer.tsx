@@ -13,6 +13,8 @@ export default function WizardContainer() {
   const user = useAuthStore((state) => state.user);
   const selectedPlan = searchParams.get('plan') || '1';
   const referralCode = searchParams.get('referral_code') || '';
+  const accessCode = searchParams.get('code') || '';
+  const directoryCheckout = searchParams.get('checkout') === 'directory';
 
   useEffect(() => {
     if (!user) return;
@@ -41,7 +43,12 @@ export default function WizardContainer() {
           <p className="text-sm text-gray-500">Registra tu cuenta y continúa a Mercado Pago</p>
         </div>
       </div>
-      <StepCheckout selectedPlan={selectedPlan} referralCode={referralCode} />
+      <StepCheckout
+        selectedPlan={selectedPlan}
+        referralCode={referralCode}
+        accessCode={accessCode}
+        directoryCheckout={directoryCheckout}
+      />
     </div>
   );
 }
