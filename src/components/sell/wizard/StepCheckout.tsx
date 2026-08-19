@@ -5,6 +5,7 @@ import DOMPurify from 'isomorphic-dompurify';
 import { useAuthStore } from '@/store/useAuthStore';
 import { fetchWithAuth } from '@/lib/api';
 import { getSafeMercadoPagoUrl } from '@/lib/security';
+import { trackDirectoryInitiateCheckout, trackMetaEvent } from '@/lib/metaPixel';
 import { subscriptionsService } from '@/services/subscriptionsService';
 import type { Plan } from '@/types/subscriptions';
 import { getPlanFeatureLines } from '@/components/sell/planText';
@@ -528,6 +529,13 @@ export default function StepCheckout({
         }
 
         userId = userBody.id;
+
+        if (directoryCheckout) {
+          trackMetaEvent('CompleteRegistration', {
+            content_name: 'Plan Directorio',
+            content_category: 'Suscripción',
+          });
+        }
         
         setCreatedUserId(userId);
         setCreatedUserEmail(formData.email.trim());
@@ -637,6 +645,10 @@ export default function StepCheckout({
 
       if (!safeInitPoint) {
         throw new Error('No pudimos generar el enlace de pago. Contactá soporte.');
+      }
+
+      if (directoryCheckout) {
+        trackDirectoryInitiateCheckout(plan.id, plan.price);
       }
       window.location.href = safeInitPoint;
 

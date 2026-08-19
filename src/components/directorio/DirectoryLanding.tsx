@@ -27,6 +27,7 @@ import {
 import { FaXTwitter } from "react-icons/fa6";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getPlanFeatureLines } from "@/components/sell/planText";
+import { trackMetaCustomEvent, trackMetaEvent } from "@/lib/metaPixel";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { Plan } from "@/types/subscriptions";
 
@@ -38,15 +39,9 @@ type DirectoryLandingProps = {
 type MarketingEvent =
   | "directory_view"
   | "directory_cta_click"
-  | "directory_checkout_start"
   | "directory_whatsapp_click";
 
-type MetaPixelWindow = Window & {
-  fbq?: (
-    action: "track" | "trackCustom",
-    eventName: string,
-    parameters?: Record<string, unknown>,
-  ) => void;
+type AnalyticsWindow = Window & {
   dataLayer?: Array<Record<string, unknown>>;
 };
 
@@ -129,17 +124,14 @@ const emitMarketingEvent = (
   if (typeof window === "undefined") return;
   const detail = { event, placement, path: window.location.pathname, ...parameters };
   window.dispatchEvent(new CustomEvent("drooopy:marketing", { detail }));
-  const analyticsWindow = window as MetaPixelWindow;
+  const analyticsWindow = window as AnalyticsWindow;
   analyticsWindow.dataLayer?.push(detail);
 
   if (event === "directory_cta_click") {
-    analyticsWindow.fbq?.("trackCustom", "DirectoryCtaClick", { placement });
-  }
-  if (event === "directory_checkout_start") {
-    analyticsWindow.fbq?.("track", "InitiateCheckout", parameters);
+    trackMetaCustomEvent("DirectoryCtaClick", { placement });
   }
   if (event === "directory_whatsapp_click") {
-    analyticsWindow.fbq?.("track", "Contact", { content_name: "WhatsApp Directorio" });
+    trackMetaEvent("Contact", { content_name: "WhatsApp Directorio" });
   }
 };
 
@@ -320,13 +312,6 @@ export function DirectoryLanding({ initialPlan, campaignParams }: DirectoryLandi
 
   const handleCtaClick = (placement: string) => {
     emitMarketingEvent("directory_cta_click", placement);
-    emitMarketingEvent("directory_checkout_start", placement, {
-      content_name: "Plan Directorio",
-      content_category: "Suscripción",
-      content_ids: plan ? [String(plan.id)] : undefined,
-      currency: "MXN",
-      value: plan?.price,
-    });
   };
 
   const ctaClass =

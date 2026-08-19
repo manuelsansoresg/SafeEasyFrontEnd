@@ -8,6 +8,7 @@ import { supplierGalleryService } from "@/services/supplierGalleryService";
 import { fetchWithAuth } from "@/lib/api";
 import { resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import { trackDirectoryInitiateCheckout } from "@/lib/metaPixel";
 import { isDirectorySubscription, isSubscriptionActive } from "@/lib/subscriptionAccess";
 import type { Plan, Subscription } from "@/types/subscriptions";
 import {
@@ -317,6 +318,9 @@ export default function MySubscriptionPage() {
         : getSafeMercadoPagoUrl(purchase.init_point || '');
       if (!safeInitPoint) {
         throw new Error("Mercado Pago no devolvió una liga de pago.");
+      }
+      if (directoryCheckout) {
+        trackDirectoryInitiateCheckout(selectedPlan.id, selectedPlan.price);
       }
       window.location.href = safeInitPoint;
     } catch (e) {

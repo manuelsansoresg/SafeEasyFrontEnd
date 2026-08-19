@@ -3,12 +3,9 @@
 import Script from "next/script";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { trackMetaEvent } from "@/lib/metaPixel";
 
 const META_PIXEL_ID = "1641497291314588";
-
-type MetaPixelWindow = Window & {
-  fbq?: (action: "track", eventName: "PageView") => void;
-};
 
 export function MetaPixel() {
   const pathname = usePathname();
@@ -17,7 +14,7 @@ export function MetaPixel() {
   useEffect(() => {
     if (previousPathname.current === pathname) return;
     previousPathname.current = pathname;
-    (window as MetaPixelWindow).fbq?.("track", "PageView");
+    trackMetaEvent("PageView");
   }, [pathname]);
 
   return (

@@ -16,6 +16,7 @@ import { PageHero } from "@/components/ui/PageHero";
 import { getPlanFeatureLines } from "@/components/sell/planText";
 import { fetchWithAuth } from "@/lib/api";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import { trackDirectoryInitiateCheckout } from "@/lib/metaPixel";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { Plan } from "@/types/subscriptions";
@@ -300,6 +301,9 @@ export default function BecomeSupplierPage() {
         throw new Error("Mercado Pago no devolvió una liga de pago.");
       }
 
+      if (directoryCheckout) {
+        trackDirectoryInitiateCheckout(selectedPlan.id, selectedPlan.price);
+      }
       window.location.href = safeInitPoint;
     } catch (submitError) {
       const message =
