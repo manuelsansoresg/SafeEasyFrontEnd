@@ -46,6 +46,18 @@ function validateFiles(files: File[], availableSlots: number) {
   return null;
 }
 
+function withoutImage(service: SupplierService, imageId: number) {
+  const images = service.images.filter((image) => image.id !== imageId);
+  const cover = images.find((image) => image.is_cover) ?? images[0] ?? null;
+
+  return {
+    ...service,
+    images,
+    cover_image_url: cover?.image_url ?? null,
+    cover_thumbnail_url: cover?.thumbnail_url ?? null,
+  };
+}
+
 function ExistingGallery({
   service,
   busyImageId,
@@ -55,47 +67,55 @@ function ExistingGallery({
   busyImageId: number | null;
   onDelete: (imageId: number) => void;
 }) {
-  const image = service.images[0];
-  if (!image) return null;
+  const images = [...service.images].sort(
+    (first, second) => first.position - second.position,
+  );
+  if (!images.length) return null;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <article className="group overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <div className="relative aspect-[4/3] bg-[#f2f3f4]">
-          <Image
-            src={image.thumbnail_url || image.image_url}
-            alt={`Imagen de ${service.title}`}
-            fill
-            unoptimized
-            sizes="(max-width: 640px) 100vw, 50vw"
-            className="object-cover"
-          />
-          <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
-            <Crown size={13} />
-            Portada
-          </span>
-        </div>
-        <div className="flex items-center justify-end gap-2 p-3">
-          <button
-            type="button"
-            disabled={service.images.length === 1 || busyImageId !== null}
-            onClick={() => onDelete(image.id)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
-            aria-label="Eliminar imagen"
-            title={
-              service.images.length === 1
-                ? "El servicio debe conservar una imagen"
-                : "Eliminar imagen"
-            }
-          >
-            {busyImageId === image.id ? (
-              <Loader2 size={17} className="animate-spin" />
-            ) : (
-              <Trash2 size={17} />
-            )}
-          </button>
-        </div>
-      </article>
+    <div className="grid max-w-4xl grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      {images.map((image) => (
+        <article
+          key={image.id}
+          className="overflow-hidden rounded-xl border border-gray-200 bg-white"
+        >
+          <div className="relative aspect-square bg-[#f2f3f4]">
+            <Image
+              src={image.thumbnail_url || image.image_url}
+              alt={`Imagen de ${service.title}`}
+              fill
+              unoptimized
+              sizes="(max-width: 640px) 50vw, 180px"
+              className="object-contain"
+            />
+            {image.is_cover ? (
+              <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">
+                <Crown size={12} />
+                Portada
+              </span>
+            ) : null}
+          </div>
+          <div className="flex items-center justify-between gap-2 p-2.5">
+            <p className="truncate text-[11px] text-gray-500">
+              Imagen {image.position + 1}
+            </p>
+            <button
+              type="button"
+              disabled={busyImageId !== null}
+              onClick={() => onDelete(image.id)}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:border-red-600 hover:bg-red-50 disabled:cursor-wait disabled:opacity-50"
+              aria-label={`Borrar imagen ${image.position + 1}`}
+              title="Borrar imagen"
+            >
+              {busyImageId === image.id ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Trash2 size={16} />
+              )}
+            </button>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }
@@ -119,6 +139,7 @@ export function ServiceForm({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [busyImageId, setBusyImageId] = useState<number | null>(null);
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
 
   const previews = useMemo(
@@ -141,14 +162,7 @@ export function ServiceForm({
   const availableSlots = MAX_IMAGES - existingCount;
 
   const addFiles = (selected: File[]) => {
-    if (availableSlots <= 0) {
-      setToast({
-        type: "info",
-        message: "El servicio ya tiene su imagen. Elimínala para cambiarla.",
-      });
-      return;
-    }
-    const nextFiles = [...files, ...selected].slice(0, MAX_IMAGES);
+    const nextFiles = [...files, ...selected];
     const error = validateFiles(nextFiles, availableSlots);
     if (error) {
       setToast({ type: "error", message: error });
@@ -161,6 +175,38 @@ export function ServiceForm({
     setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
+  const deleteImage = async (imageId: number) => {
+    if (!service) return;
+    const previousService = service;
+
+    setService(withoutImage(service, imageId));
+    setBusyImageId(imageId);
+    try {
+      const updated = await servicesService.deleteImage(service.id, imageId);
+      setService(withoutImage(updated, imageId));
+      setToast({ type: "success", message: "La imagen se eliminó." });
+    } catch (error) {
+      setService(previousService);
+      setFiles([]);
+      setToast({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo eliminar la imagen.",
+      });
+    } finally {
+      setBusyImageId(null);
+    }
+  };
+
+  const dropImage = (event: React.DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingImage(false);
+    addFiles(Array.from(event.dataTransfer.files));
+  };
+
   const validateFields = () => {
     const parsedPrice = Number(price);
     if (!title.trim()) return "Escribe el nombre del servicio.";
@@ -171,8 +217,6 @@ export function ServiceForm({
       return "La descripción no puede superar 5,000 caracteres.";
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0)
       return "Ingresa un precio válido, igual o mayor a cero.";
-    if (!service && files.length === 0)
-      return "Agrega al menos una imagen del servicio.";
     return null;
   };
 
@@ -234,13 +278,16 @@ export function ServiceForm({
       const updated = await servicesService.addImages(
         service.id,
         files,
-        0,
+        existingCount === 0 ? 0 : undefined,
       );
       setService(updated);
       setFiles([]);
       setToast({
         type: "success",
-        message: "La imagen se agregó al servicio.",
+        message:
+          files.length === 1
+            ? "La imagen se agregó al servicio."
+            : "Las imágenes se agregaron al servicio.",
       });
     } catch (error) {
       setToast({
@@ -252,24 +299,6 @@ export function ServiceForm({
       });
     } finally {
       setUploading(false);
-    }
-  };
-
-  const deleteImage = async (imageId: number) => {
-    if (!service || service.images.length === 1) return;
-    if (!window.confirm("¿Eliminar esta imagen del servicio?")) return;
-    setBusyImageId(imageId);
-    try {
-      setService(await servicesService.deleteImage(service.id, imageId));
-      setToast({ type: "success", message: "La imagen se eliminó." });
-    } catch (error) {
-      setToast({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "No se eliminó la imagen.",
-      });
-    } finally {
-      setBusyImageId(null);
     }
   };
 
@@ -369,8 +398,7 @@ export function ServiceForm({
               Imagen del servicio
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              Sube 1 imagen JPG, PNG o WebP, de hasta 5 MB. Esta imagen se
-              mostrará como portada del servicio.
+              Es opcional. Puedes subir 1 imagen JPG, PNG o WebP de hasta 5 MB.
             </p>
           </div>
           <div className="space-y-5">
@@ -382,20 +410,43 @@ export function ServiceForm({
               />
             ) : null}
 
-            {availableSlots > 0 ? (
+            {existingCount + files.length < MAX_IMAGES ? (
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
-                className="group flex min-h-40 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 px-5 py-8 text-center transition-all hover:border-primary/50 hover:bg-gray-50"
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  setIsDraggingImage(true);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "copy";
+                  setIsDraggingImage(true);
+                }}
+                onDragLeave={(event) => {
+                  if (
+                    event.relatedTarget instanceof Node &&
+                    event.currentTarget.contains(event.relatedTarget)
+                  ) {
+                    return;
+                  }
+                  setIsDraggingImage(false);
+                }}
+                onDrop={dropImage}
+                className={`group flex min-h-40 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-5 py-8 text-center transition-all ${
+                  isDraggingImage
+                    ? "scale-[1.01] border-primary bg-primary/5 shadow-sm"
+                    : "border-gray-300 hover:border-primary/50 hover:bg-gray-50"
+                }`}
               >
-                <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+                <span className="pointer-events-none mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors group-hover:bg-primary/10 group-hover:text-primary">
                   <Upload size={21} />
                 </span>
-                <span className="text-sm font-medium text-gray-900">
+                <span className="pointer-events-none text-sm font-medium text-gray-900">
                   <span className="text-primary">Haz clic para subir</span> o
-                  selecciona una imagen
+                  arrastra y suelta una imagen
                 </span>
-                <span className="mt-1 text-xs text-gray-500">
+                <span className="pointer-events-none mt-1 text-xs text-gray-500">
                   JPG, PNG o WebP · Hasta 5 MB
                 </span>
               </button>
@@ -412,20 +463,20 @@ export function ServiceForm({
             />
 
             {previews.length ? (
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid max-w-4xl grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                 {previews.map(({ file, url }, index) => (
                   <article
                     key={`${file.name}-${file.lastModified}`}
                     className="overflow-hidden rounded-xl border border-gray-200 bg-white"
                   >
-                    <div className="relative aspect-[4/3] bg-[#f2f3f4]">
+                    <div className="relative aspect-square bg-[#f2f3f4]">
                       <Image
                         src={url}
                         alt={file.name}
                         fill
                         unoptimized
-                        sizes="(max-width: 640px) 100vw, 50vw"
-                        className="object-cover"
+                        sizes="(max-width: 640px) 50vw, 180px"
+                        className="object-contain"
                       />
                       <button
                         type="button"
@@ -456,7 +507,9 @@ export function ServiceForm({
                 ) : (
                   <ImagePlus size={17} />
                 )}
-                Subir imagen seleccionada
+                {files.length === 1
+                  ? "Subir imagen seleccionada"
+                  : `Subir ${files.length} imágenes`}
               </button>
             ) : null}
           </div>

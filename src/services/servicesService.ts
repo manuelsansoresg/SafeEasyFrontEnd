@@ -132,7 +132,9 @@ export const servicesService = {
     formData.append("description", input.description);
     formData.append("price", String(input.price));
     formData.append("is_active", String(input.isActive));
-    formData.append("cover_index", String(input.coverIndex));
+    if (input.images.length > 0 && typeof input.coverIndex === "number") {
+      formData.append("cover_index", String(input.coverIndex));
+    }
     appendImages(formData, input.images);
 
     const response = await fetchWithAuth("/api/services/", {

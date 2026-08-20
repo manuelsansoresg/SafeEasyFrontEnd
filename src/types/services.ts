@@ -27,7 +27,7 @@ export interface CreateServiceInput {
   description: string;
   price: number;
   isActive: boolean;
-  coverIndex: number;
+  coverIndex?: number;
   images: File[];
 }
 
@@ -37,4 +37,3 @@ export interface UpdateServiceInput {
   price?: number;
   is_active?: boolean;
 }
-
