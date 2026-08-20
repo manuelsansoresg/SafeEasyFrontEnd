@@ -334,14 +334,14 @@ function DirectoryServiceCard({
 
   return (
     <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-3xl border border-[#004e28]/10 bg-white shadow-[0_18px_45px_-32px_rgba(0,78,40,0.45)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_-30px_rgba(0,78,40,0.5)]">
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#e9efeb]">
+      <div className="relative aspect-square w-full overflow-hidden bg-[#e9efeb]">
         <Image
           src={imageUrl}
           alt={`Servicio ${service.title}`}
           fill
           unoptimized
           sizes="(max-width: 640px) calc(100vw - 40px), (max-width: 1024px) 50vw, 384px"
-          className="h-full w-full object-contain p-3 transition-transform duration-500 group-hover:scale-[1.02]"
+          className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
         />
       </div>
 
