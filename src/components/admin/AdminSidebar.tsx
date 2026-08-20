@@ -74,7 +74,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
       roles: ['admin', 'superuser', 'supplier', 'seller']
     },
     { 
-      title: "Mi Empresa", 
+      title: "Mi Negocio",
       path: "/admin/my-company", 
       icon: Grid,
       roles: ['supplier']

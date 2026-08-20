@@ -25,6 +25,21 @@ interface CarouselItem {
   thumbnail_movil?: string;
 }
 
+const carouselSubmissionsInFlight = new Set<string>();
+const recentCarouselSubmissions = new Map<string, number>();
+const DUPLICATE_SUBMISSION_WINDOW_MS = 15_000;
+
+const getCarouselSubmissionKey = (supplierId: number, editingId: number | null, file: File) =>
+  `${supplierId}:${editingId ?? "new"}:${file.size}:${file.lastModified}:${file.name}`;
+
+const isRecentCarouselSubmission = (key: string) => {
+  const now = Date.now();
+  for (const [storedKey, expiresAt] of recentCarouselSubmissions) {
+    if (expiresAt <= now) recentCarouselSubmissions.delete(storedKey);
+  }
+  return carouselSubmissionsInFlight.has(key) || (recentCarouselSubmissions.get(key) ?? 0) > now;
+};
+
 export default function StepCarousel({ supplierId, slug, token, onNext }: StepCarouselProps) {
   const submitInFlightRef = useRef(false);
   const [items, setItems] = useState<CarouselItem[]>([]);
@@ -41,21 +56,14 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
 
   // Form State (Carousel)
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [image, setImage] = useState<File | null>(null);
-  const [mobileImage, setMobileImage] = useState<File | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
-  const [currentMobileImageUrl, setCurrentMobileImageUrl] = useState<string | null>(null);
 
   const toRecord = (value: unknown) =>
     value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 
   const pickCarouselImageUrl = (item: CarouselItem) =>
     item.thumbnail || item.image_url || item.url || item.path || item.image || null;
-
-  const pickCarouselMobileImageUrl = (item: CarouselItem) =>
-    item.thumbnail_movil || item.image_movil || null;
 
   const normalizeCarouselItem = (value: unknown): CarouselItem | null => {
     const rec = toRecord(value);
@@ -349,25 +357,16 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
   };
 
   const handleEdit = (item: CarouselItem) => {
-    const mobileImageUrl = pickCarouselMobileImageUrl(item);
     setEditingId(item.id);
-    setTitle(item.title || '');
-    setDescription(item.description || '');
     setCurrentImageUrl(getImageUrl(pickCarouselImageUrl(item)));
-    setCurrentMobileImageUrl(mobileImageUrl ? getImageUrl(mobileImageUrl) : null);
     setImage(null);
-    setMobileImage(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setTitle('');
-    setDescription('');
     setImage(null);
-    setMobileImage(null);
     setCurrentImageUrl(null);
-    setCurrentMobileImageUrl(null);
   };
 
   const handleImageChange = (file: File | null) => {
@@ -382,46 +381,38 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
     if (file) setError(null);
   };
 
-  const handleMobileImageChange = (file: File | null) => {
-    if (file && file.size > 4 * 1024 * 1024) {
-      setError("La imagen móvil es demasiado grande. El tamaño máximo permitido es 4MB.");
-      return;
-    }
-    setMobileImage(file);
-    if (file) setError(null);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const editingItem = editingId ? items.find((item) => item.id === editingId) : null;
-    const hasDesktopImage = Boolean(editingItem && pickCarouselImageUrl(editingItem));
-    const hasMobileImage = Boolean(editingItem && pickCarouselMobileImageUrl(editingItem));
+    const hasCurrentImage = Boolean(editingItem && pickCarouselImageUrl(editingItem));
 
-    if (!image && !hasDesktopImage) {
-      setError("La imagen de escritorio es obligatoria.");
+    if (!image && !hasCurrentImage) {
+      setError("Selecciona una imagen para continuar.");
       return;
     }
-    if (!mobileImage && !hasMobileImage) {
-      setError("La imagen móvil es obligatoria para cada elemento del carrusel.");
+    if (!image) {
+      setError("Selecciona una nueva imagen para guardar el cambio.");
+      return;
+    }
+
+    const submissionKey = getCarouselSubmissionKey(supplierId, editingId, image);
+    if (isRecentCarouselSubmission(submissionKey)) {
+      setError("Esta imagen ya se está procesando. Espera un momento antes de volver a intentarlo.");
       return;
     }
     if (submitInFlightRef.current) return;
 
     submitInFlightRef.current = true;
+    carouselSubmissionsInFlight.add(submissionKey);
+    recentCarouselSubmissions.set(submissionKey, Date.now() + DUPLICATE_SUBMISSION_WINDOW_MS);
     
     setLoading(true);
     setError(null);
 
     try {
       const formData = new FormData();
-      formData.append('title', title);
-      formData.append('description', description);
-      formData.append('header_media_type', 'image');
       if (image) {
         formData.append('image', image);
-      }
-      if (mobileImage) {
-        formData.append('image_movil', mobileImage);
       }
 
       const url = editingId 
@@ -433,6 +424,10 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
       const res = await fetchWithAuth(url, {
         method: method,
         body: formData,
+        headers: {
+          "X-Idempotency-Key": `carousel-${supplierId}-${editingId ?? "new"}-${image.size}-${image.lastModified}`,
+        },
+        retryOnAuthFailure: false,
       });
 
       if (!res.ok) {
@@ -498,15 +493,22 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
       handleCancelEdit();
       
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Ocurrió un error al guardar");
+      recentCarouselSubmissions.delete(submissionKey);
+      const message = err instanceof Error ? err.message : "Ocurrió un error al guardar";
+      setError(
+        /abort|timeout|timed out/i.test(message)
+          ? "La imagen está tardando más de lo esperado. Inténtalo nuevamente en un momento."
+          : message,
+      );
     } finally {
+      carouselSubmissionsInFlight.delete(submissionKey);
       submitInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const handleDelete = async (itemId: number) => {
-    if (!confirm('¿Deseas eliminar las versiones de escritorio y móvil de esta imagen?')) return;
+    if (!confirm('¿Eliminar esta imagen? Esta acción no se puede deshacer.')) return;
     
     try {
       // Updated to match the requested endpoint structure: DELETE /suppliers/carousel/{carousel_id}
@@ -529,7 +531,10 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold text-center mb-6">Encabezado de la Empresa</h2>
+      <div className="mb-6 text-center">
+        <h2 className="font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28]">Encabezado de la empresa</h2>
+        <p className="mt-2 text-sm text-gray-500">Selecciona el tipo de contenido que quieres mostrar en la parte superior de tu perfil.</p>
+      </div>
       
       {/* Type Toggle */}
       <div className="flex justify-center mb-8">
@@ -543,7 +548,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                 }`}
             >
                 <Video size={18} />
-                Video
+                Usar video
             </button>
             <button
                 onClick={() => handleTabChange('image')}
@@ -554,7 +559,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                 }`}
             >
                 <ImageIcon size={18} />
-                Imagen (Carrusel)
+                Usar imágenes (carrusel)
             </button>
         </div>
       </div>
@@ -566,7 +571,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                 Video de Encabezado
              </h3>
              <p className="text-gray-600 mb-6 text-sm">
-                Sube un video corto para mostrar en el encabezado de tu perfil. Resolución recomendada: 1920x1080 px (16:9), con el contenido principal centrado para adaptarse a escritorio y móvil.
+                Sube un video corto y claro para presentar tu negocio.
              </p>
 
              {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
@@ -585,7 +590,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
                           <div>
                             <p className="text-sm text-blue-800 font-medium">Video Actual:</p>
-                            <p className="text-xs text-blue-700/70">Hero recomendado: 1920x1080 px, archivo ligero y sujeto principal centrado.</p>
+                            <p className="text-xs text-blue-700/70">Procura que sea breve y que el elemento principal se vea claramente.</p>
                           </div>
                           <button
                             type="button"
@@ -610,7 +615,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
         /* Carousel Section (Existing) */
         <>
             <p className="text-gray-600 text-center mb-8">
-                Sube hasta 3 imágenes para destacar tu empresa. (Mínimo 1 recomendada)
+                Puedes agregar hasta 3 imágenes para destacar tu negocio.
             </p>
 
             {/* Upload Form */}
@@ -630,32 +635,22 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                 </div>
 
                 <p className="text-gray-600 mb-6 text-sm">
-                    Sube las dos versiones del banner: una horizontal para escritorio y otra vertical para móvil. Ambas se guardan dentro del mismo elemento del carrusel.
+                    Elige una buena imagen. Drooopy la adaptará automáticamente para computadora y celular.
                 </p>
                 
                 {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
                 
-                <form id="image-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                <div>
+                <form id="image-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
+                <div className="mx-auto w-full max-w-2xl">
                     <FileUpload
-                        key={`desktop-${editingId ?? 'new'}`}
-                        label={currentImageUrl ? "Cambiar imagen de escritorio (opcional)" : "Imagen de escritorio"}
+                        key={`cover-${editingId ?? 'new'}`}
+                        label={currentImageUrl ? "Cambiar imagen (opcional)" : "Agregar imagen"}
                         value={image}
                         onChange={handleImageChange}
                         currentImageUrl={currentImageUrl}
                         removeBehavior="clear_selection"
-                        helperText="Horizontal, recomendada 2100 × 740 px. Máx. 4 MB. JPG, PNG o WEBP."
-                    />
-                </div>
-                <div>
-                    <FileUpload
-                        key={`mobile-${editingId ?? 'new'}`}
-                        label={currentMobileImageUrl ? "Cambiar imagen móvil (opcional)" : "Imagen móvil"}
-                        value={mobileImage}
-                        onChange={handleMobileImageChange}
-                        currentImageUrl={currentMobileImageUrl}
-                        removeBehavior="clear_selection"
-                        helperText="Resolución recomendada: 1080 × 1350 px (proporción 4:5). Máx. 4 MB. JPG, PNG o WEBP."
+                        disabled={loading}
+                        helperText="JPG, PNG o WebP, máximo 4 MB. Nosotros nos encargamos del resto."
                     />
                 </div>
                 {!editingId && items.length >= 3 && (
@@ -687,36 +682,14 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
                         editingId === item.id ? 'ring-2 ring-primary border-primary' : 'border-gray-200'
                         }`}
                     >
-                        <div className="grid grid-cols-[minmax(0,1fr)_7.5rem] gap-2 bg-gray-100 p-2">
+                        <div className="bg-gray-100 p-2">
                           <figure className="min-w-0">
                             <div className="relative h-44 overflow-hidden rounded-xl bg-gray-200">
                               <img
                                 src={getImageUrl(pickCarouselImageUrl(item))}
-                                alt={`Versión de escritorio${item.title ? ` de ${item.title}` : ''}`}
+                                alt={item.title ? `Imagen de ${item.title}` : "Imagen destacada del negocio"}
                                 className="h-full w-full object-cover"
                               />
-                              <figcaption className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-white">
-                                Escritorio
-                              </figcaption>
-                            </div>
-                          </figure>
-                          <figure className="min-w-0">
-                            <div className="relative h-44 overflow-hidden rounded-xl bg-gray-200">
-                              {pickCarouselMobileImageUrl(item) ? (
-                                <img
-                                  src={getImageUrl(pickCarouselMobileImageUrl(item))}
-                                  alt={`Versión móvil${item.title ? ` de ${item.title}` : ''}`}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-full flex-col items-center justify-center gap-2 px-2 text-center text-xs text-gray-500">
-                                  <ImageIcon size={22} aria-hidden="true" />
-                                  Sin imagen móvil
-                                </div>
-                              )}
-                              <figcaption className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-white">
-                                Móvil
-                              </figcaption>
                             </div>
                           </figure>
                         </div>
@@ -776,7 +749,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
           {(activeTab === 'video' ? isVideoLoading : loading) ? (
             <>
               <Loader2 className="animate-spin" size={20} />
-              Guardando...
+              Procesando imagen...
             </>
           ) : (
             "Guardar"

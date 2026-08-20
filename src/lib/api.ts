@@ -3,6 +3,7 @@ import { refreshAccessToken, stripBearer } from "@/lib/authRefresh";
 
 type FetchOptions = RequestInit & {
   headers?: Record<string, string>;
+  retryOnAuthFailure?: boolean;
 };
 
 function decodeJwtPayload(token: string) {
@@ -31,6 +32,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => {
+  const { retryOnAuthFailure = true, ...requestOptions } = options;
   const getAuthToken = () => useAuthStore.getState().token;
   const getRefreshToken = () => useAuthStore.getState().refreshToken;
   const logout = () => useAuthStore.getState().logout();
@@ -69,22 +71,22 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
   }
   
   const getHeaders = (t: string | null) => {
-    const headers: Record<string, string> = { ...options.headers };
+    const headers: Record<string, string> = { ...requestOptions.headers };
     const hasAuthHeader = Object.keys(headers).some((k) => k.toLowerCase() === "authorization");
     const cleaned = stripBearer(t);
     if (cleaned && !hasAuthHeader) headers["Authorization"] = `Bearer ${cleaned}`;
-    if (!headers['Content-Type'] && typeof options.body === 'string') {
+    if (!headers['Content-Type'] && typeof requestOptions.body === 'string') {
         headers['Content-Type'] = 'application/json';
     }
     return headers;
   };
 
   let response = await fetch(url, {
-    ...options,
+    ...requestOptions,
     headers: getHeaders(token),
   });
 
-  const shouldAttemptRefresh = response.status === 401;
+  const shouldAttemptRefresh = retryOnAuthFailure && response.status === 401;
   const initialStatus = response.status;
 
   if (shouldAttemptRefresh) {
@@ -94,7 +96,7 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
       const refreshed = await refreshAccessToken(refreshToken);
       if (refreshed) {
         response = await fetch(url, {
-          ...options,
+          ...requestOptions,
           headers: getHeaders(refreshed.accessToken),
         });
 

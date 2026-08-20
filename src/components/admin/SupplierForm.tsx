@@ -205,6 +205,7 @@ interface SupplierFormProps {
   onSaved?: () => void | Promise<void>;
   returnPath?: string;
   redirectOnCreate?: boolean;
+  view?: "all" | "information" | "appearance" | "contact" | "advanced";
 }
 
 export default function SupplierForm({
@@ -214,6 +215,7 @@ export default function SupplierForm({
   onSaved,
   returnPath = "/admin/suppliers",
   redirectOnCreate = true,
+  view = "all",
 }: SupplierFormProps) {
   const { token, user } = useAuthStore();
   const router = useRouter();
@@ -1665,7 +1667,7 @@ export default function SupplierForm({
       )}
 
       {/* User access section */}
-      {showAccessSection && (
+      {showAccessSection && (view === "all" || view === "advanced") && (
         <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl mb-6">
           <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
             <Users size={20} />
@@ -1735,7 +1737,7 @@ export default function SupplierForm({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Left Column: Basic Info */}
-        <div className="space-y-4">
+        <div className={view === "all" || view === "information" ? "space-y-4" : "hidden"}>
           <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Datos Generales</h3>
 
           <div>
@@ -1994,7 +1996,7 @@ export default function SupplierForm({
         </div>
 
         {/* Right Column: Address */}
-        <div className="space-y-4">
+        <div className={view === "all" || view === "information" ? "space-y-4" : "hidden"}>
           <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Ubicación</h3>
           {catalogError ? (
             <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -2142,7 +2144,15 @@ export default function SupplierForm({
         </div>
 
         {/* Full Width: Description & Files */}
-        <div className="md:col-span-2 space-y-4 pt-4">
+        <div
+          className={
+            view === "all" || view === "information" || view === "appearance" || view === "advanced"
+              ? "md:col-span-2 space-y-4 pt-4"
+              : "hidden"
+          }
+        >
+          {view === "all" || view === "information" ? (
+          <>
            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Perfil Detallado</h3>
 
           <div className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
@@ -2181,7 +2191,10 @@ export default function SupplierForm({
             </p>
           </div>
           </div>
+          </>
+          ) : null}
 
+          {view === "all" || view === "advanced" ? (
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-4">
               <h4 className="mb-4 text-sm font-semibold text-[#004e28]">Sobre Nosotros</h4>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -2225,14 +2238,21 @@ export default function SupplierForm({
                 </div>
               </div>
           </div>
+          ) : null}
 
+          {view === "all" || view === "appearance" ? (
+          <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+            <div className="mb-5">
+              <h3 className="font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">Identidad de tu negocio</h3>
+              <p className="mt-1 text-sm text-gray-500">Usa imágenes claras que tus clientes puedan reconocer fácilmente.</p>
+            </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
             <FileUpload
-              label="Logo de la Empresa"
+              label="Logo de tu negocio"
               value={logo}
             onChange={handleLogoChange}
             currentImageUrl={logoPreviewUrl || undefined}
-              helperText="Recomendado: Formato cuadrado, mín. 400x400px"
+              helperText="Usa una imagen clara y preferentemente cuadrada."
             />
 
             <FileUpload
@@ -2244,11 +2264,32 @@ export default function SupplierForm({
             helperText="Formatos recomendados: JPG/PNG"
             />
           </div>
+          </section>
+          ) : null}
 
         </div>
       </div>
 
       {/* Redes Sociales — visible para directorio y tienda */}
+      {view === "all" || view === "contact" ? (
+      <>
+      {view === "contact" ? (
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+          <h3 className="font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">Contacto principal</h3>
+          <p className="mt-1 text-sm text-gray-500">El número que usarán tus clientes para comunicarse contigo.</p>
+          <div className="mt-5 max-w-xl">
+            <label className="mb-1 block text-sm font-medium text-gray-700">Teléfono / WhatsApp</label>
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleInputChange}
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-[#168e00] focus:outline-none focus:ring-2 focus:ring-[#168e00]/20"
+              placeholder="Ej. 999 123 4567"
+            />
+          </div>
+        </section>
+      ) : null}
       <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
         <div className="border-b border-gray-200 pb-2">
           <h3 className="text-lg font-semibold text-gray-900">Redes Sociales</h3>
@@ -2311,8 +2352,10 @@ export default function SupplierForm({
           </div>
         </div>
       </section>
+      </>
+      ) : null}
 
-      {isDirectory ? (
+      {isDirectory && (view === "all" || view === "advanced") ? (
         <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
           <div className="border-b border-gray-200 pb-2">
             <h3 className="text-lg font-semibold text-gray-900">Introducción</h3>

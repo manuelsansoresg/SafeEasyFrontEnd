@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { qrService, type QRInfo } from '@/services/qrService';
-import { Download, RefreshCw, QrCode, AlertCircle, Key } from 'lucide-react';
+import { Download, RefreshCw, QrCode, AlertCircle, Key, Share2, MessageCircle } from 'lucide-react';
 
 export default function QRPanel() {
   const [qrInfo, setQrInfo] = useState<QRInfo | null>(null);
@@ -152,15 +152,30 @@ export default function QRPanel() {
     }
   };
 
+  const shareBusiness = async () => {
+    if (!qrUrl) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Conoce mi negocio en Drooopy', url: qrUrl });
+        return;
+      }
+      await navigator.clipboard.writeText(qrUrl);
+      setSuccess('Enlace copiado. Ya puedes compartirlo.');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setError('No pudimos compartir el enlace. Intenta copiarlo.');
+    }
+  };
+
   const needsToken = !qrInfo?.token && !qrImageUrl;
 
   return (
     <div className='max-w-2xl mx-auto'>
       <div className='mb-6'>
-        <h3 className='text-xl font-bold text-gray-900 mb-2'>Código QR de tu Empresa</h3>
+        <h3 className='text-xl font-bold text-gray-900 mb-2'>Comparte tu negocio</h3>
         <p className='text-sm text-gray-600'>
-          Genera un código QR único para que tus clientes accedan directamente al perfil de tu empresa.
-          El QR apunta a un token permanente: si cambias el nombre de tu empresa, el código QR sigue funcionando.
+          Envía tu enlace o descarga el código QR para colocarlo en tu local y materiales.
         </p>
       </div>
 
@@ -258,22 +273,40 @@ export default function QRPanel() {
 
           <div className='mt-6 flex flex-col sm:flex-row gap-3'>
             <button
+              onClick={shareBusiness}
+              disabled={!qrUrl}
+              className='flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+            >
+              <Share2 size={18} />
+              Compartir negocio
+            </button>
+            {qrUrl ? (
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(`Conoce mi negocio en Drooopy: ${qrUrl}`)}`}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 border border-primary/20 bg-white text-primary font-medium rounded-lg hover:bg-primary/5 transition-colors'
+              >
+                <MessageCircle size={18} />
+                WhatsApp
+              </a>
+            ) : null}
+            <button
               onClick={handleDownload}
               disabled={!qrImageUrl || loading || downloading}
-              className='flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+              className='flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-800 font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
             >
               <Download size={18} />
               {downloading ? 'Descargando...' : 'Descargar PNG'}
             </button>
-            <button
-              onClick={handleRegenerate}
-              disabled={regenerating}
-              className='flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-            >
-              <RefreshCw size={18} className={regenerating ? 'animate-spin' : ''} />
-              {regenerating ? 'Regenerando...' : 'Regenerar QR'}
-            </button>
           </div>
+          <details className='mt-4 rounded-xl border border-gray-200 bg-white px-4 py-3'>
+            <summary className='cursor-pointer text-sm font-medium text-gray-600'>Opciones avanzadas</summary>
+            <button onClick={handleRegenerate} disabled={regenerating} className='mt-3 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primary disabled:opacity-50'>
+              <RefreshCw size={16} className={regenerating ? 'animate-spin' : ''} />
+              {regenerating ? 'Regenerando...' : 'Regenerar código QR'}
+            </button>
+          </details>
         </>
       )}
 

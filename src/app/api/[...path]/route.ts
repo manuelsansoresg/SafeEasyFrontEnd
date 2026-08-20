@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PROXY_VERSION = "2026-04-15-body-replay-2";
+const PROXY_VERSION = "2026-08-20-single-write-long-timeout-4";
+const IDEMPOTENCY_TTL_MS = 30_000;
+const idempotentMutationResponses = new Map<string, { expiresAt: number; response: Promise<Response> }>();
 
 const getSetCookieHeaders = (response: Response) => {
   const headersAny = response.headers as unknown as { getSetCookie?: () => string[] };
@@ -161,9 +163,10 @@ const getBaseUrlCandidates = () => {
   return Array.from(new Set(candidates));
 };
 
-async function handler(request: NextRequest) {
+async function proxyRequest(request: NextRequest) {
   // Use pathname directly to avoid params ambiguity
   const pathname = request.nextUrl.pathname;
+  const canRetryUpstream = request.method === "GET" || request.method === "HEAD";
   if (process.env.NODE_ENV === "development") console.log(`[Generic Proxy] Received request: ${pathname}`);
   
   // Remove /api prefix
@@ -355,13 +358,18 @@ async function handler(request: NextRequest) {
 
       try {
         const candidateUrl = new URL(baseCandidate);
-        const timeoutMs = isLocalHostname(candidateUrl.hostname) ? 1000 : 15000;
+        // Image/video mutations can legitimately take longer while FastAPI
+        // generates derived variants. They must wait for that single request
+        // instead of timing out and being replayed against another upstream.
+        const timeoutMs = canRetryUpstream
+          ? (isLocalHostname(candidateUrl.hostname) ? 1000 : 15000)
+          : 120000;
         response = await fetch(targetUrl, buildFetchOptions(timeoutMs));
         upstreamBase = baseCandidate;
         lastError = null;
         if (response.ok) break;
         if (retryableStatuses.has(response.status)) {
-          if (hasNextCandidate) {
+          if (hasNextCandidate && canRetryUpstream) {
             try {
               await response.body?.cancel();
             } catch {}
@@ -373,6 +381,9 @@ async function handler(request: NextRequest) {
       } catch (err: unknown) {
         lastError = err;
         console.error(`[Generic Proxy] Upstream fetch failed for ${targetUrl}:`, err);
+        // Never replay a mutation against another upstream. A timeout or gateway
+        // failure does not prove that the first server did not persist the body.
+        if (!canRetryUpstream) break;
       }
     }
 
@@ -612,6 +623,41 @@ async function handler(request: NextRequest) {
       },
       { status: 502, headers: { "x-next-proxy-version": PROXY_VERSION, "x-next-proxy-upstream": "" } },
     );
+  }
+}
+
+async function handler(request: NextRequest) {
+  const idempotencyKey = request.headers.get("x-idempotency-key")?.trim();
+  if (!idempotencyKey || request.method === "GET" || request.method === "HEAD") {
+    return proxyRequest(request);
+  }
+
+  const now = Date.now();
+  for (const [key, entry] of idempotentMutationResponses) {
+    if (entry.expiresAt <= now) idempotentMutationResponses.delete(key);
+  }
+
+  const authScope = request.headers.get("authorization")?.slice(-24) || "anonymous";
+  const scopedKey = `${authScope}:${request.method}:${request.nextUrl.pathname}:${idempotencyKey}`;
+  const existing = idempotentMutationResponses.get(scopedKey);
+  if (existing && existing.expiresAt > now) {
+    return (await existing.response).clone();
+  }
+
+  const upstreamResponse = proxyRequest(request);
+  const cachedResponse = upstreamResponse.then((response) => response.clone());
+  idempotentMutationResponses.set(scopedKey, {
+    expiresAt: now + IDEMPOTENCY_TTL_MS,
+    response: cachedResponse,
+  });
+
+  try {
+    const response = await upstreamResponse;
+    if (!response.ok) idempotentMutationResponses.delete(scopedKey);
+    return response;
+  } catch (error) {
+    idempotentMutationResponses.delete(scopedKey);
+    throw error;
   }
 }
 

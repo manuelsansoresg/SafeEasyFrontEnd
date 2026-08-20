@@ -20,12 +20,27 @@ const DAYS = [
   { id: 0, label: "Domingo" },
 ];
 
+const weekdaysHaveDifferentHours = (hours: BusinessHour[]) => {
+  const weekdays = hours
+    .filter((hour) => Number(hour.day_of_week) >= 1 && Number(hour.day_of_week) <= 5)
+    .toSorted((a, b) => Number(a.day_of_week) - Number(b.day_of_week));
+  const first = weekdays[0];
+  if (!first) return false;
+  return weekdays.some(
+    (hour) =>
+      Boolean(hour.is_closed) !== Boolean(first.is_closed) ||
+      hour.open_time !== first.open_time ||
+      hour.close_time !== first.close_time,
+  );
+};
+
 export default function BusinessHoursEditor({ supplierId, token }: Props) {
   const [hours, setHours] = useState<BusinessHour[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [individualMode, setIndividualMode] = useState(false);
 
   // Initialize with default hours if none exist
   const initializeHours = (existingHours: BusinessHour[] = []) => {
@@ -212,11 +227,14 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
         if (businessHours.length === 0) {
           setError(null);
           setHours(initializeHours([]));
+          setIndividualMode(false);
           return;
         }
 
         setError(null);
-        setHours(initializeHours(businessHours));
+        const normalizedHours = initializeHours(businessHours);
+        setHours(normalizedHours);
+        setIndividualMode(weekdaysHaveDifferentHours(normalizedHours));
       } catch (err) {
         console.warn("Error fetching business hours:", err);
         setError("Error al cargar los horarios");
@@ -247,6 +265,16 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
           ? { ...h, is_closed: !h.is_closed }
           : h
       )
+    );
+    setSuccess(false);
+  };
+
+  const updateWeekdays = (patch: Partial<BusinessHour>) => {
+    setHours((previous) =>
+      previous.map((hour) => {
+        const day = Number((hour as unknown as { day_of_week?: unknown }).day_of_week);
+        return day >= 1 && day <= 5 ? { ...hour, ...patch } : hour;
+      }),
     );
     setSuccess(false);
   };
@@ -335,6 +363,47 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
         </div>
       )}
 
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#168e00]/20 bg-[#168e00]/[0.05] p-4">
+        <input
+          type="checkbox"
+          checked={!individualMode}
+          onChange={(event) => {
+            const useSameHours = event.target.checked;
+            setIndividualMode(!useSameHours);
+            if (useSameHours) {
+              const monday = hours.find((hour) => Number(hour.day_of_week) === 1);
+              if (monday) updateWeekdays({ open_time: monday.open_time, close_time: monday.close_time, is_closed: monday.is_closed });
+            }
+          }}
+          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#168e00] focus:ring-[#168e00]"
+        />
+        <span><span className="block text-sm font-semibold text-gray-900">Usar el mismo horario de lunes a viernes</span><span className="mt-0.5 block text-xs text-gray-500">Puedes configurar cada día por separado cuando lo necesites.</span></span>
+      </label>
+
+      {!individualMode ? (
+        <div className="space-y-3">
+          {[{ id: 1, label: "Lunes a viernes", weekdays: true }, { id: 6, label: "Sábado", weekdays: false }, { id: 0, label: "Domingo", weekdays: false }].map((day) => {
+            const config = hours.find((hour) => Number(hour.day_of_week) === day.id);
+            const closed = config?.is_closed ?? true;
+            return (
+              <div key={day.id} className="rounded-xl border border-gray-200 bg-white p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" checked={!closed} onChange={() => day.weekdays ? updateWeekdays({ is_closed: !closed }) : toggleClosed(day.id)} aria-label={`${day.label} abierto`} className="h-4 w-4 rounded border-gray-300 text-[#168e00] focus:ring-[#168e00]" />
+                  <span className="font-medium text-gray-900">{day.label}</span>
+                </div>
+                {closed ? <span className="mt-3 block text-sm text-gray-400 sm:mt-0">Cerrado</span> : (
+                  <div className="mt-3 flex items-center gap-2 sm:mt-0">
+                    <input type="time" value={config?.open_time || "09:00"} onChange={(event) => day.weekdays ? updateWeekdays({ open_time: event.target.value }) : handleTimeChange(day.id, "open_time", event.target.value)} aria-label={`Hora de apertura de ${day.label}`} className="min-h-11 rounded-xl border border-gray-300 px-3 text-sm focus:border-[#168e00] focus:outline-none focus:ring-2 focus:ring-[#168e00]/20" />
+                    <span className="text-gray-400">a</span>
+                    <input type="time" value={config?.close_time || "18:00"} onChange={(event) => day.weekdays ? updateWeekdays({ close_time: event.target.value }) : handleTimeChange(day.id, "close_time", event.target.value)} aria-label={`Hora de cierre de ${day.label}`} className="min-h-11 rounded-xl border border-gray-300 px-3 text-sm focus:border-[#168e00] focus:outline-none focus:ring-2 focus:ring-[#168e00]/20" />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <button type="button" onClick={() => setIndividualMode(true)} className="text-sm font-semibold text-[#004e28] hover:text-[#168e00]">Configurar cada día por separado</button>
+        </div>
+      ) : (
       <div className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
         <div className="divide-y divide-gray-200">
           {DAYS.map((day) => {
@@ -388,6 +457,7 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
           })}
         </div>
       </div>
+      )}
 
       <div className="flex justify-end pt-6">
         <button
