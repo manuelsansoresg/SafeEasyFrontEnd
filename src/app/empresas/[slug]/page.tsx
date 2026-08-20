@@ -333,39 +333,43 @@ function DirectoryServiceCard({
     "/placeholder.png";
 
   return (
-    <article className="group flex flex-col">
-      <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#e9efeb]">
+    <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-3xl border border-[#004e28]/10 bg-white shadow-[0_18px_45px_-32px_rgba(0,78,40,0.45)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_-30px_rgba(0,78,40,0.5)]">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#e9efeb]">
         <Image
           src={imageUrl}
           alt={`Servicio ${service.title}`}
           fill
           unoptimized
-          sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw"
-          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+          sizes="(max-width: 640px) calc(100vw - 40px), (max-width: 1024px) 50vw, 384px"
+          className="h-full w-full object-contain p-3 transition-transform duration-500 group-hover:scale-[1.02]"
         />
       </div>
 
-      <div className="mt-5 flex flex-col">
-        <h3 className="text-lg font-bold leading-snug text-[#004e28] font-[family-name:var(--font-varela-round)]">
+      <div className="flex flex-1 flex-col p-6">
+        <h3 className="line-clamp-2 min-h-12 text-lg font-bold leading-snug text-[#004e28] font-[family-name:var(--font-varela-round)]">
           {service.title}
         </h3>
         {service.description ? (
-          <p className="mt-2 line-clamp-4 text-sm leading-6 text-gray-600">
+          <p className="mt-2 min-h-[4.5rem] line-clamp-3 text-sm leading-6 text-gray-600">
             {service.description}
           </p>
-        ) : null}
+        ) : (
+          <div aria-hidden="true" className="mt-2 min-h-[4.5rem]" />
+        )}
         {hasPrice ? (
-          <p className="mt-3 text-sm font-bold text-[#168e00]">
+          <p className="mt-3 min-h-6 text-sm font-bold text-[#168e00]">
             Desde{" "}
             {new Intl.NumberFormat("es-MX", {
               style: "currency",
               currency: "MXN",
             }).format(price)}
           </p>
-        ) : null}
+        ) : (
+          <div aria-hidden="true" className="mt-3 min-h-6" />
+        )}
         <Link
           href={`/servicios/${service.id}`}
-          className="mt-3 inline-flex items-center gap-1.5 text-sm font-bold text-[#168e00] transition-colors hover:text-[#004e28]"
+          className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-bold text-[#168e00] transition-colors hover:text-[#004e28]"
         >
           Ver más
           <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">→</span>
@@ -1316,10 +1320,7 @@ const contactHref = supplier?.phone
                 </p>
               </div>
             ) : (
-              <div
-                className="grid gap-x-10 gap-y-12"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}
-              >
+              <div className="grid grid-cols-1 items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredServices.map((service) => (
                   <DirectoryServiceCard key={service.id} service={service} />
                 ))}
