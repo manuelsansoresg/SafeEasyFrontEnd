@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, type ClipboardEvent } from "react";
+import { useState, useEffect, useCallback, useRef, type ClipboardEvent } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2, CheckCircle, Users, Store, Truck, Facebook, Instagram, X as XIcon } from "lucide-react";
@@ -142,6 +142,60 @@ const unwrapUsers = (data: unknown): SupplierAccessUser[] => {
   const record = data as Record<string, unknown>;
   const items = record.items ?? record.results ?? record.data ?? record.users;
   return Array.isArray(items) ? (items as SupplierAccessUser[]) : [];
+};
+
+const unwrapSuppliers = (data: unknown): Supplier[] => {
+  if (Array.isArray(data)) return data as Supplier[];
+  if (!data || typeof data !== "object") return [];
+  const record = data as Record<string, unknown>;
+  const items = record.items ?? record.results ?? record.data ?? record.suppliers;
+  return Array.isArray(items) ? (items as Supplier[]) : [];
+};
+
+const supplierOwnerId = (supplier: Supplier) => {
+  const record = supplier as Supplier & {
+    userId?: number;
+    owner_id?: number;
+    user?: { id?: number };
+  };
+  return Number(
+    record.user_id ?? record.userId ?? record.owner_id ?? record.user?.id,
+  );
+};
+
+const supplierOwnerEmail = (supplier: Supplier) => {
+  const record = supplier as Supplier & {
+    email?: string;
+    public_email?: string;
+    user_email?: string;
+    user?: { email?: string };
+  };
+  return String(
+    record.user_email ??
+      record.email ??
+      record.public_email ??
+      record.user?.email ??
+      "",
+  )
+    .trim()
+    .toLowerCase();
+};
+
+const responseErrorMessage = async (response: Response) => {
+  const body = await response.clone().json().catch(() => null) as Record<string, unknown> | null;
+  const detail = body?.detail ?? body?.backend_response;
+  if (typeof detail === "string") return detail;
+  if (detail) return JSON.stringify(detail);
+  return "";
+};
+
+const isExistingBusinessProfileError = (message: string) => {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("ya tiene un perfil") ||
+    normalized.includes("already has a business profile") ||
+    normalized.includes("already has a supplier profile")
+  );
 };
 
 interface SupplierFormProps {
@@ -640,6 +694,7 @@ export default function SupplierForm({
   );
   const [deletingIntroImage, setDeletingIntroImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitInFlightRef = useRef(false);
   const [success, setSuccess] = useState(false);
   const [mapSearchQuery] = useState("");
   const [catalogLoading, setCatalogLoading] = useState({
@@ -1103,13 +1158,16 @@ export default function SupplierForm({
         setToast({ type: "error", message: "Selecciona al menos una opción de entrega." });
         return;
     }
+    if (submitInFlightRef.current) return;
 
+    submitInFlightRef.current = true;
     setIsSubmitting(true);
     setSuccess(false);
 
     try {
       // Default: The current session user (for new creations by regular users)
-      let finalUserId = user.id; 
+      let finalUserId = user.id;
+      let createdUserInThisSubmission = false;
       
       // If we are editing, default to the EXISTING owner of the record
       if (isEditMode && initialData?.user_id) {
@@ -1171,6 +1229,7 @@ export default function SupplierForm({
                           throw new Error("El backend creó el usuario, pero no devolvió un ID válido.");
                       }
                       finalUserId = createdUserId;
+                      createdUserInThisSubmission = true;
                   }
               } catch (e: unknown) {
                   const msg =
@@ -1217,6 +1276,38 @@ export default function SupplierForm({
       }
 
       const isEdit = isEditMode && initialData;
+
+      const findSupplierForUser = async (userId: number, email: string) => {
+        const normalizedEmail = email.trim().toLowerCase();
+        const pageSize = 100;
+
+        // GET /suppliers no siempre respeta user_id; por eso conservamos el
+        // filtro y además recorremos páginas y verificamos la relación aquí.
+        for (let page = 0; page < 10; page += 1) {
+          const lookupResponse = await fetchWithAuth(
+            `/api/suppliers/?skip=${page * pageSize}&limit=${pageSize}&user_id=${userId}`,
+          );
+          if (!lookupResponse.ok) return null;
+          const candidates = unwrapSuppliers(await lookupResponse.json());
+          const match = candidates.find(
+            (candidate) =>
+              supplierOwnerId(candidate) === Number(userId) ||
+              (normalizedEmail && supplierOwnerEmail(candidate) === normalizedEmail),
+          );
+          if (match) return match;
+          if (candidates.length < pageSize) break;
+        }
+
+        return null;
+      };
+
+      // El backend puede crear automáticamente el perfil al crear un usuario
+      // con role=supplier. En ese caso debemos completar ese registro, no crear
+      // un segundo perfil para el mismo usuario.
+      let reusableSupplier =
+        !isEdit && (createdUserInThisSubmission || isRecoveringExistingUser)
+          ? await findSupplierForUser(Number(finalUserId), newUser.email)
+          : null;
 
       let resolvedMapLocation = mapLocation;
       const hasAddressForMap = [
@@ -1336,8 +1427,9 @@ export default function SupplierForm({
         return data;
       };
 
-      if (isEdit) {
-        const url = `/api/suppliers/${initialData.id}`;
+      if (isEdit || reusableSupplier) {
+        const supplierId = isEdit ? initialData.id : reusableSupplier?.id;
+        const url = `/api/suppliers/${supplierId}`;
         const data = buildFormData();
         const debugEntries: Array<{ key: string; value: unknown }> = [];
         data.forEach((v, k) => {
@@ -1370,6 +1462,28 @@ export default function SupplierForm({
           method: "POST",
           body: data,
         });
+
+        // Compatibilidad con backends donde el perfil automático tarda en
+        // aparecer en el listado: si el POST confirma el conflicto, lo
+        // recuperamos y completamos mediante PUT.
+        if (!response.ok && createdUserInThisSubmission) {
+          const message = await responseErrorMessage(response);
+          if (isExistingBusinessProfileError(message)) {
+            reusableSupplier = await findSupplierForUser(
+              Number(finalUserId),
+              newUser.email,
+            );
+            if (reusableSupplier) {
+              response = await fetchWithAuth(
+                `/api/suppliers/${reusableSupplier.id}`,
+                {
+                  method: "PUT",
+                  body: buildFormData(),
+                },
+              );
+            }
+          }
+        }
       }
 
       if (!response.ok) {
@@ -1534,6 +1648,7 @@ export default function SupplierForm({
           : "Ocurrió un error al guardar";
       setToast({ type: "error", message: msg });
     } finally {
+      submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
   };
