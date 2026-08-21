@@ -5,6 +5,7 @@ import DOMPurify from 'isomorphic-dompurify';
 import { useAuthStore } from '@/store/useAuthStore';
 import { fetchWithAuth } from '@/lib/api';
 import { getSafeMercadoPagoUrl } from '@/lib/security';
+import { saveDirectoryCheckoutContext } from '@/lib/directoryCheckoutCampaign';
 import { trackDirectoryInitiateCheckout, trackMetaEvent } from '@/lib/metaPixel';
 import { subscriptionsService } from '@/services/subscriptionsService';
 import type { Plan } from '@/types/subscriptions';
@@ -46,6 +47,13 @@ const normalize = (value: string) =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
+
+const DIRECTORY_PASSWORD_SUFFIX = 'DROOOPY2026!';
+
+const buildDirectoryTemporaryPassword = (name: string, lastName: string) => {
+  const identity = normalize(`${name}${lastName}`).replace(/[^a-z0-9]/g, '');
+  return `${identity}${DIRECTORY_PASSWORD_SUFFIX}`;
+};
 
 const buildSupplierSlug = (value: string) => {
   const slug = normalize(value)
@@ -404,12 +412,16 @@ export default function StepCheckout({
       return;
     }
 
-    if (formData.password !== formData.confirmPassword) {
+    const checkoutPassword = directoryCheckout
+      ? buildDirectoryTemporaryPassword(formData.name, formData.lastName)
+      : formData.password;
+
+    if (!directoryCheckout && formData.password !== formData.confirmPassword) {
       setError('Las contraseñas no coinciden.');
       return;
     }
 
-    if (formData.password.length < 8) {
+    if (checkoutPassword.length < 8) {
       setError('La contraseña debe tener al menos 8 caracteres.');
       return;
     }
@@ -450,7 +462,7 @@ export default function StepCheckout({
           formData.name.trim() !== (originalUserFields?.name ?? '') ||
           formData.lastName.trim() !== (originalUserFields?.lastName ?? '') ||
           formData.secondLastName.trim() !== (originalUserFields?.secondLastName ?? '') ||
-          formData.password !== (originalUserFields?.password ?? '');
+          checkoutPassword !== (originalUserFields?.password ?? '');
 
         if (userFieldsChanged) {
           const updatePayload: Record<string, string> = {};
@@ -464,8 +476,8 @@ export default function StepCheckout({
           if (formData.secondLastName.trim() !== originalUserFields?.secondLastName) {
             updatePayload.second_last_name = formData.secondLastName.trim();
           }
-          if (formData.password !== originalUserFields?.password) {
-            updatePayload.password = formData.password;
+          if (checkoutPassword !== originalUserFields?.password) {
+            updatePayload.password = checkoutPassword;
           }
           
           updatePayload.role = 'supplier';
@@ -492,7 +504,7 @@ export default function StepCheckout({
             lastName: formData.lastName.trim(),
             secondLastName: formData.secondLastName.trim(),
             email: formData.email.trim(),
-            password: formData.password,
+            password: checkoutPassword,
           });
         }
       } else {
@@ -504,7 +516,7 @@ export default function StepCheckout({
             last_name: formData.lastName.trim(),
             second_last_name: formData.secondLastName.trim(),
             email: formData.email.trim(),
-            password: formData.password,
+            password: checkoutPassword,
             role: 'supplier',
             is_active: true,
           }),
@@ -545,13 +557,13 @@ export default function StepCheckout({
           lastName: formData.lastName.trim(),
           secondLastName: formData.secondLastName.trim(),
           email: formData.email.trim(),
-          password: formData.password,
+          password: checkoutPassword,
         });
       }
 
       const loginBody = new URLSearchParams();
       loginBody.append('username', formData.email);
-      loginBody.append('password', formData.password);
+      loginBody.append('password', checkoutPassword);
 
       const loginResponse = await fetch('/api/login/access-token', {
         method: 'POST',
@@ -648,6 +660,7 @@ export default function StepCheckout({
       }
 
       if (directoryCheckout) {
+        saveDirectoryCheckoutContext(formData.email);
         trackDirectoryInitiateCheckout(plan.id, plan.price);
       }
       window.location.href = safeInitPoint;
@@ -765,11 +778,13 @@ export default function StepCheckout({
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-700">Apellido materno</label>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Apellido materno {directoryCheckout ? <span className="font-normal text-gray-400">(opcional)</span> : null}
+              </label>
               <input
                 type="text"
                 name="secondLastName"
-                required
+                required={!directoryCheckout}
                 value={formData.secondLastName}
                 onChange={handleChange}
                 className="h-12 w-full rounded-lg border border-gray-200 px-4 text-gray-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
@@ -815,7 +830,7 @@ export default function StepCheckout({
             )}
           </div>
 
-          {hasFixedReferralCode ? (
+          {!directoryCheckout && (hasFixedReferralCode ? (
             <div>
               <p className="mb-2 block text-sm font-semibold text-gray-700">Código de referido</p>
               <div className="rounded-lg border border-primary/15 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary">
@@ -840,9 +855,9 @@ export default function StepCheckout({
                 Si un vendedor te compartió un código, ingresalo aquí para vincular tu cuenta.
               </p>
             </div>
-          )}
+          ))}
 
-          <div className="grid gap-5 md:grid-cols-2">
+          {!directoryCheckout ? <div className="grid gap-5 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-semibold text-gray-700">Contraseña</label>
               <div className="relative">
@@ -890,7 +905,7 @@ export default function StepCheckout({
                 </button>
               </div>
             </div>
-          </div>
+          </div> : null}
 
           <div className="flex items-start gap-3 rounded-lg bg-[#f2f3f4] p-4 text-sm leading-6 text-gray-600">
             <LockKeyhole className="mt-0.5 shrink-0 text-primary" size={18} />

@@ -16,6 +16,7 @@ import { PageHero } from "@/components/ui/PageHero";
 import { getPlanFeatureLines } from "@/components/sell/planText";
 import { fetchWithAuth } from "@/lib/api";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import { saveDirectoryCheckoutContext } from "@/lib/directoryCheckoutCampaign";
 import { trackDirectoryInitiateCheckout } from "@/lib/metaPixel";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -302,6 +303,7 @@ export default function BecomeSupplierPage() {
       }
 
       if (directoryCheckout) {
+        saveDirectoryCheckoutContext(user.email);
         trackDirectoryInitiateCheckout(selectedPlan.id, selectedPlan.price);
       }
       window.location.href = safeInitPoint;

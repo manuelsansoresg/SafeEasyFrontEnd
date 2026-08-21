@@ -8,6 +8,11 @@ import { supplierGalleryService } from "@/services/supplierGalleryService";
 import { fetchWithAuth } from "@/lib/api";
 import { resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import {
+  confirmDirectoryCheckoutContext,
+  readDirectoryCheckoutContext,
+  saveDirectoryCheckoutContext,
+} from "@/lib/directoryCheckoutCampaign";
 import { trackDirectoryInitiateCheckout } from "@/lib/metaPixel";
 import { isDirectorySubscription, isSubscriptionActive } from "@/lib/subscriptionAccess";
 import type { Plan, Subscription } from "@/types/subscriptions";
@@ -320,6 +325,7 @@ export default function MySubscriptionPage() {
         throw new Error("Mercado Pago no devolvió una liga de pago.");
       }
       if (directoryCheckout) {
+        saveDirectoryCheckoutContext(user?.email ?? "");
         trackDirectoryInitiateCheckout(selectedPlan.id, selectedPlan.price);
       }
       window.location.href = safeInitPoint;
@@ -336,6 +342,7 @@ export default function MySubscriptionPage() {
     const searchParams = new URLSearchParams(window.location.search);
     const mpPaymentId = searchParams.get("payment_id") || searchParams.get("collection_id");
     const mpStatus = searchParams.get("status") || searchParams.get("collection_status");
+    const isDirectoryCampaignReturn = Boolean(readDirectoryCheckoutContext());
     if (!token || !isSupplier || !mpPaymentId || mpStatus !== "approved") return;
 
     let mounted = true;
@@ -345,6 +352,10 @@ export default function MySubscriptionPage() {
       try {
         await subscriptionsService.refreshPayment(mpPaymentId);
         if (mounted) await fetchMySubscription();
+        if (mounted && isDirectoryCampaignReturn) {
+          confirmDirectoryCheckoutContext();
+          window.location.replace("/directorio/gracias");
+        }
       } catch (e) {
         console.error("Error refreshing subscription payment:", e);
         if (mounted) setError("Tu pago fue aprobado, pero no pudimos actualizar la subscripción automáticamente. Intenta recargar en unos segundos.");
