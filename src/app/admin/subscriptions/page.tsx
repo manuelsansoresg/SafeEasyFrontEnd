@@ -291,7 +291,9 @@ export default function AdminSubscriptionsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">{formatDate(sub.created_at)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {formatDate(sub.created_at)}
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-700">{formatDate(sub.end_date)}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
