@@ -89,11 +89,19 @@ export default function AdminSubscriptionsPage() {
     const q = searchTerm.trim().toLowerCase();
     let base = subscriptions;
     if (statusFilter) base = base.filter((s) => s.status === statusFilter);
-    if (!q) return base;
-    return base.filter((s) => String(s.supplier_name || "").toLowerCase().includes(q));
+    if (q) {
+      base = base.filter((s) => String(s.supplier_name || "").toLowerCase().includes(q));
+    }
+    return base.toSorted((a, b) => {
+      const createdAtA = new Date(a.created_at).getTime();
+      const createdAtB = new Date(b.created_at).getTime();
+      const safeCreatedAtA = Number.isNaN(createdAtA) ? 0 : createdAtA;
+      const safeCreatedAtB = Number.isNaN(createdAtB) ? 0 : createdAtB;
+      return safeCreatedAtB - safeCreatedAtA;
+    });
   }, [subscriptions, statusFilter, searchTerm]);
 
-  const formatEndDate = (iso: string) => {
+  const formatDate = (iso: string) => {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "-";
     return new Intl.DateTimeFormat("es-MX", { year: "numeric", month: "short", day: "2-digit" }).format(d);
@@ -230,6 +238,7 @@ export default function AdminSubscriptionsPage() {
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Proveedor</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Plan</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Creada</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Expira</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
               </tr>
@@ -237,7 +246,7 @@ export default function AdminSubscriptionsPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="animate-spin" size={20} />
                       Cargando subscripciones...
@@ -246,7 +255,7 @@ export default function AdminSubscriptionsPage() {
                 </tr>
               ) : visibleSubscriptions.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     No se encontraron subscripciones
                   </td>
                 </tr>
@@ -282,7 +291,8 @@ export default function AdminSubscriptionsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">{formatEndDate(sub.end_date)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{formatDate(sub.created_at)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-700">{formatDate(sub.end_date)}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button

@@ -33,6 +33,7 @@ export interface Subscription {
   supplier_name: string;
   status: SubscriptionStatus;
   plan_id: number;
+  created_at: string;
   start_date?: string;
   end_date: string;
   plan: Plan;
