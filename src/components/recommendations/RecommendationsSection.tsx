@@ -117,6 +117,34 @@ export function RecommendationsSection({
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const { city, state } = useLocationStore();
 
+  // Category/subcategory data for slug→ID conversion (backend requires numeric IDs)
+  interface CategoryItem { id: number; name: string; slug: string; }
+  interface SubcategoryItem { id: number; name: string; category_id: number; slug: string; }
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [subcategories, setSubcategories] = useState<SubcategoryItem[]>([]);
+
+  useEffect(() => {
+    const fetchCatalog = async () => {
+      try {
+        const [catRes, subRes] = await Promise.all([
+          fetch("/api/categories/?skip=0&limit=200"),
+          fetch("/api/subcategories/?skip=0&limit=1000"),
+        ]);
+        if (catRes.ok) {
+          const catData = await catRes.json();
+          setCategories(Array.isArray(catData) ? catData : []);
+        }
+        if (subRes.ok) {
+          const subData = await subRes.json();
+          setSubcategories(Array.isArray(subData) ? subData : []);
+        }
+      } catch {
+        // Non-critical: filter will still work but slug→ID conversion may fail
+      }
+    };
+    fetchCatalog();
+  }, []);
+
   const debouncedSearch = useLocalDebounce(search, 500);
 
   // Sync search state with URL params
@@ -227,11 +255,24 @@ export function RecommendationsSection({
             : null;
         const disableLocation = !filterCity && !filterState;
 
+        // Convert category/subcategory slugs to numeric IDs for the backend API.
+        // The backend expects integer IDs, not slug strings.
+        let resolvedCategoryId: number | undefined;
+        let resolvedSubcategoryId: number | undefined;
+        if (category) {
+          const matchedCat = categories.find((c) => c.slug === category);
+          if (matchedCat) resolvedCategoryId = matchedCat.id;
+        }
+        if (subcategory) {
+          const matchedSub = subcategories.find((s) => s.slug === subcategory);
+          if (matchedSub) resolvedSubcategoryId = matchedSub.id;
+        }
+
         // 1) Unified call (filters by query + location, returns products + services)
         console.log(" Fetching with filters:", {
           query: debouncedSearch,
-          category,
-          subcategory,
+          category: resolvedCategoryId ?? category,
+          subcategory: resolvedSubcategoryId ?? subcategory,
           minPrice,
           maxPrice,
           bestRated,
@@ -245,8 +286,8 @@ export function RecommendationsSection({
           type_filter: "all",
           skip: currentSkip,
           limit,
-          category,
-          subcategory,
+          category_id: resolvedCategoryId ?? null,
+          subcategory_id: resolvedSubcategoryId ?? null,
           min_price: minPrice,
           max_price: maxPrice,
           best_rated: bestRated,
