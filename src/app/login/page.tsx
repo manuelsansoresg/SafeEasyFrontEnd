@@ -1,12 +1,36 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
-import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle, X } from "lucide-react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import SocialLoginButtons, { SocialLoginPayload } from "@/components/auth/SocialLoginButtons";
+
+function PasswordResetSuccessMessage() {
+  const searchParams = useSearchParams();
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed || searchParams.get("passwordReset") !== "success") return null;
+
+  return (
+    <div className="flex items-center justify-between gap-2 p-3 text-sm text-green-700 bg-green-50 rounded-md border border-green-200">
+      <div className="flex items-center gap-2">
+        <CheckCircle size={16} className="shrink-0" />
+        Tu contraseña fue restablecida correctamente. Inicia sesión nuevamente.
+      </div>
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        className="shrink-0 text-green-600 hover:text-green-800"
+        aria-label="Cerrar mensaje"
+      >
+        <X size={16} />
+      </button>
+    </div>
+  );
+}
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 const FACEBOOK_CLIENT_ID = process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "";
@@ -216,6 +240,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+        <Suspense fallback={null}>
+          <PasswordResetSuccessMessage />
+        </Suspense>
+
         <div className="text-center">
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Inicia sesión en tu cuenta
@@ -227,7 +255,7 @@ export default function LoginPage() {
             </Link>
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div className="mb-4">
@@ -271,6 +299,15 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+          </div>
+
+          <div className="flex justify-end -mt-3">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-secondary hover:text-secondary/80 font-medium"
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
           </div>
 
           {error && (

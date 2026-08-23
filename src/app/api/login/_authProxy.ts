@@ -3,7 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 const AUTH_PROXY_VERSION = "2026-07-14-auth-fallback-1";
 
 type AuthProxyOptions = {
-  endpoint: "/login/access-token" | "/login/refresh-token";
+  endpoint:
+    | "/login/access-token"
+    | "/login/refresh-token"
+    | "/login/password-reset/request"
+    | "/login/password-reset/confirm";
   headers: Record<string, string>;
   body?: string;
 };
