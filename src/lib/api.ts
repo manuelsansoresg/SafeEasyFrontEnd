@@ -102,6 +102,22 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
 
         const retryIsAuthError = response.status === 401 || response.status === 403;
         if (retryIsAuthError) {
+          // Check for ACCOUNT_PENDING_DELETION in 403 responses
+          if (response.status === 403) {
+            try {
+              const errorBody = await response.clone().json();
+              if (errorBody?.error_code === "ACCOUNT_PENDING_DELETION") {
+                console.warn("Account pending deletion detected. Redirecting to login.");
+                logout();
+                if (typeof window !== "undefined") {
+                  window.location.href = "/login";
+                }
+                return response;
+              }
+            } catch {
+              // Not JSON, proceed with normal logout
+            }
+          }
           console.warn("Retried request failed with auth error after 401. Logging out.");
           logout();
           if (typeof window !== "undefined") {

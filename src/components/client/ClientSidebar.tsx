@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { 
-  User, 
+import {
+  User,
   LogOut,
   Heart,
   ShoppingCart,
@@ -11,6 +11,7 @@ import {
   Store,
   ChevronLeft,
   ChevronRight,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -115,6 +116,23 @@ export function ClientSidebar({ isCollapsed, toggleSidebar }: ClientSidebarProps
 
       {/* Footer / User Info */}
       <div className="p-3 border-t border-gray-100">
+         <Link
+            href="/account/delete"
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-3 rounded-xl text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors group mb-1"
+            )}
+            title="Eliminar cuenta"
+         >
+             <div className="min-w-[24px] flex items-center justify-center">
+                <Trash2 size={22} strokeWidth={2} />
+             </div>
+             <motion.span
+                animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : "auto" }}
+                className="font-medium whitespace-nowrap overflow-hidden"
+             >
+               Eliminar cuenta
+             </motion.span>
+         </Link>
          <button
             onClick={() => {
               logout();

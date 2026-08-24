@@ -633,7 +633,7 @@ export default function ClientOrdersPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await orderService.getMyOrders(user?.id);
+      const data = await orderService.getMyOrders();
       setOrders(data);
     } catch (e: unknown) {
       setError(getErrorMessage(e, "No se pudieron cargar tus pedidos."));
@@ -764,7 +764,7 @@ export default function ClientOrdersPage() {
     try {
       await orderService.uploadOrderReceipt(selectedOrder.id, file);
       setModalSuccess("Comprobante enviado con éxito.");
-      const updatedOrders = await orderService.getMyOrders(user?.id);
+      const updatedOrders = await orderService.getMyOrders();
       setOrders(updatedOrders);
       const updatedOrder = updatedOrders.find((o) => o.id === selectedOrder.id) || null;
       if (updatedOrder) setSelectedOrder(updatedOrder);
@@ -923,7 +923,7 @@ export default function ClientOrdersPage() {
       setRatingComment("");
       setModalSuccess("Calificación enviada. Gracias por compartir tu experiencia.");
 
-      const updatedOrders = await orderService.getMyOrders(user?.id);
+      const updatedOrders = await orderService.getMyOrders();
       setOrders(updatedOrders);
       const updatedOrder = updatedOrders.find((o) => o.id === selectedOrder.id) || null;
       if (updatedOrder) setSelectedOrder(updatedOrder);
@@ -967,7 +967,7 @@ export default function ClientOrdersPage() {
         return next;
       });
 
-      const updatedOrders = await orderService.getMyOrders(user?.id);
+      const updatedOrders = await orderService.getMyOrders();
       setOrders(updatedOrders);
       const updatedOrder = updatedOrders.find((o) => o.id === selectedOrder.id) || null;
       if (updatedOrder) setSelectedOrder(updatedOrder);

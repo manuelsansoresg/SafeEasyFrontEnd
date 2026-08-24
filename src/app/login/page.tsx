@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
-import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle, X } from "lucide-react";
+import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle, X, ShieldAlert } from "lucide-react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import SocialLoginButtons, { SocialLoginPayload } from "@/components/auth/SocialLoginButtons";
 
@@ -32,6 +32,75 @@ function PasswordResetSuccessMessage() {
   );
 }
 
+function PendingDeletionModal({
+  message,
+  onCancel,
+  onClose,
+  isCancelling,
+  cancelError,
+}: {
+  message: string;
+  onCancel: () => void;
+  onClose: () => void;
+  isCancelling: boolean;
+  cancelError: string | null;
+}) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="p-6 sm:p-8 space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-amber-50 rounded-xl">
+              <ShieldAlert size={28} className="text-amber-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Cuenta programada para eliminación</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Tu cuenta está en proceso de eliminación</p>
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+            {message || "Tu cuenta está programada para eliminación. Puedes cancelar este proceso o cerrar esta ventana."}
+          </div>
+
+          {cancelError && (
+            <div className="flex items-center gap-2 p-3 text-sm text-red-500 bg-red-50 rounded-md border border-red-200">
+              <AlertCircle size={16} />
+              {cancelError}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isCancelling}
+              className="flex-1 py-3 px-4 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              Cerrar
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isCancelling}
+              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {isCancelling ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Procesando...
+                </>
+              ) : (
+                "Cancelar eliminación"
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 const FACEBOOK_CLIENT_ID = process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "";
 
@@ -41,6 +110,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDeletion, setPendingDeletion] = useState<{ message: string; token?: string } | null>(null);
+  const [isCancellingDeletion, setIsCancellingDeletion] = useState(false);
+  const [cancelDeletionError, setCancelDeletionError] = useState<string | null>(null);
+  const [cancelDeletionSuccess, setCancelDeletionSuccess] = useState(false);
   const login = useAuthStore((state) => state.login);
   const router = useRouter();
 
@@ -63,7 +136,21 @@ export default function LoginPage() {
       }
 
       const data = await response.json();
-      
+
+      // Check for ACCOUNT_PENDING_DELETION in social login
+      const socialErrorCode = (data as Record<string, unknown>)?.error_code;
+      if (socialErrorCode === "ACCOUNT_PENDING_DELETION") {
+        const message = typeof (data as Record<string, unknown>)?.message === "string"
+          ? (data as Record<string, unknown>)?.message as string
+          : "Tu cuenta está programada para eliminación.";
+        const token = typeof (data as Record<string, unknown>)?.cancellation_token === "string"
+          ? (data as Record<string, unknown>)?.cancellation_token as string
+          : undefined;
+        setPendingDeletion({ message, token });
+        setIsLoading(false);
+        return;
+      }
+
       // 3. ¡Éxito! Guardar el token de TU sistema
       if (process.env.NODE_ENV === "development") console.log("Login exitoso, token recibido:", data.access_token);
       
@@ -176,7 +263,21 @@ export default function LoginPage() {
       }
 
       const data = await response.json();
-      
+
+      // Check for ACCOUNT_PENDING_DELETION
+      const errorCode = (data as Record<string, unknown>)?.error_code;
+      if (errorCode === "ACCOUNT_PENDING_DELETION") {
+        const message = typeof (data as Record<string, unknown>)?.message === "string"
+          ? (data as Record<string, unknown>)?.message as string
+          : "Tu cuenta está programada para eliminación.";
+        const token = typeof (data as Record<string, unknown>)?.cancellation_token === "string"
+          ? (data as Record<string, unknown>)?.cancellation_token as string
+          : undefined;
+        setPendingDeletion({ message, token });
+        setIsLoading(false);
+        return;
+      }
+
       // Fetch user data to get ID and role
       let userData = { id: 0, name: email.split('@')[0], email, role: 'user' };
       
@@ -237,7 +338,54 @@ export default function LoginPage() {
     }
   };
 
+  const handleCancelDeletion = async () => {
+    if (!pendingDeletion?.token) return;
+    setIsCancellingDeletion(true);
+    setCancelDeletionError(null);
+    try {
+      const res = await fetch("/api/account/deletion/cancel-by-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ token: pendingDeletion.token }),
+      });
+      const data: unknown = await res.json().catch(() => ({}));
+      const rec = (data && typeof data === "object" ? (data as Record<string, unknown>) : {}) as Record<string, unknown>;
+      const errorCode = typeof rec.error_code === "string" ? rec.error_code : undefined;
+
+      if (!res.ok || errorCode) {
+        const msg = typeof rec.detail === "string" ? rec.detail : typeof rec.message === "string" ? rec.message : "No se pudo cancelar la eliminación.";
+        setCancelDeletionError(msg);
+        return;
+      }
+
+      setCancelDeletionSuccess(true);
+      setPendingDeletion(null);
+    } catch {
+      setCancelDeletionError("Error de conexión. Intenta nuevamente.");
+    } finally {
+      setIsCancellingDeletion(false);
+    }
+  };
+
+  const handleClosePendingDeletion = () => {
+    setPendingDeletion(null);
+    setCancelDeletionError(null);
+    setCancelDeletionSuccess(false);
+  };
+
   return (
+    <>
+      {pendingDeletion && (
+        <PendingDeletionModal
+          message={cancelDeletionSuccess
+            ? "Eliminación cancelada exitosamente. Tus sesiones anteriores permanecen cerradas por seguridad. Puedes iniciar sesión nuevamente."
+            : pendingDeletion.message}
+          onCancel={handleCancelDeletion}
+          onClose={handleClosePendingDeletion}
+          isCancelling={isCancellingDeletion}
+          cancelError={cancelDeletionError}
+        />
+      )}
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
         <Suspense fallback={null}>
@@ -358,5 +506,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

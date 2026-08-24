@@ -3,15 +3,15 @@
 import { useState, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { 
-  User, 
+import {
+  User,
   Users,
   Users2,
   ChevronDown,
-  Grid, 
-  Layers, 
-  Package, 
-  ChevronLeft, 
+  Grid,
+  Layers,
+  Package,
+  ChevronLeft,
   ChevronRight,
   LogOut,
   LayoutDashboard,
@@ -26,7 +26,8 @@ import {
   Settings,
   FileText,
   LifeBuoy,
-  CircleHelp
+  CircleHelp,
+  Trash2,
 } from "lucide-react";
 import { BriefcaseBusiness } from "lucide-react";
 import { Image as ImageIcon } from "lucide-react";
@@ -408,6 +409,26 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
 
       {/* Footer / User Info */}
       <div className="p-3 border-t border-gray-100">
+         {!isAdmin && (
+            <Link
+               href="/account/delete"
+               onClick={() => onMobileClose?.()}
+               className={cn(
+                  "flex items-center gap-3 px-3 py-3 rounded-xl text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors group mb-1"
+               )}
+               title="Eliminar cuenta"
+            >
+                <div className="min-w-[24px] flex items-center justify-center">
+                   <Trash2 size={22} strokeWidth={2} />
+                </div>
+                <motion.span
+                   animate={{ opacity: isMobileOpen || !isCollapsed ? 1 : 0, width: isMobileOpen || !isCollapsed ? "auto" : 0 }}
+                   className="font-medium whitespace-nowrap overflow-hidden"
+                >
+                   Eliminar cuenta
+                </motion.span>
+            </Link>
+         )}
          <button
             onClick={() => {
               logout();
