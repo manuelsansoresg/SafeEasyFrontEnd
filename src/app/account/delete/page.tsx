@@ -525,9 +525,11 @@ export default function AccountDeletePage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900">
-                          {obs.description || `Obligación de tipo: ${obs.type}`}
+                          {typeof obs.description === "string"
+                            ? obs.description
+                            : `Obligación de tipo: ${obs.type}`}
                         </p>
-                        {obs.reference && (
+                        {typeof obs.reference === "string" && obs.reference && (
                           <p className="text-xs text-gray-500 mt-1">
                             Referencia: {obs.reference}
                           </p>
