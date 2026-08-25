@@ -3,11 +3,10 @@
 import { useCallback, useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
-import { fetchAdminList } from "@/lib/adminListApi";
 import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
-import { DeletedBadge, DeletedUserControls } from "@/components/admin/DeletedUserControls";
+import { DeletedUserControls } from "@/components/admin/DeletedUserControls";
 import {
   Plus,
   Search,
@@ -61,6 +60,14 @@ const authHeaders = (token: string) => ({
   "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
 });
 
+const visibleUserRole = (role?: string) => {
+  const normalized = String(role || "client").toLowerCase();
+  return normalized === "admin" || normalized === "client";
+};
+
+const userRoleLabel = (role?: string) =>
+  String(role || "client").toLowerCase() === "admin" ? "Administrador" : "Cliente";
+
 export default function UsersPage() {
   const { token } = useAuthStore();
   const [users, setUsers] = useState<User[]>([]);
@@ -87,22 +94,28 @@ export default function UsersPage() {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({
-        skip: String(skip),
-        limit: String(limit),
-        include_deleted: "true",
-      });
-      if (searchTerm.trim()) params.set("search", searchTerm.trim());
+      const buildParams = (role: "admin" | "client") => {
+        const params = new URLSearchParams({ skip: "0", limit: "1000", role });
+        if (searchTerm.trim()) params.set("search", searchTerm.trim());
+        return params;
+      };
+      const [adminResponse, clientResponse] = await Promise.all([
+        fetchWithAuth(`/api/users/?${buildParams("admin").toString()}`),
+        fetchWithAuth(`/api/users/?${buildParams("client").toString()}`),
+      ]);
 
-      const response = await fetchAdminList("/api/users/", params);
-
-      if (response.ok) {
-        const data = await response.json();
-        const nextUsers = unwrapUsers(data);
+      if (adminResponse.ok && clientResponse.ok) {
+        const [adminData, clientData] = await Promise.all([
+          adminResponse.json(),
+          clientResponse.json(),
+        ]);
+        const nextUsers = [...unwrapUsers(adminData), ...unwrapUsers(clientData)]
+          .filter((user) => !user.deleted_at && visibleUserRole(user.role));
         setUsers(nextUsers);
         setSelectedIds((prev) => prev.filter((id) => nextUsers.some((user) => user.id === id)));
       } else {
-        const errorMsg = await readErrorMessage(response);
+        const failedResponse = !adminResponse.ok ? adminResponse : clientResponse;
+        const errorMsg = await readErrorMessage(failedResponse);
         setError(errorMsg === "Not Found" ? "No se encontró el endpoint /users/." : errorMsg);
       }
     } catch (error) {
@@ -111,7 +124,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [limit, searchTerm, skip, token]);
+  }, [searchTerm, token]);
 
   useEffect(() => {
     fetchUsers();
@@ -166,7 +179,8 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers = users;
+  const activeUsers = users.filter((user) => !user.deleted_at && visibleUserRole(user.role));
+  const filteredUsers = activeUsers.slice(skip, skip + limit);
   const allSelected = filteredUsers.length > 0 && filteredUsers.every((user) => selectedIds.includes(user.id));
 
   const toggleSelect = (id: number) => {
@@ -277,20 +291,19 @@ export default function UsersPage() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Usuario</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Rol</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Eliminado</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     Cargando usuarios...
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     No se encontraron usuarios
                   </td>
                 </tr>
@@ -323,7 +336,7 @@ export default function UsersPage() {
                           (user.role || '').toLowerCase() === 'supplier' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 
                           'bg-gray-50 text-gray-700 border border-gray-100'}`}>
                         {(user.role || '').toLowerCase() === 'admin' && <Shield size={12} />}
-                        {user.role || 'client'}
+                        {userRoleLabel(user.role)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -341,9 +354,6 @@ export default function UsersPage() {
                           )}
                         </span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <DeletedBadge deletedAt={user.deleted_at ?? null} />
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end items-center gap-1">
@@ -397,7 +407,7 @@ export default function UsersPage() {
                           (user.role || '').toLowerCase() === 'supplier' ? 'bg-blue-50 text-blue-700 border-blue-100' : 
                           'bg-gray-50 text-gray-700 border-gray-100'}`}>
                         {(user.role || '').toLowerCase() === 'admin' && <Shield size={12} />}
-                        {user.role || 'client'}
+                        {userRoleLabel(user.role)}
                       </span>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-3">
@@ -406,9 +416,6 @@ export default function UsersPage() {
                           ${user.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
                           {user.is_active ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
                         </span>
-                      </div>
-                      <div className="mt-2">
-                        <DeletedBadge deletedAt={user.deleted_at ?? null} />
                       </div>
                       <div className="flex items-center gap-1">
                         <Link href={`/admin/users/${user.id}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary">
@@ -443,7 +450,7 @@ export default function UsersPage() {
             </button>
             <button 
               onClick={() => setSkip(skip + limit)}
-              disabled={users.length < limit}
+              disabled={skip + limit >= activeUsers.length}
               className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronRight size={20} />

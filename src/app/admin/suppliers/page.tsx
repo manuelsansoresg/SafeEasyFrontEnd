@@ -18,11 +18,10 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
-import { DeletedBadge, DeletedUserControls } from "@/components/admin/DeletedUserControls";
+import { DeletedUserControls } from "@/components/admin/DeletedUserControls";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { fetchWithAuth } from "@/lib/api";
-import { fetchAdminList } from "@/lib/adminListApi";
 import type { Plan, Subscription } from "@/types/subscriptions";
 
 interface Supplier {
@@ -169,16 +168,14 @@ export default function AdminSuppliersPage() {
       const supplierParams = new URLSearchParams({
         skip: String(skip),
         limit: String(limit),
-        include_deleted: "true",
       });
       const userParams = new URLSearchParams({
         skip: "0",
         limit: "1000",
-        include_deleted: "true",
       });
       const [response, usersResponse] = await Promise.all([
-        fetchAdminList("/api/suppliers/", supplierParams),
-        fetchAdminList("/api/users/", userParams),
+        fetchWithAuth(`/api/suppliers/?${supplierParams.toString()}`),
+        fetchWithAuth(`/api/users/?${userParams.toString()}`),
       ]);
       
       if (response.ok) {
@@ -328,7 +325,9 @@ export default function AdminSuppliersPage() {
             is_verified: false,
             profile_pending: true,
           }));
-        const combined = [...pendingSupplierUsers, ...nextWithUserEmail];
+        const combined = [...pendingSupplierUsers, ...nextWithUserEmail].filter(
+          (supplier) => !supplier.user_deleted_at,
+        );
         setSuppliers((prev) => {
           const prevById = new Map(prev.map((s) => [Number(s.id), s]));
           return combined.map((s) => {
@@ -893,14 +892,13 @@ export default function AdminSuppliersPage() {
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Estado</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Suscripción</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Verificado</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Eliminado</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredSuppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="p-8 text-center text-gray-500">
+                    <td colSpan={9} className="p-8 text-center text-gray-500">
                       No se encontraron proveedores.
                     </td>
                   </tr>
@@ -951,9 +949,6 @@ export default function AdminSuppliersPage() {
                                   : "Inactivo"}
                             </span>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <DeletedBadge deletedAt={supplier.user_deleted_at ?? null} />
                         </td>
                         <td className="px-6 py-4 text-center">
                           {supplier.profile_pending ? (
@@ -1082,9 +1077,6 @@ export default function AdminSuppliersPage() {
                               Perfil empresarial pendiente
                             </p>
                           ) : null}
-                          <div className="mt-1">
-                            <DeletedBadge deletedAt={supplier.user_deleted_at ?? null} />
-                          </div>
                         </div>
                         <span className={cn(
                           "shrink-0 inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",

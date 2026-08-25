@@ -207,7 +207,7 @@ async function proxyRequest(request: NextRequest) {
           'recommended', 'media', 'dashboard', 'legal', 'sell-faq',
           'settings', 'results', 'countries', 'states', 'cities', 'catalogs',
           'conversations', 'messages', 'presence', 'orders',
-          'gallery', 'intro-image'
+          'gallery', 'intro-image', 'deleted'
       ];
 
       // Admin endpoints should NOT have trailing slashes

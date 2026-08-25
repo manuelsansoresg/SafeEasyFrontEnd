@@ -4,10 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
-import { fetchAdminList } from "@/lib/adminListApi";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
-import { DeletedBadge, DeletedUserControls } from "@/components/admin/DeletedUserControls";
+import { DeletedUserControls } from "@/components/admin/DeletedUserControls";
 import {
   CheckCircle,
   Edit,
@@ -134,11 +133,10 @@ export default function SellersPage() {
         const params = new URLSearchParams({
           skip: "0",
           limit: "500",
-          include_deleted: "true",
         });
         if (searchTerm.trim()) params.set("search", searchTerm.trim());
 
-        const response = await fetchAdminList("/api/sellers/", params);
+        const response = await fetchWithAuth(`/api/sellers/?${params.toString()}`);
 
         if (response.ok) {
           const data = await response.json();
@@ -229,6 +227,7 @@ export default function SellersPage() {
   };
 
   const filteredSellers = sellers.filter((seller) => {
+    if (sellerDeletedAt(seller)) return false;
     const term = searchTerm.toLowerCase();
     return (
       normalizedText(sellerEmail(seller)).includes(term) ||
@@ -341,20 +340,19 @@ export default function SellersPage() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Vendedor</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Código de vinculación</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Eliminado</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     Cargando vendedores...
                   </td>
                 </tr>
               ) : filteredSellers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     No se encontraron vendedores
                   </td>
                 </tr>
@@ -414,9 +412,6 @@ export default function SellersPage() {
                           )}
                         </span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <DeletedBadge deletedAt={deletedAt} />
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end items-center gap-1">
@@ -485,7 +480,6 @@ export default function SellersPage() {
                         }`}>
                           {sellerIsActive(seller) ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
                         </span>
-                        <DeletedBadge deletedAt={deletedAt} />
                       </div>
                       <div className="flex items-center gap-1">
                         <Link href={`/admin/sellers/${sellerDisplayId(seller)}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary">

@@ -6,7 +6,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
-import { DeletedBadge, DeletedUserControls } from "@/components/admin/DeletedUserControls";
+import { DeletedUserControls } from "@/components/admin/DeletedUserControls";
 import {
   CheckCircle,
   Edit,
@@ -108,7 +108,6 @@ export default function CouriersPage() {
         const params = new URLSearchParams({
           skip: "0",
           limit: "50",
-          include_deleted: "true",
         });
 
         const response = await fetchWithAuth(`/api/couriers/?${params.toString()}`);
@@ -185,6 +184,7 @@ export default function CouriersPage() {
   };
 
   const filteredCouriers = couriers.filter((courier) => {
+    if (courier.deleted_at) return false;
     const term = searchTerm.toLowerCase();
     return (
       courier.email.toLowerCase().includes(term) ||
@@ -295,20 +295,19 @@ export default function CouriersPage() {
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Repartidor</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Eliminado</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
                     Cargando repartidores...
                   </td>
                 </tr>
               ) : filteredCouriers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
                     No se encontraron repartidores
                   </td>
                 </tr>
@@ -359,9 +358,6 @@ export default function CouriersPage() {
                           )}
                         </span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <DeletedBadge deletedAt={deletedAt} />
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end items-center gap-1">
@@ -426,7 +422,6 @@ export default function CouriersPage() {
                         }`}>
                           {courier.is_active ? <><CheckCircle size={12} /> Activo</> : <><XCircle size={12} /> Inactivo</>}
                         </span>
-                        <DeletedBadge deletedAt={deletedAt} />
                       </div>
                       <div className="flex items-center gap-1">
                         <Link href={`/admin/couriers/${courier.id}`} className="rounded-lg p-2 text-gray-400 hover:bg-primary/5 hover:text-primary">

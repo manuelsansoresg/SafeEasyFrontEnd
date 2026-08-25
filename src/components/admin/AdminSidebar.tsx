@@ -178,6 +178,12 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
           icon: Truck,
           roles: ['admin', 'superuser']
         },
+        {
+          title: "Eliminados",
+          path: "/admin/deleted-users",
+          icon: Trash2,
+          roles: ['admin', 'superuser']
+        },
       ],
     },
     { 

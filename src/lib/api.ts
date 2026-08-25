@@ -1,7 +1,7 @@
 import { useAuthStore } from "@/store/useAuthStore";
 import { refreshAccessToken, stripBearer } from "@/lib/authRefresh";
 
-export type FetchOptions = RequestInit & {
+type FetchOptions = RequestInit & {
   headers?: Record<string, string>;
   retryOnAuthFailure?: boolean;
 };
