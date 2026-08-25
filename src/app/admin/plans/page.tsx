@@ -55,10 +55,6 @@ const apiUrl = (path: string) => {
   return `${base.replace(/\/$/, "")}${path}`;
 };
 
-const authHeaders = (token: string) => ({
-  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
-});
-
 const unwrapPlans = (data: unknown): Plan[] => {
   if (Array.isArray(data)) return data as Plan[];
   if (data && typeof data === "object") {
@@ -111,15 +107,11 @@ export default function AdminPlansPage() {
     const run = async () => {
       setLoading(true);
       try {
-        const requestHeaders = {
-          ...authHeaders(token),
-          Accept: "application/json",
-        };
         const commonRequest = {
           signal: controller.signal,
-          headers: requestHeaders,
+          headers: { Accept: "application/json" },
         };
-        const response = await fetch(apiUrl(`/plans/?${buildAdminPlanParams().toString()}`), commonRequest);
+        const response = await fetchWithAuth(`/api/plans/?${buildAdminPlanParams().toString()}`, commonRequest);
         if (!isMounted) return;
         if (response.ok) {
           const data = await response.json();
@@ -162,11 +154,7 @@ export default function AdminPlansPage() {
 
       if (response?.ok) {
         setToast({ type: "success", message: "Plan eliminado correctamente." });
-        const requestHeaders = {
-          ...authHeaders(token),
-          Accept: "application/json",
-        };
-        const refresh = await fetch(apiUrl(`/plans/?${buildAdminPlanParams().toString()}`), { headers: requestHeaders });
+        const refresh = await fetchWithAuth(`/api/plans/?${buildAdminPlanParams().toString()}`);
         if (refresh.ok) {
           const data = await refresh.json();
           setPlans(unwrapPlans(data));

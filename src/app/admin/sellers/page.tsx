@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
+import { fetchAdminList } from "@/lib/adminListApi";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
 import { DeletedBadge, DeletedUserControls } from "@/components/admin/DeletedUserControls";
@@ -137,7 +138,7 @@ export default function SellersPage() {
         });
         if (searchTerm.trim()) params.set("search", searchTerm.trim());
 
-        const response = await fetchWithAuth(apiUrl(`/sellers/?${params.toString()}`));
+        const response = await fetchAdminList("/api/sellers/", params);
 
         if (response.ok) {
           const data = await response.json();
@@ -147,7 +148,7 @@ export default function SellersPage() {
               if (sellerEmail(seller) && sellerName(seller)) return seller;
 
               try {
-                const userResponse = await fetchWithAuth(apiUrl(`/users/${sellerDisplayId(seller)}`));
+                const userResponse = await fetchWithAuth(`/api/users/${sellerDisplayId(seller)}`);
                 if (!userResponse.ok) return seller;
                 const userData = (await userResponse.json()) as User;
                 return mergeSellerUser(seller, userData);

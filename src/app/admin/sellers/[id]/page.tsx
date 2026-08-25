@@ -18,11 +18,6 @@ interface User {
   role?: string;
 }
 
-const apiUrl = (path: string) => {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-  return `${base.replace(/\/$/, "")}${path}`;
-};
-
 export default function EditSellerPage() {
   const params = useParams();
   const id = params.id;
@@ -37,13 +32,13 @@ export default function EditSellerPage() {
       if (!token || !id) return;
 
       try {
-        const response = await fetchWithAuth(apiUrl(`/users/${id}`));
+        const response = await fetchWithAuth(`/api/users/${id}`);
 
         if (response.ok) {
           const data = await response.json();
           setSeller(data);
         } else {
-          const listResponse = await fetchWithAuth(apiUrl("/users/?skip=0&limit=1000"));
+          const listResponse = await fetchWithAuth("/api/users/?skip=0&limit=1000");
 
           if (listResponse.ok) {
             const listData = await listResponse.json();

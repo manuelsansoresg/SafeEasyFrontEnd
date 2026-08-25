@@ -17,6 +17,7 @@ import Link from "next/link";
 import * as Icons from "lucide-react";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
+import { fetchWithAuth } from "@/lib/api";
 
 interface Category {
   id: number;
@@ -77,11 +78,8 @@ export default function AdminCategoriesPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const response = await fetch(apiUrl(`/categories/?skip=${skip}&limit=${limit}`), {
-        headers: {
-          ...authHeaders(token),
-          Accept: "application/json",
-        },
+      const response = await fetchWithAuth(`/api/categories/?skip=${skip}&limit=${limit}`, {
+        headers: { Accept: "application/json" },
       });
       if (response.ok) {
         const data = await response.json();

@@ -27,13 +27,42 @@ interface User {
   deleted_at?: string | null;
 }
 
-const isCourier = (user: User) => (user.role || "").toLowerCase() === "courier";
+interface CourierRecord extends Partial<User> {
+  user_id?: number | string | null;
+  user_deleted_at?: string | null;
+  user?: Partial<User> | null;
+}
+
+const normalizeCourier = (courier: CourierRecord): User | null => {
+  const nestedUser = courier.user ?? {};
+  const id = Number(courier.user_id ?? nestedUser.id ?? courier.id);
+  if (!Number.isFinite(id)) return null;
+
+  return {
+    id,
+    email: String(courier.email ?? nestedUser.email ?? ""),
+    is_active: Boolean(courier.is_active ?? nestedUser.is_active ?? false),
+    name: courier.name ?? nestedUser.name,
+    full_name: courier.full_name ?? nestedUser.full_name,
+    role: courier.role ?? nestedUser.role ?? "courier",
+    deleted_at:
+      courier.user_deleted_at ??
+      courier.deleted_at ??
+      nestedUser.deleted_at ??
+      null,
+  };
+};
 
 const unwrapUsers = (data: unknown): User[] => {
   if (Array.isArray(data)) return data as User[];
   if (data && typeof data === "object") {
     const record = data as Record<string, unknown>;
-    const items = record.items ?? record.results ?? record.data ?? record.users;
+    const items =
+      record.items ??
+      record.results ??
+      record.data ??
+      record.couriers ??
+      record.users;
     if (Array.isArray(items)) return items as User[];
   }
   return [];
@@ -49,11 +78,6 @@ const readErrorMessage = async (response: Response) => {
     if (detail) return JSON.stringify(detail);
   } catch {}
   return text;
-};
-
-const apiUrl = (path: string) => {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-  return `${base.replace(/\/$/, "")}${path}`;
 };
 
 export default function CouriersPage() {
@@ -83,21 +107,22 @@ export default function CouriersPage() {
       try {
         const params = new URLSearchParams({
           skip: "0",
-          limit: "1000",
+          limit: "50",
           include_deleted: "true",
         });
-        if (searchTerm.trim()) params.set("search", searchTerm.trim());
 
-        const response = await fetchWithAuth(apiUrl(`/users/?${params.toString()}`));
+        const response = await fetchWithAuth(`/api/couriers/?${params.toString()}`);
 
         if (response.ok) {
           const data = await response.json();
-          const nextCouriers = unwrapUsers(data).filter(isCourier);
+          const nextCouriers = unwrapUsers(data)
+            .map((courier) => normalizeCourier(courier as CourierRecord))
+            .filter((courier): courier is User => courier !== null);
           setCouriers(nextCouriers);
           setSelectedIds((prev) => prev.filter((id) => nextCouriers.some((courier) => courier.id === id)));
         } else {
           const message = await readErrorMessage(response);
-          setError(message === "Not Found" ? "No se encontró el endpoint /users/." : message);
+          setError(message === "Not Found" ? "No se encontró el endpoint /couriers/." : message);
         }
       } catch (error) {
         console.error("Error fetching couriers:", error);
@@ -108,7 +133,7 @@ export default function CouriersPage() {
     };
 
     fetchCouriers();
-  }, [searchTerm, token]);
+  }, [token]);
 
   const deleteCourier = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este repartidor?")) return;

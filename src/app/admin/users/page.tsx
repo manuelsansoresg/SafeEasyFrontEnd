@@ -3,6 +3,7 @@
 import { useCallback, useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
+import { fetchAdminList } from "@/lib/adminListApi";
 import Link from "next/link";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
@@ -60,11 +61,6 @@ const authHeaders = (token: string) => ({
   "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
 });
 
-const isVisibleUserRole = (role?: string) => {
-  const normalized = String(role || "client").toLowerCase();
-  return normalized === "client" || normalized === "admin" || normalized === "superuser";
-};
-
 export default function UsersPage() {
   const { token } = useAuthStore();
   const [users, setUsers] = useState<User[]>([]);
@@ -98,7 +94,7 @@ export default function UsersPage() {
       });
       if (searchTerm.trim()) params.set("search", searchTerm.trim());
 
-      const response = await fetchWithAuth(apiUrl(`/users/?${params.toString()}`));
+      const response = await fetchAdminList("/api/users/", params);
 
       if (response.ok) {
         const data = await response.json();
@@ -170,7 +166,7 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers = users.filter((user) => isVisibleUserRole(user.role));
+  const filteredUsers = users;
   const allSelected = filteredUsers.length > 0 && filteredUsers.every((user) => selectedIds.includes(user.id));
 
   const toggleSelect = (id: number) => {

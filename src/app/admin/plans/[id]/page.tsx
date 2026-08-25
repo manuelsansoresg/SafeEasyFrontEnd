@@ -7,15 +7,7 @@ import { PageHero } from "@/components/ui/PageHero";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 import PlanForm, { type Plan } from "@/components/admin/PlanForm";
-
-const apiUrl = (path: string) => {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-  return `${base.replace(/\/$/, "")}${path}`;
-};
-
-const authHeaders = (token: string) => ({
-  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
-});
+import { fetchWithAuth } from "@/lib/api";
 
 const unwrapPlans = (data: unknown): Plan[] => {
   if (Array.isArray(data)) return data as Plan[];
@@ -41,11 +33,8 @@ export default function EditPlanPage() {
       if (!token || !id) return;
 
       try {
-        const response = await fetch(apiUrl(`/plans/${id}`), {
-          headers: {
-            ...authHeaders(token),
-            Accept: "application/json",
-          },
+        const response = await fetchWithAuth(`/api/plans/${id}`, {
+          headers: { Accept: "application/json" },
         });
         if (response.ok) {
           const data = await response.json();
@@ -53,11 +42,8 @@ export default function EditPlanPage() {
           return;
         }
 
-        const listResponse = await fetch(apiUrl(`/plans/?skip=0&limit=1000`), {
-          headers: {
-            ...authHeaders(token),
-            Accept: "application/json",
-          },
+        const listResponse = await fetchWithAuth(`/api/plans/?skip=0&limit=1000`, {
+          headers: { Accept: "application/json" },
         });
         if (listResponse.ok) {
           const listData = await listResponse.json();

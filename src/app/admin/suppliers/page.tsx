@@ -22,6 +22,7 @@ import { DeletedBadge, DeletedUserControls } from "@/components/admin/DeletedUse
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { fetchWithAuth } from "@/lib/api";
+import { fetchAdminList } from "@/lib/adminListApi";
 import type { Plan, Subscription } from "@/types/subscriptions";
 
 interface Supplier {
@@ -134,6 +135,7 @@ export default function AdminSuppliersPage() {
   const isAdminUser = roleKey === "admin" || roleKey === "superuser";
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [verifyingId, setVerifyingId] = useState<number | null>(null);
@@ -162,18 +164,24 @@ export default function AdminSuppliersPage() {
   const fetchSuppliers = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setLoadError(null);
     try {
+      const supplierParams = new URLSearchParams({
+        skip: String(skip),
+        limit: String(limit),
+        include_deleted: "true",
+      });
+      const userParams = new URLSearchParams({
+        skip: "0",
+        limit: "1000",
+        include_deleted: "true",
+      });
       const [response, usersResponse] = await Promise.all([
-        fetchWithAuth(`/api/suppliers/?skip=${skip}&limit=${limit}&include_deleted=true`),
-        fetchWithAuth(`/api/users/?skip=0&limit=1000&include_deleted=true`),
+        fetchAdminList("/api/suppliers/", supplierParams),
+        fetchAdminList("/api/users/", userParams),
       ]);
       
       if (response.ok) {
-        if (!usersResponse.ok) {
-          throw new Error(
-            "No se pudieron cargar los roles de usuario para filtrar proveedores.",
-          );
-        }
         const data = await response.json();
         const allSupplierProfiles = unwrapArray<Supplier>(data, [
           "items",
@@ -181,12 +189,20 @@ export default function AdminSuppliersPage() {
           "data",
           "suppliers",
         ]);
-        const users = unwrapArray<UserSummary>(await usersResponse.json(), [
-          "items",
-          "results",
-          "data",
-          "users",
-        ]);
+        const users = usersResponse.ok
+          ? unwrapArray<UserSummary>(await usersResponse.json(), [
+              "items",
+              "results",
+              "data",
+              "users",
+            ])
+          : [];
+        if (!usersResponse.ok) {
+          console.warn(
+            "Supplier profiles loaded without user enrichment:",
+            usersResponse.status,
+          );
+        }
         const usersById = new Map(
           users
             .map((linkedUser) => [Number(linkedUser.id), linkedUser] as const)
@@ -202,9 +218,6 @@ export default function AdminSuppliersPage() {
         );
         const supplierUsers = users.filter((candidate) =>
           isSupplierRole(getUserRole(candidate)),
-        );
-        const supplierUserIds = new Set(
-          supplierUsers.map((candidate) => Number(candidate.id)),
         );
         const normalizeSupplierProfile = (supplier: Supplier) => {
           const email = String(
@@ -229,6 +242,8 @@ export default function AdminSuppliersPage() {
               supplier.user?.email ||
               matchedUser?.email ||
               "",
+            user_deleted_at:
+              supplier.user_deleted_at ?? matchedUser?.deleted_at ?? null,
           };
         };
         const normalizedGeneralProfiles = allSupplierProfiles.map(
@@ -279,12 +294,13 @@ export default function AdminSuppliersPage() {
             latestProfileByUserId.set(linkedUserId, supplier);
           }
         }
-        const normalizedSupplierProfiles = Array.from(
-          latestProfileByUserId.values(),
+        const profilesWithoutLinkedUser = Array.from(profilesById.values()).filter(
+          (supplier) => !Number.isFinite(Number(supplier.user_id)),
         );
-        const next = normalizedSupplierProfiles.filter((supplier) =>
-          supplierUserIds.has(Number(supplier.user_id)),
-        );
+        const next = [
+          ...profilesWithoutLinkedUser,
+          ...Array.from(latestProfileByUserId.values()),
+        ];
         const linkedUserIds = new Set(next.map((supplier) => Number(supplier.user_id)));
         const nextWithUserEmail = next.map((supplier) => ({
           ...supplier,
@@ -324,11 +340,13 @@ export default function AdminSuppliersPage() {
         });
         setSelectedIds((prev) =>
           prev.filter((id) =>
-            next.some((supplier) => supplier.id === id),
+            combined.some((supplier) => supplier.id === id),
           ),
         );
       } else {
         console.error("Failed to fetch suppliers:", response.status, response.statusText);
+        setSuppliers([]);
+        setLoadError(`No se pudieron cargar los proveedores (${response.status}).`);
         try {
             const errorText = await response.text();
             console.error("Error response:", errorText);
@@ -339,6 +357,7 @@ export default function AdminSuppliersPage() {
     } catch (error) {
       console.error("Error fetching suppliers:", error);
       setSuppliers([]);
+      setLoadError("Error de conexión al cargar proveedores.");
     } finally {
       setLoading(false);
     }
@@ -828,6 +847,13 @@ export default function AdminSuppliersPage() {
         </div>
         }
       />
+
+      {loadError ? (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+          <XCircle size={20} />
+          <span>{loadError}</span>
+        </div>
+      ) : null}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-4">

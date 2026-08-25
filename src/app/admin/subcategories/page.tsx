@@ -33,11 +33,6 @@ interface Category {
   name: string;
 }
 
-const apiUrl = (path: string) => {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-  return `${base.replace(/\/$/, "")}${path}`;
-};
-
 const unwrapList = <T,>(data: unknown, key: string): T[] => {
   if (Array.isArray(data)) return data as T[];
   if (data && typeof data === "object") {
@@ -91,7 +86,7 @@ export default function AdminSubcategoriesPage() {
       if (selectedCategoryId) params.set("category_id", selectedCategoryId);
       if (searchTerm.trim()) params.set("search", searchTerm.trim());
 
-      const response = await fetchWithAuth(apiUrl(`/subcategories/?${params.toString()}`));
+      const response = await fetchWithAuth(`/api/subcategories/?${params.toString()}`);
       if (!response.ok) {
         setSubcategories([]);
         setTotalCount(null);
@@ -117,7 +112,7 @@ export default function AdminSubcategoriesPage() {
 
   async function fetchCategories() {
     try {
-      const response = await fetchWithAuth(apiUrl(`/categories/?skip=0&limit=1000`));
+      const response = await fetchWithAuth(`/api/categories/?skip=0&limit=1000`);
       if (!response.ok) return;
 
       const data: unknown = await response.json().catch(() => null);
