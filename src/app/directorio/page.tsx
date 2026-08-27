@@ -5,9 +5,9 @@ import type { Plan } from "@/types/subscriptions";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-const title = "Directorio de negocios | Da visibilidad a tu negocio";
+const title = "Directorio de negocios y servicios en México";
 const description =
-  "Crea un espacio para tu negocio dentro del directorio de Drooopy y muestra tus servicios, información, imágenes y formas de contacto.";
+  "Haz visible tu negocio en el directorio de Drooopy y presenta tus servicios, ubicación, imágenes, horarios y formas de contacto en México.";
 
 export const metadata: Metadata = buildMetadata({
   title,

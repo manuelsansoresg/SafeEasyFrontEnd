@@ -51,9 +51,9 @@ export function DirectoryContactButton({
         ...conversation,
         my_role: "client" as const,
         supplier_name:
-          conversation.supplier_name || supplierName || "Proveedor",
+          conversation.supplier_name || supplierName || "Negocio",
         other_party_name:
-          conversation.other_party_name || supplierName || "Proveedor",
+          conversation.other_party_name || supplierName || "Negocio",
         supplier_slug:
           conversation.supplier_slug || supplierSlug || undefined,
         supplier_image:
@@ -74,7 +74,7 @@ export function DirectoryContactButton({
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "No se pudo contactar al proveedor.",
+          : "No se pudo contactar al negocio.",
       );
     } finally {
       setLoading(false);
@@ -97,7 +97,7 @@ export function DirectoryContactButton({
         ) : (
           <MessageCircle size={19} />
         )}
-        Contactar proveedor
+        Contactar negocio
       </button>
       {error ? (
         <p className="mt-2 max-w-sm text-center text-xs font-semibold text-red-200 md:text-left">

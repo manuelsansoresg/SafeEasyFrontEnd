@@ -12,13 +12,13 @@ import { absoluteSiteUrl, buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = {
   ...buildMetadata({
-    title: "Drooopy | Productos y proveedores en México",
+    title: "Drooopy | Tiendas, negocios y servicios en México",
     description:
-      "Descubre productos, proveedores y negocios en México. Compara opciones, revisa catálogos y conecta con vendedores desde Drooopy.",
+      "Encuentra tiendas en línea, productos, negocios y servicios en México. Compra, compara y conecta con empresas cerca de ti en Drooopy.",
     path: "/",
   }),
   title: {
-    absolute: "Drooopy | Productos y proveedores en México",
+    absolute: "Drooopy | Tiendas, negocios y servicios en México",
   },
 };
 
@@ -41,15 +41,21 @@ export default async function Home({
 
   return (
     <div className="flex flex-col w-full pt-24 md:pt-28">
-      <h1 className="sr-only">Drooopy: productos y proveedores en México</h1>
+      <h1 className="sr-only">Drooopy: tiendas, negocios y servicios en México</h1>
       <JsonLd
         data={{
           "@context": "https://schema.org",
           "@type": "CollectionPage",
-          name: "Drooopy | Productos y proveedores en México",
+          name: "Drooopy: tiendas, negocios y servicios en México",
           description:
-            "Descubre productos, proveedores y negocios en México desde Drooopy.",
+            "Encuentra tiendas en línea, productos, negocios y servicios en México. Compra, compara y conecta con empresas cerca de ti en Drooopy.",
           url: absoluteSiteUrl("/"),
+          inLanguage: "es-MX",
+          isPartOf: {
+            "@type": "WebSite",
+            name: "Drooopy",
+            url: absoluteSiteUrl("/"),
+          },
         }}
       />
       {/* Banner & Categories - White Background */}

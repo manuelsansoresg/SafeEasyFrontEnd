@@ -988,7 +988,9 @@ const contactHref = supplier?.phone
       : null;
   const hasCustomAboutTitle = Boolean(
     supplier?.title_about?.trim() &&
-      supplier.title_about.trim().toLowerCase() !== "más que un proveedor,",
+      !["más que un proveedor,", "más que un negocio,"].includes(
+        supplier.title_about.trim().toLowerCase(),
+      ),
   );
   const hasCustomAboutSubtitle = Boolean(
     supplier?.subtitle_about?.trim() &&
@@ -1616,7 +1618,7 @@ const contactHref = supplier?.phone
                     {!isDirectory || hasCustomAboutTitle || hasCustomAboutSubtitle ? (
                       <h2 className="text-3xl md:text-5xl font-black text-[#004e28] mb-8 font-[family-name:var(--font-varela-round)] leading-tight">
                         {!isDirectory
-                          ? supplier.title_about?.trim() || "Más que un proveedor,"
+                          ? supplier.title_about?.trim() || "Más que un negocio,"
                           : hasCustomAboutTitle
                             ? supplier.title_about
                             : null}
@@ -1949,7 +1951,7 @@ const contactHref = supplier?.phone
                           ) : (
                             <span
                               aria-disabled="true"
-                              title="El proveedor todavía no ha configurado un número de WhatsApp"
+                              title="El negocio todavía no ha configurado un número de WhatsApp"
                               className="inline-flex min-h-14 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/30 bg-white/15 px-8 py-4 text-base font-bold text-white/75"
                             >
                               <Phone size={21} />

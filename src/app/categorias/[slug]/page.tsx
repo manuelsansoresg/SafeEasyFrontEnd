@@ -29,13 +29,14 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
   const name = category?.name || formatCategoryName(slug);
 
   return buildMetadata({
-    title: `${name} en México`,
+    title: `${name} en México | Tiendas y productos`,
     description: makeDescription(
       category?.description,
-      `Encuentra productos y proveedores de ${name.toLowerCase()} en Drooopy. Revisa opciones disponibles y conecta con negocios en México.`,
+      `Encuentra ${name.toLowerCase()}, compara productos y descubre tiendas y negocios disponibles en México a través de Drooopy.`,
     ),
     path: `/categorias/${category?.slug || slug}`,
     image: absoluteMediaUrl(category?.image || category?.thumbnail_url),
+    imageAlt: `${name}: tiendas y productos en Drooopy`,
   });
 }
 
@@ -47,7 +48,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   const categoryUrl = absoluteSiteUrl(`/categorias/${categorySlug}`);
   const description = makeDescription(
     category?.description,
-    `Explora productos y proveedores de ${name.toLowerCase()} disponibles en Drooopy.`,
+    `Explora productos de ${name.toLowerCase()} y descubre tiendas y negocios disponibles en Drooopy.`,
   );
 
   return (

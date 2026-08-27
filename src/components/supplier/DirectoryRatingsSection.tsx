@@ -81,11 +81,11 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
               Experiencias reales
             </span>
             <h2 className="mt-3 font-[family-name:var(--font-varela-round)] text-3xl font-black text-[#004e28] md:text-4xl">
-              Califica al proveedor
+              Califica al negocio
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-6 text-gray-600">
               Cada usuario puede compartir una sola calificación sobre este
-              proveedor.
+              negocio.
             </p>
 
             <div className="mt-7 flex items-end gap-4">
@@ -134,7 +134,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
                     </p>
                   ) : null}
                   <p className="mt-3 text-xs text-gray-400">
-                    Solo se permite una calificación por proveedor.
+                    Solo se permite una calificación por negocio.
                   </p>
                 </div>
               ) : (
@@ -185,7 +185,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
           <div>
             <div className="mb-6 flex items-center justify-between">
               <h3 className="font-[family-name:var(--font-varela-round)] text-2xl font-bold text-[#004e28]">
-                Opiniones del proveedor
+                Opiniones del negocio
               </h3>
             </div>
             {loading ? (

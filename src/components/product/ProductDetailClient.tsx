@@ -306,7 +306,7 @@ export default function ProductDetailPage() {
       return;
     }
     if (!supplierSubscriptionActive) {
-      setCartToast({ type: "error", message: "Este proveedor no tiene una subscripción activa por el momento." });
+      setCartToast({ type: "error", message: "Esta tienda no tiene una suscripción activa por el momento." });
       return;
     }
     const stock = Number(product.stock ?? 0) || 0;
@@ -561,7 +561,7 @@ export default function ProductDetailPage() {
     const supplierDisplayName =
         product.supplier?.name ||
         `${product.supplier?.first_name || ''} ${product.supplier?.last_name || ''}`.trim() ||
-        'Proveedor';
+        "Tienda";
     // NOTE: product.supplier_id is the company id. Compare against the actual
     // user id (product.supplier?.user_id or product.supplier_user_id) so directory
     // owners are correctly detected as the supplier.
@@ -692,7 +692,16 @@ export default function ProductDetailPage() {
           <div className="flex items-center text-sm text-gray-500">
             <Link href="/" className="hover:text-primary">Inicio</Link>
             <ChevronRight size={14} className="mx-2" />
-            <span className="text-gray-900 truncate">{product.category?.name}</span>
+            {product.category?.slug ? (
+              <Link
+                href={`/categorias/${product.category.slug}`}
+                className="truncate text-gray-900 hover:text-primary"
+              >
+                {product.category.name}
+              </Link>
+            ) : (
+              <span className="text-gray-900 truncate">{product.category?.name}</span>
+            )}
             <ChevronRight size={14} className="mx-2" />
             <span className="text-gray-900 font-medium truncate">{product.title}</span>
           </div>
@@ -882,7 +891,7 @@ export default function ProductDetailPage() {
                         {product.supplier.logo ? (
                           <img 
                             src={product.supplier.logo} 
-                            alt={product.supplier.name || 'Proveedor'} 
+                            alt={product.supplier.name || "Tienda"}
                             className="w-full h-full object-contain" 
                           />
                         ) : (
@@ -892,7 +901,7 @@ export default function ProductDetailPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-500 mb-0.5">Vendido por</p>
                         <h3 className="font-bold text-gray-900 group-hover:text-primary transition-colors truncate pr-2 flex items-center gap-2">
-                          <span className="truncate">{product.supplier.name || "Proveedor"}</span>
+                          <span className="truncate">{product.supplier.name || "Tienda"}</span>
                           {product.supplier.is_verified ? (
                             <span className="inline-flex items-center" title="Empresa verificada">
                               <CheckCircle size={14} className="text-[#168e00]" />
@@ -950,7 +959,7 @@ export default function ProductDetailPage() {
                         ? "border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 text-gray-700"
                         : "flex-1 bg-[#168e00] text-white shadow-lg shadow-[#168e00]/15 hover:bg-[#137500]"
                     )}
-                    title="Chat con el proveedor"
+                    title="Chat con la tienda"
                   >
                     <MessageCircle size={22} className={supplierHasStore ? "text-primary" : "text-white"} />
                     {supplierHasStore ? "Chat" : "Contactar"}

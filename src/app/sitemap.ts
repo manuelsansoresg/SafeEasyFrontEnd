@@ -64,7 +64,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ]);
 
   const productRoutes: MetadataRoute.Sitemap = products
-    .filter((product) => product.slug || product.id)
+    .filter(
+      (product) =>
+        (product.slug || product.id) &&
+        product.is_active !== false &&
+        product.supplier?.is_active !== false,
+    )
     .map((product) => ({
       url: absoluteSiteUrl(`/product/${product.slug || product.id}`),
       lastModified: toDate(product.updated_at),
@@ -73,7 +78,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }));
 
   const supplierRoutes: MetadataRoute.Sitemap = suppliers
-    .filter((supplier) => supplier.slug)
+    .filter((supplier) => supplier.slug && supplier.is_active !== false)
     .map((supplier) => ({
       url: absoluteSiteUrl(`/empresas/${supplier.slug}`),
       lastModified: toDate(supplier.updated_at),
@@ -82,7 +87,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }));
 
   const categoryRoutes: MetadataRoute.Sitemap = categories
-    .filter((category) => category.slug)
+    .filter((category) => category.slug && category.is_active !== false)
     .map((category) => ({
       url: absoluteSiteUrl(`/categorias/${category.slug}`),
       lastModified: toDate(category.updated_at),

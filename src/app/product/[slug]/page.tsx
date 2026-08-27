@@ -8,6 +8,7 @@ import {
   fetchProductForSeo,
   makeDescription,
   SITE_NAME,
+  truncateText,
 } from "@/lib/seo";
 
 type ProductPageProps = {
@@ -42,17 +43,21 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     });
   }
 
-  const category = product.category?.name ? ` de ${product.category.name}` : "";
-  const supplier = product.supplier?.name ? ` por ${product.supplier.name}` : "";
+  const category = product.subcategory?.name || product.category?.name;
+  const supplier = product.supplier?.name;
+  const titleParts = [product.title, category, supplier].filter(Boolean);
+  while (titleParts.length > 1 && titleParts.join(" | ").length > 58) titleParts.pop();
 
   return buildMetadata({
-    title: `${product.title}${category}`,
+    title: truncateText(titleParts.join(" | "), 58).replace(/\.\.\.$/, ""),
     description: makeDescription(
       product.description,
-      `Encuentra ${product.title}${supplier} en Drooopy. Revisa detalles, disponibilidad y opciones de compra.`,
+      `Consulta ${product.title}${supplier ? ` en ${supplier}` : ""}. Revisa precio, disponibilidad, imágenes y opciones de compra en Drooopy.`,
     ),
     path: `/product/${product.slug || slug}`,
     image: getProductImage(product),
+    imageAlt: `${product.title}${supplier ? `, vendido por ${supplier}` : ""}`,
+    noIndex: product.is_active === false,
   });
 }
 
@@ -63,11 +68,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const productUrl = absoluteSiteUrl(`/product/${productSlug}`);
   const image = getProductImage(product);
   const price = product?.price != null ? Number(product.price) : null;
-  const reviewCount = Array.isArray(product?.ratings)
-    ? product.ratings.length
-    : Number(product?.average_rating) > 0
-      ? 1
-      : 0;
+  const reviewCount = Array.isArray(product?.ratings) ? product.ratings.length : 0;
 
   const jsonLd = product
     ? [
@@ -77,17 +78,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
           name: product.title,
           description: makeDescription(product.description, `Producto disponible en ${SITE_NAME}.`),
           image: image ? [image] : undefined,
-          sku: String(product.id),
+          sku: product.sku || undefined,
           category: product.subcategory?.name || product.category?.name || undefined,
-          brand: product.supplier?.name
-            ? {
-                "@type": "Brand",
-                name: product.supplier.name,
-              }
-            : {
-                "@type": "Brand",
-                name: SITE_NAME,
-              },
           offers:
             price != null && Number.isFinite(price)
               ? {
@@ -99,6 +91,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     Number(product.stock ?? 0) > 0
                       ? "https://schema.org/InStock"
                       : "https://schema.org/OutOfStock",
+                  itemCondition: "https://schema.org/NewCondition",
+                  seller: product.supplier?.name
+                    ? {
+                        "@type": "Organization",
+                        name: product.supplier.name,
+                        url: product.supplier.slug
+                          ? absoluteSiteUrl(`/empresas/${product.supplier.slug}`)
+                          : undefined,
+                      }
+                    : undefined,
                 }
               : undefined,
           aggregateRating:

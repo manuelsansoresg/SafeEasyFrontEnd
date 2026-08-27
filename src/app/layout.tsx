@@ -11,7 +11,14 @@ import { LocationProvider } from "@/components/LocationProvider";
 import { TokenRefreshProvider } from "@/components/TokenRefreshProvider";
 import { JsonLd } from "@/components/JsonLd";
 import { MetaPixel } from "@/components/analytics/MetaPixel";
-import { absoluteSiteUrl, getSiteUrl, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
+import {
+  absoluteSiteUrl,
+  DEFAULT_OG_IMAGE,
+  DEFAULT_OG_IMAGE_ALT,
+  getSiteUrl,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+} from "@/lib/seo";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -28,7 +35,7 @@ const varelaRound = Varela_Round({
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
   title: {
-    default: "Drooopy | Productos y proveedores en México",
+    default: "Drooopy | Tiendas, negocios y servicios en México",
     template: "%s | Drooopy",
   },
   description: SITE_DESCRIPTION,
@@ -46,27 +53,39 @@ export const metadata: Metadata = {
   },
   keywords: [
     "Drooopy",
+    "tiendas en línea",
     "productos en México",
-    "proveedores en México",
     "negocios en México",
-    "compras online",
-    "vendedores confiables",
+    "servicios en México",
+    "negocios locales",
+    "servicios locales",
+    "comprar productos en línea",
+    "encontrar negocios",
   ],
   alternates: {
     canonical: absoluteSiteUrl("/"),
   },
   openGraph: {
-    title: "Drooopy | Productos y proveedores en México",
+    title: "Drooopy | Tiendas, negocios y servicios en México",
     description: SITE_DESCRIPTION,
     url: absoluteSiteUrl("/"),
     siteName: SITE_NAME,
     locale: "es_MX",
     type: "website",
+    images: [
+      {
+        url: DEFAULT_OG_IMAGE,
+        width: 1200,
+        height: 630,
+        alt: DEFAULT_OG_IMAGE_ALT,
+      },
+    ],
   },
   twitter: {
-    card: "summary",
-    title: "Drooopy | Productos y proveedores en México",
+    card: "summary_large_image",
+    title: "Drooopy | Tiendas, negocios y servicios en México",
     description: SITE_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE],
   },
   robots: {
     index: true,
@@ -86,7 +105,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es-MX" suppressHydrationWarning>
       <body
         suppressHydrationWarning
         className={`${poppins.variable} ${varelaRound.variable} font-sans antialiased bg-background text-foreground`}
@@ -100,12 +119,20 @@ export default function RootLayout({
               name: SITE_NAME,
               url: absoluteSiteUrl("/"),
               logo: `${getSiteUrl()}/logo-drooopy.svg`,
+              description: SITE_DESCRIPTION,
             },
             {
               "@context": "https://schema.org",
               "@type": "WebSite",
               name: SITE_NAME,
               url: absoluteSiteUrl("/"),
+              description: SITE_DESCRIPTION,
+              inLanguage: "es-MX",
+              publisher: {
+                "@type": "Organization",
+                name: SITE_NAME,
+                url: absoluteSiteUrl("/"),
+              },
               potentialAction: {
                 "@type": "SearchAction",
                 target: `${absoluteSiteUrl("/")}?search={search_term_string}`,

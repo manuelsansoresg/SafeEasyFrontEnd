@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import type { SupplierService } from "@/types/services";
 
 const DEFAULT_SITE_URL = "https://drooopy.com";
 const DEFAULT_API_BASE_URL = "https://drooopy.com/api";
 
 export const SITE_NAME = "Drooopy";
 export const SITE_DESCRIPTION =
-  "Encuentra productos, proveedores y negocios en México desde Drooopy.";
+  "Encuentra tiendas en línea, productos, negocios y servicios en México. Compra, compara y conecta con empresas cerca de ti en Drooopy.";
 
 export type SeoListPayload<T> =
   | T[]
@@ -16,6 +17,7 @@ export type SeoListPayload<T> =
       products?: T[];
       suppliers?: T[];
       categories?: T[];
+      services?: T[];
     };
 
 export interface SeoCategory {
@@ -26,15 +28,22 @@ export interface SeoCategory {
   image?: string | null;
   thumbnail_url?: string | null;
   updated_at?: string | null;
+  is_active?: boolean;
 }
 
 export interface SeoSupplier {
   id: number;
   name: string;
   slug?: string | null;
+  short_name?: string | null;
   short_description?: string | null;
   description?: string | null;
   about?: string | null;
+  title_about?: string | null;
+  subtitle_about?: string | null;
+  intro_title?: string | null;
+  intro_description?: string | null;
+  intro_image_url?: string | null;
   city?: string | null;
   state?: string | null;
   country?: string | null;
@@ -44,6 +53,35 @@ export interface SeoSupplier {
   logo_url?: string | null;
   image?: string | null;
   image_url?: string | null;
+  about_media?: string | null;
+  about_media_thumbnail?: string | null;
+  address?: string | null;
+  exterior_number?: string | null;
+  interior_number?: string | null;
+  neighborhood?: string | null;
+  cp?: string | null;
+  map_location?: string | null;
+  facebook_url?: string | null;
+  instagram_url?: string | null;
+  x_url?: string | null;
+  business_category?: string | null;
+  business_type?: string | null;
+  specialty?: string | null;
+  specialties?: string[] | null;
+  tags?: string[] | null;
+  carousel_images?: Array<{
+    image?: string | null;
+    thumbnail?: string | null;
+    image_movil?: string | null;
+    thumbnail_movil?: string | null;
+  }>;
+  business_hours?: Array<{
+    day_of_week: number;
+    open_time?: string | null;
+    close_time?: string | null;
+    is_closed?: boolean;
+  }>;
+  is_active?: boolean;
   is_directory?: boolean;
   is_verified?: boolean;
   average_rating?: number | null;
@@ -58,6 +96,8 @@ export interface SeoProduct {
   description?: string | null;
   price?: number | string | null;
   stock?: number | null;
+  sku?: string | null;
+  is_active?: boolean;
   image?: string | null;
   thumbnail_url?: string | null;
   average_rating?: number | null;
@@ -72,8 +112,10 @@ export interface SeoProduct {
     slug?: string | null;
   } | null;
   supplier?: {
+    id?: number | null;
     name?: string | null;
     slug?: string | null;
+    is_active?: boolean;
   } | null;
   media?: Array<{
     url?: string | null;
@@ -101,6 +143,10 @@ export const absoluteSiteUrl = (path = "/") => {
   const withSlash = normalizedPath.endsWith("/") ? normalizedPath : `${normalizedPath}/`;
   return `${getSiteUrl()}${withSlash}`;
 };
+
+export const DEFAULT_OG_IMAGE = `${getSiteUrl()}/og/drooopy-tiendas-negocios-servicios.jpg`;
+export const DEFAULT_OG_IMAGE_ALT =
+  "Drooopy, tiendas, negocios y servicios en México";
 
 export const absoluteMediaUrl = (path?: string | null) => {
   if (!path) return null;
@@ -144,6 +190,7 @@ export const listFromPayload = <T>(payload: SeoListPayload<T> | unknown): T[] =>
     record.products,
     record.suppliers,
     record.categories,
+    record.services,
   ];
 
   for (const candidate of candidates) {
@@ -204,6 +251,37 @@ export const fetchSupplierForSeo = async (slug: string) => {
   return found || null;
 };
 
+export const fetchSupplierServicesForSeo = async (supplierId: number) => {
+  const payload = await fetchJson<SeoListPayload<SupplierService>>(
+    `/services/?supplier_id=${encodeURIComponent(String(supplierId))}&skip=0&limit=20`,
+  );
+  return listFromPayload<SupplierService>(payload)
+    .filter(
+      (service) =>
+        service.is_active === true && Number(service.supplier_id) === supplierId,
+    )
+    .slice(0, 10);
+};
+
+export const fetchSupplierProductsForSeo = async (
+  supplier: Pick<SeoSupplier, "id" | "slug">,
+) => {
+  const identifier = supplier.slug || String(supplier.id);
+  const direct = await fetchJson<SeoListPayload<SeoProduct>>(
+    `/products/by-supplier/${encodeURIComponent(identifier)}?skip=0&limit=12`,
+  );
+  const directProducts = listFromPayload<SeoProduct>(direct);
+  const products = directProducts.length
+    ? directProducts
+    : listFromPayload<SeoProduct>(
+        await fetchJson<SeoListPayload<SeoProduct>>(
+          `/products/?supplier_id=${encodeURIComponent(String(supplier.id))}&skip=0&limit=12`,
+        ),
+      );
+
+  return products.filter((product) => product.is_active !== false).slice(0, 10);
+};
+
 export const fetchCategoryForSeo = async (slug: string) => {
   const encoded = encodeURIComponent(slug);
   const direct =
@@ -233,6 +311,7 @@ export const buildMetadata = ({
   description,
   path,
   image,
+  imageAlt,
   type = "website",
   noIndex = false,
 }: {
@@ -240,11 +319,20 @@ export const buildMetadata = ({
   description: string;
   path: string;
   image?: string | null;
+  imageAlt?: string;
   type?: "website" | "article";
   noIndex?: boolean;
 }): Metadata => {
   const url = absoluteSiteUrl(path);
-  const images = image ? [{ url: image, width: 1200, height: 630 }] : undefined;
+  const resolvedImage = image || DEFAULT_OG_IMAGE;
+  const images = [
+    {
+      url: resolvedImage,
+      width: 1200,
+      height: 630,
+      alt: imageAlt || DEFAULT_OG_IMAGE_ALT,
+    },
+  ];
 
   return {
     title,
@@ -262,10 +350,10 @@ export const buildMetadata = ({
       images,
     },
     twitter: {
-      card: image ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title,
       description,
-      images: image ? [image] : undefined,
+      images: [resolvedImage],
     },
     robots: noIndex
       ? {
