@@ -302,11 +302,33 @@ export default function UserForm({
   };
 
   const readErrorMessage = async (response: Response) => {
-    let errorMessage = `Error ${response.status}: Error al guardar usuario`;
     const friendlyDuplicateMessage =
       "Ese correo ya existe en el sistema. Usa otro correo o edita el usuario existente.";
+
+    // Special handling for 409 Conflict — always prefer the backend's detail message
+    if (response.status === 409) {
+      try {
+        const cloned = response.clone();
+        const text = await cloned.text();
+        try {
+          const errorData = JSON.parse(text);
+          if (errorData.detail) {
+            return typeof errorData.detail === "string"
+              ? errorData.detail
+              : JSON.stringify(errorData.detail);
+          }
+        } catch {
+          // Not JSON — fall through to generic handler below
+        }
+      } catch {
+        // Body already consumed or unreadable — fall through
+      }
+    }
+
+    let errorMessage = `Error ${response.status}: Error al guardar usuario`;
     try {
-      const text = await response.text();
+      const cloned = response.clone();
+      const text = await cloned.text();
       try {
         const errorData = JSON.parse(text);
         if (errorData.detail) {
