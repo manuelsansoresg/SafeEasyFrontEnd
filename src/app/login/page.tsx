@@ -104,6 +104,24 @@ function PendingDeletionModal({
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 const FACEBOOK_CLIENT_ID = process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "";
 
+function getInternalRedirect(): string | null {
+  // Read only after login, in the browser, without changing page rendering.
+  const redirect = new URLSearchParams(window.location.search).get("redirect");
+  if (!redirect?.startsWith("/") || redirect.startsWith("//") || redirect.includes("\\")) {
+    return null;
+  }
+
+  try {
+    const destination = new URL(redirect, window.location.origin);
+    if (destination.origin !== window.location.origin || destination.pathname.startsWith("//")) {
+      return null;
+    }
+    return destination.pathname + destination.search + destination.hash;
+  } catch {
+    return null;
+  }
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -188,6 +206,12 @@ export default function LoginPage() {
           role: userData.role
       });
       
+      const redirect = getInternalRedirect();
+      if (redirect) {
+          router.push(redirect);
+          return;
+      }
+
       if (userData.role === 'admin' || userData.role === 'supplier') {
           router.push('/admin/dashboard');
           return;
@@ -313,6 +337,12 @@ export default function LoginPage() {
           role: userData.role
       });
       
+      const redirect = getInternalRedirect();
+      if (redirect) {
+          router.push(redirect);
+          return;
+      }
+
       if (userData.role === 'admin' || userData.role === 'supplier') {
           if (process.env.NODE_ENV === "development") console.log("El usuario es admin o supplier, redirigiendo a panel...");
           router.push('/admin/dashboard');

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useSyncExternalStore } from 'react';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -36,3 +37,20 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+function subscribeToAuthHydration(onChange: () => void) {
+  const unsubscribeStart = useAuthStore.persist.onHydrate(onChange);
+  const unsubscribeFinish = useAuthStore.persist.onFinishHydration(onChange);
+  return () => {
+    unsubscribeStart();
+    unsubscribeFinish();
+  };
+}
+
+export function useAuthHydrated() {
+  return useSyncExternalStore(
+    subscribeToAuthHydration,
+    () => useAuthStore.persist.hasHydrated(),
+    () => false,
+  );
+}

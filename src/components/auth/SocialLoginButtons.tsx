@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import FacebookLogin from "react-facebook-login/dist/facebook-login-render-props";
 import { Facebook } from "lucide-react";
 import { useGoogleLogin } from "@react-oauth/google";
@@ -46,12 +47,18 @@ function GoogleIcon() {
 const buttonClassName =
   "w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 flex justify-center items-center gap-3 transition-all duration-200 hover:bg-gray-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60";
 
+// The protocol cannot change without loading a new document.
+const subscribeToProtocol = () => () => {};
+const isHttps = () => window.location.protocol === "https:";
+const serverIsHttps = () => false;
+
 export default function SocialLoginButtons({
   facebookClientId,
   onSocialLogin,
   onError,
   disabled = false,
 }: SocialLoginButtonsProps) {
+  const facebookAvailable = useSyncExternalStore(subscribeToProtocol, isHttps, serverIsHttps);
   const handleGoogleLogin = useGoogleLogin({
     scope: "openid profile email",
     onSuccess: async (tokenResponse) => {
@@ -112,7 +119,8 @@ export default function SocialLoginButtons({
         <span>Acceder con Google</span>
       </button>
 
-      <FacebookLogin
+      {facebookAvailable ? (
+        <FacebookLogin
         appId={facebookClientId}
         autoLoad={false}
         fields="name,email,picture"
@@ -128,7 +136,23 @@ export default function SocialLoginButtons({
             <span>Acceder con Facebook</span>
           </button>
         )}
-      />
+        />
+      ) : (
+        <div>
+          <button
+            type="button"
+            className={buttonClassName}
+            disabled
+            aria-describedby="facebook-https-required"
+          >
+            <Facebook className="h-5 w-5 text-[#1877F2]" />
+            <span>Acceder con Facebook</span>
+          </button>
+          <p id="facebook-https-required" className="mt-2 text-center text-xs text-gray-500">
+            Para acceder con Facebook, abre el sitio mediante HTTPS.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
