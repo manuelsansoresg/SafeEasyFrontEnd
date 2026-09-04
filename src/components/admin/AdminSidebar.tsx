@@ -423,7 +423,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
       <div className="p-3 border-t border-gray-100">
          {!isAdmin && (
             <Link
-               href="/account/delete/confirm"
+               href="/account/delete"
                onClick={() => onMobileClose?.()}
                className={cn(
                   "flex items-center gap-3 px-3 py-3 rounded-xl text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors group mb-1"
