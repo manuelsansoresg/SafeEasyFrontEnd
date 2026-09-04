@@ -18,9 +18,13 @@ import {
 } from "lucide-react";
 import type { DeletionObligation } from "@/types/account-deletion";
 
-type Screen = "info" | "confirm" | "success" | "obligations" | "already_requested";
+type Screen =
+  | "info"
+  | "confirm"
+  | "success"
+  | "obligations"
+  | "already_requested";
 
-/* ─── Steps for the "¿Qué sucede después?" section ─── */
 const steps = [
   {
     num: 1,
@@ -42,7 +46,6 @@ const steps = [
   },
 ];
 
-/* ─── Warning bullets ─── */
 const warningBullets = [
   "Tu cuenta será bloqueada al aceptar la solicitud.",
   "Todas tus sesiones activas se cerrarán.",
@@ -54,15 +57,20 @@ export default function AccountDeletePage() {
   const router = useRouter();
   const { token, logout } = useAuthStore();
   const hasHydrated = useAuthHydrated();
+
   const [screen, setScreen] = useState<Screen>("info");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [obligations, setObligations] = useState<DeletionObligation[]>([]);
-  const [obligationMessage, setObligationMessage] = useState<string | null>(null);
+  const [obligationMessage, setObligationMessage] = useState<string | null>(
+    null,
+  );
 
-  // Scroll to top when screen changes
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }, [screen]);
 
   const handleRequestDeletion = async () => {
@@ -73,6 +81,7 @@ export default function AccountDeletePage() {
 
     setIsLoading(true);
     setError(null);
+
     try {
       const result = await requestAccountDeletion();
 
@@ -87,6 +96,7 @@ export default function AccountDeletePage() {
               "No puedes eliminar tu cuenta mientras tengas obligaciones activas.",
           );
         }
+
         setScreen("obligations");
         return;
       }
@@ -100,7 +110,9 @@ export default function AccountDeletePage() {
       }
 
       if (result.error_code) {
-        setError(result.message || "Ocurrió un error al procesar la solicitud.");
+        setError(
+          result.message || "Ocurrió un error al procesar la solicitud.",
+        );
         return;
       }
 
@@ -117,6 +129,11 @@ export default function AccountDeletePage() {
     router.push("/login");
   };
 
+  /*
+   * Esperamos a que Zustand termine de recuperar la sesión persistida.
+   * Esto evita mostrar por un instante la vista de usuario sin sesión
+   * cuando en realidad ya está autenticado.
+   */
   if (!hasHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -127,84 +144,121 @@ export default function AccountDeletePage() {
     );
   }
 
-  /* ═══════════════════════════════════════════════════
-     INFO SCREEN
-     ═══════════════════════════════════════════════════ */
+  /*
+   * ======================================================
+   * INFORMACIÓN INICIAL
+   * ======================================================
+   *
+   * Esta vista es accesible tanto con sesión como sin sesión.
+   *
+   * Sin sesión:
+   * - explica el proceso
+   * - pide iniciar sesión
+   *
+   * Con sesión:
+   * - explica el proceso
+   * - permite pasar directamente a confirmación
+   */
   if (screen === "info" || !token) {
     return (
       <div className="max-w-[860px]">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {/* ── Card Header ── */}
+          {/* Header */}
           <div className="px-6 sm:px-8 pt-8 pb-6 border-b border-gray-100">
             <div className="flex items-center gap-3.5">
               <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-red-50">
                 <Trash2 size={22} className="text-red-500" />
               </div>
+
               <div>
                 <h1
                   className="text-xl sm:text-2xl font-bold text-gray-900"
-                  style={{ fontFamily: "var(--font-varela-round)" }}
+                  style={{
+                    fontFamily: "var(--font-varela-round)",
+                  }}
                 >
                   Eliminar cuenta de Drooopy
                 </h1>
+
                 <p className="text-sm text-gray-500 mt-0.5">
-                  Solicita la eliminación permanente de tu cuenta de Drooopy y sus datos asociados.
+                  Solicita la eliminación permanente de tu cuenta de Drooopy y
+                  sus datos asociados.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="px-6 sm:px-8 py-8 space-y-8">
-            {/* ── Antes de continuar ── */}
+            {/* Antes de continuar */}
             <section>
               <h2 className="text-sm font-semibold text-amber-800 uppercase tracking-wide mb-3 flex items-center gap-2">
                 <AlertTriangle size={16} className="text-amber-500" />
                 Antes de continuar
               </h2>
+
               <div className="bg-amber-50/70 border border-amber-100 rounded-xl p-5">
                 <ul className="space-y-2">
-                  {warningBullets.map((b, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-sm text-amber-900">
+                  {warningBullets.map((bullet, index) => (
+                    <li
+                      key={index}
+                      className="flex items-start gap-2.5 text-sm text-amber-900"
+                    >
                       <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                      {b}
+                      {bullet}
                     </li>
                   ))}
                 </ul>
               </div>
             </section>
 
-            {/* ── ¿Qué sucede después? ── */}
+            {/* Qué sucede después */}
             <section>
               <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
                 ¿Qué sucede después?
               </h2>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {steps.map((s) => (
+                {steps.map((step) => (
                   <div
-                    key={s.num}
+                    key={step.num}
                     className="relative bg-gray-50 border border-gray-100 rounded-xl p-5 flex flex-col items-center text-center"
                   >
                     <div className="flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary font-bold text-sm mb-3">
-                      {s.num}
+                      {step.num}
                     </div>
-                    <s.icon size={20} className="text-gray-400 mb-2" />
-                    <h3 className="text-sm font-semibold text-gray-800 mb-1">{s.title}</h3>
-                    <p className="text-xs text-gray-500 leading-relaxed">{s.desc}</p>
+
+                    <step.icon
+                      size={20}
+                      className="text-gray-400 mb-2"
+                    />
+
+                    <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                      {step.title}
+                    </h3>
+
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      {step.desc}
+                    </p>
                   </div>
                 ))}
               </div>
             </section>
 
-            {/* ── Obligaciones activas (nota informativa) ── */}
+            {/* Obligaciones */}
             <section className="bg-gray-50 border border-gray-100 rounded-xl p-4 flex items-start gap-3">
-              <Info size={18} className="text-gray-400 shrink-0 mt-0.5" />
+              <Info
+                size={18}
+                className="text-gray-400 shrink-0 mt-0.5"
+              />
+
               <p className="text-sm text-gray-600 leading-relaxed">
-                Si tienes operaciones activas que puedan afectar a otras personas, Drooopy no
-                permitirá iniciar la eliminación hasta que esas obligaciones hayan finalizado.
+                Si tienes operaciones activas que puedan afectar a otras
+                personas, Drooopy no permitirá iniciar la eliminación hasta que
+                esas obligaciones hayan finalizado.
               </p>
             </section>
 
-            {/* ── Error ── */}
+            {/* Error */}
             {error && (
               <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-100">
                 <AlertCircle size={16} className="shrink-0" />
@@ -212,15 +266,27 @@ export default function AccountDeletePage() {
               </div>
             )}
 
-            {/* ── Zona de acción destructiva ─ */}
+            {/* Acción */}
             <section className="border-t border-gray-100 pt-8">
               <h2 className="text-sm font-semibold text-gray-700 mb-1">
                 Eliminar permanentemente mi cuenta
               </h2>
-              <p className="text-sm text-gray-500 mb-5">
-                Por seguridad, la solicitud requiere iniciar sesión para identificar tu cuenta.
-                Una vez que el proceso definitivo haya finalizado, tu cuenta no podrá recuperarse.
-              </p>
+
+              {token ? (
+                <p className="text-sm text-gray-500 mb-5">
+                  Por seguridad, confirmaremos tu identidad antes de procesar
+                  la solicitud. Una vez que la eliminación definitiva haya
+                  finalizado, tu cuenta y los datos asociados que correspondan
+                  ya no podrán recuperarse.
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500 mb-5">
+                  Para proteger tu cuenta, primero debes iniciar sesión. Así
+                  podremos identificar correctamente qué cuenta deseas
+                  eliminar. Después podrás revisar la información y confirmar
+                  la solicitud de eliminación.
+                </p>
+              )}
 
               <div className="flex flex-col items-start gap-3">
                 <button
@@ -230,16 +296,21 @@ export default function AccountDeletePage() {
                       router.push("/login?redirect=/account/delete");
                       return;
                     }
+
                     setScreen("confirm");
                   }}
                   className="inline-flex max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-red-600 px-4 py-2.5 text-xs font-semibold text-white transition-all hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:ring-offset-2 disabled:opacity-50 sm:px-6 sm:text-sm"
                 >
                   <Trash2 size={16} />
-                  {token ? "Eliminar mi cuenta" : "Iniciar sesión para eliminar mi cuenta"}
+
+                  {token
+                    ? "Eliminar mi cuenta"
+                    : "Iniciar sesión para eliminar mi cuenta"}
                 </button>
+
                 <p className="text-xs text-gray-400">
-                  Podrás cancelar la solicitud desde el correo recibido mientras el proceso no haya
-                  comenzado.
+                  Podrás cancelar la solicitud desde el correo recibido
+                  mientras el proceso no haya comenzado.
                 </p>
               </div>
             </section>
@@ -249,31 +320,37 @@ export default function AccountDeletePage() {
     );
   }
 
-  /* ═══════════════════════════════════════════════════
-     CONFIRM SCREEN (modal-like inside the card)
-     ═══════════════════════════════════════════════════ */
+  /*
+   * ======================================================
+   * CONFIRMAR ELIMINACIÓN
+   * ======================================================
+   */
   if (screen === "confirm") {
     return (
       <div className="max-w-[860px]">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {/* Header */}
           <div className="px-6 sm:px-8 pt-8 pb-6 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3.5">
               <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-red-50">
                 <ShieldCheck size={22} className="text-red-500" />
               </div>
+
               <div>
                 <h2
                   className="text-xl font-bold text-gray-900"
-                  style={{ fontFamily: "var(--font-varela-round)" }}
+                  style={{
+                    fontFamily: "var(--font-varela-round)",
+                  }}
                 >
                   Confirmar eliminación
                 </h2>
+
                 <p className="text-sm text-gray-500 mt-0.5">
                   Último paso antes de solicitar la eliminación
                 </p>
               </div>
             </div>
+
             <button
               type="button"
               onClick={() => {
@@ -288,24 +365,31 @@ export default function AccountDeletePage() {
           </div>
 
           <div className="px-6 sm:px-8 py-8 space-y-6">
-            {/* Warning */}
             <div className="bg-red-50/70 border border-red-100 rounded-xl p-5">
               <div className="flex gap-3">
-                <AlertTriangle size={20} className="text-red-500 shrink-0 mt-0.5" />
+                <AlertTriangle
+                  size={20}
+                  className="text-red-500 shrink-0 mt-0.5"
+                />
+
                 <div className="space-y-1.5">
                   <p className="text-sm font-semibold text-red-800">
                     ¿Seguro que deseas eliminar tu cuenta?
                   </p>
+
                   <ul className="space-y-1">
                     {[
                       "Tu cuenta quedará bloqueada de inmediato.",
                       "Se cerrarán todas las sesiones activas.",
                       "Podrás cancelar durante el periodo de gracia.",
                       "Después del procesamiento definitivo no podrá recuperarse.",
-                    ].map((t, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-red-700">
+                    ].map((text, index) => (
+                      <li
+                        key={index}
+                        className="flex items-start gap-2 text-sm text-red-700"
+                      >
                         <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                        {t}
+                        {text}
                       </li>
                     ))}
                   </ul>
@@ -313,7 +397,6 @@ export default function AccountDeletePage() {
               </div>
             </div>
 
-            {/* Error */}
             {error && (
               <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-100">
                 <AlertCircle size={16} className="shrink-0" />
@@ -321,7 +404,6 @@ export default function AccountDeletePage() {
               </div>
             )}
 
-            {/* Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
                 type="button"
@@ -334,6 +416,7 @@ export default function AccountDeletePage() {
               >
                 Cancelar
               </button>
+
               <button
                 type="button"
                 onClick={handleRequestDeletion}
@@ -359,9 +442,11 @@ export default function AccountDeletePage() {
     );
   }
 
-  /* ═══════════════════════════════════════════════════
-     SUCCESS SCREEN
-     ═══════════════════════════════════════════════════ */
+  /*
+   * ======================================================
+   * SOLICITUD ACEPTADA
+   * ======================================================
+   */
   if (screen === "success") {
     return (
       <div className="max-w-[860px]">
@@ -369,16 +454,25 @@ export default function AccountDeletePage() {
           <div className="px-6 sm:px-8 pt-8 pb-6 border-b border-gray-100">
             <div className="flex items-center gap-3.5">
               <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-green-50">
-                <CheckCircle size={22} className="text-green-500" />
+                <CheckCircle
+                  size={22}
+                  className="text-green-500"
+                />
               </div>
+
               <div>
                 <h2
                   className="text-xl font-bold text-gray-900"
-                  style={{ fontFamily: "var(--font-varela-round)" }}
+                  style={{
+                    fontFamily: "var(--font-varela-round)",
+                  }}
                 >
                   Solicitud aceptada
                 </h2>
-                <p className="text-sm text-gray-500 mt-0.5">Tu cuenta ha sido bloqueada</p>
+
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Tu cuenta ha sido bloqueada
+                </p>
               </div>
             </div>
           </div>
@@ -386,14 +480,19 @@ export default function AccountDeletePage() {
           <div className="px-6 sm:px-8 py-8 space-y-6">
             <div className="bg-green-50/70 border border-green-100 rounded-xl p-5">
               <div className="flex gap-3">
-                <CheckCircle size={20} className="text-green-600 shrink-0 mt-0.5" />
+                <CheckCircle
+                  size={20}
+                  className="text-green-600 shrink-0 mt-0.5"
+                />
+
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-green-800">
                     Tu solicitud de eliminación fue aceptada.
                   </p>
+
                   <p className="text-sm text-green-700">
-                    Se ha enviado un correo con instrucciones para cancelar la eliminación si
-                    cambias de opinión.
+                    Se ha enviado un correo con instrucciones para cancelar la
+                    eliminación si cambias de opinión.
                   </p>
                 </div>
               </div>
@@ -412,9 +511,11 @@ export default function AccountDeletePage() {
     );
   }
 
-  /* ═══════════════════════════════════════════════════
-     ALREADY REQUESTED SCREEN (409)
-     ═══════════════════════════════════════════════════ */
+  /*
+   * ======================================================
+   * SOLICITUD YA EXISTENTE
+   * ======================================================
+   */
   if (screen === "already_requested") {
     return (
       <div className="max-w-[860px]">
@@ -422,15 +523,22 @@ export default function AccountDeletePage() {
           <div className="px-6 sm:px-8 pt-8 pb-6 border-b border-gray-100">
             <div className="flex items-center gap-3.5">
               <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-amber-50">
-                <Clock size={22} className="text-amber-500" />
+                <Clock
+                  size={22}
+                  className="text-amber-500"
+                />
               </div>
+
               <div>
                 <h2
                   className="text-xl font-bold text-gray-900"
-                  style={{ fontFamily: "var(--font-varela-round)" }}
+                  style={{
+                    fontFamily: "var(--font-varela-round)",
+                  }}
                 >
                   Solicitud ya existente
                 </h2>
+
                 <p className="text-sm text-gray-500 mt-0.5">
                   Ya tienes una eliminación programada
                 </p>
@@ -441,15 +549,20 @@ export default function AccountDeletePage() {
           <div className="px-6 sm:px-8 py-8 space-y-6">
             <div className="bg-amber-50/70 border border-amber-100 rounded-xl p-5">
               <div className="flex gap-3">
-                <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                <AlertCircle
+                  size={20}
+                  className="text-amber-600 shrink-0 mt-0.5"
+                />
+
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-amber-800">
                     Tu cuenta ya está programada para eliminación.
                   </p>
+
                   <p className="text-sm text-amber-700">
-                    Ya habías solicitado la eliminación de tu cuenta previamente. Revisa tu correo
-                    electrónico para encontrar el enlace de cancelación si deseas detener el
-                    proceso.
+                    Ya habías solicitado la eliminación de tu cuenta
+                    previamente. Revisa tu correo electrónico para encontrar el
+                    enlace de cancelación si deseas detener el proceso.
                   </p>
                 </div>
               </div>
@@ -468,24 +581,33 @@ export default function AccountDeletePage() {
     );
   }
 
-  /* ═══════════════════════════════════════════════════
-     OBLIGATIONS SCREEN (400)
-     ═══════════════════════════════════════════════════ */
+  /*
+   * ======================================================
+   * OBLIGACIONES PENDIENTES
+   * ======================================================
+   */
   return (
     <div className="max-w-[860px]">
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-6 sm:px-8 pt-8 pb-6 border-b border-gray-100">
           <div className="flex items-center gap-3.5">
             <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-amber-50">
-              <AlertCircle size={22} className="text-amber-500" />
+              <AlertCircle
+                size={22}
+                className="text-amber-500"
+              />
             </div>
+
             <div>
               <h2
                 className="text-xl font-bold text-gray-900"
-                style={{ fontFamily: "var(--font-varela-round)" }}
+                style={{
+                  fontFamily: "var(--font-varela-round)",
+                }}
               >
                 Obligaciones pendientes
               </h2>
+
               <p className="text-sm text-gray-500 mt-0.5">
                 No se puede eliminar la cuenta en este momento
               </p>
@@ -496,13 +618,21 @@ export default function AccountDeletePage() {
         <div className="px-6 sm:px-8 py-8 space-y-6">
           <div className="bg-amber-50/70 border border-amber-100 rounded-xl p-5">
             <div className="flex gap-3">
-              <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+              <AlertCircle
+                size={20}
+                className="text-amber-600 shrink-0 mt-0.5"
+              />
+
               <div className="space-y-2">
                 <p className="text-sm font-semibold text-amber-800">
-                  No puedes eliminar tu cuenta mientras tengas obligaciones activas.
+                  No puedes eliminar tu cuenta mientras tengas obligaciones
+                  activas.
                 </p>
+
                 {obligationMessage && (
-                  <p className="text-sm text-amber-700">{obligationMessage}</p>
+                  <p className="text-sm text-amber-700">
+                    {obligationMessage}
+                  </p>
                 )}
               </div>
             </div>
@@ -510,39 +640,58 @@ export default function AccountDeletePage() {
 
           {obligations.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-700">Operaciones pendientes:</h3>
+              <h3 className="text-sm font-semibold text-gray-700">
+                Operaciones pendientes:
+              </h3>
+
               <div className="space-y-2">
-                {obligations.map((obs, i) => (
+                {obligations.map((obligation, index) => (
                   <div
-                    key={i}
+                    key={index}
                     className="border border-gray-200 rounded-lg p-4 bg-gray-50"
                   >
                     <div className="flex items-start gap-3">
                       <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-gray-200 shrink-0">
-                        {obs.type === "order" && (
-                          <span className="text-xs font-bold text-gray-600">ORD</span>
+                        {obligation.type === "order" && (
+                          <span className="text-xs font-bold text-gray-600">
+                            ORD
+                          </span>
                         )}
-                        {obs.type === "refund" && (
-                          <span className="text-xs font-bold text-gray-600">REF</span>
+
+                        {obligation.type === "refund" && (
+                          <span className="text-xs font-bold text-gray-600">
+                            REF
+                          </span>
                         )}
-                        {obs.type === "delivery" && (
-                          <span className="text-xs font-bold text-gray-600">DEL</span>
+
+                        {obligation.type === "delivery" && (
+                          <span className="text-xs font-bold text-gray-600">
+                            DEL
+                          </span>
                         )}
-                        {!["order", "refund", "delivery"].includes(obs.type) && (
-                          <span className="text-xs font-bold text-gray-600">?</span>
+
+                        {!["order", "refund", "delivery"].includes(
+                          obligation.type,
+                        ) && (
+                          <span className="text-xs font-bold text-gray-600">
+                            ?
+                          </span>
                         )}
                       </div>
+
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900">
-                          {typeof obs.description === "string"
-                            ? obs.description
-                            : `Obligación de tipo: ${obs.type}`}
+                          {typeof obligation.description === "string"
+                            ? obligation.description
+                            : `Obligación de tipo: ${obligation.type}`}
                         </p>
-                        {typeof obs.reference === "string" && obs.reference && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Referencia: {obs.reference}
-                          </p>
-                        )}
+
+                        {typeof obligation.reference === "string" &&
+                          obligation.reference && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Referencia: {obligation.reference}
+                            </p>
+                          )}
                       </div>
                     </div>
                   </div>
