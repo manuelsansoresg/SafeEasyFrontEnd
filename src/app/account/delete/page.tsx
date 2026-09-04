@@ -222,7 +222,7 @@ export default function AccountDeletePage() {
                 Una vez que el proceso definitivo haya finalizado, tu cuenta no podrá recuperarse.
               </p>
 
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex flex-col items-start gap-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -232,7 +232,7 @@ export default function AccountDeletePage() {
                     }
                     setScreen("confirm");
                   }}
-                  className="inline-flex items-center justify-center gap-2 bg-red-600 text-white py-2.5 px-6 rounded-xl text-sm font-semibold hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:ring-offset-2 transition-all disabled:opacity-50"
+                  className="inline-flex max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-red-600 px-4 py-2.5 text-xs font-semibold text-white transition-all hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:ring-offset-2 disabled:opacity-50 sm:px-6 sm:text-sm"
                 >
                   <Trash2 size={16} />
                   {token ? "Eliminar mi cuenta" : "Iniciar sesión para eliminar mi cuenta"}
