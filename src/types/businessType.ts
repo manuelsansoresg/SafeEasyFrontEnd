@@ -5,11 +5,20 @@ export interface BusinessTypeCategory {
   is_active?: boolean;
 }
 
+export interface BusinessTypePublic {
+  id: number;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  icon_url?: string | null;
+}
+
 export interface BusinessTypeAdminList {
   id: number;
   name: string;
   slug: string;
   is_active: boolean;
+  icon_url: string | null;
   categories_count: number;
   suppliers_count: number;
 }

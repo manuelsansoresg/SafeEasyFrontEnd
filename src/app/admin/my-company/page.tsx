@@ -11,12 +11,14 @@ import BusinessHoursEditor from "@/components/admin/BusinessHoursEditor";
 import QRPanel from "@/components/admin/QRPanel";
 import { CompanyOverview } from "@/components/admin/company/CompanyOverview";
 import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
-import { getSupplierSlug, resolveCurrentSupplier } from "@/lib/currentSupplier";
+import { getSupplierSlug, resolveCurrentSupplier, type SupplierBusinessType } from "@/lib/currentSupplier";
 import { getCompanyProfileCompletion } from "@/lib/companyProfileCompletion";
 import { useAuthStore } from "@/store/useAuthStore";
 
 type SupplierForForm = NonNullable<ComponentProps<typeof SupplierForm>["initialData"]> & {
   slug?: string;
+  business_type_id?: number | null;
+  business_type?: SupplierBusinessType | null;
   [key: string]: unknown;
 };
 type CompanyTab = "overview" | "information" | "appearance" | "header" | "hours" | "contact" | "sharing" | "advanced";
@@ -107,7 +109,7 @@ function MyCompanyContent() {
         </aside>
 
         <main className="min-w-0">
-          {activeTab === "overview" ? <CompanyOverview supplier={supplier} isDirectory={isDirectory} onNavigate={navigate} /> : null}
+          {activeTab === "overview" ? <CompanyOverview supplier={supplier} isDirectory={isDirectory} onNavigate={navigate} onSupplierUpdated={() => fetchSupplier({ silent: true })} /> : null}
           {activeTab === "information" ? <SectionCard title="Información" description="Los datos principales y la ubicación de tu negocio."><SupplierForm initialData={supplier} isEditMode view="information" onSaved={() => fetchSupplier({ silent: true })} /></SectionCard> : null}
           {activeTab === "appearance" ? <SectionCard title="Apariencia" description="Logo e imágenes de identidad de tu negocio."><SupplierForm initialData={supplier} isEditMode view="appearance" onSaved={() => fetchSupplier({ silent: true })} /></SectionCard> : null}
           {activeTab === "header" && token ? <SectionCard title="Encabezado" description="Elige entre un video de portada o un carrusel de imágenes para presentar tu negocio."><StepCarousel supplierId={supplier.id} slug={slug || undefined} token={token} onNext={() => navigate("hours")} /></SectionCard> : null}

@@ -51,14 +51,24 @@ export const businessTypeService = {
     const response = await request(`${base}/${id}`, { signal });
     return response.json();
   },
-  async create(payload: BusinessTypePayload): Promise<void> {
-    await request(base, { method: "POST", body: JSON.stringify(payload) });
+  async create(payload: BusinessTypePayload): Promise<BusinessTypeAdminDetail> {
+    const response = await request(base, { method: "POST", body: JSON.stringify(payload) });
+    return response.json();
   },
   async update(id: number, payload: Partial<BusinessTypePayload>): Promise<void> {
     await request(`${base}/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
   },
   async setCategories(id: number, categoryIds: number[]): Promise<void> {
     await request(`${base}/${id}/categories`, { method: "PUT", body: JSON.stringify({ category_ids: categoryIds }) }, true);
+  },
+  async uploadIcon(id: number, file: File): Promise<BusinessTypeAdminDetail> {
+    const formData = new FormData();
+    formData.append("icon", file);
+    const response = await request(`${base}/${id}/icon`, { method: "PUT", body: formData });
+    return response.json();
+  },
+  async deleteIcon(id: number): Promise<void> {
+    await request(`${base}/${id}/icon`, { method: "DELETE" });
   },
   async deactivate(id: number): Promise<void> {
     await request(`${base}/${id}`, { method: "DELETE" });

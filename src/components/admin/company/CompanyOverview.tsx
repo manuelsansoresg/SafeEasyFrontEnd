@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
+  BriefcaseBusiness,
   Check,
   Clock3,
   Image as ImageIcon,
@@ -11,18 +14,25 @@ import {
   Share2,
   Store,
 } from "lucide-react";
+import { BusinessTypePickerModal } from "@/components/admin/company/BusinessTypePickerModal";
+import { Toast } from "@/components/ui/Toast";
 import { getCompanyProfileCompletion } from "@/lib/companyProfileCompletion";
+import type { SupplierBusinessType } from "@/lib/currentSupplier";
 
 type Supplier = Record<string, unknown> & {
+  id: number;
   name?: string;
   logo?: string;
   logo_url?: string;
+  business_type_id?: number | null;
+  business_type?: SupplierBusinessType | null;
 };
 
 type CompanyOverviewProps = {
   supplier: Supplier;
   isDirectory: boolean;
   onNavigate: (tab: string) => void;
+  onSupplierUpdated: () => Promise<void> | void;
 };
 
 const cards = [
@@ -58,10 +68,26 @@ const cards = [
   },
 ] as const;
 
-export function CompanyOverview({ supplier, isDirectory, onNavigate }: CompanyOverviewProps) {
+export function CompanyOverview({ supplier, isDirectory, onNavigate, onSupplierUpdated }: CompanyOverviewProps) {
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const completion = getCompanyProfileCompletion(supplier, { isDirectory });
   const logo = String(supplier.logo_url || supplier.logo || "").trim();
   const nextIncomplete = completion.sections.find((section) => !section.complete);
+  const businessType = supplier.business_type;
+  const businessTypeId = supplier.business_type_id ?? businessType?.id ?? null;
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  async function handleBusinessTypeSaved() {
+    await onSupplierUpdated();
+    setTypePickerOpen(false);
+    setToast("Tipo de negocio actualizado.");
+  }
 
   return (
     <div className="space-y-6">
@@ -147,6 +173,29 @@ export function CompanyOverview({ supplier, isDirectory, onNavigate }: CompanyOv
         </div>
       </section>
 
+      {businessType ? <section aria-labelledby="business-type-title" className="rounded-2xl border border-[#004e28]/15 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-[#f2f3f4]">
+            {businessType.icon_url ? <Image src={businessType.icon_url} alt="" fill sizes="64px" className="object-contain p-2" /> : <BriefcaseBusiness size={28} className="text-[#004e28]" aria-hidden="true" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p id="business-type-title" className="text-xs font-semibold uppercase tracking-[0.14em] text-[#168e00]">Tipo de negocio</p>
+            <h3 className="mt-1 font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">{businessType.name}</h3>
+            <p className="mt-1 max-w-xl text-sm leading-6 text-gray-600">Este tipo ayuda a clasificar tu negocio y mostrarlo en las secciones correctas.</p>
+          </div>
+          <button type="button" onClick={() => setTypePickerOpen(true)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-[#168e00]/30 px-4 py-2.5 text-sm font-semibold text-[#0b6d00] transition hover:border-[#168e00] hover:bg-[#168e00]/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2">Cambiar tipo</button>
+        </div>
+      </section> : <section aria-labelledby="business-type-title" className="rounded-2xl border border-[#168e00]/30 bg-[#168e00]/[0.06] p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-[#004e28] shadow-sm ring-1 ring-[#168e00]/15"><BriefcaseBusiness size={26} aria-hidden="true" /></span>
+          <div className="min-w-0 flex-1">
+            <p id="business-type-title" className="text-xs font-bold uppercase tracking-[0.16em] text-[#0b6d00]">Clasifica tu negocio</p>
+            <p className="mt-1 text-sm leading-6 text-gray-700">Selecciona qué tipo de negocio describe mejor tu actividad.</p>
+          </div>
+          <button type="button" onClick={() => setTypePickerOpen(true)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#004e28] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2">Elegir tipo de negocio</button>
+        </div>
+      </section>}
+
       <section aria-labelledby="quick-access-title">
         <div className="mb-3 flex items-end justify-between gap-4">
           <div>
@@ -207,6 +256,9 @@ export function CompanyOverview({ supplier, isDirectory, onNavigate }: CompanyOv
           </span>
         </Link>
       </div>
+
+      {typePickerOpen ? <BusinessTypePickerModal supplierId={supplier.id} currentId={businessTypeId} onClose={() => setTypePickerOpen(false)} onSaved={handleBusinessTypeSaved} /> : null}
+      {toast ? <Toast type="success" message={toast} onClose={() => setToast(null)} /> : null}
     </div>
   );
 }

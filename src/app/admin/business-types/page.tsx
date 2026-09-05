@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { BriefcaseBusiness, Edit2, Loader2, Plus, Search } from "lucide-react";
+import { BriefcaseBusiness, Edit2, Loader2, Plus, Search, Tags } from "lucide-react";
+import { BusinessTypeCategoriesForm } from "@/components/admin/BusinessTypeCategoriesForm";
 import { BusinessTypeForm } from "@/components/admin/BusinessTypeForm";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
@@ -22,7 +24,7 @@ export default function AdminBusinessTypesPage() {
 
   if (!mounted) return <p role="status" className="py-8 text-center text-gray-500">Cargando...</p>;
   if (!token) return <p className="py-8 text-center">Debes <Link href="/login" className="text-primary underline">iniciar sesión</Link> para acceder al panel.</p>;
-  if (user?.role !== "admin" && user?.role !== "superuser") return <p role="alert" className="py-8 text-center">No tienes permiso para administrar tipos de negocio.</p>;
+  if (user?.role !== "admin") return <p role="alert" className="py-8 text-center">No tienes permiso para administrar tipos de negocio.</p>;
 
   return <BusinessTypesContent />;
 }
@@ -37,6 +39,7 @@ function BusinessTypesContent() {
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [editor, setEditor] = useState<{ id: number | null } | null>(null);
+  const [categoriesEditor, setCategoriesEditor] = useState<{ id: number; name: string } | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
@@ -91,6 +94,7 @@ function BusinessTypesContent() {
   function actions(item: BusinessTypeAdminList) {
     return <div className="flex flex-wrap justify-end gap-1">
       <button type="button" disabled={busyId !== null} onClick={() => setEditor({ id: item.id })} className={actionClass} aria-label={`Editar ${item.name}`}><Edit2 size={16} />Editar</button>
+      <button type="button" disabled={busyId !== null} onClick={() => setCategoriesEditor({ id: item.id, name: item.name })} className={actionClass} aria-label={`Asignar categorías a ${item.name}`}><Tags size={16} />Asignar categorías</button>
       <button type="button" disabled={busyId !== null} onClick={() => void toggle(item)} className={actionClass} aria-label={`${item.is_active ? "Desactivar" : "Activar"} ${item.name}`}>
         {busyId === item.id ? <Loader2 size={16} className="animate-spin" /> : null}{item.is_active ? "Desactivar" : "Activar"}
       </button>
@@ -99,6 +103,15 @@ function BusinessTypesContent() {
 
   function badge(active: boolean) {
     return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${active ? "border-green-100 bg-green-50 text-green-700" : "border-gray-100 bg-gray-50 text-gray-600"}`}>{active ? "Activo" : "Inactivo"}</span>;
+  }
+
+  function icon(item: BusinessTypeAdminList, size: "small" | "large" = "small") {
+    const dimensions = size === "large" ? "h-12 w-12" : "h-11 w-11";
+    return <div className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50 ${dimensions}`}>
+      {item.icon_url
+        ? <Image src={item.icon_url} alt={`Icono de ${item.name}`} fill sizes={size === "large" ? "48px" : "44px"} className="object-contain p-1" />
+        : <BriefcaseBusiness size={size === "large" ? 22 : 20} className="text-gray-400" aria-hidden="true" />}
+    </div>;
   }
 
   return <div className="space-y-6">
@@ -122,15 +135,18 @@ function BusinessTypesContent() {
         : <>
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-gray-100 bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500"><tr>{["Nombre", "Estado", "Categorías", "Proveedores", "Acciones"].map((label) => <th scope="col" key={label} className={`px-5 py-4 ${label === "Acciones" ? "text-right" : ""}`}>{label}</th>)}</tr></thead>
+              <thead className="border-b border-gray-100 bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500"><tr>{["Icono", "Nombre", "Estado", "Categorías", "Proveedores", "Acciones"].map((label) => <th scope="col" key={label} className={`px-5 py-4 ${label === "Acciones" ? "text-right" : ""}`}>{label}</th>)}</tr></thead>
               <tbody className="divide-y divide-gray-100">{items.map((item) => <tr key={item.id} className="hover:bg-gray-50/50">
-                <td className="max-w-xs break-words px-5 py-4 font-medium text-gray-900">{item.name}</td><td className="px-5 py-4">{badge(item.is_active)}</td><td className="px-5 py-4">{item.categories_count} categorías</td><td className="px-5 py-4">{item.suppliers_count} proveedores</td><td className="px-5 py-4">{actions(item)}</td>
+                <td className="px-5 py-3">{icon(item)}</td><td className="max-w-xs break-words px-5 py-3 font-medium text-gray-900">{item.name}</td><td className="px-5 py-3">{badge(item.is_active)}</td><td className="px-5 py-3">{item.categories_count} categorías</td><td className="px-5 py-3">{item.suppliers_count} proveedores</td><td className="px-5 py-3">{actions(item)}</td>
               </tr>)}</tbody>
             </table>
           </div>
-          <div className="divide-y divide-gray-100 md:hidden">{items.map((item) => <article key={item.id} className="space-y-3 p-4">
-            <div className="flex items-start justify-between gap-3"><h2 className="min-w-0 break-words font-semibold text-gray-900">{item.name}</h2><div className="shrink-0">{badge(item.is_active)}</div></div>
-            <p className="text-sm text-gray-600">{item.categories_count} categorías · {item.suppliers_count} proveedores</p>{actions(item)}
+          <div className="divide-y divide-gray-100 md:hidden">{items.map((item) => <article key={item.id} className="flex gap-3 p-4">
+            {icon(item, "large")}
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex items-start justify-between gap-3"><h2 className="min-w-0 break-words font-semibold text-gray-900">{item.name}</h2><div className="shrink-0">{badge(item.is_active)}</div></div>
+              <p className="text-sm text-gray-600">{item.categories_count} categorías · {item.suppliers_count} proveedores</p>{actions(item)}
+            </div>
           </article>)}</div>
         </>}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 p-4 text-sm text-gray-500">
@@ -139,5 +155,6 @@ function BusinessTypesContent() {
       </div>
     </section>
     {editor ? <BusinessTypeForm key={editor.id ?? "new"} id={editor.id} onClose={() => setEditor(null)} onSaved={refresh} /> : null}
+    {categoriesEditor ? <BusinessTypeCategoriesForm key={categoriesEditor.id} id={categoriesEditor.id} name={categoriesEditor.name} onClose={() => setCategoriesEditor(null)} onSaved={refresh} /> : null}
   </div>;
 }

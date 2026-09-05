@@ -126,7 +126,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
           title: "Tipos de negocio",
           path: "/admin/business-types",
           icon: BriefcaseBusiness,
-          roles: ['admin', 'superuser']
+          roles: ['admin']
         },
         {
           title: "Anuncios",
@@ -251,7 +251,7 @@ export function AdminSidebar({ isCollapsed, toggleSidebar, isMobileOpen = false,
   ];
 
   const canSeeItem = (item: MenuChildItem) =>
-    !item.roles || (user?.role && item.roles.includes(user.role as AdminRole)) || (isAdmin && item.roles?.includes('admin'));
+    !item.roles || (user?.role && item.roles.includes(user.role as AdminRole));
 
   const filteredMenuItems = menuItems
     .map((item) => ({

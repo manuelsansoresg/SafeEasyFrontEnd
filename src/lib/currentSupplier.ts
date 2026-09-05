@@ -7,6 +7,13 @@ export type AuthUser = {
   role?: string;
 } | null;
 
+export type SupplierBusinessType = {
+  id: number;
+  name: string;
+  slug: string;
+  icon_url?: string | null;
+};
+
 export type CurrentSupplier = {
   id: number;
   name: string;
@@ -16,6 +23,8 @@ export type CurrentSupplier = {
   email?: string;
   public_email?: string;
   mp_is_linked?: boolean;
+  business_type_id?: number | null;
+  business_type?: SupplierBusinessType | null;
   [key: string]: unknown;
 };
 
