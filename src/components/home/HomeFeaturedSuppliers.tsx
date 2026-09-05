@@ -3,32 +3,49 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { CheckCircle, ChevronLeft, ChevronRight, Star } from "lucide-react";
-import { getFeaturedSuppliers, FeaturedSupplier } from "@/services/homeService";
+import { getActiveBusinessTypes, getFeaturedSuppliers, getSuppliersByBusinessType, type FeaturedSupplier } from "@/services/homeService";
 
 export function HomeFeaturedSuppliers() {
+  const searchParams = useSearchParams();
+  const businessTypeSlug = searchParams.get("business_type")?.trim() || null;
   const [allSuppliers, setAllSuppliers] = useState<FeaturedSupplier[]>([]);
+  const [businessTypeName, setBusinessTypeName] = useState("");
   const [loading, setLoading] = useState(true);
   const [skip, setSkip] = useState(0);
   const limit = 3;
 
-  const fetchSuppliers = async () => {
-    setLoading(true);
-    try {
-      const data = await getFeaturedSuppliers(0, 100);
-      setAllSuppliers(data);
-      setSkip(0);
-    } catch (error) {
-      console.error(error);
-      setAllSuppliers([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void fetchSuppliers();
-  }, []);
+    let active = true;
+    async function load() {
+      setLoading(true);
+      try {
+        if (businessTypeSlug) {
+          const [suppliers, businessTypes] = await Promise.all([
+            getSuppliersByBusinessType(businessTypeSlug, 0, 100),
+            getActiveBusinessTypes(),
+          ]);
+          if (!active) return;
+          setAllSuppliers(suppliers);
+          setBusinessTypeName(businessTypes.find((item) => item.slug === businessTypeSlug)?.name || businessTypeSlug);
+        } else {
+          const suppliers = await getFeaturedSuppliers(0, 100);
+          if (!active) return;
+          setAllSuppliers(suppliers);
+          setBusinessTypeName("");
+        }
+        setSkip(0);
+      } catch (error) {
+        console.error(error);
+        if (active) setAllSuppliers([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    void load();
+    return () => { active = false; };
+  }, [businessTypeSlug]);
 
   const suppliers = allSuppliers.slice(skip, skip + limit);
   const hasMore = skip + limit < allSuppliers.length;
@@ -48,7 +65,7 @@ export function HomeFeaturedSuppliers() {
   return (
     <div className="py-12 bg-[#f2f3f4] -mx-4 px-4 md:-mx-8 md:px-8">
       <div className="container mx-auto">
-        <h2 className="text-xl md:text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">Empresas destacadas</h2>
+        <h2 className="text-xl md:text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">{businessTypeSlug ? `Negocios de ${businessTypeName}` : "Empresas destacadas"}</h2>
         <div className="flex justify-center gap-1 mb-8 text-yellow-400">
           {[1, 2, 3, 4, 5].map((star) => (
             <Star key={star} size={20} fill="currentColor" className="text-yellow-400" />
@@ -79,6 +96,10 @@ export function HomeFeaturedSuppliers() {
                [1, 2, 3].map((i) => (
                  <div key={i} className="flex-shrink-0 w-[45%] md:w-auto bg-white rounded-2xl h-48 md:h-80 animate-pulse snap-center"></div>
                ))
+            ) : suppliers.length === 0 ? (
+              <div className="col-span-full w-full rounded-2xl border border-gray-200 bg-white px-5 py-10 text-center text-sm text-gray-500">
+                {businessTypeSlug ? "No hay negocios disponibles en esta categoría por el momento." : "No hay empresas destacadas por el momento."}
+              </div>
             ) : (
               suppliers.map((supplier) => (
                 <Link 

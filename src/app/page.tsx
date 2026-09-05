@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { FavoritesSync } from "@/components/FavoritesSync";
 import { AdsCarousel } from "@/components/AdsCarousel";
-import { HomeCategories } from "@/components/home/HomeCategories";
+import { HomeBusinessTypes } from "@/components/home/HomeBusinessTypes";
 import { HomeFeaturedSuppliers } from "@/components/home/HomeFeaturedSuppliers";
 import { HomeFeaturedProducts } from "@/components/home/HomeFeaturedProducts";
 import { RecommendationsSection } from "@/components/recommendations/RecommendationsSection";
@@ -63,14 +64,14 @@ export default async function Home({
          <div className="container mx-auto px-4 pt-6">
             <FavoritesSync products={[]} />
             <AdsCarousel />
-            <HomeCategories />
+            <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-gray-100" />}><HomeBusinessTypes /></Suspense>
          </div>
       </div>
 
       {/* Featured - Gray Background */}
       <div className="bg-[#f2f3f4] w-full pb-8">
          <div className="container mx-auto px-4 pt-6">
-            <HomeFeaturedSuppliers />
+            <Suspense fallback={<div className="h-80 animate-pulse rounded-2xl bg-white/70" />}><HomeFeaturedSuppliers /></Suspense>
             <HomeFeaturedProducts />
          </div>
       </div>

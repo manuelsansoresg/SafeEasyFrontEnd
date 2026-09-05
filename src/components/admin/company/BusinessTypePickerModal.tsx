@@ -6,6 +6,11 @@ import { BriefcaseBusiness, Check, Loader2, X } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import type { BusinessTypePublic } from "@/types/businessType";
 
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
+
 function listItems(payload: unknown): BusinessTypePublic[] {
   if (Array.isArray(payload)) return payload as BusinessTypePublic[];
   if (payload && typeof payload === "object") {
@@ -58,18 +63,18 @@ export function BusinessTypePickerModal({ supplierId, currentId, onClose, onSave
       setLoading(true);
       setError("");
       try {
-        const response = await fetchWithAuth("/api/business-types", {
+        const response = await fetchWithAuth(apiUrl("/business-types"), {
           cache: "no-store",
           signal: controller.signal,
         });
         if (!response.ok) throw new Error(await responseMessage(response));
         const payload: unknown = await response.json();
         if (!controller.signal.aborted) {
-          setOptions(listItems(payload).filter((item) => item.is_active));
+          setOptions(listItems(payload).filter((item) => item.is_active === true));
         }
-      } catch (error) {
+      } catch {
         if (!controller.signal.aborted) {
-          setError(error instanceof Error ? error.message : "No se pudieron cargar los tipos de negocio.");
+          setError("No se pudieron cargar los tipos de negocio.");
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -95,7 +100,7 @@ export function BusinessTypePickerModal({ supplierId, currentId, onClose, onSave
     try {
       const formData = new FormData();
       formData.append("business_type_id", String(selectedId));
-      const response = await fetchWithAuth(`/api/suppliers/${supplierId}`, {
+      const response = await fetchWithAuth(apiUrl(`/suppliers/${supplierId}`), {
         method: "PUT",
         body: formData,
       });

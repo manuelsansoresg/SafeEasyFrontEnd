@@ -1,4 +1,10 @@
 import { fetchWithAuth } from "@/lib/api";
+import type { BusinessTypePublic } from "@/types/businessType";
+
+const apiUrl = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
+  return `${base.replace(/\/$/, "")}${path}`;
+};
 
 export interface FeaturedSupplier {
   id: number;
@@ -24,63 +30,100 @@ export interface FeaturedProduct {
   average_rating: number;
 }
 
+const normalizeSupplier = (value: unknown): FeaturedSupplier | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const id = Number(record.id);
+  const name = typeof record.name === "string" ? record.name : "";
+  const slug = typeof record.slug === "string" ? record.slug : "";
+  if (!Number.isFinite(id) || !name || !slug) return null;
+
+  const logo =
+    (typeof record.logo === "string" && record.logo.trim()) ||
+    (typeof record.logo_url === "string" && record.logo_url.trim()) ||
+    (typeof record.image === "string" && record.image.trim()) ||
+    (typeof record.image_url === "string" && record.image_url.trim()) ||
+    null;
+
+  return {
+    id,
+    name,
+    slug,
+    logo,
+    logo_url: typeof record.logo_url === "string" ? record.logo_url : null,
+    image: typeof record.image === "string" ? record.image : null,
+    image_url: typeof record.image_url === "string" ? record.image_url : null,
+    views: Number(record.views) || 0,
+    average_rating: Number(record.average_rating) || 0,
+    is_featured: Boolean(record.is_featured),
+    is_verified: typeof record.is_verified === "boolean" ? record.is_verified : undefined,
+    is_directory: typeof record.is_directory === "boolean" ? record.is_directory : undefined,
+  };
+};
+
+const normalizeSuppliers = (payload: unknown) => {
+  const list = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === "object" && Array.isArray((payload as Record<string, unknown>).items)
+      ? ((payload as Record<string, unknown>).items as unknown[])
+      : payload && typeof payload === "object" && Array.isArray((payload as Record<string, unknown>).results)
+        ? ((payload as Record<string, unknown>).results as unknown[])
+        : payload && typeof payload === "object" && Array.isArray((payload as Record<string, unknown>).data)
+          ? ((payload as Record<string, unknown>).data as unknown[])
+          : [];
+  return list.map(normalizeSupplier).filter((item): item is FeaturedSupplier => Boolean(item));
+};
+
+const normalizeBusinessTypes = (payload: unknown): BusinessTypePublic[] => {
+  const list = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === "object"
+      ? ((payload as Record<string, unknown>).items
+        ?? (payload as Record<string, unknown>).results
+        ?? (payload as Record<string, unknown>).data
+        ?? (payload as Record<string, unknown>).business_types)
+      : [];
+  return Array.isArray(list) ? (list as BusinessTypePublic[]).filter((item) => item.is_active === true) : [];
+};
+
+let businessTypesRequest: Promise<BusinessTypePublic[]> | null = null;
+
+export function getActiveBusinessTypes(): Promise<BusinessTypePublic[]> {
+  if (!businessTypesRequest) {
+    businessTypesRequest = fetchWithAuth(apiUrl("/business-types"), { cache: "no-store" })
+      .then(async (response) => response.ok ? normalizeBusinessTypes(await response.json()) : [])
+      .catch((error) => {
+        businessTypesRequest = null;
+        console.error("Error fetching business types:", error);
+        return [];
+      });
+  }
+  return businessTypesRequest;
+}
+
 export async function getFeaturedSuppliers(skip = 0, limit = 3): Promise<FeaturedSupplier[]> {
-  const normalizeSupplier = (value: unknown): FeaturedSupplier | null => {
-    if (!value || typeof value !== "object") return null;
-    const record = value as Record<string, unknown>;
-    const id = Number(record.id);
-    const name = typeof record.name === "string" ? record.name : "";
-    const slug = typeof record.slug === "string" ? record.slug : "";
-    if (!Number.isFinite(id) || !name || !slug) return null;
-
-    const logo =
-      (typeof record.logo === "string" && record.logo.trim()) ||
-      (typeof record.logo_url === "string" && record.logo_url.trim()) ||
-      (typeof record.image === "string" && record.image.trim()) ||
-      (typeof record.image_url === "string" && record.image_url.trim()) ||
-      null;
-
-    return {
-      id,
-      name,
-      slug,
-      logo,
-      logo_url: typeof record.logo_url === "string" ? record.logo_url : null,
-      image: typeof record.image === "string" ? record.image : null,
-      image_url: typeof record.image_url === "string" ? record.image_url : null,
-      views: Number(record.views) || 0,
-      average_rating: Number(record.average_rating) || 0,
-      is_featured: Boolean(record.is_featured),
-      is_verified: typeof record.is_verified === "boolean" ? record.is_verified : undefined,
-      is_directory:
-        typeof record.is_directory === "boolean"
-          ? record.is_directory
-          : undefined,
-    };
-  };
-
-  const normalizeList = (payload: unknown) => {
-    const list = Array.isArray(payload)
-      ? payload
-      : payload && typeof payload === "object" && Array.isArray((payload as Record<string, unknown>).items)
-        ? ((payload as Record<string, unknown>).items as unknown[])
-        : payload && typeof payload === "object" && Array.isArray((payload as Record<string, unknown>).results)
-          ? ((payload as Record<string, unknown>).results as unknown[])
-          : payload && typeof payload === "object" && Array.isArray((payload as Record<string, unknown>).data)
-            ? ((payload as Record<string, unknown>).data as unknown[])
-            : [];
-    return list.map(normalizeSupplier).filter((item): item is FeaturedSupplier => Boolean(item));
-  };
 
   try {
     const res = await fetchWithAuth(`/api/suppliers/featured?skip=${skip}&limit=${limit}`);
     if (res.ok) {
         const data = await res.json();
-        return normalizeList(data);
+        return normalizeSuppliers(data);
     }
     return [];
   } catch (error) {
     console.error("Error fetching featured suppliers:", error);
+    return [];
+  }
+}
+
+export async function getSuppliersByBusinessType(slug: string, skip = 0, limit = 100): Promise<FeaturedSupplier[]> {
+  const query = new URLSearchParams({ business_type_slug: slug, skip: String(skip), limit: String(limit) });
+  try {
+    const response = await fetchWithAuth(apiUrl(`/suppliers/?${query}`), { cache: "no-store" });
+    if (!response.ok) return [];
+    return normalizeSuppliers(await response.json());
+  } catch (error) {
+    console.error("Error fetching suppliers by business type:", error);
     return [];
   }
 }
