@@ -9,6 +9,7 @@ import {
   Loader2,
   Plus,
   Search,
+  Tags,
   Trash2,
 } from "lucide-react";
 import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
@@ -171,6 +172,13 @@ export default function AdminServicesPage() {
                 className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10"
               />
             </label>
+            <Link
+              href="/admin/my-categories"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#004e28]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#004e28] transition hover:border-[#168e00]/40 hover:bg-[#168e00]/5"
+            >
+              <Tags size={18} />
+              Administrar categorías
+            </Link>
             <Link
               href="/admin/services/create"
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#004e28]/15 transition hover:-translate-y-0.5 hover:bg-[#168e00]"
@@ -420,4 +428,3 @@ export default function AdminServicesPage() {
     </div>
   );
 }
-

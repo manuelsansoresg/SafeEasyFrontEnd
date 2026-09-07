@@ -17,6 +17,8 @@ import { servicesService } from "@/services/servicesService";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { SupplierService } from "@/types/services";
 import { Toast } from "@/components/ui/Toast";
+import { SupplierClassificationPicker } from "@/components/admin/SupplierClassificationPicker";
+import type { SupplierClassification } from "@/types/supplierCategories";
 
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -141,6 +143,28 @@ export function ServiceForm({
   const [busyImageId, setBusyImageId] = useState<number | null>(null);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
+  const [supplierId, setSupplierId] = useState<number | null>(initialService?.supplier_id ?? null);
+  const [classification, setClassification] = useState<SupplierClassification>({
+    categoryId: initialService?.supplier_category_id ? null : initialService?.category_id ?? null,
+    subcategoryId: initialService?.supplier_category_id ? null : initialService?.subcategory_id ?? null,
+    supplierCategoryId: initialService?.supplier_category_id ?? null,
+    supplierSubcategoryId: initialService?.supplier_subcategory_id ?? null,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    void resolveCurrentSupplier(user).then((supplier) => {
+      if (cancelled) return;
+      if (!supplier) {
+        setToast({ type: "error", message: "No se encontró el proveedor asociado a tu cuenta." });
+        return;
+      }
+      setSupplierId((current) => current ?? supplier.id);
+    }).catch(() => {
+      if (!cancelled) setToast({ type: "error", message: "No se pudo cargar la información de tu negocio." });
+    });
+    return () => { cancelled = true; };
+  }, [user]);
 
   const previews = useMemo(
     () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -217,6 +241,8 @@ export function ServiceForm({
       return "La descripción no puede superar 5,000 caracteres.";
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0)
       return "Ingresa un precio válido, igual o mayor a cero.";
+    if (!classification.categoryId && !classification.supplierCategoryId)
+      return "Selecciona una categoría.";
     return null;
   };
 
@@ -236,6 +262,10 @@ export function ServiceForm({
           description: description.trim(),
           price: Number(price),
           is_active: isActive,
+          category_id: classification.categoryId,
+          subcategory_id: classification.subcategoryId,
+          supplier_category_id: classification.supplierCategoryId,
+          supplier_subcategory_id: classification.supplierSubcategoryId,
         });
         setService(updated);
         setToast({
@@ -243,8 +273,8 @@ export function ServiceForm({
           message: "La información del servicio se actualizó.",
         });
       } else {
-        const supplier = await resolveCurrentSupplier(user);
-        if (!supplier) {
+        const supplier = supplierId ? { id: supplierId } : await resolveCurrentSupplier(user);
+        if (!supplier?.id) {
           throw new Error("No se encontró el proveedor asociado a tu cuenta.");
         }
         const created = await servicesService.create({
@@ -255,6 +285,10 @@ export function ServiceForm({
           isActive,
           coverIndex: 0,
           images: files,
+          categoryId: classification.categoryId,
+          subcategoryId: classification.subcategoryId,
+          supplierCategoryId: classification.supplierCategoryId,
+          supplierSubcategoryId: classification.supplierSubcategoryId,
         });
         router.replace(`/admin/services/${created.id}`);
       }
@@ -372,6 +406,14 @@ export function ServiceForm({
                 </span>
               </span>
             </label>
+
+            <SupplierClassificationPicker
+              supplierId={supplierId}
+              value={classification}
+              onChange={setClassification}
+              onFeedback={(message) => setToast({ type: "success", message })}
+              disabled={saving}
+            />
 
             <label className="space-y-2 md:col-span-2">
               <span className="text-sm font-medium text-gray-700">

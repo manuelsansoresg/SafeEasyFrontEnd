@@ -7,8 +7,7 @@ import { fetchWithAuth } from "@/lib/api";
 import type { BusinessTypePublic } from "@/types/businessType";
 
 const apiUrl = (path: string) => {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-  return `${base.replace(/\/$/, "")}${path}`;
+  return `/api${path}`;
 };
 
 function listItems(payload: unknown): BusinessTypePublic[] {

@@ -83,6 +83,32 @@ function appendImages(formData: FormData, images: File[]) {
   images.forEach((image) => formData.append("images", image));
 }
 
+function consistentUpdate(input: UpdateServiceInput): UpdateServiceInput {
+  const includesClassification = [
+    input.category_id,
+    input.subcategory_id,
+    input.supplier_category_id,
+    input.supplier_subcategory_id,
+  ].some((value) => value !== undefined);
+  if (!includesClassification) return input;
+
+  if (input.supplier_category_id) {
+    return {
+      ...input,
+      category_id: null,
+      subcategory_id: null,
+      supplier_subcategory_id: input.supplier_subcategory_id ?? null,
+    };
+  }
+  return {
+    ...input,
+    category_id: input.category_id ?? null,
+    subcategory_id: input.subcategory_id ?? null,
+    supplier_category_id: null,
+    supplier_subcategory_id: null,
+  };
+}
+
 export const servicesService = {
   async listPublic(params: {
     supplierId?: number;
@@ -132,6 +158,17 @@ export const servicesService = {
     formData.append("description", input.description);
     formData.append("price", String(input.price));
     formData.append("is_active", String(input.isActive));
+    if (input.supplierCategoryId) {
+      formData.append("supplier_category_id", String(input.supplierCategoryId));
+      if (input.supplierSubcategoryId) {
+        formData.append("supplier_subcategory_id", String(input.supplierSubcategoryId));
+      }
+    } else if (input.categoryId) {
+      formData.append("category_id", String(input.categoryId));
+      if (input.subcategoryId) {
+        formData.append("subcategory_id", String(input.subcategoryId));
+      }
+    }
     if (input.images.length > 0 && typeof input.coverIndex === "number") {
       formData.append("cover_index", String(input.coverIndex));
     }
@@ -152,7 +189,7 @@ export const servicesService = {
       `/api/services/${encodeURIComponent(serviceId)}`,
       {
         method: "PATCH",
-        body: JSON.stringify(input),
+        body: JSON.stringify(consistentUpdate(input)),
       },
     );
     return readService(response, "No se pudo actualizar el servicio.");

@@ -21,12 +21,13 @@ import 'react-quill-new/dist/quill.snow.css';
 import FileUpload from "@/components/ui/FileUpload";
 import MultiFileUpload from "@/components/ui/MultiFileUpload";
 import { Toast } from "@/components/ui/Toast";
+import { SupplierClassificationPicker } from "@/components/admin/SupplierClassificationPicker";
+import type { SupplierClassification } from "@/types/supplierCategories";
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
 const MAX_IMAGES = 6; // Variable para controlar el número máximo de imágenes
 const fieldClassName = "h-11 w-full rounded-xl border border-gray-200 px-4 text-gray-900 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
-const selectClassName = `${fieldClassName} bg-white`;
 
 const pasteAsPlainText = (event: ClipboardEvent<HTMLDivElement>) => {
   const text = event.clipboardData.getData("text/plain");
@@ -37,19 +38,6 @@ const pasteAsPlainText = (event: ClipboardEvent<HTMLDivElement>) => {
 
 // --- Interfaces ---
 
-interface Category {
-  id: number;
-  name: string;
-  slug: string;
-}
-
-interface Subcategory {
-  id: number;
-  name: string;
-  category_id: number;
-  slug: string;
-}
-
 interface Supplier {
   id: number;
   name: string;
@@ -57,6 +45,8 @@ interface Supplier {
   slug?: string;
   rfc?: string;
   user_id: number; 
+  business_type_id?: number | null;
+  business_type?: { id: number } | null;
 }
 
 interface Product {
@@ -68,8 +58,10 @@ interface Product {
   sku: string;
   is_active: boolean;
   supplier_id: number;
-  category_id: number;
-  subcategory_id: number;
+  category_id: number | null;
+  subcategory_id: number | null;
+  supplier_category_id?: number | null;
+  supplier_subcategory_id?: number | null;
   slug: string;
   thumbnail_url?: string;
 }
@@ -96,6 +88,8 @@ interface ProductFormData {
   supplier_id: number | null;
   category_id: number | null;
   subcategory_id: number | null;
+  supplier_category_id: number | null;
+  supplier_subcategory_id: number | null;
 }
 
 const initialFormData: ProductFormData = {
@@ -108,6 +102,8 @@ const initialFormData: ProductFormData = {
   supplier_id: null,
   category_id: null,
   subcategory_id: null,
+  supplier_category_id: null,
+  supplier_subcategory_id: null,
 };
 
 interface ProductFormProps {
@@ -134,6 +130,8 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           supplier_id: initialData.supplier_id,
           category_id: initialData.category_id,
           subcategory_id: initialData.subcategory_id,
+          supplier_category_id: initialData.supplier_category_id ?? null,
+          supplier_subcategory_id: initialData.supplier_subcategory_id ?? null,
         }
       : initialFormData
   );
@@ -141,6 +139,12 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+  const classification: SupplierClassification = {
+    categoryId: formData.supplier_category_id ? null : formData.category_id,
+    subcategoryId: formData.supplier_category_id ? null : formData.subcategory_id,
+    supplierCategoryId: formData.supplier_category_id,
+    supplierSubcategoryId: formData.supplier_subcategory_id,
+  };
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
@@ -190,8 +194,6 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
 
   // Aux Data
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   
   // Supplier Selection Modal/State
@@ -205,22 +207,23 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   // -- Effects --
 
   useEffect(() => {
-    fetchCategories();
-  }, [token]);
-
-  useEffect(() => {
     if (!token || !isSupplierUser) return;
     let cancelled = false;
 
     const setOwnSupplier = async () => {
       try {
         const supplier = await resolveCurrentSupplier(user);
-        if (cancelled || !supplier?.id) return;
+        if (cancelled) return;
+        if (!supplier?.id) {
+          setError("No se encontró el proveedor asociado a tu cuenta.");
+          return;
+        }
         setSuppliers([supplier as Supplier]);
         setFormData((prev) => ({ ...prev, supplier_id: supplier.id }));
         setSelectedSupplierDisplay(supplier.name);
       } catch (error) {
         console.error("Error resolving supplier:", error);
+        if (!cancelled) setError("No se pudo cargar la información de tu negocio.");
       }
     };
 
@@ -236,9 +239,6 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         // If editing, we might need to fetch the supplier name to display it nicely
         // But for now we just show the ID if we don't have the name, or fetch all suppliers and find it.
         // Also fetch subcategories for the selected category
-        if (initialData.category_id) {
-            fetchSubcategories(initialData.category_id);
-        }
         // Try to find supplier name if possible (or just load suppliers and find it)
         // We will load suppliers when the modal opens, but we can try to load them now or just wait.
         setSelectedSupplierDisplay(`ID: ${initialData.supplier_id}`);
@@ -250,15 +250,6 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     }
   }, [initialData, token]);
 
-  // Fetch subcategories when category changes
-  useEffect(() => {
-    if (formData.category_id) {
-      fetchSubcategories(formData.category_id);
-    } else {
-      setSubcategories([]);
-    }
-  }, [formData.category_id]);
-
   // Fetch suppliers when modal opens
   useEffect(() => {
     if (isSupplierModalOpen) {
@@ -267,32 +258,6 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   }, [isSupplierModalOpen, supplierSkip, token]);
 
   // -- API Calls --
-
-  const fetchCategories = async () => {
-    if (!token) return;
-    try {
-      const response = await fetchWithAuth(`/api/categories/?skip=0&limit=100`);
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(Array.isArray(data) ? data : []);
-      }
-    } catch (error) {
-      console.error("Error fetching categories:", error);
-    }
-  };
-
-  const fetchSubcategories = async (categoryId: number) => {
-    if (!token) return;
-    try {
-      const response = await fetchWithAuth(`/api/subcategories/?category_id=${categoryId}&skip=0&limit=100`);
-      if (response.ok) {
-        const data = await response.json();
-        setSubcategories(Array.isArray(data) ? data : []);
-      }
-    } catch (error) {
-      console.error("Error fetching subcategories:", error);
-    }
-  };
 
   const fetchSuppliers = async () => {
     if (!token) return;
@@ -381,7 +346,14 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   }
 
   const selectSupplier = (supplier: Supplier) => {
-    setFormData(prev => ({ ...prev, supplier_id: supplier.id }));
+    setFormData(prev => ({
+      ...prev,
+      supplier_id: supplier.id,
+      category_id: null,
+      subcategory_id: null,
+      supplier_category_id: null,
+      supplier_subcategory_id: null,
+    }));
     setSelectedSupplierDisplay(supplier.name);
     setIsSupplierModalOpen(false);
   };
@@ -404,15 +376,14 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     try {
       // Validate
       if (!formData.supplier_id) throw new Error("Debes seleccionar un proveedor");
-      if (!formData.category_id) throw new Error("Debes seleccionar una categoría");
-      if (!formData.subcategory_id) throw new Error("Debes seleccionar una subcategoría");
+      if (!formData.category_id && !formData.supplier_category_id) throw new Error("Debes seleccionar una categoría");
       if (!formData.title) throw new Error("El título es obligatorio");
 
       // Validate IDs
       if (formData.supplier_id <= 0) {
         throw new Error("Por favor selecciona un proveedor válido");
       }
-      if (formData.category_id <= 0) {
+      if (formData.category_id !== null && formData.category_id <= 0) {
         throw new Error("Por favor selecciona una categoría válida");
       }
 
@@ -428,8 +399,13 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       payload.append('sku', formData.sku);
       payload.append('is_active', String(formData.is_active));
       if (formData.supplier_id) payload.append('supplier_id', String(formData.supplier_id));
-      if (formData.category_id) payload.append('category_id', String(formData.category_id));
-      if (formData.subcategory_id) payload.append('subcategory_id', String(formData.subcategory_id));
+      if (formData.supplier_category_id) {
+        payload.append('supplier_category_id', String(formData.supplier_category_id));
+        if (formData.supplier_subcategory_id) payload.append('supplier_subcategory_id', String(formData.supplier_subcategory_id));
+      } else if (formData.category_id) {
+        payload.append('category_id', String(formData.category_id));
+        if (formData.subcategory_id) payload.append('subcategory_id', String(formData.subcategory_id));
+      }
       payload.append('slug', slug);
 
       if (coverImage) {
@@ -630,38 +606,19 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Categoría *</label>
-            <select
-              name="category_id"
-              required
-              value={formData.category_id || ""}
-              onChange={handleInputChange}
-              className={selectClassName}
-            >
-              <option value="">Seleccionar categoría</option>
-              {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Subcategoría *</label>
-            <select
-              name="subcategory_id"
-              required
-              value={formData.subcategory_id || ""}
-              onChange={handleInputChange}
-              disabled={!formData.category_id}
-              className={`${selectClassName} disabled:bg-gray-50 disabled:text-gray-400`}
-            >
-              <option value="">Seleccionar subcategoría</option>
-              {subcategories.map(sub => (
-                <option key={sub.id} value={sub.id}>{sub.name}</option>
-              ))}
-            </select>
-          </div>
+          <SupplierClassificationPicker
+            supplierId={formData.supplier_id}
+            value={classification}
+            onChange={(next) => setFormData((current) => ({
+              ...current,
+              category_id: next.categoryId,
+              subcategory_id: next.subcategoryId,
+              supplier_category_id: next.supplierCategoryId,
+              supplier_subcategory_id: next.supplierSubcategoryId,
+            }))}
+            onFeedback={(message) => setToast({ type: "success", message })}
+            disabled={isSubmitting}
+          />
           
           <div className="col-span-2 space-y-2">
              <MultiFileUpload

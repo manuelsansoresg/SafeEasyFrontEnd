@@ -19,8 +19,10 @@ interface Product {
   sku: string;
   is_active: boolean;
   supplier_id: number;
-  category_id: number;
-  subcategory_id: number;
+  category_id: number | null;
+  subcategory_id: number | null;
+  supplier_category_id?: number | null;
+  supplier_subcategory_id?: number | null;
   slug: string;
   thumbnail_url?: string;
 }

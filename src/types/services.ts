@@ -1,3 +1,5 @@
+import type { DrooopyCategory, DrooopySubcategory, SupplierCategory, SupplierSubcategory } from "@/types/supplierCategories";
+
 export interface ServiceImage {
   id: number;
   image_url: string;
@@ -19,6 +21,14 @@ export interface SupplierService {
   updated_at: string;
   cover_image_url: string | null;
   cover_thumbnail_url: string | null;
+  category_id: number | null;
+  subcategory_id: number | null;
+  supplier_category_id: number | null;
+  supplier_subcategory_id: number | null;
+  category?: DrooopyCategory | null;
+  subcategory?: DrooopySubcategory | null;
+  supplier_category?: SupplierCategory | null;
+  supplier_subcategory?: SupplierSubcategory | null;
 }
 
 export interface CreateServiceInput {
@@ -29,6 +39,10 @@ export interface CreateServiceInput {
   isActive: boolean;
   coverIndex?: number;
   images: File[];
+  categoryId?: number | null;
+  subcategoryId?: number | null;
+  supplierCategoryId?: number | null;
+  supplierSubcategoryId?: number | null;
 }
 
 export interface UpdateServiceInput {
@@ -36,4 +50,8 @@ export interface UpdateServiceInput {
   description?: string;
   price?: number;
   is_active?: boolean;
+  category_id?: number | null;
+  subcategory_id?: number | null;
+  supplier_category_id?: number | null;
+  supplier_subcategory_id?: number | null;
 }

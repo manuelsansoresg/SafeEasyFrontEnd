@@ -14,7 +14,8 @@ import {
   Trash2, 
   Loader2,
   Package,
-  Search
+  Search,
+  Tags,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -269,7 +270,7 @@ export default function AdminProductsPage() {
         title="Productos"
         subtitle="Gestiona el catálogo de productos."
         actions={
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input 
@@ -281,6 +282,17 @@ export default function AdminProductsPage() {
                 />
             </div>
             
+            {isSupplierUser ? (
+              <Link
+                href="/admin/my-categories"
+                className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-primary/20 bg-white px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/5"
+              >
+                <Tags size={18} />
+                <span className="hidden lg:inline">Administrar categorías</span>
+                <span className="lg:hidden">Categorías</span>
+              </Link>
+            ) : null}
+
             {canCreateProduct ? (
               <Link 
                 href="/admin/products/create"
