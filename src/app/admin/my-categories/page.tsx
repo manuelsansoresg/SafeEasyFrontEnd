@@ -22,6 +22,7 @@ import { supplierCategoriesService } from "@/services/supplierCategoriesService"
 import { useAuthStore } from "@/store/useAuthStore";
 import type {
   DrooopyCategory,
+  DrooopySubcategory,
   SupplierCategory,
   SupplierSubcategory,
 } from "@/types/supplierCategories";
@@ -45,9 +46,10 @@ function CategoryModal({
   const [name, setName] = useState(current?.name ?? "");
   const [categoryId, setCategoryId] = useState<number | null>(current?.category_id ?? categories[0]?.id ?? null);
   const [subcategoryId, setSubcategoryId] = useState<number | null>(current?.subcategory_id ?? null);
+  const [globalSubcategories, setGlobalSubcategories] = useState<DrooopySubcategory[]>([]);
+  const [loadingSubcategories, setLoadingSubcategories] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const selectedCategory = categories.find((category) => category.id === categoryId);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -55,13 +57,29 @@ function CategoryModal({
     return () => { document.body.style.overflow = previousOverflow; };
   }, []);
 
+  useEffect(() => {
+    setGlobalSubcategories([]);
+    if (!categoryId) return;
+    const controller = new AbortController();
+    setLoadingSubcategories(true);
+    supplierCategoriesService.listGlobalSubcategories(categoryId, controller.signal)
+      .then(setGlobalSubcategories)
+      .catch(() => {
+        if (!controller.signal.aborted) setError("No se pudieron cargar las subcategorías.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingSubcategories(false);
+      });
+    return () => controller.abort();
+  }, [categoryId]);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!name.trim()) {
       setError("Escribe un nombre para la categoría.");
       return;
     }
-    if (!current && !categoryId) {
+    if (!categoryId) {
       setError("Selecciona una clasificación de Drooopy.");
       return;
     }
@@ -69,7 +87,11 @@ function CategoryModal({
     setError("");
     try {
       if (current) {
-        await supplierCategoriesService.update(current.id, { name: name.trim() });
+        await supplierCategoriesService.update(current.id, {
+          name: name.trim(),
+          category_id: categoryId,
+          subcategory_id: subcategoryId,
+        });
         onSaved("La categoría se actualizó.");
       } else {
         await supplierCategoriesService.create({
@@ -103,24 +125,20 @@ function CategoryModal({
             <span className="text-sm font-semibold text-gray-700">Nombre</span>
             <input autoFocus value={name} onChange={(event) => setName(event.target.value)} maxLength={120} className={fieldClassName} placeholder="Ej. Menú" />
           </label>
-          {!current ? (
-            <>
-              <label className="block space-y-2">
-                <span className="text-sm font-semibold text-gray-700">Clasificación en Drooopy</span>
-                <select value={categoryId ?? ""} onChange={(event) => { setCategoryId(event.target.value ? Number(event.target.value) : null); setSubcategoryId(null); }} className={fieldClassName}>
-                  <option value="">Selecciona una clasificación</option>
-                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select>
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-semibold text-gray-700">Subcategoría relacionada <span className="font-normal text-gray-400">(opcional)</span></span>
-                <select value={subcategoryId ?? ""} onChange={(event) => setSubcategoryId(event.target.value ? Number(event.target.value) : null)} disabled={!categoryId} className={fieldClassName}>
-                  <option value="">Sin subcategoría relacionada</option>
-                  {(selectedCategory?.subcategories ?? []).map((subcategory) => <option key={subcategory.id} value={subcategory.id}>{subcategory.name}</option>)}
-                </select>
-              </label>
-            </>
-          ) : null}
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold text-gray-700">Categoría de Drooopy *</span>
+            <select value={categoryId ?? ""} onChange={(event) => { setCategoryId(event.target.value ? Number(event.target.value) : null); setSubcategoryId(null); setError(""); }} className={fieldClassName}>
+              <option value="">Selecciona una categoría</option>
+              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold text-gray-700">Subcategoría de Drooopy <span className="font-normal text-gray-400">(opcional)</span></span>
+            <select value={subcategoryId ?? ""} onChange={(event) => setSubcategoryId(event.target.value ? Number(event.target.value) : null)} disabled={!categoryId || loadingSubcategories} className={fieldClassName}>
+              <option value="">{loadingSubcategories ? "Cargando subcategorías..." : "Sin subcategoría relacionada"}</option>
+              {globalSubcategories.map((subcategory) => <option key={subcategory.id} value={subcategory.id}>{subcategory.name}</option>)}
+            </select>
+          </label>
           <div className="flex flex-col-reverse gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:justify-end">
             <button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">Cancelar</button>
             <button type="submit" disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#004e28] disabled:opacity-50">{saving ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} />} Guardar</button>
@@ -138,8 +156,12 @@ function SubcategoriesModal({ category, onClose, onChanged, onFeedback }: {
   onFeedback: (toast: NonNullable<ToastState>) => void;
 }) {
   const [name, setName] = useState("");
+  const [subcategoryId, setSubcategoryId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [editingSubcategoryId, setEditingSubcategoryId] = useState<number | null>(null);
+  const [globalSubcategories, setGlobalSubcategories] = useState<DrooopySubcategory[]>([]);
+  const [loadingGlobalSubcategories, setLoadingGlobalSubcategories] = useState(true);
   const [busyId, setBusyId] = useState<number | "new" | null>(null);
   const [error, setError] = useState("");
 
@@ -149,14 +171,32 @@ function SubcategoriesModal({ category, onClose, onChanged, onFeedback }: {
     return () => { document.body.style.overflow = previousOverflow; };
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoadingGlobalSubcategories(true);
+    supplierCategoriesService.listGlobalSubcategories(category.category_id, controller.signal)
+      .then(setGlobalSubcategories)
+      .catch(() => {
+        if (!controller.signal.aborted) setError("No se pudieron cargar las subcategorías.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingGlobalSubcategories(false);
+      });
+    return () => controller.abort();
+  }, [category.category_id]);
+
   async function create(event: FormEvent) {
     event.preventDefault();
     if (!name.trim()) return setError("Escribe un nombre para la subcategoría.");
     setBusyId("new");
     setError("");
     try {
-      await supplierCategoriesService.createSubcategory(category.id, { name: name.trim() });
+      await supplierCategoriesService.createSubcategory(category.id, {
+        name: name.trim(),
+        subcategory_id: subcategoryId,
+      });
       setName("");
+      setSubcategoryId(null);
       await onChanged();
       onFeedback({ type: "success", message: "La subcategoría se creó." });
     } catch (requestError) {
@@ -166,7 +206,7 @@ function SubcategoriesModal({ category, onClose, onChanged, onFeedback }: {
     }
   }
 
-  async function update(item: SupplierSubcategory, changes: { name?: string; is_active?: boolean }) {
+  async function update(item: SupplierSubcategory, changes: { name?: string; subcategory_id?: number | null; is_active?: boolean }) {
     setBusyId(item.id);
     setError("");
     try {
@@ -205,16 +245,20 @@ function SubcategoriesModal({ category, onClose, onChanged, onFeedback }: {
         </div>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           {error ? <p role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</p> : null}
-          <form onSubmit={create} className="flex flex-col gap-2 sm:flex-row">
-            <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} className={fieldClassName} placeholder="Nombre de la nueva subcategoría" />
+          <form onSubmit={create} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+            <input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} className={fieldClassName} placeholder="Nombre de la nueva subcategoría" />
+            <select value={subcategoryId ?? ""} onChange={(event) => setSubcategoryId(event.target.value ? Number(event.target.value) : null)} disabled={loadingGlobalSubcategories} className={fieldClassName} aria-label="Subcategoría de Drooopy relacionada">
+              <option value="">Sin relación global</option>
+              {globalSubcategories.map((subcategory) => <option key={subcategory.id} value={subcategory.id}>{subcategory.name}</option>)}
+            </select>
             <button type="submit" disabled={busyId !== null} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#004e28] disabled:opacity-50">{busyId === "new" ? <Loader2 size={17} className="animate-spin" /> : <Plus size={17} />} Agregar</button>
           </form>
           <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200">
             {category.subcategories.length === 0 ? <p className="p-6 text-center text-sm text-gray-500">Todavía no has creado subcategorías.</p> : category.subcategories.map((item) => (
               <div key={item.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-                {editingId === item.id ? <input autoFocus value={editingName} onChange={(event) => setEditingName(event.target.value)} className={`${fieldClassName} flex-1`} /> : <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-gray-900">{item.name}</p><p className={`mt-0.5 text-xs font-medium ${item.is_active === false ? "text-gray-400" : "text-[#168e00]"}`}>{item.is_active === false ? "Inactiva" : "Activa"}</p></div>}
+                {editingId === item.id ? <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2"><input autoFocus value={editingName} onChange={(event) => setEditingName(event.target.value)} className={fieldClassName} /><select value={editingSubcategoryId ?? ""} onChange={(event) => setEditingSubcategoryId(event.target.value ? Number(event.target.value) : null)} className={fieldClassName} aria-label={`Subcategoría de Drooopy para ${item.name}`}><option value="">Sin relación global</option>{globalSubcategories.map((subcategory) => <option key={subcategory.id} value={subcategory.id}>{subcategory.name}</option>)}</select></div> : <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-gray-900">{item.name}</p><p className={`mt-0.5 text-xs font-medium ${item.is_active === false ? "text-gray-400" : "text-[#168e00]"}`}>{item.is_active === false ? "Inactiva" : "Activa"}{item.subcategory?.name ? ` · ${item.subcategory.name}` : ""}</p></div>}
                 <div className="flex flex-wrap gap-2">
-                  {editingId === item.id ? <button type="button" disabled={busyId !== null || !editingName.trim()} onClick={() => void update(item, { name: editingName.trim() })} className="rounded-lg bg-[#168e00] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Guardar</button> : <button type="button" disabled={busyId !== null} onClick={() => { setEditingId(item.id); setEditingName(item.name); }} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">Editar</button>}
+                  {editingId === item.id ? <button type="button" disabled={busyId !== null || !editingName.trim()} onClick={() => void update(item, { name: editingName.trim(), subcategory_id: editingSubcategoryId })} className="rounded-lg bg-[#168e00] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Guardar</button> : <button type="button" disabled={busyId !== null} onClick={() => { setEditingId(item.id); setEditingName(item.name); setEditingSubcategoryId(item.subcategory_id); }} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">Editar</button>}
                   <button type="button" disabled={busyId !== null} onClick={() => void update(item, { is_active: item.is_active === false })} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">{item.is_active === false ? "Activar" : "Desactivar"}</button>
                   <button type="button" disabled={busyId !== null} onClick={() => void remove(item)} aria-label={`Eliminar ${item.name}`} className="rounded-lg border border-red-100 p-2 text-red-600 hover:bg-red-50">{busyId === item.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}</button>
                 </div>
@@ -246,15 +290,23 @@ export default function MyCategoriesPage() {
     try {
       const supplier = await resolveCurrentSupplier(user);
       if (!supplier) throw new Error("No se encontró el proveedor asociado a tu cuenta.");
-      const typeId = Number(supplier.business_type_id ?? supplier.business_type?.id);
-      if (!Number.isFinite(typeId) || typeId <= 0) throw new Error("Configura primero el tipo de negocio de tu empresa.");
       setSupplierId(supplier.id);
-      const [own, global] = await Promise.all([
+      const [ownResult, globalResult] = await Promise.allSettled([
         supplierCategoriesService.list(supplier.id),
-        supplierCategoriesService.allowedCategories(typeId),
+        supplierCategoriesService.listGlobalCategories(),
       ]);
-      setCategories(own);
-      setDrooopyCategories(global);
+      const messages: string[] = [];
+      if (ownResult.status === "fulfilled") setCategories(ownResult.value);
+      else {
+        setCategories([]);
+        messages.push("No se pudieron cargar tus categorías.");
+      }
+      if (globalResult.status === "fulfilled") setDrooopyCategories(globalResult.value);
+      else {
+        setDrooopyCategories([]);
+        messages.push("No se pudieron cargar las categorías de Drooopy.");
+      }
+      setError(messages.join(" "));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "No se pudieron cargar tus categorías.");
     } finally {

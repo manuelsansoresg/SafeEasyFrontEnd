@@ -136,27 +136,22 @@ export const supplierCategoriesService = {
     await request(`/api/supplier-categories/subcategories/${id}`, { method: "DELETE" }, "subcategory-in-use");
   },
 
-  async allowedCategories(businessTypeId: number, signal?: AbortSignal): Promise<DrooopyCategory[]> {
-    const response = await request(`/api/business-types/${businessTypeId}/categories`, { signal });
-    const payload: unknown = await response.json();
-    const root = recordOf(payload);
-    const nested = recordOf(root?.data);
-    const source = nested ?? root;
-    const categories = Array.isArray(payload)
-      ? payload as DrooopyCategory[]
-      : listOf<DrooopyCategory>(source, ["categories"]);
-    const topLevelSubcategories = source && Array.isArray(source.subcategories)
-      ? source.subcategories as DrooopySubcategory[]
-      : [];
-
-    return categories
+  async listGlobalCategories(signal?: AbortSignal): Promise<DrooopyCategory[]> {
+    const response = await request("/api/categories/?skip=0&limit=100", { signal });
+    return listOf<DrooopyCategory>(await response.json(), ["categories"])
       .filter((category) => category.is_active !== false)
-      .map((category) => ({
-        ...category,
-        subcategories: (Array.isArray(category.subcategories)
-          ? category.subcategories
-          : topLevelSubcategories.filter((item) => Number(item.category_id) === Number(category.id)))
-          .filter((subcategory) => subcategory.is_active !== false),
-      }));
+      .map((category) => ({ ...category, subcategories: [] }));
+  },
+
+  async listGlobalSubcategories(categoryId: number, signal?: AbortSignal): Promise<DrooopySubcategory[]> {
+    const response = await request(
+      `/api/subcategories/?category_id=${encodeURIComponent(String(categoryId))}&skip=0&limit=1000`,
+      { signal },
+    );
+    return listOf<DrooopySubcategory>(await response.json(), ["subcategories"])
+      .filter((subcategory) => (
+        subcategory.is_active !== false
+        && Number(subcategory.category_id) === Number(categoryId)
+      ));
   },
 };

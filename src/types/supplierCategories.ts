@@ -18,6 +18,8 @@ export interface SupplierSubcategory {
   id: number;
   supplier_category_id: number;
   name: string;
+  subcategory_id: number | null;
+  subcategory?: DrooopySubcategory | null;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
@@ -62,6 +64,7 @@ export interface UpdateSupplierCategoryInput {
 
 export interface SupplierSubcategoryInput {
   name: string;
+  subcategory_id?: number | null;
   is_active?: boolean;
 }
 
