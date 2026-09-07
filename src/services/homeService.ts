@@ -101,10 +101,11 @@ export function getActiveBusinessTypes(): Promise<BusinessTypePublic[]> {
   return businessTypesRequest;
 }
 
-export async function getFeaturedSuppliers(skip = 0, limit = 3): Promise<FeaturedSupplier[]> {
-
+export async function getFeaturedSuppliers(skip = 0, limit = 3, businessTypeSlug?: string): Promise<FeaturedSupplier[]> {
+  const query = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+  if (businessTypeSlug) query.set("business_type_slug", businessTypeSlug);
   try {
-    const res = await fetchWithAuth(`/api/suppliers/featured?skip=${skip}&limit=${limit}`);
+    const res = await fetchWithAuth(`/api/suppliers/featured?${query.toString()}`);
     if (res.ok) {
         const data = await res.json();
         return normalizeSuppliers(data);
@@ -116,21 +117,11 @@ export async function getFeaturedSuppliers(skip = 0, limit = 3): Promise<Feature
   }
 }
 
-export async function getSuppliersByBusinessType(slug: string, skip = 0, limit = 100): Promise<FeaturedSupplier[]> {
-  const query = new URLSearchParams({ business_type_slug: slug, skip: String(skip), limit: String(limit) });
+export async function getFeaturedProducts(skip = 0, limit = 3, businessTypeSlug?: string): Promise<FeaturedProduct[]> {
+  const query = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+  if (businessTypeSlug) query.set("business_type_slug", businessTypeSlug);
   try {
-    const response = await fetchWithAuth(apiUrl(`/suppliers/?${query}`), { cache: "no-store" });
-    if (!response.ok) return [];
-    return normalizeSuppliers(await response.json());
-  } catch (error) {
-    console.error("Error fetching suppliers by business type:", error);
-    return [];
-  }
-}
-
-export async function getFeaturedProducts(skip = 0, limit = 3): Promise<FeaturedProduct[]> {
-  try {
-    const res = await fetchWithAuth(`/api/products/featured?skip=${skip}&limit=${limit}`);
+    const res = await fetchWithAuth(`/api/products/featured?${query.toString()}`);
     if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) return data;

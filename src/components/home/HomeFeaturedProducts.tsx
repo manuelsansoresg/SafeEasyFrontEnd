@@ -1,23 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Star } from "lucide-react";
-import { getFeaturedProducts, FeaturedProduct } from "@/services/homeService";
+import { getActiveBusinessTypes, getFeaturedProducts, FeaturedProduct } from "@/services/homeService";
 
-export function HomeFeaturedProducts() {
+export function HomeFeaturedProducts({ businessTypeSlug }: { businessTypeSlug?: string }) {
   const [products, setProducts] = useState<FeaturedProduct[]>([]);
+  const [businessTypeName, setBusinessTypeName] = useState("");
   const [loading, setLoading] = useState(true);
   const [skip, setSkip] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const requestVersion = useRef(0);
   const limit = 3;
 
-  const fetchProducts = async (skipValue: number) => {
+  const fetchProducts = useCallback(async (skipValue: number, version = ++requestVersion.current) => {
     setLoading(true);
     try {
       // Fetch one more item to check if there are more pages
-      const data = await getFeaturedProducts(skipValue, limit + 1);
+      const data = await getFeaturedProducts(skipValue, limit + 1, businessTypeSlug);
+      if (version !== requestVersion.current) return;
       if (data.length > limit) {
         setHasMore(true);
         setProducts(data.slice(0, limit));
@@ -27,32 +30,56 @@ export function HomeFeaturedProducts() {
       }
     } catch (error) {
       console.error(error);
-      setHasMore(false);
+      if (version === requestVersion.current) setHasMore(false);
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
-  };
+  }, [businessTypeSlug]);
 
   useEffect(() => {
-    fetchProducts(skip);
-  }, [skip]);
+    let active = true;
+    const version = ++requestVersion.current;
+    setSkip(0);
+    setProducts([]);
+    setBusinessTypeName("");
+
+    const load = async () => {
+      if (businessTypeSlug) {
+        const businessTypes = await getActiveBusinessTypes();
+        if (active) {
+          setBusinessTypeName(businessTypes.find((item) => item.slug === businessTypeSlug)?.name || businessTypeSlug);
+        }
+      }
+      if (active) await fetchProducts(0, version);
+    };
+
+    void load();
+    return () => {
+      active = false;
+      if (requestVersion.current === version) requestVersion.current += 1;
+    };
+  }, [businessTypeSlug, fetchProducts]);
 
   const handleNext = () => {
     if (hasMore) {
-      setSkip(prev => prev + limit);
+      const nextSkip = skip + limit;
+      setSkip(nextSkip);
+      void fetchProducts(nextSkip);
     }
   };
 
   const handlePrev = () => {
     if (skip >= limit) {
-      setSkip(prev => prev - limit);
+      const nextSkip = Math.max(0, skip - limit);
+      setSkip(nextSkip);
+      void fetchProducts(nextSkip);
     }
   };
 
   return (
     <div className="py-12 bg-[#f2f3f4]">
       <div className="container mx-auto">
-        <h2 className="text-xl md:text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">Productos destacados</h2>
+        <h2 className="text-xl md:text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">{businessTypeSlug ? `Productos destacados de ${businessTypeName}` : "Productos destacados"}</h2>
         <div className="flex justify-center gap-1 mb-8 text-yellow-400">
           {[1, 2, 3, 4, 5].map((star) => (
             <Star key={star} size={20} fill="currentColor" className="text-yellow-400" />
@@ -83,6 +110,10 @@ export function HomeFeaturedProducts() {
                [1, 2, 3].map((i) => (
                  <div key={i} className="flex-shrink-0 w-[45%] md:w-auto bg-gray-50 rounded-xl md:rounded-2xl h-48 md:h-80 animate-pulse snap-center"></div>
                ))
+            ) : products.length === 0 ? (
+              <div className="col-span-full w-full rounded-2xl border border-gray-200 bg-white px-5 py-10 text-center text-sm text-gray-500">
+                {businessTypeSlug ? "No hay productos destacados en este tipo por el momento." : "No hay productos destacados por el momento."}
+              </div>
             ) : (
               products.map((product) => (
                 <Link 

@@ -1,71 +1,81 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { CheckCircle, ChevronLeft, ChevronRight, Star } from "lucide-react";
-import { getActiveBusinessTypes, getFeaturedSuppliers, getSuppliersByBusinessType, type FeaturedSupplier } from "@/services/homeService";
+import { getActiveBusinessTypes, getFeaturedSuppliers, type FeaturedSupplier } from "@/services/homeService";
 
-export function HomeFeaturedSuppliers() {
-  const searchParams = useSearchParams();
-  const businessTypeSlug = searchParams.get("business_type")?.trim() || null;
-  const [allSuppliers, setAllSuppliers] = useState<FeaturedSupplier[]>([]);
+export function HomeFeaturedSuppliers({ businessTypeSlug }: { businessTypeSlug?: string }) {
+  const [suppliers, setSuppliers] = useState<FeaturedSupplier[]>([]);
   const [businessTypeName, setBusinessTypeName] = useState("");
   const [loading, setLoading] = useState(true);
   const [skip, setSkip] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const requestVersion = useRef(0);
   const limit = 3;
+
+  const fetchSuppliers = useCallback(async (skipValue: number, version = ++requestVersion.current) => {
+    setLoading(true);
+    try {
+      const data = await getFeaturedSuppliers(skipValue, limit + 1, businessTypeSlug);
+      if (version !== requestVersion.current) return;
+      setHasMore(data.length > limit);
+      setSuppliers(data.slice(0, limit));
+    } catch (error) {
+      console.error(error);
+      if (version === requestVersion.current) {
+        setSuppliers([]);
+        setHasMore(false);
+      }
+    } finally {
+      if (version === requestVersion.current) setLoading(false);
+    }
+  }, [businessTypeSlug]);
 
   useEffect(() => {
     let active = true;
+    const version = ++requestVersion.current;
+    setSkip(0);
+    setSuppliers([]);
+    setBusinessTypeName("");
+
     async function load() {
-      setLoading(true);
-      try {
-        if (businessTypeSlug) {
-          const [suppliers, businessTypes] = await Promise.all([
-            getSuppliersByBusinessType(businessTypeSlug, 0, 100),
-            getActiveBusinessTypes(),
-          ]);
-          if (!active) return;
-          setAllSuppliers(suppliers);
+      if (businessTypeSlug) {
+        const businessTypes = await getActiveBusinessTypes();
+        if (active) {
           setBusinessTypeName(businessTypes.find((item) => item.slug === businessTypeSlug)?.name || businessTypeSlug);
-        } else {
-          const suppliers = await getFeaturedSuppliers(0, 100);
-          if (!active) return;
-          setAllSuppliers(suppliers);
-          setBusinessTypeName("");
         }
-        setSkip(0);
-      } catch (error) {
-        console.error(error);
-        if (active) setAllSuppliers([]);
-      } finally {
-        if (active) setLoading(false);
       }
+      if (active) await fetchSuppliers(0, version);
     }
     void load();
-    return () => { active = false; };
-  }, [businessTypeSlug]);
-
-  const suppliers = allSuppliers.slice(skip, skip + limit);
-  const hasMore = skip + limit < allSuppliers.length;
+    return () => {
+      active = false;
+      if (requestVersion.current === version) requestVersion.current += 1;
+    };
+  }, [businessTypeSlug, fetchSuppliers]);
 
   const handleNext = () => {
     if (hasMore) {
-      setSkip((previous) => previous + limit);
+      const nextSkip = skip + limit;
+      setSkip(nextSkip);
+      void fetchSuppliers(nextSkip);
     }
   };
 
   const handlePrev = () => {
     if (skip >= limit) {
-      setSkip((previous) => Math.max(0, previous - limit));
+      const nextSkip = Math.max(0, skip - limit);
+      setSkip(nextSkip);
+      void fetchSuppliers(nextSkip);
     }
   };
 
   return (
     <div className="py-12 bg-[#f2f3f4] -mx-4 px-4 md:-mx-8 md:px-8">
       <div className="container mx-auto">
-        <h2 className="text-xl md:text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">{businessTypeSlug ? `Negocios de ${businessTypeName}` : "Empresas destacadas"}</h2>
+        <h2 className="text-xl md:text-4xl font-bold text-center text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">{businessTypeSlug ? `Empresas destacadas de ${businessTypeName}` : "Empresas destacadas"}</h2>
         <div className="flex justify-center gap-1 mb-8 text-yellow-400">
           {[1, 2, 3, 4, 5].map((star) => (
             <Star key={star} size={20} fill="currentColor" className="text-yellow-400" />
@@ -98,7 +108,7 @@ export function HomeFeaturedSuppliers() {
                ))
             ) : suppliers.length === 0 ? (
               <div className="col-span-full w-full rounded-2xl border border-gray-200 bg-white px-5 py-10 text-center text-sm text-gray-500">
-                {businessTypeSlug ? "No hay negocios disponibles en esta categoría por el momento." : "No hay empresas destacadas por el momento."}
+                {businessTypeSlug ? "No hay empresas destacadas en este tipo por el momento." : "No hay empresas destacadas por el momento."}
               </div>
             ) : (
               suppliers.map((supplier) => (

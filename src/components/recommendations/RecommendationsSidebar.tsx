@@ -6,13 +6,13 @@ import { cn } from "@/lib/utils";
 import { supplierCatalogService, SupplierCatalogOption } from "@/services/supplierCatalogService";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
 
-interface Category {
+export interface RecommendationCategory {
   id: number;
   name: string;
   slug: string;
 }
 
-interface Subcategory {
+export interface RecommendationSubcategory {
   id: number;
   name: string;
   category_id: number;
@@ -54,6 +54,8 @@ const fetchPublicList = async <T,>(urls: string[], key: string) => {
 const MEXICO_COUNTRY_ID = 1;
 
 interface RecommendationsSidebarProps {
+  businessTypeId?: number | null;
+  businessTypeSlug?: string;
   selectedCategory?: string;
   selectedSubcategory?: string;
   minPrice?: number;
@@ -72,9 +74,12 @@ interface RecommendationsSidebarProps {
   }) => void;
   onClear?: () => void;
   onClose?: () => void;
+  onCatalogLoaded?: (categories: RecommendationCategory[], subcategories: RecommendationSubcategory[]) => void;
 }
 
 export function RecommendationsSidebar({
+  businessTypeId,
+  businessTypeSlug,
   selectedCategory,
   selectedSubcategory,
   minPrice,
@@ -85,9 +90,10 @@ export function RecommendationsSidebar({
   onFilterChange,
   onClear,
   onClose,
+  onCatalogLoaded,
 }: RecommendationsSidebarProps) {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [categories, setCategories] = useState<RecommendationCategory[]>([]);
+  const [subcategories, setSubcategories] = useState<RecommendationSubcategory[]>([]);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [localMinPrice, setLocalMinPrice] = useState(minPrice?.toString() || "");
   const [localMaxPrice, setLocalMaxPrice] = useState(maxPrice?.toString() || "");
@@ -98,10 +104,79 @@ export function RecommendationsSidebar({
   const [catalogLoading, setCatalogLoading] = useState({ states: false, cities: false });
 
   useEffect(() => {
+    let active = true;
+
     const fetchData = async () => {
       try {
+        if (businessTypeSlug) {
+          if (!businessTypeId) {
+            setCategories([]);
+            setSubcategories([]);
+            onCatalogLoaded?.([], []);
+            return;
+          }
+
+          const response = await fetch(apiUrl(`/business-types/${businessTypeId}/categories`), {
+            headers: { Accept: "application/json" },
+          });
+          if (!response.ok) throw new Error(`Business type catalog failed (${response.status})`);
+          const payload: unknown = await response.json();
+          const root = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+          const source = root.data && typeof root.data === "object" && !Array.isArray(root.data)
+            ? root.data as Record<string, unknown>
+            : root;
+          const rawCategories = Array.isArray(source.categories)
+            ? source.categories
+            : Array.isArray(payload) ? payload : [];
+          const scopedCategories: RecommendationCategory[] = [];
+          const nestedSubcategories: RecommendationSubcategory[] = [];
+
+          for (const item of rawCategories) {
+            if (!item || typeof item !== "object") continue;
+            const category = item as Record<string, unknown>;
+            const id = Number(category.id);
+            const name = typeof category.name === "string" ? category.name : "";
+            const slug = typeof category.slug === "string" ? category.slug : "";
+            if (!Number.isFinite(id) || !name || !slug) continue;
+            scopedCategories.push({ id, name, slug });
+            if (Array.isArray(category.subcategories)) {
+              for (const value of category.subcategories) {
+                if (!value || typeof value !== "object") continue;
+                const subcategory = value as Record<string, unknown>;
+                const subcategoryId = Number(subcategory.id);
+                const subcategoryName = typeof subcategory.name === "string" ? subcategory.name : "";
+                const subcategorySlug = typeof subcategory.slug === "string" ? subcategory.slug : "";
+                if (Number.isFinite(subcategoryId) && subcategoryName && subcategorySlug) {
+                  nestedSubcategories.push({ id: subcategoryId, name: subcategoryName, slug: subcategorySlug, category_id: id });
+                }
+              }
+            }
+          }
+
+          const topLevelSubcategories = Array.isArray(source.subcategories)
+            ? source.subcategories.flatMap((value): RecommendationSubcategory[] => {
+                if (!value || typeof value !== "object") return [];
+                const subcategory = value as Record<string, unknown>;
+                const id = Number(subcategory.id);
+                const categoryId = Number(subcategory.category_id);
+                const name = typeof subcategory.name === "string" ? subcategory.name : "";
+                const slug = typeof subcategory.slug === "string" ? subcategory.slug : "";
+                return Number.isFinite(id) && Number.isFinite(categoryId) && name && slug
+                  ? [{ id, category_id: categoryId, name, slug }]
+                  : [];
+              })
+            : [];
+          const scopedSubcategories = topLevelSubcategories.length ? topLevelSubcategories : nestedSubcategories;
+          if (!active) return;
+          setCategories(scopedCategories);
+          setSubcategories(scopedSubcategories);
+          setExpandedCategory(null);
+          onCatalogLoaded?.(scopedCategories, scopedSubcategories);
+          return;
+        }
+
         const [catData, subData] = await Promise.all([
-          fetchPublicList<Category>(
+          fetchPublicList<RecommendationCategory>(
             [
               "/api/categories/?skip=0&limit=100",
               "/api/backend/categories/?skip=0&limit=100",
@@ -109,7 +184,7 @@ export function RecommendationsSidebar({
             ],
             "categories",
           ),
-          fetchPublicList<Subcategory>(
+          fetchPublicList<RecommendationSubcategory>(
             [
               "/api/subcategories/?skip=0&limit=1000",
               "/api/backend/subcategories/?skip=0&limit=1000",
@@ -118,14 +193,22 @@ export function RecommendationsSidebar({
             "subcategories",
           ),
         ]);
+        if (!active) return;
         setCategories(catData);
         setSubcategories(subData);
+        onCatalogLoaded?.(catData, subData);
       } catch (error) {
         console.error("Failed to fetch sidebar data", error);
+        if (active) {
+          setCategories([]);
+          setSubcategories([]);
+          onCatalogLoaded?.([], []);
+        }
       }
     };
-    fetchData();
-  }, []);
+    void fetchData();
+    return () => { active = false; };
+  }, [businessTypeId, businessTypeSlug, onCatalogLoaded]);
 
   useEffect(() => {
     let active = true;

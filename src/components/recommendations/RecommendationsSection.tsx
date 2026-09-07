@@ -3,13 +3,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { ProductCard } from "@/components/ProductCard";
-import { RecommendationsSidebar } from "./RecommendationsSidebar";
+import {
+  RecommendationsSidebar,
+  type RecommendationCategory,
+  type RecommendationSubcategory,
+} from "./RecommendationsSidebar";
 import { searchAll, SearchService, SearchDirectory, SearchResponse } from "@/lib/search";
 import { Product } from "@/lib/products";
 import { getRecommendations, getFallbackProducts } from "@/lib/interactions";
 import { DirectoryCard } from "./DirectoryCard";
 import { Search, Filter } from "lucide-react";
 import { useLocationStore } from "@/store/useLocationStore";
+import { getActiveBusinessTypes } from "@/services/homeService";
 
 // Simple debounce hook implementation if not present
 function useLocalDebounce<T>(value: T, delay: number): T {
@@ -89,10 +94,12 @@ export function RecommendationsSection({
   initialSearch = "",
   initialCategory,
   initialSubcategory,
+  initialBusinessType,
 }: {
   initialSearch?: string;
   initialCategory?: string;
   initialSubcategory?: string;
+  initialBusinessType?: string;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<SearchService[]>([]);
@@ -108,6 +115,8 @@ export function RecommendationsSection({
   // Filters
   const [category, setCategory] = useState<string | undefined>(initialCategory);
   const [subcategory, setSubcategory] = useState<string | undefined>(initialSubcategory);
+  const businessType = initialBusinessType;
+  const [businessTypeId, setBusinessTypeId] = useState<number | null>(null);
   const [minPrice, setMinPrice] = useState<number | undefined>();
   const [maxPrice, setMaxPrice] = useState<number | undefined>();
   const [bestRated, setBestRated] = useState<boolean | undefined>(false);
@@ -118,46 +127,39 @@ export function RecommendationsSection({
   const { city, state } = useLocationStore();
 
   // Category/subcategory data for slug→ID conversion (backend requires numeric IDs)
-  interface CategoryItem { id: number; name: string; slug: string; }
-  interface SubcategoryItem { id: number; name: string; category_id: number; slug: string; }
-  const [categories, setCategories] = useState<CategoryItem[]>([]);
-  const [subcategories, setSubcategories] = useState<SubcategoryItem[]>([]);
+  const [categories, setCategories] = useState<RecommendationCategory[]>([]);
+  const [subcategories, setSubcategories] = useState<RecommendationSubcategory[]>([]);
+  const requestVersion = useRef(0);
 
   useEffect(() => {
-    const fetchCatalog = async () => {
-      try {
-        const [catRes, subRes] = await Promise.all([
-          fetch("/api/categories/?skip=0&limit=200"),
-          fetch("/api/subcategories/?skip=0&limit=1000"),
-        ]);
-        if (catRes.ok) {
-          const catData = await catRes.json();
-          setCategories(Array.isArray(catData) ? catData : []);
-        }
-        if (subRes.ok) {
-          const subData = await subRes.json();
-          setSubcategories(Array.isArray(subData) ? subData : []);
-        }
-      } catch {
-        // Non-critical: filter will still work but slug→ID conversion may fail
-      }
-    };
-    fetchCatalog();
+    let active = true;
+    if (!businessType) {
+      setBusinessTypeId(null);
+      return () => { active = false; };
+    }
+    void getActiveBusinessTypes().then((items) => {
+      if (active) setBusinessTypeId(items.find((item) => item.slug === businessType)?.id ?? null);
+    });
+    return () => { active = false; };
+  }, [businessType]);
+
+  const handleCatalogLoaded = useCallback((
+    nextCategories: RecommendationCategory[],
+    nextSubcategories: RecommendationSubcategory[],
+  ) => {
+    setCategories(nextCategories);
+    setSubcategories(nextSubcategories);
   }, []);
 
   const debouncedSearch = useLocalDebounce(search, 500);
+  const resolvedCategoryId = category ? categories.find((item) => item.slug === category)?.id : undefined;
+  const resolvedSubcategoryId = subcategory ? subcategories.find((item) => item.slug === subcategory)?.id : undefined;
 
   // Sync search state with URL params
   useEffect(() => {
-    if (initialSearch !== undefined) {
-        setSearch(initialSearch);
-    }
-    if (initialCategory !== undefined) {
-        setCategory(initialCategory);
-    }
-    if (initialSubcategory !== undefined) {
-        setSubcategory(initialSubcategory);
-    }
+    setSearch(initialSearch);
+    setCategory(initialCategory);
+    setSubcategory(initialSubcategory);
   }, [initialSearch, initialCategory, initialSubcategory]);
 
   // Observer for infinite scroll
@@ -174,6 +176,7 @@ export function RecommendationsSection({
   }, [loading, hasMore]);
 
   const fetchResults = async (reset = false) => {
+    const version = ++requestVersion.current;
     console.log(" fetchResults called with:", {
       reset,
       skip,
@@ -185,6 +188,7 @@ export function RecommendationsSection({
       debouncedSearch,
       filterCity,
       filterState,
+      businessType,
     });
 
     setLoading(true);
@@ -199,7 +203,8 @@ export function RecommendationsSection({
       maxPrice !== undefined ||
       bestRated ||
       filterCity ||
-      filterState
+      filterState ||
+      businessType
     );
 
     console.log("🔍 Filter state:", { hasQuery, hasActiveFilters });
@@ -257,17 +262,6 @@ export function RecommendationsSection({
 
         // Convert category/subcategory slugs to numeric IDs for the backend API.
         // The backend expects integer IDs, not slug strings.
-        let resolvedCategoryId: number | undefined;
-        let resolvedSubcategoryId: number | undefined;
-        if (category) {
-          const matchedCat = categories.find((c) => c.slug === category);
-          if (matchedCat) resolvedCategoryId = matchedCat.id;
-        }
-        if (subcategory) {
-          const matchedSub = subcategories.find((s) => s.slug === subcategory);
-          if (matchedSub) resolvedSubcategoryId = matchedSub.id;
-        }
-
         // 1) Unified call (filters by query + location, returns products + services)
         console.log(" Fetching with filters:", {
           query: debouncedSearch,
@@ -276,6 +270,7 @@ export function RecommendationsSection({
           minPrice,
           maxPrice,
           bestRated,
+          businessType,
           location: locationParam,
           disableLocation,
           hasQuery,
@@ -291,6 +286,7 @@ export function RecommendationsSection({
           min_price: minPrice,
           max_price: maxPrice,
           best_rated: bestRated,
+          business_type_slug: businessType,
           disableLocation,
           location: locationParam,
           allowEmptyQuery: !hasQuery,
@@ -323,6 +319,8 @@ export function RecommendationsSection({
         serviceTotal = servicesArr.length;
         directoryTotal = directoriesArr.length;
       }
+
+      if (version !== requestVersion.current) return;
 
       if (reset) {
         setProducts(productsArr);
@@ -362,7 +360,7 @@ export function RecommendationsSection({
     } catch (error) {
       console.error("Error fetching search results:", error);
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   };
 
@@ -370,7 +368,7 @@ export function RecommendationsSection({
   useEffect(() => {
     fetchResults(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, subcategory, minPrice, maxPrice, bestRated, debouncedSearch, filterCity, filterState, city, state]);
+  }, [category, subcategory, resolvedCategoryId, resolvedSubcategoryId, minPrice, maxPrice, bestRated, debouncedSearch, filterCity, filterState, city, state, businessType]);
 
   // Fetch more when skip changes (infinite scroll)
   useEffect(() => {
@@ -438,6 +436,8 @@ export function RecommendationsSection({
           `}>
             <div className="h-full lg:h-auto">
                 <RecommendationsSidebar
+                    businessTypeId={businessTypeId}
+                    businessTypeSlug={businessType}
                     selectedCategory={category}
                     selectedSubcategory={subcategory}
                     minPrice={minPrice}
@@ -448,6 +448,7 @@ export function RecommendationsSection({
                     onFilterChange={handleFilterChange}
                     onClear={handleClear}
                     onClose={() => setIsFilterOpen(false)}
+                    onCatalogLoaded={handleCatalogLoaded}
                 />
             </div>
           </div>
@@ -559,7 +560,9 @@ export function RecommendationsSection({
             {!loading && !hasAnyResults && (
               <div className="text-center py-12 bg-gray-50 rounded-xl">
                 <p className="text-gray-500">
-                  No se encontraron productos ni servicios con estos filtros.
+                  {businessType
+                    ? "No encontramos resultados para este tipo de negocio."
+                    : "No se encontraron productos ni servicios con estos filtros."}
                 </p>
               </div>
             )}

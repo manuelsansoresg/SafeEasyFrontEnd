@@ -59,6 +59,8 @@ export interface SearchParams {
   category_id?: number | null;
   subcategory?: string;
   subcategory_id?: number | null;
+  business_type_id?: number | null;
+  business_type_slug?: string | null;
   min_price?: number;
   max_price?: number;
   best_rated?: boolean;
@@ -162,6 +164,12 @@ export async function searchAll(params: SearchParams): Promise<SearchResponse> {
     queryParams.append("subcategory_id", String(params.subcategory_id));
   } else if (params.subcategory) {
     queryParams.append("subcategory", params.subcategory);
+  }
+  if (params.business_type_id !== undefined && params.business_type_id !== null) {
+    queryParams.append("business_type_id", String(params.business_type_id));
+  }
+  if (params.business_type_slug) {
+    queryParams.append("business_type_slug", params.business_type_slug);
   }
   if (params.min_price !== undefined) queryParams.append("min_price", params.min_price.toString());
   if (params.max_price !== undefined) queryParams.append("max_price", params.max_price.toString());

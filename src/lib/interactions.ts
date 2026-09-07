@@ -34,10 +34,11 @@ export const registerInteraction = async (data: InteractionData) => {
   }
 };
 
-export const getRecommendations = async (limit: number = 20, skip: number = 0): Promise<Product[]> => {
+export const getRecommendations = async (limit: number = 20, skip: number = 0, businessTypeSlug?: string): Promise<Product[]> => {
   const deviceId = getDeviceId();
-  // Ensure no double slash issues, though fetch usually handles it.
-  const url = `${BASE_URL}/interactions/recommendations?limit=${limit}&skip=${skip}`;
+  const query = new URLSearchParams({ limit: String(limit), skip: String(skip) });
+  if (businessTypeSlug) query.set('business_type_slug', businessTypeSlug);
+  const url = `${BASE_URL}/interactions/recommendations?${query.toString()}`;
   try {
     const res = await fetchWithAuth(url, {
       headers: {

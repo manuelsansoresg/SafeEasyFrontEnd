@@ -7,13 +7,13 @@ import { BriefcaseBusiness, ChevronLeft, ChevronRight, LayoutGrid } from "lucide
 import { getActiveBusinessTypes } from "@/services/homeService";
 import type { BusinessTypePublic } from "@/types/businessType";
 
-export function HomeBusinessTypes() {
+export function HomeBusinessTypes({ initialBusinessType }: { initialBusinessType?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const scroller = useRef<HTMLDivElement>(null);
   const [businessTypes, setBusinessTypes] = useState<BusinessTypePublic[]>([]);
   const [loading, setLoading] = useState(true);
-  const selectedSlug = searchParams.get("business_type");
+  const selectedSlug = initialBusinessType || null;
 
   useEffect(() => {
     let active = true;
@@ -30,8 +30,15 @@ export function HomeBusinessTypes() {
 
   function select(slug: string | null) {
     const params = new URLSearchParams(searchParams.toString());
-    if (slug) params.set("business_type", slug);
-    else params.delete("business_type");
+    if (slug) {
+      if (selectedSlug && selectedSlug !== slug) {
+        params.delete("category");
+        params.delete("subcategory");
+      }
+      params.set("business_type", slug);
+    } else {
+      params.delete("business_type");
+    }
     const query = params.toString();
     router.replace(query ? `/?${query}` : "/", { scroll: false });
   }
