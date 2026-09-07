@@ -213,6 +213,8 @@ async function proxyRequest(request: NextRequest) {
       // Admin endpoints should NOT have trailing slashes
       const isAdminEndpoint = segments[0] === 'admin';
       const isChatEndpoint = segments[0] === 'chat';
+      const isSupplierCategorySubcategories =
+          segments[0] === 'supplier-categories' && lastSegment === 'subcategories';
 
       // Check if path contains a numeric ID or UUID
       const hasResourceId = segments.some(seg =>
@@ -220,7 +222,7 @@ async function proxyRequest(request: NextRequest) {
       );
 
       // Remove trailing slash for resource endpoints, paths with resource IDs, or admin endpoints
-      if (resourceEndpoints.includes(lastSegment) || hasResourceId || isAdminEndpoint || isChatEndpoint) {
+      if (resourceEndpoints.includes(lastSegment) || hasResourceId || isAdminEndpoint || isChatEndpoint || isSupplierCategorySubcategories) {
           relativePath = relativePath.replace(/\/+$/, '');
       } else if (!relativePath.endsWith('/')) {
           // Ensure trailing slash for all other endpoints (including search)

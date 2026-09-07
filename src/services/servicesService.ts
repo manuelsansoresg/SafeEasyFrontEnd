@@ -100,6 +100,13 @@ function consistentUpdate(input: UpdateServiceInput): UpdateServiceInput {
       supplier_subcategory_id: input.supplier_subcategory_id ?? null,
     };
   }
+  if (input.category_id && input.supplier_subcategory_id) {
+    return {
+      ...input,
+      subcategory_id: null,
+      supplier_category_id: null,
+    };
+  }
   return {
     ...input,
     category_id: input.category_id ?? null,
@@ -165,7 +172,9 @@ export const servicesService = {
       }
     } else if (input.categoryId) {
       formData.append("category_id", String(input.categoryId));
-      if (input.subcategoryId) {
+      if (input.supplierSubcategoryId) {
+        formData.append("supplier_subcategory_id", String(input.supplierSubcategoryId));
+      } else if (input.subcategoryId) {
         formData.append("subcategory_id", String(input.subcategoryId));
       }
     }

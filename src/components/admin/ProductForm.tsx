@@ -401,6 +401,10 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       if (formData.supplier_id) payload.append('supplier_id', String(formData.supplier_id));
       if (formData.supplier_category_id) {
         payload.append('supplier_category_id', String(formData.supplier_category_id));
+        if (isEditMode) {
+          payload.append('category_id', '0');
+          payload.append('subcategory_id', '0');
+        }
         if (formData.supplier_subcategory_id) {
           payload.append('supplier_subcategory_id', String(formData.supplier_subcategory_id));
         } else if (isEditMode) {
@@ -408,14 +412,19 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         }
       } else if (formData.category_id) {
         payload.append('category_id', String(formData.category_id));
-        if (formData.subcategory_id) {
+        if (formData.supplier_subcategory_id) {
+          payload.append('supplier_subcategory_id', String(formData.supplier_subcategory_id));
+          if (isEditMode) payload.append('subcategory_id', '0');
+        } else if (formData.subcategory_id) {
           payload.append('subcategory_id', String(formData.subcategory_id));
         } else if (isEditMode) {
           payload.append('subcategory_id', '0');
         }
-        if (isEditMode && initialData?.supplier_category_id) {
+        if (isEditMode) {
           payload.append('supplier_category_id', '0');
-          payload.append('supplier_subcategory_id', '0');
+          if (!formData.supplier_subcategory_id) {
+            payload.append('supplier_subcategory_id', '0');
+          }
         }
       }
       payload.append('slug', slug);
