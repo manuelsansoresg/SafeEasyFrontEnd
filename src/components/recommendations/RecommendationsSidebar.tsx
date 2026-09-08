@@ -5,6 +5,7 @@ import { ChevronRight, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supplierCatalogService, SupplierCatalogOption } from "@/services/supplierCatalogService";
 import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import type { BusinessTypePublic } from "@/types/businessType";
 
 export interface RecommendationCategory {
   id: number;
@@ -56,6 +57,8 @@ const MEXICO_COUNTRY_ID = 1;
 interface RecommendationsSidebarProps {
   businessTypeId?: number | null;
   businessTypeSlug?: string;
+  businessTypes: BusinessTypePublic[];
+  selectedIsDirectory?: boolean;
   selectedCategory?: string;
   selectedSubcategory?: string;
   minPrice?: number;
@@ -72,6 +75,7 @@ interface RecommendationsSidebarProps {
     city?: string;
     state?: string;
   }) => void;
+  onBusinessTypeChange: (slug: string | null, isDirectory?: boolean) => void;
   onClear?: () => void;
   onClose?: () => void;
   onCatalogLoaded?: (categories: RecommendationCategory[], subcategories: RecommendationSubcategory[]) => void;
@@ -80,6 +84,8 @@ interface RecommendationsSidebarProps {
 export function RecommendationsSidebar({
   businessTypeId,
   businessTypeSlug,
+  businessTypes,
+  selectedIsDirectory,
   selectedCategory,
   selectedSubcategory,
   minPrice,
@@ -88,6 +94,7 @@ export function RecommendationsSidebar({
   city,
   state,
   onFilterChange,
+  onBusinessTypeChange,
   onClear,
   onClose,
   onCatalogLoaded,
@@ -462,6 +469,56 @@ export function RecommendationsSidebar({
             >
                 Aplicar ubicación
             </button>
+            </div>
+        </div>
+
+        {/* Business type filter */}
+        <div className="mb-6">
+            <h4 className="mb-3 text-sm font-semibold text-gray-700">Explora negocios</h4>
+            <div>
+                <button
+                    type="button"
+                    onClick={() => onBusinessTypeChange(null)}
+                    className={cn(
+                        "w-full border-b border-gray-50 py-2 text-left text-sm transition-colors hover:text-primary",
+                        !businessTypeSlug && selectedIsDirectory === undefined ? "font-bold text-primary" : "text-gray-600",
+                    )}
+                >
+                    Todos
+                </button>
+                <button
+                    type="button"
+                    onClick={() => onBusinessTypeChange(null, false)}
+                    className={cn(
+                        "w-full border-b border-gray-50 py-2 text-left text-sm transition-colors hover:text-primary",
+                        selectedIsDirectory === false ? "font-bold text-primary" : "text-gray-600",
+                    )}
+                >
+                    Tienda en línea
+                </button>
+                <button
+                    type="button"
+                    onClick={() => onBusinessTypeChange(null, true)}
+                    className={cn(
+                        "w-full border-b border-gray-50 py-2 text-left text-sm transition-colors hover:text-primary",
+                        selectedIsDirectory === true ? "font-bold text-primary" : "text-gray-600",
+                    )}
+                >
+                    Directorio
+                </button>
+                {businessTypes.map((businessType) => (
+                    <button
+                        key={businessType.id}
+                        type="button"
+                        onClick={() => onBusinessTypeChange(businessType.slug)}
+                        className={cn(
+                            "w-full border-b border-gray-50 py-2 text-left text-sm transition-colors last:border-0 hover:text-primary",
+                            businessTypeSlug === businessType.slug ? "font-bold text-primary" : "text-gray-600",
+                        )}
+                    >
+                        {businessType.name}
+                    </button>
+                ))}
             </div>
         </div>
 

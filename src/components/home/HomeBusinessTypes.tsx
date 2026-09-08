@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BriefcaseBusiness, ChevronLeft, ChevronRight, LayoutGrid } from "lucide-react";
+import { BriefcaseBusiness, ChevronLeft, ChevronRight } from "lucide-react";
 import { getActiveBusinessTypes } from "@/services/homeService";
 import type { BusinessTypePublic } from "@/types/businessType";
 
@@ -94,7 +94,7 @@ export function HomeBusinessTypes({
         <h2 id="explore-businesses-title" className="font-[family-name:var(--font-varela-round)] text-2xl font-bold text-[#004e28] md:text-3xl">Explora negocios</h2>
         <p className="mt-1 text-sm text-gray-500 md:text-base">Encuentra tiendas, servicios y negocios cerca de ti.</p>
       </div>
-      <div className="flex gap-4 overflow-hidden md:grid md:grid-cols-6 md:gap-x-6 md:gap-y-5">{Array.from({ length: 6 }, (_, index) => <div key={index} className="flex w-32 shrink-0 animate-pulse flex-col items-center gap-3 py-3 md:w-auto md:py-4"><span className="h-20 w-20 rounded-full bg-gray-100 md:h-24 md:w-24" /><span className="h-4 w-20 rounded-full bg-gray-100" /></div>)}</div>
+      <div className="flex gap-4 overflow-hidden md:grid md:grid-cols-6 md:gap-x-6 md:gap-y-5">{Array.from({ length: 5 }, (_, index) => <div key={index} className="flex w-32 shrink-0 animate-pulse flex-col items-center gap-3 py-3 md:w-auto md:py-4"><span className="h-20 w-20 rounded-full bg-gray-100 md:h-24 md:w-24" /><span className="h-4 w-20 rounded-full bg-gray-100" /></div>)}</div>
     </section>;
   }
 
@@ -112,14 +112,6 @@ export function HomeBusinessTypes({
       </div>
 
       <div ref={scroller} className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-hidden scroll-smooth px-4 pb-3 md:mx-0 md:gap-6 md:px-0 md:pb-0">
-        <button type="button" aria-pressed={!selectedSlug && initialIsDirectory === undefined} onClick={() => select(null)} className="group flex w-32 shrink-0 snap-start flex-col items-center gap-2 rounded-2xl px-2 py-3 text-center transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00]/40 md:w-[calc((100%_-_7.5rem)/6)] md:px-3 md:py-4">
-          <span className="flex h-20 w-20 shrink-0 items-center justify-center transition-transform duration-300 md:h-24 md:w-24 md:group-hover:-translate-y-1 md:group-hover:scale-[1.03]">
-            <span className={`flex h-16 w-16 items-center justify-center rounded-full md:h-[72px] md:w-[72px] ${!selectedSlug && initialIsDirectory === undefined ? "bg-[#168e00] text-white" : "bg-[#f2f3f4] text-[#004e28] group-hover:text-[#168e00]"}`}><LayoutGrid className="h-8 w-8 md:h-9 md:w-9" strokeWidth={1.6} aria-hidden="true" /></span>
-          </span>
-          <span className={`line-clamp-2 w-full font-[family-name:var(--font-varela-round)] text-sm font-bold leading-tight transition-colors md:text-lg ${!selectedSlug && initialIsDirectory === undefined ? "text-[#168e00]" : "text-[#004e28] group-hover:text-[#168e00]"}`}>Todos</span>
-          <span aria-hidden="true" className={`h-1 w-8 rounded-full transition-colors ${!selectedSlug && initialIsDirectory === undefined ? "bg-[#168e00]" : "bg-transparent group-hover:bg-[#168e00]/25"}`} />
-        </button>
-
         <button type="button" aria-pressed={initialIsDirectory === false} onClick={() => select(null, false)} className="group flex w-32 shrink-0 snap-start flex-col items-center gap-2 rounded-2xl px-2 py-3 text-center transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00]/40 md:w-[calc((100%_-_7.5rem)/6)] md:px-3 md:py-4">
           <span className="flex h-20 w-20 shrink-0 items-center justify-center transition-transform duration-300 md:h-24 md:w-24 md:group-hover:-translate-y-1 md:group-hover:scale-[1.03]">
             <span className="block h-[72px] w-[72px] shrink-0 md:h-[84px] md:w-[84px]">

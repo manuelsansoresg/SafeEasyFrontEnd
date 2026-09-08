@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ProductCard } from "@/components/ProductCard";
 import {
   RecommendationsSidebar,
@@ -15,6 +16,7 @@ import { DirectoryCard } from "./DirectoryCard";
 import { Search, Filter } from "lucide-react";
 import { useLocationStore } from "@/store/useLocationStore";
 import { getActiveBusinessTypes } from "@/services/homeService";
+import type { BusinessTypePublic } from "@/types/businessType";
 
 // Simple debounce hook implementation if not present
 function useLocalDebounce<T>(value: T, delay: number): T {
@@ -103,6 +105,8 @@ export function RecommendationsSection({
   initialBusinessType?: string;
   initialIsDirectory?: boolean;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<SearchService[]>([]);
   const [directories, setDirectories] = useState<SearchDirectory[]>([]);
@@ -119,6 +123,7 @@ export function RecommendationsSection({
   const [subcategory, setSubcategory] = useState<string | undefined>(initialSubcategory);
   const businessType = initialBusinessType;
   const isDirectory = initialIsDirectory;
+  const [businessTypes, setBusinessTypes] = useState<BusinessTypePublic[]>([]);
   const [businessTypeId, setBusinessTypeId] = useState<number | null>(null);
   const [minPrice, setMinPrice] = useState<number | undefined>();
   const [maxPrice, setMaxPrice] = useState<number | undefined>();
@@ -136,15 +141,31 @@ export function RecommendationsSection({
 
   useEffect(() => {
     let active = true;
-    if (!businessType) {
-      setBusinessTypeId(null);
-      return () => { active = false; };
-    }
     void getActiveBusinessTypes().then((items) => {
-      if (active) setBusinessTypeId(items.find((item) => item.slug === businessType)?.id ?? null);
+      if (!active) return;
+      setBusinessTypes(items);
+      setBusinessTypeId(businessType ? items.find((item) => item.slug === businessType)?.id ?? null : null);
     });
     return () => { active = false; };
   }, [businessType]);
+
+  const handleBusinessTypeChange = useCallback((slug: string | null, nextIsDirectory?: boolean) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("category");
+    params.delete("subcategory");
+    if (slug) {
+      params.delete("is_directory");
+      params.set("business_type", slug);
+    } else if (nextIsDirectory !== undefined) {
+      params.delete("business_type");
+      params.set("is_directory", String(nextIsDirectory));
+    } else {
+      params.delete("business_type");
+      params.delete("is_directory");
+    }
+    const query = params.toString();
+    router.replace(query ? `/?${query}` : "/", { scroll: false });
+  }, [router, searchParams]);
 
   const handleCatalogLoaded = useCallback((
     nextCategories: RecommendationCategory[],
@@ -451,6 +472,8 @@ export function RecommendationsSection({
                 <RecommendationsSidebar
                     businessTypeId={businessTypeId}
                     businessTypeSlug={businessType}
+                    businessTypes={businessTypes}
+                    selectedIsDirectory={isDirectory}
                     selectedCategory={category}
                     selectedSubcategory={subcategory}
                     minPrice={minPrice}
@@ -459,6 +482,7 @@ export function RecommendationsSection({
                     city={filterCity}
                     state={filterState}
                     onFilterChange={handleFilterChange}
+                    onBusinessTypeChange={handleBusinessTypeChange}
                     onClear={handleClear}
                     onClose={() => setIsFilterOpen(false)}
                     onCatalogLoaded={handleCatalogLoaded}
