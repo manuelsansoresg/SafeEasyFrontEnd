@@ -40,6 +40,13 @@ export default async function Home({
   const categorySlug = typeof resolvedSearchParams.category === "string" ? resolvedSearchParams.category : undefined;
   const subcategorySlug = typeof resolvedSearchParams.subcategory === "string" ? resolvedSearchParams.subcategory : undefined;
   const businessTypeSlug = typeof resolvedSearchParams.business_type === "string" ? resolvedSearchParams.business_type : undefined;
+  const isDirectory = businessTypeSlug
+    ? undefined
+    : resolvedSearchParams.is_directory === "true"
+      ? true
+      : resolvedSearchParams.is_directory === "false"
+        ? false
+        : undefined;
 
   return (
     <div className="flex flex-col w-full pt-24 md:pt-28">
@@ -65,7 +72,7 @@ export default async function Home({
          <div className="container mx-auto px-4 pt-6">
             <FavoritesSync products={[]} />
             <AdsCarousel />
-            <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-gray-100" />}><HomeBusinessTypes initialBusinessType={businessTypeSlug} /></Suspense>
+            <Suspense fallback={<div className="h-48 animate-pulse rounded-2xl bg-gray-100" />}><HomeBusinessTypes initialBusinessType={businessTypeSlug} initialIsDirectory={isDirectory} /></Suspense>
          </div>
       </div>
 
@@ -73,7 +80,7 @@ export default async function Home({
       <div className="bg-[#f2f3f4] w-full pb-8">
          <div className="container mx-auto px-4 pt-6">
             <Suspense fallback={<div className="h-80 animate-pulse rounded-2xl bg-white/70" />}><HomeFeaturedSuppliers businessTypeSlug={businessTypeSlug} /></Suspense>
-            <HomeFeaturedProducts businessTypeSlug={businessTypeSlug} />
+            {isDirectory !== true ? <HomeFeaturedProducts businessTypeSlug={businessTypeSlug} /> : null}
          </div>
       </div>
 
@@ -84,6 +91,7 @@ export default async function Home({
             initialCategory={categorySlug}
             initialSubcategory={subcategorySlug}
             initialBusinessType={businessTypeSlug}
+            initialIsDirectory={isDirectory}
          />
       </div>
 

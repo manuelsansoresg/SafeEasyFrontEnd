@@ -95,11 +95,13 @@ export function RecommendationsSection({
   initialCategory,
   initialSubcategory,
   initialBusinessType,
+  initialIsDirectory,
 }: {
   initialSearch?: string;
   initialCategory?: string;
   initialSubcategory?: string;
   initialBusinessType?: string;
+  initialIsDirectory?: boolean;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<SearchService[]>([]);
@@ -116,6 +118,7 @@ export function RecommendationsSection({
   const [category, setCategory] = useState<string | undefined>(initialCategory);
   const [subcategory, setSubcategory] = useState<string | undefined>(initialSubcategory);
   const businessType = initialBusinessType;
+  const isDirectory = initialIsDirectory;
   const [businessTypeId, setBusinessTypeId] = useState<number | null>(null);
   const [minPrice, setMinPrice] = useState<number | undefined>();
   const [maxPrice, setMaxPrice] = useState<number | undefined>();
@@ -189,6 +192,7 @@ export function RecommendationsSection({
       filterCity,
       filterState,
       businessType,
+      isDirectory,
     });
 
     setLoading(true);
@@ -204,7 +208,8 @@ export function RecommendationsSection({
       bestRated ||
       filterCity ||
       filterState ||
-      businessType
+      businessType ||
+      isDirectory !== undefined
     );
 
     console.log("🔍 Filter state:", { hasQuery, hasActiveFilters });
@@ -278,7 +283,7 @@ export function RecommendationsSection({
 
         const response: SearchResponse = await searchAll({
           query: debouncedSearch,
-          type_filter: "all",
+          type_filter: isDirectory === false ? "products" : "all",
           skip: currentSkip,
           limit,
           category_id: resolvedCategoryId ?? null,
@@ -304,7 +309,9 @@ export function RecommendationsSection({
         // showing "mesa de marmol" when the user typed "spa".
         const normalizedQuery = debouncedSearch.trim().toLowerCase();
         const allProducts = Array.isArray(response?.products) ? response.products : [];
-        productsArr = normalizedQuery
+        productsArr = isDirectory === true
+          ? []
+          : normalizedQuery
           ? allProducts.filter((p) => {
               const title = (p.title || "").toLowerCase();
               const description = (p.description || "").toLowerCase();
@@ -312,10 +319,16 @@ export function RecommendationsSection({
             })
           : allProducts;
 
-        servicesArr = Array.isArray(response?.services) ? response.services : [];
-        directoriesArr = Array.isArray(response?.directories) ? response.directories : [];
+        servicesArr = isDirectory === false
+          ? []
+          : Array.isArray(response?.services) ? response.services : [];
+        directoriesArr = isDirectory === false
+          ? []
+          : Array.isArray(response?.directories) ? response.directories : [];
 
-        productTotal = normalizedQuery ? productsArr.length : response.counts.products;
+        productTotal = isDirectory === true
+          ? 0
+          : normalizedQuery ? productsArr.length : response.counts.products;
         serviceTotal = servicesArr.length;
         directoryTotal = directoriesArr.length;
       }
@@ -356,7 +369,7 @@ export function RecommendationsSection({
       setProductCount(productTotal);
       setServiceCount(serviceTotal);
       setDirectoryCount(directoryTotal);
-      setHasMore(productsArr.length === limit || servicesArr.length === limit);
+      setHasMore(productsArr.length === limit || servicesArr.length === limit || directoriesArr.length === limit);
     } catch (error) {
       console.error("Error fetching search results:", error);
     } finally {
@@ -368,7 +381,7 @@ export function RecommendationsSection({
   useEffect(() => {
     fetchResults(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, subcategory, resolvedCategoryId, resolvedSubcategoryId, minPrice, maxPrice, bestRated, debouncedSearch, filterCity, filterState, city, state, businessType]);
+  }, [category, subcategory, resolvedCategoryId, resolvedSubcategoryId, minPrice, maxPrice, bestRated, debouncedSearch, filterCity, filterState, city, state, businessType, isDirectory]);
 
   // Fetch more when skip changes (infinite scroll)
   useEffect(() => {
