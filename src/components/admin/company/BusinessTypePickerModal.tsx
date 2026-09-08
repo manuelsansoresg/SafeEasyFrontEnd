@@ -574,44 +574,30 @@ export function BusinessTypePickerModal({
                   Cancelar
                 </button>
 
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void save()}
-                  className={`
-                    inline-flex
-                    items-center
-                    justify-center
-                    gap-2
-                    rounded-xl
-                    px-4
-                    py-2.5
-                    text-sm
-                    font-semibold
-                    text-white
-                    transition
-                    disabled:opacity-50
-
-                    ${
+                {saving ? (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className={`inline-flex min-w-36 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold text-white ${
+                      removingBusinessType ? "bg-red-600" : "bg-[#168e00]"
+                    }`}
+                  >
+                    <Loader2 size={16} className="shrink-0 animate-spin" aria-hidden="true" />
+                    <span>Guardando...</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void save()}
+                    className={`inline-flex min-w-36 items-center justify-center whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition ${
                       removingBusinessType
                         ? "bg-red-600 hover:bg-red-700"
                         : "bg-[#168e00] hover:bg-[#004e28]"
-                    }
-                  `}
-                >
-                  {saving ? (
-                    <Loader2
-                      size={16}
-                      className="animate-spin"
-                    />
-                  ) : null}
-
-                  {saving
-                    ? "Guardando..."
-                    : removingBusinessType
-                      ? "Quitar tipo"
-                      : "Cambiar tipo"}
-                </button>
+                    }`}
+                  >
+                    {removingBusinessType ? "Quitar tipo" : "Cambiar tipo"}
+                  </button>
+                )}
               </div>
             </div>
           ) : null}
@@ -654,41 +640,25 @@ export function BusinessTypePickerModal({
               Cancelar
             </button>
 
-            <button
-              type="button"
-              disabled={saving || !hasChanges}
-              onClick={() => void save()}
-              className="
-                inline-flex
-                items-center
-                justify-center
-                gap-2
-                rounded-xl
-                bg-[#168e00]
-                px-4
-                py-2.5
-                text-sm
-                font-semibold
-                text-white
-                transition
-                hover:bg-[#004e28]
-                disabled:cursor-not-allowed
-                disabled:opacity-50
-              "
-            >
-              {saving ? (
-                <Loader2
-                  size={16}
-                  className="animate-spin"
-                />
-              ) : null}
-
-              {saving
-                ? "Guardando..."
-                : removingBusinessType
-                  ? "Guardar cambios"
-                  : "Guardar tipo"}
-            </button>
+            {saving ? (
+              <div
+                role="status"
+                aria-live="polite"
+                className="inline-flex min-w-36 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                <Loader2 size={16} className="shrink-0 animate-spin" aria-hidden="true" />
+                <span>Guardando...</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={!hasChanges}
+                onClick={() => void save()}
+                className="inline-flex min-w-36 items-center justify-center whitespace-nowrap rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#004e28] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {removingBusinessType ? "Guardar cambios" : "Guardar tipo"}
+              </button>
+            )}
           </div>
         ) : null}
       </div>
