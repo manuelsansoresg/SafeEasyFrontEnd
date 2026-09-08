@@ -134,9 +134,12 @@ export function HomeBusinessTypes({
 
         {businessTypes.map((businessType) => {
           const selected = selectedSlug === businessType.slug;
+          const usesFullCanvasIcon =
+            businessType.slug.toLowerCase() === "inmuebles" ||
+            businessType.name.trim().toLowerCase() === "inmuebles";
           return <button key={businessType.id} type="button" aria-pressed={selected} onClick={() => select(businessType.slug)} className="group flex w-32 shrink-0 snap-start flex-col items-center gap-2 rounded-2xl px-2 py-3 text-center transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00]/40 md:w-[calc((100%_-_7.5rem)/6)] md:px-3 md:py-4">
             <span className="flex h-20 w-20 shrink-0 items-center justify-center transition-transform duration-300 md:h-24 md:w-24 md:group-hover:-translate-y-1 md:group-hover:scale-[1.03]">
-              {businessType.icon_url ? <span className="block h-[72px] w-[72px] shrink-0 md:h-[84px] md:w-[84px]"><Image src={businessType.icon_url} alt="" width={84} height={84} unoptimized className="h-full w-full scale-[1.45] object-contain" /></span> : <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#f2f3f4] md:h-[72px] md:w-[72px]"><BriefcaseBusiness className="h-8 w-8 text-[#004e28] md:h-9 md:w-9" strokeWidth={1.6} aria-hidden="true" /></span>}
+              {businessType.icon_url ? <span className="block h-[72px] w-[72px] shrink-0 md:h-[84px] md:w-[84px]"><Image src={businessType.icon_url} alt="" width={84} height={84} unoptimized className={`h-full w-full object-contain ${usesFullCanvasIcon ? "scale-100" : "scale-[1.45]"}`} /></span> : <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#f2f3f4] md:h-[72px] md:w-[72px]"><BriefcaseBusiness className="h-8 w-8 text-[#004e28] md:h-9 md:w-9" strokeWidth={1.6} aria-hidden="true" /></span>}
             </span>
             <span className={`line-clamp-2 w-full break-words font-[family-name:var(--font-varela-round)] text-sm font-bold leading-tight transition-colors md:text-lg ${selected ? "text-[#168e00]" : "text-[#004e28] group-hover:text-[#168e00]"}`}>{businessType.name}</span>
             <span aria-hidden="true" className={`h-1 w-8 rounded-full transition-colors ${selected ? "bg-[#168e00]" : "bg-transparent group-hover:bg-[#168e00]/25"}`} />
