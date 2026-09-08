@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import Image from "next/image";
-import { BriefcaseBusiness, ImagePlus, Loader2, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Loader2, Trash2, X } from "lucide-react";
+import FileUpload from "@/components/ui/FileUpload";
 import { businessTypeService } from "@/services/businessTypeService";
 import type { BusinessTypeAdminDetail, BusinessTypePayload } from "@/types/businessType";
 
 const inputClass = "w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
-const buttonClass = "rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#004e28] disabled:cursor-not-allowed disabled:opacity-50";
-const secondaryButtonClass = "inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-[#168e00]/40 hover:text-[#168e00] disabled:cursor-not-allowed disabled:opacity-50";
+const buttonClass = "ml-auto inline-flex min-w-40 items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60";
 const acceptedIconTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const messageOf = (error: unknown) => error instanceof Error ? error.message : "No se pudo guardar. Inténtalo de nuevo.";
 
@@ -18,13 +17,11 @@ export function BusinessTypeForm({ id, onClose, onSaved }: {
   onSaved: (message: string) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const iconInput = useRef<HTMLInputElement>(null);
   const [detail, setDetail] = useState<BusinessTypeAdminDetail | null>(null);
   const [createdId, setCreatedId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [active, setActive] = useState(true);
   const [iconFile, setIconFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(id !== null);
   const [loadError, setLoadError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -43,16 +40,6 @@ export function BusinessTypeForm({ id, onClose, onSaved }: {
       document.body.style.overflow = previousOverflow;
     };
   }, []);
-
-  useEffect(() => {
-    if (!iconFile) {
-      setPreviewUrl(null);
-      return;
-    }
-    const objectUrl = URL.createObjectURL(iconFile);
-    setPreviewUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [iconFile]);
 
   useEffect(() => {
     if (id === null) return;
@@ -77,11 +64,8 @@ export function BusinessTypeForm({ id, onClose, onSaved }: {
   }, [id, retry]);
 
   const generalChanged = !detail || name.trim() !== detail.name || active !== detail.is_active;
-  const displayedIcon = previewUrl ?? detail?.icon_url ?? null;
-
   function resetIconSelection() {
     setIconFile(null);
-    if (iconInput.current) iconInput.current.value = "";
   }
 
   function close() {
@@ -92,14 +76,15 @@ export function BusinessTypeForm({ id, onClose, onSaved }: {
     onClose();
   }
 
-  function selectIcon(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  function selectIcon(file: File | null) {
+    if (!file) {
+      resetIconSelection();
+      return;
+    }
     setIconError("");
     setError("");
     setSuccess("");
     if (!acceptedIconTypes.has(file.type)) {
-      event.target.value = "";
       setIconFile(null);
       setIconError("Selecciona una imagen PNG, JPG o WEBP.");
       return;
@@ -230,44 +215,38 @@ export function BusinessTypeForm({ id, onClose, onSaved }: {
             <h3 className="font-semibold text-[#004e28]">Datos generales</h3>
             {detail && id !== null ? <p className="break-words text-xs text-gray-500">Identificador: {detail.slug} · {detail.suppliers_count} proveedores</p> : null}
 
-            <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <div className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-white">
-                  {displayedIcon
-                    ? <Image src={displayedIcon} alt="Vista previa del icono" fill sizes="96px" unoptimized={Boolean(previewUrl)} className="object-contain p-2" />
-                    : <BriefcaseBusiness size={34} className="text-gray-300" aria-hidden="true" />}
-                </div>
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">Icono del tipo de negocio{id === null ? " *" : ""}</p>
-                    <p className="mt-1 text-xs text-gray-500">PNG, JPG o WEBP. La imagen se optimizará automáticamente.</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" disabled={!!saving} onClick={() => iconInput.current?.click()} className={secondaryButtonClass}>
-                      <ImagePlus size={16} />{displayedIcon ? "Cambiar icono" : "Seleccionar imagen"}
-                    </button>
-                    {id !== null && detail?.icon_url ? <button type="button" disabled={!!saving} onClick={() => void deleteIcon()} className="inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">
-                      {saving === "delete-icon" ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}Eliminar icono
-                    </button> : null}
-                  </div>
-                  <input ref={iconInput} type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={selectIcon} className="sr-only" aria-label="Seleccionar icono del tipo de negocio" />
-                  {iconFile ? <p className="truncate text-xs text-gray-600">Seleccionado: {iconFile.name}</p> : null}
-                </div>
-              </div>
-              {iconError ? <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{iconError}</p> : null}
-              {id !== null && iconFile ? <button type="button" disabled={!!saving} onClick={() => void saveIcon()} className={`${buttonClass} mt-4 inline-flex items-center gap-2`}>
-                {saving === "icon" ? <Loader2 size={16} className="animate-spin" /> : null}{saving === "icon" ? "Guardando icono..." : "Guardar icono"}
-              </button> : null}
+            <div className="space-y-4">
+              <FileUpload
+                label={`Icono del tipo de negocio${id === null ? " *" : ""}`}
+                value={iconFile}
+                currentImageUrl={detail?.icon_url}
+                onChange={selectIcon}
+                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                helperText="PNG, JPG o WEBP. La imagen se optimizará automáticamente."
+                disabled={!!saving}
+                removeBehavior="clear_selection"
+              />
+              {iconError ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{iconError}</p> : null}
+              {id !== null ? <div className="flex flex-wrap justify-end gap-2">
+                {detail?.icon_url ? <button type="button" disabled={!!saving} onClick={() => void deleteIcon()} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">
+                  {saving === "delete-icon" ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}Eliminar icono
+                </button> : null}
+                {iconFile ? <button type="button" disabled={!!saving} onClick={() => void saveIcon()} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60">
+                  {saving === "icon" ? <Loader2 size={16} className="animate-spin" /> : null}{saving === "icon" ? "Guardando icono..." : "Guardar icono"}
+                </button> : null}
+              </div> : null}
             </div>
 
             <fieldset disabled={!!saving} className="space-y-4">
               <div className="space-y-1.5"><label htmlFor="business-type-name" className="text-sm font-semibold">Nombre *</label><input id="business-type-name" autoFocus={id === null} required disabled={id === null && createdId !== null} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} /></div>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={active} disabled={id === null && createdId !== null} onChange={(event) => setActive(event.target.checked)} className="h-4 w-4 accent-[#168e00]" />Activo</label>
               {error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-              <button type="submit" disabled={!!saving || (id !== null && !generalChanged)} className={`${buttonClass} inline-flex items-center gap-2`}>
-                {saving === "general" ? <Loader2 size={16} className="animate-spin" /> : null}
-                {saving === "general" ? (createdId === null ? "Creando..." : "Subiendo icono...") : createdId !== null ? "Reintentar subida de icono" : id === null ? "Crear tipo" : "Guardar datos generales"}
-              </button>
+              <div className="flex justify-end border-t border-gray-100 pt-4">
+                <button type="submit" disabled={!!saving || (id !== null && !generalChanged)} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60">
+                  {saving === "general" ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {saving === "general" ? (createdId === null ? "Creando..." : "Subiendo icono...") : createdId !== null ? "Reintentar subida de icono" : id === null ? "Crear tipo" : "Guardar datos generales"}
+                </button>
+              </div>
             </fieldset>
           </form>
         </div>}

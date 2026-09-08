@@ -310,7 +310,7 @@ export default function FileUpload({
               </>
             ) : null}
             
-            {(value || effectiveCurrentUrl) && !disabled && (
+            {(value || (effectiveCurrentUrl && removeBehavior === "clear_all")) && !disabled && (
               <button
                 onClick={handleRemove}
                 className="absolute -top-2 -right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 shadow-md transition-colors z-10"
