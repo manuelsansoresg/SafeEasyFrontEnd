@@ -106,10 +106,10 @@ function translateConflict(
       return "Ya tienes una subcategoría con ese nombre.";
 
     case "Supplier category is currently in use":
-      return "Esta categoría está siendo utilizada por productos o servicios activos.";
+      return "No puedes eliminar esta categoría porque está siendo utilizada por un producto o servicio. Puedes desactivarla.";
 
     case "Supplier subcategory is currently in use":
-      return "Esta subcategoría está siendo utilizada por productos o servicios activos.";
+      return "No puedes eliminar esta subcategoría porque está siendo utilizada por un producto o servicio. Puedes desactivarla.";
 
     default:
       return (
