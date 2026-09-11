@@ -29,6 +29,8 @@ import {
   CircleHelp,
   Trash2,
   Tags,
+  Blocks,
+  
 } from "lucide-react";
 import { BriefcaseBusiness } from "lucide-react";
 import { Image as ImageIcon } from "lucide-react";
@@ -180,6 +182,12 @@ export function AdminSidebar({
           path: "/admin/plans",
           icon: BadgeDollarSign,
           roles: ["admin", "superuser"],
+        },
+        {
+          title: "Módulos",
+          path: "/admin/modules",
+          icon: Blocks,
+          roles: ["admin"],
         },
       ],
     },
