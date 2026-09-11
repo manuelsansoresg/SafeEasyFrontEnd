@@ -37,6 +37,12 @@ const serverSnapshot = () => false;
 const actionClass =
   "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50";
 
+const compactActionClass =
+  "inline-flex items-center justify-center rounded-lg p-2 text-gray-400 transition-colors hover:bg-primary/5 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50";
+
+const selectClass =
+  "h-11 rounded-xl border border-gray-200 bg-white px-4 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+
 function formatPrice(
   price: number | null,
   hasPrice: boolean,
@@ -266,19 +272,28 @@ function ModulesContent() {
     }
   }
 
-  function actions(item: ModuleAdminList) {
+  function actions(
+    item: ModuleAdminList,
+    compact = false,
+  ) {
     return (
-      <div className="flex flex-wrap justify-end gap-1">
+      <div className="flex flex-wrap justify-end gap-2">
         <button
           type="button"
           disabled={busyId !== null}
           onClick={() =>
             setEditor({ id: item.id })
           }
-          className={actionClass}
+          className={
+            compact
+              ? compactActionClass
+              : actionClass
+          }
+          aria-label={`Editar ${item.name}`}
+          title={compact ? "Editar" : undefined}
         >
-          <Edit2 size={16} />
-          Editar
+          <Edit2 size={compact ? 18 : 16} />
+          {compact ? null : "Editar"}
         </button>
 
         {item.availability === "selected" ? (
@@ -291,10 +306,16 @@ function ModulesContent() {
                 name: item.name,
               })
             }
-            className={actionClass}
+            className={
+              compact
+                ? compactActionClass
+                : actionClass
+            }
+            aria-label={`Administrar proveedores elegibles para ${item.name}`}
+            title={compact ? "Elegibles" : undefined}
           >
-            <UserCheck size={16} />
-            Elegibles
+            <UserCheck size={compact ? 18 : 16} />
+            {compact ? null : "Elegibles"}
           </button>
         ) : null}
 
@@ -307,29 +328,55 @@ function ModulesContent() {
               name: item.name,
             })
           }
-          className={actionClass}
+          className={
+            compact
+              ? compactActionClass
+              : actionClass
+          }
+          aria-label={`Administrar asignaciones de ${item.name}`}
+          title={compact ? "Asignaciones" : undefined}
         >
-          <Users size={16} />
-          Asignaciones
+          <Users size={compact ? 18 : 16} />
+          {compact ? null : "Asignaciones"}
         </button>
 
         <button
           type="button"
           disabled={busyId !== null}
           onClick={() => void toggle(item)}
-          className={actionClass}
+          className={
+            compact
+              ? `${compactActionClass} ${
+                  item.is_active
+                    ? "hover:bg-red-50 hover:text-red-500"
+                    : ""
+                }`
+              : actionClass
+          }
+          aria-label={`${
+            item.is_active ? "Desactivar" : "Activar"
+          } ${item.name}`}
+          title={
+            compact
+              ? item.is_active
+                ? "Desactivar"
+                : "Activar"
+              : undefined
+          }
         >
           {busyId === item.id ? (
             <Loader2
-              size={16}
+              size={compact ? 18 : 16}
               className="animate-spin"
             />
           ) : (
-            <Power size={16} />
+            <Power size={compact ? 18 : 16} />
           )}
-          {item.is_active
-            ? "Desactivar"
-            : "Activar"}
+          {compact
+            ? null
+            : item.is_active
+              ? "Desactivar"
+              : "Activar"}
         </button>
       </div>
     );
@@ -398,7 +445,7 @@ function ModulesContent() {
               setSkip(0);
               setLoading(true);
             }}
-            className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20"
+            className={selectClass}
           >
             <option value="all">Todos</option>
             <option value="active">Activos</option>
@@ -554,7 +601,7 @@ function ModulesContent() {
                       </td>
 
                       <td className="px-5 py-4">
-                        {actions(item)}
+                        {actions(item, true)}
                       </td>
                     </tr>
                   ))}

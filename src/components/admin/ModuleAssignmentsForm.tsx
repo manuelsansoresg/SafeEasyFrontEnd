@@ -14,6 +14,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { moduleService } from "@/services/moduleService";
 import type {
   ModuleAdminDetail,
@@ -25,6 +26,9 @@ import type {
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+
+const selectClass =
+  "h-11 w-full rounded-xl border border-gray-200 bg-white px-4 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
 const messageOf = (error: unknown) =>
   error instanceof Error
@@ -261,6 +265,26 @@ export function ModuleAssignmentsForm({
     editingId,
     suppliers,
   ]);
+
+  const supplierOptions = useMemo(
+    () =>
+      availableSuppliers.map((supplier) => ({
+        id: supplier.id,
+        name: supplierLabel(supplier, supplier.id),
+      })),
+    [availableSuppliers],
+  );
+
+  const selectedSupplier = useMemo(() => {
+    const supplierId = Number(form.supplierId);
+    if (!Number.isInteger(supplierId)) return null;
+
+    return (
+      supplierOptions.find(
+        (option) => option.id === supplierId,
+      ) ?? null
+    );
+  }, [form.supplierId, supplierOptions]);
 
   const filteredAssignments = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -645,39 +669,27 @@ export function ModuleAssignmentsForm({
                 >
                   Proveedor *
                 </label>
-                <select
+                <SearchableSelect
                   id="assignment-supplier"
-                  required
                   disabled={
                     saving || editingId !== null
                   }
-                  value={form.supplierId}
-                  onChange={(event) =>
+                  value={selectedSupplier}
+                  options={supplierOptions}
+                  onChange={(option) =>
                     setForm((current) => ({
                       ...current,
                       supplierId:
-                        event.target.value,
+                        option === null
+                          ? ""
+                          : String(option.id),
                     }))
                   }
-                  className={`${inputClass} bg-white disabled:bg-gray-100`}
-                >
-                  <option value="">
-                    Selecciona...
-                  </option>
-                  {availableSuppliers.map(
-                    (supplier) => (
-                      <option
-                        key={supplier.id}
-                        value={supplier.id}
-                      >
-                        {supplierLabel(
-                          supplier,
-                          supplier.id,
-                        )}
-                      </option>
-                    ),
-                  )}
-                </select>
+                  placeholder="Selecciona un proveedor"
+                  searchPlaceholder="Buscar proveedor..."
+                  emptyLabel="No se encontraron proveedores"
+                  className={`${selectClass} disabled:bg-gray-100`}
+                />
               </div>
 
               <div className="space-y-1.5">
@@ -704,7 +716,7 @@ export function ModuleAssignmentsForm({
                           : false,
                     }));
                   }}
-                  className={`${inputClass} bg-white`}
+                  className={selectClass}
                 >
                   <option value="active">
                     Activo
@@ -811,7 +823,7 @@ export function ModuleAssignmentsForm({
                             .value as ModuleBillingPeriod | "",
                       }))
                     }
-                    className={`${inputClass} bg-white`}
+                    className={selectClass}
                   >
                     <option value="">
                       Sin periodo

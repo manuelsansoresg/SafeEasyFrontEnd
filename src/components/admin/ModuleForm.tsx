@@ -18,6 +18,9 @@ import type {
 const inputClass =
   "w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
+const selectClass =
+  "h-11 w-full rounded-xl border border-gray-200 bg-white px-4 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+
 const messageOf = (error: unknown) =>
   error instanceof Error
     ? error.message
@@ -453,7 +456,7 @@ export function ModuleForm({
                         .value as ModuleAvailability,
                     )
                   }
-                  className={inputClass}
+                  className={selectClass}
                 >
                   <option value="all">
                     Todos los proveedores
@@ -535,7 +538,7 @@ export function ModuleForm({
                             .value as ModuleBillingPeriod,
                         )
                       }
-                      className={inputClass}
+                      className={selectClass}
                     >
                       <option value="">
                         Selecciona...
