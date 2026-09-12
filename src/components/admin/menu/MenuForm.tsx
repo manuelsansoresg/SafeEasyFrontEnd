@@ -99,7 +99,7 @@ export function MenuForm({ open, menu, saving = false, onClose, onSubmit }: Prop
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/40 p-4 sm:p-6">
+    <div className="fixed inset-0 z-[20000] overflow-y-auto bg-black/40 p-4 sm:p-6">
       <div className="mx-auto my-4 w-full max-w-3xl rounded-3xl bg-white shadow-2xl sm:my-8">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-5">
           <div>

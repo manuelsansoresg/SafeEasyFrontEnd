@@ -58,7 +58,7 @@ export function MenuItemForm({ open, item, saving = false, onClose, onSubmit }: 
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/40 p-4 sm:p-6">
+    <div className="fixed inset-0 z-[20000] overflow-y-auto bg-black/40 p-4 sm:p-6">
       <form
         onSubmit={submit}
         className="mx-auto my-4 w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl sm:my-8"
