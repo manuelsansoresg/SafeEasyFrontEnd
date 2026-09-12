@@ -72,6 +72,47 @@ async function request(
 }
 
 export const menuService = {
+  async publicList(slug: string, signal?: AbortSignal): Promise<Menu[]> {
+    const response = await fetch(
+      `/api/backend/public/menus/${encodeURIComponent(slug)}`,
+      {
+        cache: "no-store",
+        signal,
+      },
+    );
+
+    if (response.status === 404) return [];
+
+    if (!response.ok) {
+      throw new Error(`No se pudo cargar el menú público (${response.status}).`);
+    }
+
+    const data: unknown = await response.json();
+    if (!Array.isArray(data)) return [];
+
+    const byDisplayOrderAndId = <T extends { display_order: number; id: number }>(
+      first: T,
+      second: T,
+    ) => first.display_order - second.display_order || first.id - second.id;
+
+    return (data as Menu[])
+      .filter((menu) => menu.is_active)
+      .map((menu) => ({
+        ...menu,
+        sections: (Array.isArray(menu.sections) ? menu.sections : [])
+          .filter((section) => section.is_active)
+          .map((section) => ({
+            ...section,
+            items: (Array.isArray(section.items) ? section.items : [])
+              .filter((item) => item.is_active)
+              .sort(byDisplayOrderAndId),
+          }))
+          .filter((section) => section.items.length > 0)
+          .sort(byDisplayOrderAndId),
+      }))
+      .sort(byDisplayOrderAndId);
+  },
+
   async access(signal?: AbortSignal): Promise<ModuleAccessResponse> {
     const response = await request(`${moduleBase}/menu/access`, { signal });
     return response.json();

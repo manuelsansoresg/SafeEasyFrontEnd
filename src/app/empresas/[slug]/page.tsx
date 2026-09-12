@@ -27,6 +27,9 @@ import { DirectoryRatingsSection } from "@/components/supplier/DirectoryRatingsS
 import { DirectoryContactButton } from "@/components/supplier/DirectoryContactButton";
 import { DirectoryTopNav } from "@/components/supplier/DirectoryTopNav";
 import { DirectoryGallerySection } from "@/components/supplier/DirectoryGallerySection";
+import { PublicSupplierMenu } from "@/components/supplier/menu/PublicSupplierMenu";
+import { menuService } from "@/services/menuService";
+import type { Menu } from "@/types/menu";
 
 const SupplierLocationMap = dynamic(() => import("@/components/supplier/SupplierLocationMap"), {
   ssr: false,
@@ -418,7 +421,8 @@ import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCa
 export default function SupplierPage() {
   const { slug } = useParams();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
-  const [activeTab, setActiveTab] = useState<'main' | 'products'>('main');
+  const [activeTab, setActiveTab] = useState<'main' | 'menu' | 'products'>('main');
+  const [publicMenus, setPublicMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const headerVideoRef = useRef<HTMLVideoElement>(null);
   const supplierViewSentRef = useRef<Set<string>>(new Set());
@@ -562,6 +566,29 @@ export default function SupplierPage() {
       setSelectedSubcategorySlug(null);
     }
   }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+
+    const controller = new AbortController();
+    setPublicMenus([]);
+
+    menuService
+      .publicList(String(slug), controller.signal)
+      .then(setPublicMenus)
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setPublicMenus([]);
+      });
+
+    return () => controller.abort();
+  }, [slug]);
+
+  useEffect(() => {
+    if (activeTab === "menu" && publicMenus.length === 0) {
+      setActiveTab("main");
+    }
+  }, [activeTab, publicMenus.length]);
 
   useEffect(() => {
     if (supplier?.id) {
@@ -1206,7 +1233,7 @@ const contactHref = supplier?.phone
       </section>
 
       {/* --- TABS NAVIGATION (solo tienda; directorio usa DirectoryTopNav propio) --- */}
-      {!isDirectory ? (
+      {!isDirectory || publicMenus.length > 0 ? (
        <div ref={tabsRef} className="sticky top-[0px] md:top-[0px] z-40 bg-white border-b border-gray-100 shadow-sm backdrop-blur-md bg-white/90">
         <div className="container mx-auto px-4 md:px-8">
            <div className="flex gap-8 overflow-x-auto no-scrollbar">
@@ -1216,6 +1243,14 @@ const contactHref = supplier?.phone
               >
                 Página Principal
               </button>
+              {publicMenus.length > 0 ? (
+              <button
+                onClick={() => setActiveTab('menu')}
+                className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'menu' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
+              >
+                Menú
+              </button>
+              ) : null}
               {!isDirectory ? (
               <button
                 onClick={() => setActiveTab('products')}
@@ -1227,6 +1262,10 @@ const contactHref = supplier?.phone
            </div>
         </div>
       </div>
+      ) : null}
+
+      {activeTab === "menu" && publicMenus.length > 0 ? (
+        <PublicSupplierMenu menus={publicMenus} />
       ) : null}
 
       {activeTab === "main" && supplier.description?.trim() ? (
@@ -1261,7 +1300,7 @@ const contactHref = supplier?.phone
         </section>
       ) : null}
 
-      {isDirectory ? (
+      {isDirectory && activeTab === "main" ? (
         <section
           id="servicios"
           className="relative scroll-mt-20 overflow-hidden bg-[#f2f3f4] py-20"
@@ -1333,7 +1372,7 @@ const contactHref = supplier?.phone
       ) : null}
 
       {/* --- INTRO SECTION (Directory) --- */}
-      {isDirectory && (supplier.intro_title?.trim() || supplier.intro_description?.trim() || supplier.intro_image_url) ? (
+      {isDirectory && activeTab === "main" && (supplier.intro_title?.trim() || supplier.intro_description?.trim() || supplier.intro_image_url) ? (
         <section
           id="intro"
           className="relative scroll-mt-20 overflow-hidden bg-[#004e28] py-16 text-white md:py-24"
