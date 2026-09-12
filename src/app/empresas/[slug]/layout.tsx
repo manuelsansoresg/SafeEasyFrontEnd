@@ -70,6 +70,21 @@ const getSupplierImage = (supplier: SeoSupplier) => {
   );
 };
 
+const getTextValue = (value: unknown): string => {
+  if (typeof value === "string") return stripHtml(value);
+  if (!value || typeof value !== "object") return "";
+
+  const record = value as Record<string, unknown>;
+  for (const key of ["name", "title", "label"] as const) {
+    if (typeof record[key] !== "string") continue;
+
+    const text = stripHtml(record[key]);
+    if (text) return text;
+  }
+
+  return "";
+};
+
 const getBusinessActivity = (supplier: SeoSupplier, services: SupplierService[]) => {
   const structured = [
     supplier.business_category,
@@ -77,7 +92,7 @@ const getBusinessActivity = (supplier: SeoSupplier, services: SupplierService[])
     supplier.specialty,
     ...(supplier.specialties || []),
   ]
-    .map(stripHtml)
+    .map(getTextValue)
     .find(Boolean);
   if (structured) return truncateText(structured, 45).replace(/\.\.\.$/, "");
 

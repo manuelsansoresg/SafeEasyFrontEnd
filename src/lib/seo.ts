@@ -31,6 +31,17 @@ export interface SeoCategory {
   is_active?: boolean;
 }
 
+type SeoBusinessActivityValue =
+  | string
+  | {
+      id?: number;
+      name?: string | null;
+      title?: string | null;
+      label?: string | null;
+      slug?: string | null;
+    }
+  | null;
+
 export interface SeoSupplier {
   id: number;
   name: string;
@@ -64,8 +75,8 @@ export interface SeoSupplier {
   facebook_url?: string | null;
   instagram_url?: string | null;
   x_url?: string | null;
-  business_category?: string | null;
-  business_type?: string | null;
+  business_category?: SeoBusinessActivityValue;
+  business_type?: SeoBusinessActivityValue;
   specialty?: string | null;
   specialties?: string[] | null;
   tags?: string[] | null;
