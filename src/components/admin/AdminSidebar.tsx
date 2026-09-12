@@ -30,6 +30,7 @@ import {
   Trash2,
   Tags,
   Blocks,
+  UtensilsCrossed
   
 } from "lucide-react";
 import { BriefcaseBusiness } from "lucide-react";
@@ -39,6 +40,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
+import { useMenuModuleAccess } from "@/hooks/useMenuModuleAccess";
 
 interface AdminSidebarProps {
   isCollapsed: boolean;
@@ -83,6 +85,7 @@ export function AdminSidebar({
     user?.role === "admin" || user?.role === "superuser";
 
   const isSupplier = user?.role === "supplier";
+  const { hasAccess: hasMenuAccess } = useMenuModuleAccess(isSupplier);
 
   const { isDirectory } =
     useMyDirectorySubscription(isSupplier);
@@ -250,6 +253,16 @@ export function AdminSidebar({
       icon: Tags,
       roles: ["supplier"],
     },
+    ...(isSupplier && hasMenuAccess
+  ? [
+      {
+        title: "Menú",
+        path: "/admin/menu",
+        icon: UtensilsCrossed,
+        roles: ["supplier"] as AdminRole[],
+      },
+    ]
+  : []),
 
     ...(isSupplier && isDirectory
       ? [
