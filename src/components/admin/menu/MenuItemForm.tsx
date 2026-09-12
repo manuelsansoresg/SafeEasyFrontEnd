@@ -58,8 +58,11 @@ export function MenuItemForm({ open, item, saving = false, onClose, onSubmit }: 
   };
 
   return (
-    <div className="fixed inset-0 z-[96] flex items-center justify-center bg-black/40 p-4">
-      <form onSubmit={submit} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/40 p-4 sm:p-6">
+      <form
+        onSubmit={submit}
+        className="mx-auto my-4 w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl sm:my-8"
+      >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#168e00]">Elemento</p>
