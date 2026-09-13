@@ -1,0 +1,253 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  CalendarClock,
+  CalendarOff,
+  Check,
+  Clock3,
+  Loader2,
+  Pencil,
+  Plus,
+  Save,
+  Settings2,
+  Trash2,
+} from "lucide-react";
+import { PageHero } from "@/components/ui/PageHero";
+import { Toast } from "@/components/ui/Toast";
+import { useAgendaModuleAccess } from "@/hooks/useAgendaModuleAccess";
+import { agendaService } from "@/services/agendaService";
+import type {
+  AgendaDay,
+  AgendaException,
+  AgendaExceptionPayload,
+  AgendaExceptionType,
+  AgendaSchedulePayload,
+  AgendaService,
+  AgendaServicePayload,
+  AgendaSettings,
+  BufferDuration,
+  ServiceDuration,
+  SlotInterval,
+} from "@/types/agenda";
+
+type Section = "general" | "hours" | "services" | "exceptions";
+type ToastState = { type: "success" | "error" | "info"; message: string } | null;
+
+const DAYS: { value: AgendaDay; label: string; short: string }[] = [
+  { value: 0, label: "Lunes", short: "Lun" },
+  { value: 1, label: "Martes", short: "Mar" },
+  { value: 2, label: "Miércoles", short: "Mié" },
+  { value: 3, label: "Jueves", short: "Jue" },
+  { value: 4, label: "Viernes", short: "Vie" },
+  { value: 5, label: "Sábado", short: "Sáb" },
+  { value: 6, label: "Domingo", short: "Dom" },
+];
+const SLOT_INTERVALS: SlotInterval[] = [15, 20, 30, 60];
+const DURATIONS: ServiceDuration[] = [15, 20, 30, 45, 60, 90, 120];
+const BUFFERS: BufferDuration[] = [0, 5, 10, 15, 20, 30, 45, 60];
+
+const inputClass = "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10";
+const panelClass = "rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6";
+
+function message(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function timeInput(value: string | null | undefined) {
+  return value ? value.slice(0, 5) : "";
+}
+
+function money(value: number | null) {
+  if (value == null) return "Sin precio";
+  return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value);
+}
+
+export default function AdminAgendaPage() {
+  const { loading: accessLoading, hasAccess } = useAgendaModuleAccess(true);
+  const [section, setSection] = useState<Section>("general");
+  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<AgendaSettings | null>(null);
+  const [schedules, setSchedules] = useState<AgendaSchedulePayload[]>([]);
+  const [services, setServices] = useState<AgendaService[]>([]);
+  const [exceptions, setExceptions] = useState<AgendaException[]>([]);
+  const [toast, setToast] = useState<ToastState>(null);
+  const [saving, setSaving] = useState(false);
+  const [serviceModal, setServiceModal] = useState(false);
+  const [editingService, setEditingService] = useState<AgendaService | null>(null);
+  const [exceptionModal, setExceptionModal] = useState(false);
+  const [editingException, setEditingException] = useState<AgendaException | null>(null);
+
+  const load = useCallback(async () => {
+    if (!hasAccess) { setLoading(false); return; }
+    const controller = new AbortController();
+    setLoading(true);
+    try {
+      const [settingsData, scheduleData, serviceData, exceptionData] = await Promise.all([
+        agendaService.getSettings(controller.signal),
+        agendaService.listSchedules(controller.signal),
+        agendaService.listServices(controller.signal),
+        agendaService.listExceptions(controller.signal),
+      ]);
+      setSettings(settingsData);
+      setSchedules(scheduleData.map((item) => ({
+        day_of_week: item.day_of_week,
+        start_time: timeInput(item.start_time),
+        end_time: timeInput(item.end_time),
+        is_active: item.is_active,
+      })));
+      setServices(serviceData);
+      setExceptions(exceptionData);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setToast({ type: "error", message: message(error, "No se pudo cargar la agenda.") });
+      }
+    } finally { setLoading(false); }
+    return () => controller.abort();
+  }, [hasAccess]);
+
+  useEffect(() => { if (!accessLoading) void load(); }, [accessLoading, load]);
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  const tabs = useMemo(() => [
+    { id: "general" as const, label: "General", icon: Settings2 },
+    { id: "hours" as const, label: "Horarios", icon: Clock3 },
+    { id: "services" as const, label: "Servicios", icon: CalendarClock },
+    { id: "exceptions" as const, label: "Excepciones", icon: CalendarOff },
+  ], []);
+
+  if (accessLoading || loading) return <div className="flex min-h-[55vh] items-center justify-center"><Loader2 className="animate-spin text-[#168e00]" size={34} /></div>;
+  if (!hasAccess) return (
+    <div className="mx-auto max-w-5xl space-y-6">
+      <PageHero eyebrow="Módulo" title="Agenda" subtitle="Configura las reservaciones de tu negocio." />
+      <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+        <div className="flex gap-3"><AlertCircle className="shrink-0" /><div><h2 className="font-bold">El módulo Agenda no está activo</h2><p className="mt-1 text-sm">Activa o solicita el módulo antes de configurar tu agenda.</p></div></div>
+      </div>
+    </div>
+  );
+
+  const saveSettings = async () => {
+    if (!settings) return;
+    setSaving(true);
+    try {
+      const updated = await agendaService.updateSettings({
+        timezone: settings.timezone,
+        slot_interval_minutes: settings.slot_interval_minutes,
+        minimum_notice_minutes: settings.minimum_notice_minutes,
+        maximum_booking_days: settings.maximum_booking_days,
+        cancellation_notice_hours: settings.cancellation_notice_hours,
+        automatic_confirmation: settings.automatic_confirmation,
+        is_active: settings.is_active,
+      });
+      setSettings(updated);
+      setToast({ type: "success", message: "Configuración guardada." });
+    } catch (error) { setToast({ type: "error", message: message(error, "No se pudo guardar.") }); }
+    finally { setSaving(false); }
+  };
+
+  const saveSchedules = async () => {
+    for (const block of schedules) {
+      if (!block.start_time || !block.end_time || block.end_time <= block.start_time) {
+        setToast({ type: "error", message: "Revisa las horas: la hora final debe ser posterior a la inicial." });
+        return;
+      }
+    }
+    setSaving(true);
+    try {
+      const saved = await agendaService.replaceSchedules(schedules);
+      setSchedules(saved.map((item) => ({ ...item, start_time: timeInput(item.start_time), end_time: timeInput(item.end_time) })));
+      setToast({ type: "success", message: "Horarios guardados." });
+    } catch (error) { setToast({ type: "error", message: message(error, "No se pudieron guardar los horarios.") }); }
+    finally { setSaving(false); }
+  };
+
+  const addBlock = (day: AgendaDay) => setSchedules((current) => [...current, { day_of_week: day, start_time: "09:00", end_time: "18:00", is_active: true }]);
+  const updateBlock = (index: number, changes: Partial<AgendaSchedulePayload>) => setSchedules((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...changes } : item));
+  const removeBlock = (index: number) => setSchedules((current) => current.filter((_, itemIndex) => itemIndex !== index));
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-6">
+      <PageHero eyebrow="Módulo" title="Agenda" subtitle="Define tus horarios, servicios y fechas especiales." />
+
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
+        {tabs.map((tab) => <button key={tab.id} type="button" onClick={() => setSection(tab.id)} className={section === tab.id ? "inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#004e28] px-4 py-2.5 font-semibold text-white" : "inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-gray-500 hover:bg-gray-50 hover:text-[#004e28]"}><tab.icon size={18} />{tab.label}</button>)}
+      </div>
+
+      {section === "general" && settings ? (
+        <section className={panelClass}>
+          <div className="mb-6"><h2 className="text-xl font-bold text-gray-900">Configuración general</h2><p className="text-sm text-gray-500">Estas reglas se aplicarán a todas las reservaciones.</p></div>
+          <div className="grid gap-5 md:grid-cols-2">
+            <label><span className="mb-1.5 block text-sm font-semibold text-gray-700">Zona horaria</span><select className={inputClass} value={settings.timezone} onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}><option value="America/Merida">Mérida / Ciudad de México</option><option value="America/Cancun">Cancún</option><option value="America/Monterrey">Monterrey</option><option value="America/Tijuana">Tijuana</option></select></label>
+            <label><span className="mb-1.5 block text-sm font-semibold text-gray-700">Intervalos disponibles</span><select className={inputClass} value={settings.slot_interval_minutes} onChange={(e) => setSettings({ ...settings, slot_interval_minutes: Number(e.target.value) as SlotInterval })}>{SLOT_INTERVALS.map((value) => <option key={value} value={value}>Cada {value} minutos</option>)}</select></label>
+            <NumberField label="Anticipación mínima (minutos)" value={settings.minimum_notice_minutes} min={0} max={43200} onChange={(value) => setSettings({ ...settings, minimum_notice_minutes: value })} />
+            <NumberField label="Días máximos para reservar" value={settings.maximum_booking_days} min={1} max={365} onChange={(value) => setSettings({ ...settings, maximum_booking_days: value })} />
+            <NumberField label="Horas mínimas para cancelar" value={settings.cancellation_notice_hours} min={0} max={720} onChange={(value) => setSettings({ ...settings, cancellation_notice_hours: value })} />
+          </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-2">
+            <Toggle label="Agenda activa" description="Permite utilizar la configuración de reservaciones." checked={settings.is_active} onChange={(value) => setSettings({ ...settings, is_active: value })} />
+            <Toggle label="Confirmación automática" description="Las nuevas citas se confirmarán sin revisión manual." checked={settings.automatic_confirmation} onChange={(value) => setSettings({ ...settings, automatic_confirmation: value })} />
+          </div>
+          <SaveButton saving={saving} onClick={() => void saveSettings()} />
+        </section>
+      ) : null}
+
+      {section === "hours" ? (
+        <section className="space-y-4">
+          {DAYS.map((day) => {
+            const blocks = schedules.map((item, index) => ({ item, index })).filter(({ item }) => item.day_of_week === day.value);
+            return <div key={day.value} className={panelClass}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold text-gray-900">{day.label}</h3><p className="text-sm text-gray-400">{blocks.length ? `${blocks.length} bloque(s)` : "Cerrado"}</p></div><button type="button" onClick={() => addBlock(day.value)} className="inline-flex items-center gap-2 rounded-xl border border-[#168e00]/20 px-3 py-2 text-sm font-semibold text-[#168e00] hover:bg-[#168e00]/5"><Plus size={16} /> Agregar horario</button></div><div className="mt-4 space-y-3">{blocks.map(({ item, index }) => <div key={`${day.value}-${index}`} className="grid items-end gap-3 rounded-2xl bg-gray-50 p-3 sm:grid-cols-[1fr_1fr_auto]"><label><span className="mb-1 block text-xs font-semibold text-gray-500">Desde</span><input type="time" className={inputClass} value={item.start_time} onChange={(e) => updateBlock(index, { start_time: e.target.value })} /></label><label><span className="mb-1 block text-xs font-semibold text-gray-500">Hasta</span><input type="time" className={inputClass} value={item.end_time} onChange={(e) => updateBlock(index, { end_time: e.target.value })} /></label><button type="button" onClick={() => removeBlock(index)} className="flex h-12 items-center justify-center rounded-xl border border-red-100 px-4 text-red-600 hover:bg-red-50" aria-label="Eliminar horario"><Trash2 size={18} /></button></div>)}</div></div>;
+          })}
+          <SaveButton saving={saving} onClick={() => void saveSchedules()} label="Guardar horarios" />
+        </section>
+      ) : null}
+
+      {section === "services" ? (
+        <section className="space-y-4">
+          <div className="flex justify-end"><button type="button" onClick={() => { setEditingService(null); setServiceModal(true); }} className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 font-semibold text-white hover:bg-[#117500]"><Plus size={18} /> Nuevo servicio</button></div>
+          {services.length === 0 ? <EmptyState title="Todavía no tienes servicios" text="Agrega los servicios que posteriormente podrán reservar tus clientes." /> : <div className="grid gap-4 md:grid-cols-2">{services.map((item) => <article key={item.id} className={panelClass}><div className="flex items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-bold text-gray-900">{item.name}</h3><Status active={item.is_active} /></div>{item.description ? <p className="mt-2 text-sm text-gray-500">{item.description}</p> : null}</div><button type="button" onClick={() => { setEditingService(item); setServiceModal(true); }} className="rounded-xl border border-gray-200 p-2 text-gray-500 hover:bg-gray-50" aria-label="Editar"><Pencil size={17} /></button></div><div className="mt-4 flex flex-wrap gap-2 text-sm"><Chip text={`${item.duration_minutes} min`} /><Chip text={`Margen ${item.buffer_minutes} min`} /><Chip text={money(item.price)} /></div><button type="button" onClick={async () => { try { const updated = await agendaService.updateService(item.id, { is_active: !item.is_active }); setServices((current) => current.map((row) => row.id === updated.id ? updated : row)); } catch (error) { setToast({ type: "error", message: message(error, "No se pudo cambiar el estado.") }); } }} className="mt-4 text-sm font-semibold text-[#168e00]">{item.is_active ? "Desactivar" : "Activar"}</button></article>)}</div>}
+        </section>
+      ) : null}
+
+      {section === "exceptions" ? (
+        <section className="space-y-4">
+          <div className="flex justify-end"><button type="button" onClick={() => { setEditingException(null); setExceptionModal(true); }} className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 font-semibold text-white hover:bg-[#117500]"><Plus size={18} /> Nueva excepción</button></div>
+          {exceptions.length === 0 ? <EmptyState title="No hay fechas especiales" text="Aquí puedes cerrar un día o modificar su horario normal." /> : <div className="space-y-3">{exceptions.map((item) => <article key={item.id} className={`${panelClass} flex flex-col justify-between gap-4 sm:flex-row sm:items-center`}><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-gray-900">{new Date(`${item.exception_date}T12:00:00`).toLocaleDateString("es-MX", { dateStyle: "long" })}</h3><Chip text={exceptionLabel(item.exception_type)} /></div><p className="mt-1 text-sm text-gray-500">{item.exception_type === "closed" ? "Todo el día cerrado" : `${timeInput(item.start_time)} - ${timeInput(item.end_time)}`}{item.reason ? ` · ${item.reason}` : ""}</p></div><div className="flex gap-2"><button type="button" onClick={() => { setEditingException(item); setExceptionModal(true); }} className="rounded-xl border border-gray-200 p-2.5 text-gray-500 hover:bg-gray-50"><Pencil size={17} /></button><button type="button" onClick={async () => { if (!window.confirm("¿Eliminar esta excepción?")) return; try { await agendaService.removeException(item.id); setExceptions((current) => current.filter((row) => row.id !== item.id)); setToast({ type: "success", message: "Excepción eliminada." }); } catch (error) { setToast({ type: "error", message: message(error, "No se pudo eliminar.") }); } }} className="rounded-xl border border-red-100 p-2.5 text-red-600 hover:bg-red-50"><Trash2 size={17} /></button></div></article>)}</div>}
+        </section>
+      ) : null}
+
+      <ServiceModal open={serviceModal} value={editingService} saving={saving} onClose={() => setServiceModal(false)} onSave={async (payload) => { setSaving(true); try { const saved = editingService ? await agendaService.updateService(editingService.id, payload) : await agendaService.createService(payload); setServices((current) => editingService ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved]); setServiceModal(false); setToast({ type: "success", message: editingService ? "Servicio actualizado." : "Servicio creado." }); } catch (error) { setToast({ type: "error", message: message(error, "No se pudo guardar el servicio.") }); } finally { setSaving(false); } }} />
+      <ExceptionModal open={exceptionModal} value={editingException} saving={saving} onClose={() => setExceptionModal(false)} onSave={async (payload) => { setSaving(true); try { const saved = editingException ? await agendaService.updateException(editingException.id, payload) : await agendaService.createException(payload); setExceptions((current) => (editingException ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved]).sort((a, b) => a.exception_date.localeCompare(b.exception_date))); setExceptionModal(false); setToast({ type: "success", message: editingException ? "Excepción actualizada." : "Excepción creada." }); } catch (error) { setToast({ type: "error", message: message(error, "No se pudo guardar la excepción.") }); } finally { setSaving(false); } }} />
+      {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
+    </div>
+  );
+}
+
+function NumberField({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void }) { return <label><span className="mb-1.5 block text-sm font-semibold text-gray-700">{label}</span><input type="number" className={inputClass} value={value} min={min} max={max} onChange={(e) => onChange(Number(e.target.value))} /></label>; }
+function Toggle({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: (value: boolean) => void }) { return <label className="flex items-center gap-3 rounded-2xl border border-gray-200 p-4"><input type="checkbox" className="h-5 w-5 accent-[#168e00]" checked={checked} onChange={(e) => onChange(e.target.checked)} /><span><strong className="block text-gray-800">{label}</strong><small className="text-gray-500">{description}</small></span></label>; }
+function SaveButton({ saving, onClick, label = "Guardar configuración" }: { saving: boolean; onClick: () => void; label?: string }) { return <div className="mt-6 flex justify-end"><button type="button" disabled={saving} onClick={onClick} className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-5 py-3 font-semibold text-white hover:bg-[#117500] disabled:opacity-50">{saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}{label}</button></div>; }
+function Status({ active }: { active: boolean }) { return <span className={active ? "rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700" : "rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500"}>{active ? "Activo" : "Inactivo"}</span>; }
+function Chip({ text }: { text: string }) { return <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-600">{text}</span>; }
+function EmptyState({ title, text }: { title: string; text: string }) { return <div className="rounded-3xl border border-dashed border-gray-200 bg-white px-6 py-14 text-center"><CalendarClock className="mx-auto text-[#168e00]" size={34} /><h2 className="mt-3 text-xl font-bold text-gray-900">{title}</h2><p className="mt-1 text-gray-500">{text}</p></div>; }
+function exceptionLabel(value: AgendaExceptionType) { return value === "closed" ? "Cerrado" : value === "special_hours" ? "Horario especial" : "Bloqueo"; }
+
+function ModalShell({ title, saving, onClose, onSubmit, children }: { title: string; saving: boolean; onClose: () => void; onSubmit: (event: React.FormEvent) => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[20000] overflow-y-auto bg-black/40 p-4"><div className="mx-auto my-8 max-w-2xl rounded-3xl bg-white shadow-2xl"><div className="border-b border-gray-100 px-6 py-5"><h2 className="text-2xl font-bold text-gray-900">{title}</h2></div><form onSubmit={onSubmit} className="space-y-5 p-6">{children}<div className="flex justify-end gap-3 border-t border-gray-100 pt-5"><button type="button" disabled={saving} onClick={onClose} className="rounded-xl border border-gray-200 px-5 py-3 font-semibold text-gray-600">Cancelar</button><button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-5 py-3 font-semibold text-white disabled:opacity-50">{saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}Guardar</button></div></form></div></div>; }
+
+function ServiceModal({ open, value, saving, onClose, onSave }: { open: boolean; value: AgendaService | null; saving: boolean; onClose: () => void; onSave: (payload: AgendaServicePayload) => Promise<void> }) {
+  const [form, setForm] = useState<AgendaServicePayload>({ name: "", description: null, duration_minutes: 30, buffer_minutes: 0, price: null, is_active: true, display_order: 0 });
+  useEffect(() => { if (open) setForm(value ? { name: value.name, description: value.description, duration_minutes: value.duration_minutes, buffer_minutes: value.buffer_minutes, price: value.price, is_active: value.is_active, display_order: value.display_order } : { name: "", description: null, duration_minutes: 30, buffer_minutes: 0, price: null, is_active: true, display_order: 0 }); }, [open, value]);
+  if (!open) return null;
+  return <ModalShell title={value ? "Editar servicio" : "Nuevo servicio"} saving={saving} onClose={onClose} onSubmit={(event) => { event.preventDefault(); if (form.name.trim().length >= 2) void onSave({ ...form, name: form.name.trim(), description: form.description?.trim() || null }); }}><label><span className="mb-1 block text-sm font-semibold">Nombre *</span><input required minLength={2} className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label><label><span className="mb-1 block text-sm font-semibold">Descripción</span><textarea rows={3} className={inputClass} value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value || null })} /></label><div className="grid gap-4 sm:grid-cols-2"><label><span className="mb-1 block text-sm font-semibold">Duración</span><select className={inputClass} value={form.duration_minutes} onChange={(e) => setForm({ ...form, duration_minutes: Number(e.target.value) as ServiceDuration })}>{DURATIONS.map((item) => <option key={item} value={item}>{item} minutos</option>)}</select></label><label><span className="mb-1 block text-sm font-semibold">Margen posterior</span><select className={inputClass} value={form.buffer_minutes} onChange={(e) => setForm({ ...form, buffer_minutes: Number(e.target.value) as BufferDuration })}>{BUFFERS.map((item) => <option key={item} value={item}>{item} minutos</option>)}</select></label><label><span className="mb-1 block text-sm font-semibold">Precio</span><input type="number" min="0" step="0.01" className={inputClass} value={form.price ?? ""} onChange={(e) => setForm({ ...form, price: e.target.value === "" ? null : Number(e.target.value) })} /></label><NumberField label="Orden" value={form.display_order} min={0} max={9999} onChange={(display_order) => setForm({ ...form, display_order })} /></div><Toggle label="Servicio activo" description="Estará disponible cuando se habiliten las reservaciones." checked={form.is_active} onChange={(is_active) => setForm({ ...form, is_active })} /></ModalShell>;
+}
+
+function ExceptionModal({ open, value, saving, onClose, onSave }: { open: boolean; value: AgendaException | null; saving: boolean; onClose: () => void; onSave: (payload: AgendaExceptionPayload) => Promise<void> }) {
+  const [form, setForm] = useState<AgendaExceptionPayload>({ exception_date: "", exception_type: "closed", start_time: null, end_time: null, reason: null });
+  useEffect(() => { if (open) setForm(value ? { exception_date: value.exception_date, exception_type: value.exception_type, start_time: timeInput(value.start_time) || null, end_time: timeInput(value.end_time) || null, reason: value.reason } : { exception_date: "", exception_type: "closed", start_time: null, end_time: null, reason: null }); }, [open, value]);
+  if (!open) return null;
+  const timed = form.exception_type !== "closed";
+  return <ModalShell title={value ? "Editar excepción" : "Nueva excepción"} saving={saving} onClose={onClose} onSubmit={(event) => { event.preventDefault(); if (!form.exception_date) return; if (timed && (!form.start_time || !form.end_time || form.end_time <= form.start_time)) return; void onSave({ ...form, start_time: timed ? form.start_time : null, end_time: timed ? form.end_time : null, reason: form.reason?.trim() || null }); }}><label><span className="mb-1 block text-sm font-semibold">Fecha *</span><input required type="date" className={inputClass} value={form.exception_date} onChange={(e) => setForm({ ...form, exception_date: e.target.value })} /></label><label><span className="mb-1 block text-sm font-semibold">Tipo</span><select className={inputClass} value={form.exception_type} onChange={(e) => setForm({ ...form, exception_type: e.target.value as AgendaExceptionType })}><option value="closed">Día cerrado</option><option value="special_hours">Horario especial</option><option value="blocked">Bloquear un horario</option></select></label>{timed ? <div className="grid gap-4 sm:grid-cols-2"><label><span className="mb-1 block text-sm font-semibold">Desde</span><input required type="time" className={inputClass} value={form.start_time ?? ""} onChange={(e) => setForm({ ...form, start_time: e.target.value || null })} /></label><label><span className="mb-1 block text-sm font-semibold">Hasta</span><input required type="time" className={inputClass} value={form.end_time ?? ""} onChange={(e) => setForm({ ...form, end_time: e.target.value || null })} /></label></div> : null}<label><span className="mb-1 block text-sm font-semibold">Motivo</span><input className={inputClass} maxLength={255} value={form.reason ?? ""} onChange={(e) => setForm({ ...form, reason: e.target.value || null })} placeholder="Opcional" /></label></ModalShell>;
+}

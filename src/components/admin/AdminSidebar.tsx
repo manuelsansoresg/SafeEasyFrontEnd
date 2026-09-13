@@ -30,7 +30,8 @@ import {
   Trash2,
   Tags,
   Blocks,
-  UtensilsCrossed
+  UtensilsCrossed,
+  CalendarClock
   
 } from "lucide-react";
 import { BriefcaseBusiness } from "lucide-react";
@@ -41,6 +42,7 @@ import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
 import { useMenuModuleAccess } from "@/hooks/useMenuModuleAccess";
+import { useAgendaModuleAccess } from "@/hooks/useAgendaModuleAccess";
 
 interface AdminSidebarProps {
   isCollapsed: boolean;
@@ -86,6 +88,7 @@ export function AdminSidebar({
 
   const isSupplier = user?.role === "supplier";
   const { hasAccess: hasMenuAccess } = useMenuModuleAccess(isSupplier);
+  const { hasAccess: hasAgendaAccess } = useAgendaModuleAccess(isSupplier);
 
   const { isDirectory } =
     useMyDirectorySubscription(isSupplier);
@@ -263,6 +266,16 @@ export function AdminSidebar({
       },
     ]
   : []),
+  ...(isSupplier && hasAgendaAccess
+      ? [
+          {
+            title: "Agenda",
+            path: "/admin/agenda",
+            icon: CalendarClock,
+            roles: ["supplier"] as AdminRole[],
+          },
+        ]
+      : []),
 
     ...(isSupplier && isDirectory
       ? [
