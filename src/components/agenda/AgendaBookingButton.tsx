@@ -42,7 +42,7 @@ export function AgendaBookingButton({
   if (loading) {
     return (
       <span
-        className={`inline-flex items-center gap-2 rounded-xl bg-gray-100 px-5 py-3 font-semibold text-gray-500 ${className}`}
+        className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-7 py-3 font-semibold text-white/80 backdrop-blur-md sm:w-auto ${className}`}
       >
         <Loader2 size={18} className="animate-spin" />
         Consultando agenda
@@ -55,9 +55,9 @@ export function AgendaBookingButton({
   return (
     <Link
       href={`/agenda/${supplierId}`}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-5 py-3 font-semibold text-white transition hover:bg-[#117500] ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#168e00] px-7 py-3 text-base font-bold text-white shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] transition-all hover:-translate-y-1 hover:bg-[#137a00] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg ${className}`}
     >
-      <CalendarDays size={19} />
+      <CalendarDays size={20} />
       Reservar cita
     </Link>
   );

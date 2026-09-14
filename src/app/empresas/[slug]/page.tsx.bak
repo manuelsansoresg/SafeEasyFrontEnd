@@ -27,7 +27,6 @@ import { DirectoryRatingsSection } from "@/components/supplier/DirectoryRatingsS
 import { DirectoryContactButton } from "@/components/supplier/DirectoryContactButton";
 import { DirectoryTopNav } from "@/components/supplier/DirectoryTopNav";
 import { DirectoryGallerySection } from "@/components/supplier/DirectoryGallerySection";
-import { AgendaBookingButton } from "@/components/agenda/AgendaBookingButton";
 import { PublicSupplierMenu } from "@/components/supplier/menu/PublicSupplierMenu";
 import { menuService } from "@/services/menuService";
 import type { Menu } from "@/types/menu";
@@ -1181,10 +1180,6 @@ const contactHref = supplier?.phone
                             Ver Catálogo <ArrowDown size={20} />
                         </button>
                       ) : null}
-                      <AgendaBookingButton
-                        supplierId={supplier.id}
-                        className="w-full sm:w-auto"
-                      />
                       {isDirectory ? (
                         <DirectoryContactButton
                           supplierId={supplier.id}
