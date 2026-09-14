@@ -313,7 +313,7 @@ export default function PublicAgendaBookingPage() {
 
   if (!services.length) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-10">
+      <main className="mx-auto max-w-3xl px-4 pb-10 pt-28 sm:pt-32">
         <div className="rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-sm">
           <CalendarDays
             className="mx-auto text-[#168e00]"
@@ -332,7 +332,7 @@ export default function PublicAgendaBookingPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:py-10">
+    <main className="mx-auto max-w-5xl space-y-6 px-4 pb-10 pt-28 sm:pt-32">
       <div>
         <button
           type="button"
