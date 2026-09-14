@@ -9,6 +9,7 @@ import {
   CalendarDays,
   CalendarOff,
   Check,
+  ChevronDown,
   Clock3,
   Loader2,
   Pencil,
@@ -63,6 +64,9 @@ const BUFFERS: BufferDuration[] = [0, 5, 10, 15, 20, 30, 45, 60];
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400";
+
+const selectClass =
+  "h-12 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 pr-11 text-sm text-gray-900 outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400";
 
 const panelClass =
   "rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6";
@@ -360,20 +364,27 @@ export default function AdminAgendaPage() {
                 <span className="mb-1.5 block text-sm font-semibold text-gray-700">
                   Zona horaria
                 </span>
-                <select
-                  className={inputClass}
-                  value={settings.timezone}
-                  onChange={(e) =>
-                    setSettings({ ...settings, timezone: e.target.value })
-                  }
-                >
-                  <option value="America/Merida">
-                    Mérida / Ciudad de México
-                  </option>
-                  <option value="America/Cancun">Cancún</option>
-                  <option value="America/Monterrey">Monterrey</option>
-                  <option value="America/Tijuana">Tijuana</option>
-                </select>
+                <div className="relative">
+                  <select
+                    className={selectClass}
+                    value={settings.timezone}
+                    onChange={(e) =>
+                      setSettings({ ...settings, timezone: e.target.value })
+                    }
+                  >
+                    <option value="America/Merida">
+                      Mérida / Ciudad de México
+                    </option>
+                    <option value="America/Cancun">Cancún</option>
+                    <option value="America/Monterrey">Monterrey</option>
+                    <option value="America/Tijuana">Tijuana</option>
+                  </select>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={18}
+                  />
+                </div>
                 <small className="mt-1.5 block text-gray-500">
                   Se utiliza para mostrar correctamente la hora de las citas.
                 </small>
@@ -383,24 +394,31 @@ export default function AdminAgendaPage() {
                 <span className="mb-1.5 block text-sm font-semibold text-gray-700">
                   Mostrar horarios cada
                 </span>
-                <select
-                  className={inputClass}
-                  value={settings.slot_interval_minutes}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      slot_interval_minutes: Number(
-                        e.target.value,
-                      ) as SlotInterval,
-                    })
-                  }
-                >
-                  {SLOT_INTERVALS.map((value) => (
-                    <option key={value} value={value}>
-                      Cada {value} minutos
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    className={selectClass}
+                    value={settings.slot_interval_minutes}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        slot_interval_minutes: Number(
+                          e.target.value,
+                        ) as SlotInterval,
+                      })
+                    }
+                  >
+                    {SLOT_INTERVALS.map((value) => (
+                      <option key={value} value={value}>
+                        Cada {value} minutos
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={18}
+                  />
+                </div>
                 <small className="mt-1.5 block text-gray-500">
                   Define cada cuánto aparecerá una hora disponible.
                 </small>
@@ -1402,24 +1420,31 @@ function ServiceModal({
       <div className="grid gap-4 sm:grid-cols-2">
         <label>
           <span className="mb-1 block text-sm font-semibold">Duración de la cita</span>
-          <select
-            className={inputClass}
-            value={form.duration_minutes}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                duration_minutes: Number(
-                  e.target.value,
-                ) as ServiceDuration,
-              })
-            }
-          >
-            {DURATIONS.map((item) => (
-              <option key={item} value={item}>
-                {item} minutos
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              className={selectClass}
+              value={form.duration_minutes}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  duration_minutes: Number(
+                    e.target.value,
+                  ) as ServiceDuration,
+                })
+              }
+            >
+              {DURATIONS.map((item) => (
+                <option key={item} value={item}>
+                  {item} minutos
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              aria-hidden="true"
+              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+              size={18}
+            />
+          </div>
           <small className="mt-1.5 block text-gray-500">
             Tiempo que ocupará esta cita en tu agenda.
           </small>
@@ -1429,22 +1454,29 @@ function ServiceModal({
           <span className="mb-1 block text-sm font-semibold">
             Tiempo libre después de la cita
           </span>
-          <select
-            className={inputClass}
-            value={form.buffer_minutes}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                buffer_minutes: Number(e.target.value) as BufferDuration,
-              })
-            }
-          >
-            {BUFFERS.map((item) => (
-              <option key={item} value={item}>
-                {item === 0 ? "Sin tiempo adicional" : `${item} minutos`}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              className={selectClass}
+              value={form.buffer_minutes}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  buffer_minutes: Number(e.target.value) as BufferDuration,
+                })
+              }
+            >
+              {BUFFERS.map((item) => (
+                <option key={item} value={item}>
+                  {item === 0 ? "Sin tiempo adicional" : `${item} minutos`}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              aria-hidden="true"
+              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+              size={18}
+            />
+          </div>
           <small className="mt-1.5 block text-gray-500">
             Bloquea unos minutos después para limpiar, preparar el espacio o descansar.
             Este tiempo no se muestra como parte de la duración de la cita.
@@ -1589,20 +1621,27 @@ function ExceptionModal({
 
       <label>
         <span className="mb-1 block text-sm font-semibold">Tipo</span>
-        <select
-          className={inputClass}
-          value={form.exception_type}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              exception_type: e.target.value as AgendaExceptionType,
-            })
-          }
-        >
-          <option value="closed">Día cerrado</option>
-          <option value="special_hours">Horario especial</option>
-          <option value="blocked">Bloquear un horario</option>
-        </select>
+        <div className="relative">
+          <select
+            className={selectClass}
+            value={form.exception_type}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                exception_type: e.target.value as AgendaExceptionType,
+              })
+            }
+          >
+            <option value="closed">Día cerrado</option>
+            <option value="special_hours">Horario especial</option>
+            <option value="blocked">Bloquear un horario</option>
+          </select>
+          <ChevronDown
+            aria-hidden="true"
+            className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+            size={18}
+          />
+        </div>
       </label>
 
       {timed ? (
