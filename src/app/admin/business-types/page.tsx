@@ -11,6 +11,7 @@ import { Toast } from "@/components/ui/Toast";
 import { businessTypeService } from "@/services/businessTypeService";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { BusinessTypeAdminList } from "@/types/businessType";
+import { getLoginUrl } from "@/lib/authRedirect";
 
 const limit = 20;
 const subscribeToHydration = () => () => {};
@@ -23,7 +24,7 @@ export default function AdminBusinessTypesPage() {
   const mounted = useSyncExternalStore(subscribeToHydration, clientSnapshot, serverSnapshot);
 
   if (!mounted) return <p role="status" className="py-8 text-center text-gray-500">Cargando...</p>;
-  if (!token) return <p className="py-8 text-center">Debes <Link href="/login" className="text-primary underline">iniciar sesión</Link> para acceder al panel.</p>;
+  if (!token) return <p className="py-8 text-center">Debes <Link href={getLoginUrl("/admin/business-types")} className="text-primary underline">iniciar sesión</Link> para acceder al panel.</p>;
   if (user?.role !== "admin") return <p role="alert" className="py-8 text-center">No tienes permiso para administrar tipos de negocio.</p>;
 
   return <BusinessTypesContent />;

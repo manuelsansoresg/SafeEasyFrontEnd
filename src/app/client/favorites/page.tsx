@@ -4,16 +4,18 @@ import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { fetchWithAuth } from "@/lib/api";
 import { PageHero } from "@/components/ui/PageHero";
-import { Loader2, Heart } from "lucide-react";
+import { Loader2, Heart, LogIn } from "lucide-react";
 import Link from "next/link";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
-import { useAuthStore } from "@/store/useAuthStore";
+import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
+import { getLoginUrl } from "@/lib/authRedirect";
 
 export default function FavoritesPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { syncFavorites } = useFavoritesStore();
   const { token, isAuthenticated } = useAuthStore();
+  const hydrated = useAuthHydrated();
 
   const loadFavorites = async () => {
     // Wait for token to be available
@@ -71,29 +73,43 @@ export default function FavoritesPage() {
   };
 
   useEffect(() => {
+    if (!hydrated) return;
+
     if (isAuthenticated && token) {
       loadFavorites();
-    } else if (!isAuthenticated && !loading) {
-      // If we are sure we are not authenticated (and initial check is done), stop loading
-      // Actually, loading state management is tricky with persist.
-      // But typically, if token is present, we load.
+    } else {
+      setLoading(false);
     }
-  }, [isAuthenticated, token]);
+  }, [hydrated, isAuthenticated, token]);
 
-  // Handle initial loading state where auth might not be ready
-  useEffect(() => {
-    // If no token after a short timeout, and not authenticated, we can assume empty or redirect
-    // But for now, let's just rely on the token change.
-    // If user is not logged in, ClientSidebar or middleware should handle it.
-    // But if we are here and token is null, we are just waiting.
-  }, []);
-
-  if (loading) {
+  if (!hydrated || loading) {
     return (
       <div className="space-y-6 font-[family-name:var(--font-poppins)]">
         <PageHero title="Mis Favoritos" subtitle="Administra tus productos guardados." />
         <div className="flex justify-center items-center min-h-[400px]">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="space-y-6 font-[family-name:var(--font-poppins)]">
+        <PageHero title="Mis Favoritos" subtitle="Administra tus productos guardados." />
+        <div className="flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm">
+          <Heart className="h-10 w-10 text-primary" />
+          <h2 className="mt-4 text-xl font-bold text-gray-900">Tus favoritos están en tu cuenta</h2>
+          <p className="mt-2 max-w-md text-gray-500">
+            Inicia sesión para consultar y administrar los productos y negocios que guardaste.
+          </p>
+          <Link
+            href={getLoginUrl("/client/favorites")}
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-white transition-colors hover:bg-primary/90"
+          >
+            <LogIn size={18} />
+            Iniciar sesión
+          </Link>
         </div>
       </div>
     );

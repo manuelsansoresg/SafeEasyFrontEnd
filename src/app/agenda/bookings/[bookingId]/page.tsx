@@ -18,6 +18,10 @@ import {
   humanizeHours,
   humanizeMinutes,
 } from "@/lib/agendaTime";
+import {
+  getCurrentPathWithSearch,
+  getLoginUrl,
+} from "@/lib/authRedirect";
 import { agendaBookingService } from "@/services/agendaBookingService";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
 import type { AgendaService } from "@/types/agenda";
@@ -490,7 +494,12 @@ export default function AgendaBookingManagementPage() {
 
           {!auth.isAuthenticated ? (
             <Link
-              href="/login"
+              href={getLoginUrl(
+                getCurrentPathWithSearch(
+                  `/agenda/bookings/${params.bookingId}`,
+                  searchParams,
+                ),
+              )}
               className="mt-5 inline-flex rounded-xl bg-[#168e00] px-5 py-3 font-semibold text-white"
             >
               Iniciar sesión

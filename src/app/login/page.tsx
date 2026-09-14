@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle, X, ShieldAlert } from "lucide-react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import SocialLoginButtons, { SocialLoginPayload } from "@/components/auth/SocialLoginButtons";
+import { sanitizeInternalRedirect } from "@/lib/authRedirect";
 
 function PasswordResetSuccessMessage() {
   const searchParams = useSearchParams();
@@ -105,21 +106,13 @@ const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 const FACEBOOK_CLIENT_ID = process.env.NEXT_PUBLIC_FACEBOOK_CLIENT_ID || "";
 
 function getInternalRedirect(): string | null {
-  // Read only after login, in the browser, without changing page rendering.
-  const redirect = new URLSearchParams(window.location.search).get("redirect");
-  if (!redirect?.startsWith("/") || redirect.startsWith("//") || redirect.includes("\\")) {
-    return null;
-  }
+  const requestedRedirect = new URLSearchParams(window.location.search).get(
+    "redirect",
+  );
 
-  try {
-    const destination = new URL(redirect, window.location.origin);
-    if (destination.origin !== window.location.origin || destination.pathname.startsWith("//")) {
-      return null;
-    }
-    return destination.pathname + destination.search + destination.hash;
-  } catch {
-    return null;
-  }
+  return requestedRedirect === null
+    ? null
+    : sanitizeInternalRedirect(requestedRedirect);
 }
 
 export default function LoginPage() {

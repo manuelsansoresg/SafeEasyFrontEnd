@@ -8,6 +8,7 @@ import StarRating from "@/components/StarRating";
 import { supplierRatingsService } from "@/services/supplierRatingsService";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { SupplierDirectoryRatingsResponse } from "@/types/supplierRatings";
+import { getLoginUrl } from "@/lib/authRedirect";
 
 export function DirectoryRatingsSection({ slug }: { slug: string }) {
   const pathname = usePathname();
@@ -113,7 +114,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
                     usuario.
                   </p>
                   <Link
-                    href={`/login?redirect=${encodeURIComponent(pathname)}`}
+                    href={getLoginUrl(`${pathname}#experiencia`)}
                     className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#004e28] px-5 text-sm font-semibold text-white transition hover:bg-[#168e00]"
                   >
                     Iniciar sesión

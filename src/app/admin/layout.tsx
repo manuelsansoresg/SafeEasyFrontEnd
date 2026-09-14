@@ -1,14 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
-import { Menu, X } from "lucide-react";
+import { Loader2, Menu, X } from "lucide-react";
+import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
+import {
+  getBrowserPathWithSearchAndHash,
+  getLoginUrl,
+} from "@/lib/authRedirect";
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+  const hydrated = useAuthHydrated();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   // Initialize collapsed state based on screen size or preference
   // Default to collapsed on mobile (handled by media query in effect), expanded on desktop
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -40,9 +49,23 @@ export default function AdminLayout({
     };
   }, [isMobileMenuOpen]);
 
+  useEffect(() => {
+    if (!hydrated || isAuthenticated) return;
+    router.replace(getLoginUrl(getBrowserPathWithSearchAndHash()));
+  }, [hydrated, isAuthenticated, router]);
+
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
+
+  if (!hydrated || !isAuthenticated) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center gap-3 text-gray-500">
+        <Loader2 className="animate-spin text-primary" size={24} />
+        <span>Verificando sesión...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">

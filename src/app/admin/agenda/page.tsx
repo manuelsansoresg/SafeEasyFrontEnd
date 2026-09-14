@@ -640,6 +640,29 @@ export default function AdminAgendaPage() {
 
       {section === "services" ? (
         <section className="space-y-4">
+          <div className="rounded-3xl border border-[#168e00]/20 bg-[#168e00]/5 p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-white p-2.5 text-[#168e00] shadow-sm">
+                <CalendarClock size={22} />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-[#004e28]">
+                  ¿Qué es un servicio de Agenda?
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-gray-700">
+                  Es el tipo de cita que tus clientes podrán elegir cuando quieran reservar contigo.
+                  Por ejemplo: <strong>Consulta inicial</strong>, <strong>Corte de cabello</strong>,
+                  <strong> Masaje de 60 minutos</strong>, <strong>Asesoría</strong> o
+                  <strong> Sesión de fisioterapia</strong>.
+                </p>
+                <p className="mt-2 text-sm font-medium text-[#004e28]">
+                  Necesitas al menos un servicio activo para que aparezca el botón
+                  “Reservar cita” en tu página pública.
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-end">
             <button
               type="button"
@@ -650,14 +673,14 @@ export default function AdminAgendaPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 font-semibold text-white hover:bg-[#117500]"
             >
               <Plus size={18} />
-              Nuevo servicio
+              Agregar servicio para reservar
             </button>
           </div>
 
           {services.length === 0 ? (
             <EmptyState
-              title="Todavía no tienes servicios"
-              text="Agrega los servicios que posteriormente podrán reservar tus clientes."
+              title="Aún no tienes servicios para reservar"
+              text="Crea por lo menos uno para que tus clientes puedan elegir qué cita desean agendar."
             />
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
@@ -693,8 +716,8 @@ export default function AdminAgendaPage() {
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-2 text-sm">
-                    <Chip text={`${item.duration_minutes} min`} />
-                    <Chip text={`Margen ${item.buffer_minutes} min`} />
+                    <Chip text={`Duración: ${item.duration_minutes} min`} />
+                    <Chip text={`Tiempo posterior: ${item.buffer_minutes} min`} />
                     <Chip text={money(item.price)} />
                   </div>
 
@@ -1316,7 +1339,7 @@ function ServiceModal({
 
   return (
     <ModalShell
-      title={value ? "Editar servicio" : "Nuevo servicio"}
+      title={value ? "Editar servicio de Agenda" : "Nuevo servicio para reservar"}
       saving={saving}
       onClose={onClose}
       onSubmit={(event) => {
@@ -1330,23 +1353,40 @@ function ServiceModal({
         }
       }}
     >
+      <div className="rounded-2xl border border-[#168e00]/20 bg-[#168e00]/5 p-4">
+        <p className="font-bold text-[#004e28]">
+          Este servicio será una opción que el cliente podrá reservar.
+        </p>
+        <p className="mt-1 text-sm leading-5 text-gray-600">
+          Crea un servicio por cada tipo de cita que ofreces. Por ejemplo:
+          “Consulta inicial”, “Corte de cabello”, “Masaje” o “Asesoría”.
+        </p>
+      </div>
+
       <label>
-        <span className="mb-1 block text-sm font-semibold">Nombre *</span>
+        <span className="mb-1 block text-sm font-semibold">Nombre del servicio *</span>
         <input
           required
           minLength={2}
+          maxLength={150}
           className={inputClass}
           value={form.name}
+          placeholder="Ej. Consulta inicial"
           onChange={(e) => setForm({ ...form, name: e.target.value })}
         />
+        <small className="mt-1.5 block text-gray-500">
+          Es el nombre que verá tu cliente al momento de elegir qué quiere reservar.
+        </small>
       </label>
 
       <label>
         <span className="mb-1 block text-sm font-semibold">Descripción</span>
         <textarea
           rows={3}
+          maxLength={5000}
           className={inputClass}
           value={form.description ?? ""}
+          placeholder="Ej. Valoración inicial para conocer tus necesidades y recomendarte el tratamiento adecuado."
           onChange={(e) =>
             setForm({
               ...form,
@@ -1354,11 +1394,14 @@ function ServiceModal({
             })
           }
         />
+        <small className="mt-1.5 block text-gray-500">
+          Opcional. Explica brevemente qué incluye la cita o para qué sirve.
+        </small>
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label>
-          <span className="mb-1 block text-sm font-semibold">Duración</span>
+          <span className="mb-1 block text-sm font-semibold">Duración de la cita</span>
           <select
             className={inputClass}
             value={form.duration_minutes}
@@ -1377,11 +1420,14 @@ function ServiceModal({
               </option>
             ))}
           </select>
+          <small className="mt-1.5 block text-gray-500">
+            Tiempo que ocupará esta cita en tu agenda.
+          </small>
         </label>
 
         <label>
           <span className="mb-1 block text-sm font-semibold">
-            Margen posterior
+            Tiempo libre después de la cita
           </span>
           <select
             className={inputClass}
@@ -1395,10 +1441,14 @@ function ServiceModal({
           >
             {BUFFERS.map((item) => (
               <option key={item} value={item}>
-                {item} minutos
+                {item === 0 ? "Sin tiempo adicional" : `${item} minutos`}
               </option>
             ))}
           </select>
+          <small className="mt-1.5 block text-gray-500">
+            Bloquea unos minutos después para limpiar, preparar el espacio o descansar.
+            Este tiempo no se muestra como parte de la duración de la cita.
+          </small>
         </label>
 
         <label>
@@ -1409,6 +1459,7 @@ function ServiceModal({
             step="0.01"
             className={inputClass}
             value={form.price ?? ""}
+            placeholder="Ej. 350"
             onChange={(e) =>
               setForm({
                 ...form,
@@ -1419,13 +1470,17 @@ function ServiceModal({
               })
             }
           />
+          <small className="mt-1.5 block text-gray-500">
+            Opcional. Si lo dejas vacío, el cliente verá “Consultar precio”.
+          </small>
         </label>
 
         <NumberField
-          label="Orden"
+          label="Orden de aparición"
           value={form.display_order}
           min={0}
           max={9999}
+          description="Define en qué posición aparecerá. Usa 0 para mostrarlo primero, 1 para el siguiente, y así sucesivamente."
           onChange={(display_order) =>
             setForm({ ...form, display_order })
           }
@@ -1433,8 +1488,8 @@ function ServiceModal({
       </div>
 
       <Toggle
-        label="Servicio activo"
-        description="Estará disponible cuando se habiliten las reservaciones."
+        label="Mostrar este servicio para reservar"
+        description="Cuando está activo, aparecerá como opción en tu página pública. Necesitas al menos un servicio activo para que se muestre el botón “Reservar cita”."
         checked={form.is_active}
         onChange={(is_active) => setForm({ ...form, is_active })}
       />

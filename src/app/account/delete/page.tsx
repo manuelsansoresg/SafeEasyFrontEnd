@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import type { DeletionObligation } from "@/types/account-deletion";
+import { getLoginUrl } from "@/lib/authRedirect";
 
 type Screen =
   | "info"
@@ -75,7 +76,7 @@ export default function AccountDeletePage() {
 
   const handleRequestDeletion = async () => {
     if (!useAuthStore.getState().token) {
-      router.push("/login?redirect=/account/delete");
+      router.push(getLoginUrl("/account/delete"));
       return;
     }
 
@@ -293,7 +294,7 @@ export default function AccountDeletePage() {
                   type="button"
                   onClick={() => {
                     if (!token) {
-                      router.push("/login?redirect=/account/delete");
+                      router.push(getLoginUrl("/account/delete"));
                       return;
                     }
 

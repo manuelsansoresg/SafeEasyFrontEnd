@@ -23,6 +23,10 @@ import {
 } from "@/lib/agendaTime";
 import { agendaBookingService } from "@/services/agendaBookingService";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
+import {
+  getBrowserPathWithSearchAndHash,
+  getLoginUrl,
+} from "@/lib/authRedirect";
 import type { AgendaService } from "@/types/agenda";
 import type {
   AgendaAvailability,
@@ -84,6 +88,9 @@ export default function PublicAgendaBookingPage() {
 
   const auth = useAuthStore();
   const supplierId = Number(params.supplierId);
+  const [loginReturnTo, setLoginReturnTo] = useState(
+    `/agenda/${params.supplierId}`,
+  );
 
   const [services, setServices] = useState<AgendaService[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(
@@ -104,6 +111,10 @@ export default function PublicAgendaBookingPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoginReturnTo(getBrowserPathWithSearchAndHash());
+  }, [supplierId]);
 
   const selectedService = useMemo(
     () =>
@@ -427,9 +438,7 @@ export default function PublicAgendaBookingPage() {
             </div>
 
             <Link
-              href={`/login?next=${encodeURIComponent(
-                `/agenda/${supplierId}`,
-              )}`}
+              href={getLoginUrl(loginReturnTo)}
               className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 py-2.5 font-semibold text-white"
             >
               <LogIn size={18} />
@@ -450,9 +459,7 @@ export default function PublicAgendaBookingPage() {
               </p>
             </div>
             <Link
-              href={`/login?next=${encodeURIComponent(
-                `/agenda/${supplierId}`,
-              )}`}
+              href={getLoginUrl(loginReturnTo)}
               className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[#168e00] px-4 py-2.5 font-semibold text-[#168e00]"
             >
               <LogIn size={18} />

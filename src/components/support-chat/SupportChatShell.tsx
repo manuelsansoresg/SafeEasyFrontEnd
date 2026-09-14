@@ -24,6 +24,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { markSupportConversationReadLocally, supportChatService } from "@/services/supportChatService";
 import { useSupportWebSocket } from "@/hooks/useSupportWebSocket";
 import type { SupportConversation, SupportConversationStatus, SupportMessage, SupportSocketEvent } from "@/types/support-chat";
+import { getLoginUrl } from "@/lib/authRedirect";
 
 type SupportMode = "user" | "admin" | "unassigned";
 
@@ -154,7 +155,10 @@ export function SupportChatShell({ mode }: SupportChatShellProps) {
     if (!hasMounted) return;
 
     if (!isAuthenticated && !user && !token) {
-      router.replace("/login");
+      const returnTo = routeConversationId
+        ? `${basePath}/${encodeURIComponent(routeConversationId)}`
+        : basePath;
+      router.replace(getLoginUrl(returnTo));
       return;
     }
 
@@ -181,7 +185,7 @@ export function SupportChatShell({ mode }: SupportChatShellProps) {
     };
 
     init();
-  }, [expectedAdmin, hasMounted, isAdmin, isAuthenticated, refreshConversations, router, token, user]);
+  }, [basePath, expectedAdmin, hasMounted, isAdmin, isAuthenticated, refreshConversations, routeConversationId, router, token, user]);
 
   const activeConversationId = activeConversation?.id || null;
 

@@ -4,12 +4,12 @@ import Link from "next/link";
 import { CheckCircle, Heart, Star } from "lucide-react";
 import slugify from "slugify";
 import { Supplier } from "@/lib/products";
-import { useAuthStore } from "@/store/useAuthStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 interface ProductCardProps {
   id: string;
@@ -36,8 +36,8 @@ export function ProductCard({
   supplier,
   onClick,
 }: ProductCardProps) {
-  const { isAuthenticated } = useAuthStore();
   const { isFavorite, toggleFavorite } = useFavoritesStore();
+  const requireAuth = useRequireAuth();
   const isFav = isFavorite(id);
   const [imgError, setImgError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -91,16 +91,13 @@ export function ProductCard({
     e.preventDefault();
     e.stopPropagation();
 
-    if (!isAuthenticated) {
-      setToast({ type: "info", message: "Debes iniciar sesión para agregar a favoritos." });
-      return;
-    }
-
-    try {
-      await toggleFavorite(id);
-    } catch (error) {
-      console.error("Error toggling favorite", error);
-    }
+    requireAuth(async () => {
+      try {
+        await toggleFavorite(id);
+      } catch (error) {
+        console.error("Error toggling favorite", error);
+      }
+    });
   };
 
   const displayPrice = (typeof price === 'number' ? price : 0).toFixed(0);

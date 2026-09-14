@@ -1,5 +1,11 @@
 export function humanizeMinutes(totalMinutes: number): string {
-  const minutes = Math.max(0, Math.round(totalMinutes));
+  const numeric = Number(totalMinutes);
+
+  if (!Number.isFinite(numeric)) {
+    return "tiempo configurado";
+  }
+
+  const minutes = Math.max(0, Math.round(numeric));
 
   if (minutes === 0) return "sin anticipación mínima";
 
@@ -29,7 +35,13 @@ export function humanizeMinutes(totalMinutes: number): string {
 }
 
 export function humanizeHours(totalHours: number): string {
-  const hours = Math.max(0, Math.round(totalHours));
+  const numeric = Number(totalHours);
+
+  if (!Number.isFinite(numeric)) {
+    return "tiempo configurado";
+  }
+
+  const hours = Math.max(0, Math.round(numeric));
 
   if (hours === 0) return "sin anticipación mínima";
 
@@ -54,7 +66,13 @@ export function humanizeHours(totalHours: number): string {
 }
 
 export function humanizeDays(totalDays: number): string {
-  const days = Math.max(0, Math.round(totalDays));
+  const numeric = Number(totalDays);
+
+  if (!Number.isFinite(numeric)) {
+    return "periodo configurado";
+  }
+
+  const days = Math.max(0, Math.round(numeric));
   return `${days} ${days === 1 ? "día" : "días"}`;
 }
 
@@ -62,13 +80,40 @@ export function addDaysToDateInput(
   dateInput: string,
   days: number,
 ): string {
+  if (
+    typeof dateInput !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(dateInput)
+  ) {
+    return "";
+  }
+
+  const numericDays = Number(days);
+
+  // Evita Runtime RangeError si el backend todavía no devuelve
+  // maximum_booking_days o devuelve un valor inválido.
+  if (!Number.isFinite(numericDays)) {
+    return "";
+  }
+
   const [year, month, day] = dateInput
     .split("-")
     .map(Number);
 
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return "";
+  }
+
   const date = new Date(
     year,
-    Math.max(0, month - 1),
+    month - 1,
     day,
     12,
     0,
@@ -76,11 +121,25 @@ export function addDaysToDateInput(
     0,
   );
 
-  date.setDate(date.getDate() + days);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  date.setDate(
+    date.getDate() + Math.max(0, Math.round(numericDays)),
+  );
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
 
   const local = new Date(
     date.getTime() - date.getTimezoneOffset() * 60000,
   );
+
+  if (Number.isNaN(local.getTime())) {
+    return "";
+  }
 
   return local.toISOString().slice(0, 10);
 }
@@ -89,9 +148,19 @@ export function cancellationDeadline(
   startAt: string,
   cancellationNoticeHours: number,
 ): Date {
+  const start = new Date(startAt);
+  const hours = Number(cancellationNoticeHours);
+
+  if (
+    Number.isNaN(start.getTime()) ||
+    !Number.isFinite(hours)
+  ) {
+    return new Date(Number.NaN);
+  }
+
   return new Date(
-    new Date(startAt).getTime() -
-      cancellationNoticeHours * 60 * 60 * 1000,
+    start.getTime() -
+      hours * 60 * 60 * 1000,
   );
 }
 
@@ -100,13 +169,19 @@ export function canStillCancel(
   cancellationNoticeHours: number,
   now = new Date(),
 ): boolean {
-  return (
-    now.getTime() <=
-    cancellationDeadline(
-      startAt,
-      cancellationNoticeHours,
-    ).getTime()
+  const deadline = cancellationDeadline(
+    startAt,
+    cancellationNoticeHours,
   );
+
+  if (
+    Number.isNaN(deadline.getTime()) ||
+    Number.isNaN(now.getTime())
+  ) {
+    return false;
+  }
+
+  return now.getTime() <= deadline.getTime();
 }
 
 function joinHumanParts(parts: string[]): string {

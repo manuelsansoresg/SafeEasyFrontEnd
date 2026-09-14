@@ -27,6 +27,7 @@ import type {
   ModuleAdminList,
   ModuleBillingPeriod,
 } from "@/types/module";
+import { getLoginUrl } from "@/lib/authRedirect";
 
 const limit = 20;
 
@@ -103,7 +104,7 @@ export default function AdminModulesPage() {
       <p className="py-8 text-center">
         Debes{" "}
         <Link
-          href="/login"
+          href={getLoginUrl("/admin/modules")}
           className="text-primary underline"
         >
           iniciar sesión

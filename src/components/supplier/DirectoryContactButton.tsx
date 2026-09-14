@@ -7,6 +7,7 @@ import { chatService, ChatRequestError } from "@/services/chatService";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useChat } from "@/context/ChatContext";
 import { useChatStore } from "@/store/useChatStore";
+import { getLoginUrl } from "@/lib/authRedirect";
 
 interface DirectoryContactButtonProps {
   supplierId: number;
@@ -37,7 +38,7 @@ export function DirectoryContactButton({
   const startChat = async () => {
     if (loading) return;
     if (!token) {
-      router.push(`/login?redirect=${encodeURIComponent(returnPath)}`);
+      router.push(getLoginUrl(returnPath));
       return;
     }
 
@@ -68,7 +69,7 @@ export function DirectoryContactButton({
       openChat(directoryConversation);
     } catch (requestError) {
       if (requestError instanceof ChatRequestError && requestError.status === 401) {
-        router.push(`/login?redirect=${encodeURIComponent(returnPath)}`);
+        router.push(getLoginUrl(returnPath));
         return;
       }
       setError(

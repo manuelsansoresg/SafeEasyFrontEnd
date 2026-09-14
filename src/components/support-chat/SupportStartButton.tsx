@@ -6,6 +6,7 @@ import { LifeBuoy, Loader2, Mail, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { supportChatService } from "@/services/supportChatService";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 interface SupportStartButtonProps {
   className?: string;
@@ -19,26 +20,24 @@ export function SupportStartButton({
   variant = "primary",
 }: SupportStartButtonProps) {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
+  const requireAuth = useRequireAuth();
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const start = () => {
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
+    requireAuth(() => {
+      const role = String(user?.role || "").toLowerCase();
+      if (role === "admin" || role === "superuser") {
+        router.push("/admin/support");
+        return;
+      }
 
-    const role = String(user?.role || "").toLowerCase();
-    if (role === "admin" || role === "superuser") {
-      router.push("/admin/support");
-      return;
-    }
-
-    setError(null);
-    setOpen(true);
+      setError(null);
+      setOpen(true);
+    });
   };
 
   const submit = async (event: FormEvent) => {

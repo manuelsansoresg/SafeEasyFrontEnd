@@ -16,6 +16,7 @@ import type {
   AgendaBooking,
   AgendaBookingStatus,
 } from "@/types/agendaBooking";
+import { getLoginUrl } from "@/lib/authRedirect";
 
 type ServiceMap = Record<string, AgendaService>;
 
@@ -147,7 +148,7 @@ export default function ClientAppointmentsPage() {
             Inicia sesión para consultar y administrar tus reservaciones.
           </p>
           <Link
-            href="/login"
+            href={getLoginUrl("/client/appointments")}
             className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-5 py-3 font-semibold text-white"
           >
             <LogIn size={18} />

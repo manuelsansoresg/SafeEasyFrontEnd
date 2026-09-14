@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { CheckCircle, Heart } from "lucide-react";
 import Image from "next/image";
-import { useAuthStore } from "@/store/useAuthStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { Toast } from "@/components/ui/Toast";
 import { useEffect } from "react";
 import { SearchDirectory } from "@/lib/search";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 interface DirectoryCardProps {
   directory: SearchDirectory;
@@ -30,8 +30,8 @@ export function DirectoryCard({ directory }: DirectoryCardProps) {
   const isVerified = directory.is_verified === true;
   const cityLabel = [directory.city, directory.state].filter(Boolean).join(", ");
 
-  const { isAuthenticated } = useAuthStore();
   const { isFavorite, toggleFavorite } = useFavoritesStore();
+  const requireAuth = useRequireAuth();
   const favKey = `directory-${directory.id}`;
   const isFav = isFavorite(favKey);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
@@ -45,16 +45,14 @@ export function DirectoryCard({ directory }: DirectoryCardProps) {
   const handleFavoriteClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!isAuthenticated) {
-      setToast({ type: "info", message: "Debes iniciar sesión para agregar a favoritos." });
-      return;
-    }
-    try {
-      await toggleFavorite(favKey);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "No se pudo actualizar favoritos.";
-      setToast({ type: "error", message: msg });
-    }
+    requireAuth(async () => {
+      try {
+        await toggleFavorite(favKey);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "No se pudo actualizar favoritos.";
+        setToast({ type: "error", message: msg });
+      }
+    });
   };
 
   const logoUrl = getImageUrl(directory.logo) || fallbackLogo;

@@ -1,5 +1,9 @@
 import { useAuthStore } from "@/store/useAuthStore";
 import { refreshAccessToken, stripBearer } from "@/lib/authRefresh";
+import {
+  getBrowserPathWithSearchAndHash,
+  getLoginUrl,
+} from "@/lib/authRedirect";
 
 type FetchOptions = RequestInit & {
   headers?: Record<string, string>;
@@ -110,7 +114,9 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
                 console.warn("Account pending deletion detected. Redirecting to login.");
                 logout();
                 if (typeof window !== "undefined") {
-                  window.location.href = "/login";
+                  window.location.href = getLoginUrl(
+                    getBrowserPathWithSearchAndHash(),
+                  );
                 }
                 return response;
               }
@@ -121,7 +127,9 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
           console.warn("Retried request failed with auth error after 401. Logging out.");
           logout();
           if (typeof window !== "undefined") {
-            window.location.href = "/login";
+            window.location.href = getLoginUrl(
+              getBrowserPathWithSearchAndHash(),
+            );
           }
         }
       } else {
@@ -129,7 +137,9 @@ export const fetchWithAuth = async (url: string, options: FetchOptions = {}) => 
         if (initialStatus === 401) {
           logout();
           if (typeof window !== "undefined") {
-            window.location.href = "/login";
+            window.location.href = getLoginUrl(
+              getBrowserPathWithSearchAndHash(),
+            );
           }
         }
       }
