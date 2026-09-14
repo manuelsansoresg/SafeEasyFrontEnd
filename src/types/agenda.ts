@@ -19,6 +19,17 @@ export interface AgendaSettings {
   cancellation_notice_hours: number;
   automatic_confirmation: boolean;
   is_active: boolean;
+  allow_guest_bookings: boolean;
+  require_guest_email: boolean;
+  allow_customer_cancellation: boolean;
+  allow_reschedule_requests: boolean;
+  provider_push_notifications: boolean;
+  provider_email_notifications: boolean;
+  customer_email_notifications: boolean;
+  customer_push_notifications: boolean;
+  reminder_24_hours: boolean;
+  reminder_2_hours: boolean;
+  notification_email: string | null;
   created_at: string;
   updated_at: string;
 }
