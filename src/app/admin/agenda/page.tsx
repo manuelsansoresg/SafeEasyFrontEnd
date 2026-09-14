@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   Bell,
   CalendarClock,
+  CalendarDays,
   CalendarOff,
   Check,
   Clock3,
@@ -305,11 +307,23 @@ export default function AdminAgendaPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <PageHero
-        eyebrow="Módulo"
-        title="Agenda"
-        subtitle="Define tus horarios, servicios y fechas especiales."
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <PageHero
+            eyebrow="Módulo"
+            title="Agenda"
+            subtitle="Define tus horarios, servicios y fechas especiales."
+          />
+        </div>
+
+        <Link
+          href="/admin/agenda/appointments"
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 font-semibold text-white hover:bg-[#117500]"
+        >
+          <CalendarDays size={18} />
+          Gestionar citas
+        </Link>
+      </div>
 
       <div className="flex gap-2 overflow-x-auto rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
         {tabs.map((tab) => (
