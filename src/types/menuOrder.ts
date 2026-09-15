@@ -14,12 +14,14 @@ export interface MenuOrderSettings {
   accepts_orders: boolean;
   allows_pickup: boolean;
   allows_delivery: boolean;
+  allow_guest_orders: boolean;
 }
 
 export interface MenuOrderSettingsUpdate {
   accepts_orders: boolean;
   allows_pickup: boolean;
   allows_delivery: boolean;
+  allow_guest_orders: boolean;
 }
 
 export interface MenuOrderItemCreate {

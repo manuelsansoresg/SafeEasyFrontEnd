@@ -9,6 +9,7 @@ import {
   Copy,
   Facebook,
   Loader2,
+  LogIn,
   Minus,
   Plus,
   Send,
@@ -20,6 +21,10 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  getBrowserPathWithSearchAndHash,
+  getLoginUrl,
+} from "@/lib/authRedirect";
 import { menuOrderService } from "@/services/menuOrderService";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { Menu, MenuDay, MenuItem } from "@/types/menu";
@@ -417,6 +422,15 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
     (hasStartTime || hasEndTime) &&
     !(hasStartTime && hasEndTime && selectedMenu.time_start === selectedMenu.time_end);
   const acceptsOrders = Boolean(orderSettings?.accepts_orders);
+  const allowsGuestOrders = Boolean(orderSettings?.allow_guest_orders);
+  const canCurrentUserOrder =
+    acceptsOrders && (isAuthenticated || allowsGuestOrders);
+
+  const goToLoginForOrder = () => {
+    router.push(
+      getLoginUrl(getBrowserPathWithSearchAndHash()),
+    );
+  };
 
   const changeQuantity = (item: MenuItem, delta: number) => {
     if (!item.is_available || typeof item.price !== "number") return;
@@ -461,6 +475,12 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
 
   const openCheckout = () => {
     if (!cartItems.length || !orderSettings?.accepts_orders) return;
+
+    if (!isAuthenticated && !orderSettings.allow_guest_orders) {
+      goToLoginForOrder();
+      return;
+    }
+
     setCheckoutError(null);
     setClientRequestId(createRequestId());
     if (orderSettings.allows_pickup) setFulfillmentType("pickup");
@@ -472,6 +492,11 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
   const submitOrder = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!orderSettings?.accepts_orders || !supplierSlug || !cartItems.length) return;
+
+    if (!isAuthenticated && !orderSettings.allow_guest_orders) {
+      goToLoginForOrder();
+      return;
+    }
 
     if (!customerName.trim() || !customerEmail.trim() || !customerPhone.trim()) {
       setCheckoutError("Completa tu nombre, correo y teléfono.");
@@ -605,18 +630,29 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
               <Share2 size={17} /> Compartir
             </button>
             {acceptsOrders ? (
-              <button
-                type="button"
-                onClick={() => setCartOpen(true)}
-                className="relative inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#117500]"
-              >
-                <ShoppingBag size={17} /> Pedido
-                {cartQuantity > 0 ? (
-                  <span className="ml-1 inline-flex min-w-6 items-center justify-center rounded-full bg-white px-1.5 py-0.5 text-xs font-black text-[#168e00]">
-                    {cartQuantity}
-                  </span>
-                ) : null}
-              </button>
+              canCurrentUserOrder ? (
+                <button
+                  type="button"
+                  onClick={() => setCartOpen(true)}
+                  className="relative inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#117500]"
+                >
+                  <ShoppingBag size={17} /> Pedido
+                  {cartQuantity > 0 ? (
+                    <span className="ml-1 inline-flex min-w-6 items-center justify-center rounded-full bg-white px-1.5 py-0.5 text-xs font-black text-[#168e00]">
+                      {cartQuantity}
+                    </span>
+                  ) : null}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={goToLoginForOrder}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#003b1f]"
+                >
+                  <LogIn size={17} />
+                  Inicia sesión para pedir
+                </button>
+              )
             ) : null}
           </div>
         </div>
@@ -659,7 +695,9 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
                   </span>
                 ) : acceptsOrders ? (
                   <span className="rounded-full bg-[#004e28]/10 px-3 py-1 text-xs font-bold text-[#004e28]">
-                    Pedidos en línea
+                    {canCurrentUserOrder
+                      ? "Pedidos en línea"
+                      : "Pedidos solo con cuenta"}
                   </span>
                 ) : null}
               </div>
@@ -714,7 +752,34 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
                 </dl>
               ) : null}
 
-            
+              {!settingsLoading && !acceptsOrders ? (
+                <p className="mt-5 text-sm font-medium text-gray-500">
+                  Este menú se puede consultar en línea, pero actualmente no recibe pedidos desde Drooopy.
+                </p>
+              ) : null}
+
+              {!settingsLoading &&
+              acceptsOrders &&
+              !canCurrentUserOrder ? (
+                <div className="mt-5 rounded-2xl border border-[#004e28]/10 bg-[#004e28]/5 p-4">
+                  <p className="text-sm font-bold text-[#004e28]">
+                    Este negocio recibe pedidos de usuarios registrados.
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-gray-600">
+                    Puedes consultar todo el menú. Para agregar productos y
+                    realizar tu pedido solo necesitas iniciar sesión.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={goToLoginForOrder}
+                    className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#003b1f]"
+                  >
+                    <LogIn size={16} />
+                    Iniciar sesión
+                  </button>
+                </div>
+              ) : null}
+
               {settingsError ? (
                 <p className="mt-4 text-sm text-amber-700">{settingsError}</p>
               ) : null}
@@ -766,7 +831,7 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
                     item={item}
                     quantity={cart[item.id]?.quantity || 0}
                     canOrder={
-                      acceptsOrders &&
+                      canCurrentUserOrder &&
                       item.is_available &&
                       typeof item.price === "number" &&
                       Number.isFinite(item.price)
