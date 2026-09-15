@@ -714,11 +714,7 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
                 </dl>
               ) : null}
 
-              {!settingsLoading && !acceptsOrders ? (
-                <p className="mt-5 text-sm font-medium text-gray-500">
-                  Este menú se puede consultar en línea, pero actualmente no recibe pedidos desde Drooopy.
-                </p>
-              ) : null}
+            
               {settingsError ? (
                 <p className="mt-4 text-sm text-amber-700">{settingsError}</p>
               ) : null}
