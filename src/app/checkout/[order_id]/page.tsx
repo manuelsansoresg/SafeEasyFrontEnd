@@ -1,218 +1,446 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  RefreshCw,
+  RotateCcw,
+  ShoppingBag,
+  XCircle,
+} from "lucide-react";
+
 import { fetchWithAuth } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { getSafeMercadoPagoUrl } from "@/lib/security";
-import { Toast } from "@/components/ui/Toast";
-import { ArrowLeft, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 
-type ToastState = null | { type: "success" | "error" | "info"; message: string };
-
-type CheckoutData = {
-  order_id: number;
-  init_point: string | null;
-  raw: Record<string, unknown>;
+type CheckoutSessionStatus = {
+  checkout_id: string;
+  status: string;
+  order_id: number | null;
+  mp_payment_id?: string | null;
+  expires_at?: string | null;
+  remaining_seconds?: number;
+  can_continue_payment?: boolean;
 };
 
+type ViewState =
+  | "loading"
+  | "success"
+  | "pending"
+  | "failure"
+  | "expired"
+  | "refunded"
+  | "error";
+
+const TERMINAL_FAILURE_STATUSES = new Set([
+  "rejected",
+  "cancelled",
+  "canceled",
+  "failure",
+  "failed",
+]);
+
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
-function pickString(record: Record<string, unknown>, keys: string[]) {
-  for (const key of keys) {
-    const v = record[key];
-    if (typeof v === "string" && v.trim()) return v.trim();
-  }
-  return null;
+function readErrorMessage(payload: unknown, fallback: string) {
+  const data = asRecord(payload);
+
+  const detail =
+    typeof data.detail === "string" ? data.detail.trim() : "";
+  const message =
+    typeof data.message === "string" ? data.message.trim() : "";
+  const error =
+    typeof data.error === "string" ? data.error.trim() : "";
+
+  return detail || message || error || fallback;
 }
 
-function normalizeCheckoutData(orderId: number, payload: unknown): CheckoutData {
-  const raw = asRecord(payload);
-  const preference = raw.preference && typeof raw.preference === "object" ? (raw.preference as Record<string, unknown>) : {};
-  const initPoint =
-    pickString(raw, ["init_point", "mp_init_point", "mercadopago_init_point", "payment_url", "checkout_url"]) ||
-    pickString(preference, ["init_point"]) ||
-    pickString(asRecord(raw.payment), ["init_point", "mp_init_point", "mercadopago_init_point", "payment_url", "checkout_url"]);
+function formatRemaining(seconds?: number) {
+  const safe = Math.max(0, Math.floor(Number(seconds) || 0));
+  const minutes = Math.floor(safe / 60);
+  const secs = safe % 60;
 
-  return { order_id: orderId, init_point: initPoint, raw };
+  return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(
+    2,
+    "0",
+  )}`;
 }
 
-async function fetchOrderCheckout(orderId: number) {
-  const tryUrls = [
-    `/api/orders/${orderId}`,
-    `/api/orders/${orderId}/`,
-    `/api/v1/orders/${orderId}`,
-    `/api/v1/orders/${orderId}/`,
-  ];
-
-  let last: Response | null = null;
-  for (const url of tryUrls) {
-    const res = await fetchWithAuth(url, { headers: { Accept: "application/json" } });
-    last = res;
-    if (res.ok) return { res, url };
-    if (res.status === 404 || res.status === 405) continue;
-    if (res.status === 301 || res.status === 302 || res.status === 307 || res.status === 308) continue;
-    break;
-  }
-
-  return { res: last, url: tryUrls[tryUrls.length - 1] };
-}
-
-export default function CheckoutPage() {
-  const params = useParams<{ order_id?: string }>();
+function CheckoutResultContent() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<ToastState>(null);
-  const [checkout, setCheckout] = useState<CheckoutData | null>(null);
+  const searchParams = useSearchParams();
 
-  const orderId = useMemo(() => {
-    const raw = params?.order_id;
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : null;
-  }, [params?.order_id]);
+  const checkoutId = useMemo(
+    () => String(searchParams.get("checkout_id") || "").trim(),
+    [searchParams],
+  );
 
-  const closeToast = () => setToast(null);
+  const returnStatus = useMemo(
+    () => String(searchParams.get("status") || "").trim().toLowerCase(),
+    [searchParams],
+  );
 
-  useEffect(() => {
-    if (!toast) return;
-    const id = window.setTimeout(() => setToast(null), 3500);
-    return () => window.clearTimeout(id);
-  }, [toast]);
+  const [session, setSession] = useState<CheckoutSessionStatus | null>(null);
+  const [viewState, setViewState] = useState<ViewState>("loading");
+  const [message, setMessage] = useState(
+    "Estamos confirmando el estado de tu pago.",
+  );
+  const [refreshing, setRefreshing] = useState(false);
+  const [pollCount, setPollCount] = useState(0);
 
-  const load = useCallback(async (showErrors: boolean) => {
-    if (!orderId) {
-      setToast({ type: "error", message: "order_id inválido." });
-      setLoading(false);
-      return;
-    }
+  const isTerminal = useMemo(
+    () =>
+      viewState === "success" ||
+      viewState === "failure" ||
+      viewState === "expired" ||
+      viewState === "refunded" ||
+      viewState === "error",
+    [viewState],
+  );
 
-    let hadCache = false;
-    try {
-      const cached = sessionStorage.getItem(`drooopy:checkout:${orderId}`);
-      if (cached) {
-        const parsed: unknown = JSON.parse(cached);
-        setCheckout(normalizeCheckoutData(orderId, parsed));
-        hadCache = true;
-      }
-    } catch {}
+  const applyStatus = useCallback(
+    (data: CheckoutSessionStatus) => {
+      setSession(data);
 
-    if (hadCache) {
-      setLoading(false);
-      return;
-    }
+      const status = String(data.status || "").toLowerCase();
 
-    setLoading(true);
-    try {
-      const { res, url } = await fetchOrderCheckout(orderId);
-      const data: unknown = await res?.json().catch(() => ({}));
-      const record = asRecord(data);
-
-      if (!res || !res.ok) {
-        const msg =
-          (typeof record.detail === "string" && record.detail.trim()) ||
-          (typeof record.message === "string" && record.message.trim()) ||
-          (typeof record.error === "string" && record.error.trim()) ||
-          (res ? `No se pudo cargar el checkout (HTTP ${res.status}).` : "No se pudo cargar el checkout.");
-
-        if (showErrors) setToast({ type: "error", message: `${msg}${url ? ` (${url})` : ""}` });
-        setCheckout(null);
+      // Si ya existe una Order, el webhook terminó correctamente.
+      if (data.order_id) {
+        setViewState("success");
+        setMessage("Tu pago fue confirmado y tu pedido ya fue creado.");
         return;
       }
 
+      if (status === "refunded") {
+        setViewState("refunded");
+        setMessage(
+          "El pago fue devuelto porque la compra no pudo completarse.",
+        );
+        return;
+      }
+
+      if (status === "expired") {
+        setViewState("expired");
+        setMessage(
+          "El tiempo disponible para completar este pago terminó.",
+        );
+        return;
+      }
+
+      if (TERMINAL_FAILURE_STATUSES.has(status)) {
+        setViewState("failure");
+        setMessage(
+          "El pago no fue aprobado. Tu carrito permanece sin cambios.",
+        );
+        return;
+      }
+
+      // Si Mercado Pago nos mandó por la URL de fallo y todavía no existe
+      // una orden, no debemos presentar la compra como exitosa.
+      if (returnStatus === "failure") {
+        setViewState("failure");
+        setMessage(
+          "El pago no se completó. Puedes regresar a tu carrito e intentarlo nuevamente.",
+        );
+        return;
+      }
+
+      setViewState("pending");
+
+      if (returnStatus === "success") {
+        setMessage(
+          "Mercado Pago recibió el pago. Estamos esperando la confirmación final para crear tu pedido.",
+        );
+      } else if (returnStatus === "pending") {
+        setMessage(
+          "Tu pago sigue pendiente de confirmación por Mercado Pago.",
+        );
+      } else {
+        setMessage(
+          "Estamos esperando la confirmación final de Mercado Pago.",
+        );
+      }
+    },
+    [returnStatus],
+  );
+
+  const loadStatus = useCallback(
+    async (manual = false) => {
+      if (!checkoutId) {
+        setViewState("error");
+        setMessage("No se recibió un checkout_id válido.");
+        return;
+      }
+
+      if (manual) {
+        setRefreshing(true);
+      }
+
       try {
-        sessionStorage.setItem(`drooopy:checkout:${orderId}`, JSON.stringify(data));
-      } catch {}
-      setCheckout(normalizeCheckoutData(orderId, data));
-    } catch {
-      if (showErrors) setToast({ type: "error", message: "Error de conexión al cargar el checkout." });
-      setCheckout(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [orderId]);
+        const response = await fetchWithAuth(
+          `/api/orders/checkout-sessions/${encodeURIComponent(
+            checkoutId,
+          )}/status`,
+          {
+            headers: {
+              Accept: "application/json",
+            },
+          },
+        );
+
+        const payload: unknown = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          setViewState("error");
+          setMessage(
+            readErrorMessage(
+              payload,
+              "No se pudo consultar el estado de la compra.",
+            ),
+          );
+          return;
+        }
+
+        applyStatus(payload as CheckoutSessionStatus);
+      } catch {
+        setViewState("error");
+        setMessage(
+          "Hubo un problema de conexión al consultar el estado de la compra.",
+        );
+      } finally {
+        if (manual) {
+          setRefreshing(false);
+        }
+      }
+    },
+    [applyStatus, checkoutId],
+  );
 
   useEffect(() => {
-    load(false);
-  }, [load]);
+    void loadStatus(false);
+  }, [loadStatus]);
 
-  const canPay = Boolean(checkout?.init_point);
+  // Cuando Mercado Pago regresa con success/pending puede ocurrir que el
+  // navegador llegue antes que el webhook. Consultamos durante unos segundos
+  // hasta que aparezca la Order o se alcance un estado terminal.
+  useEffect(() => {
+    if (!checkoutId || isTerminal) return;
+
+    if (returnStatus === "failure") return;
+
+    if (pollCount >= 20) return;
+
+    const timer = window.setTimeout(() => {
+      setPollCount((current) => current + 1);
+      void loadStatus(false);
+    }, 1500);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    checkoutId,
+    isTerminal,
+    loadStatus,
+    pollCount,
+    returnStatus,
+  ]);
+
+  const icon = (() => {
+    if (viewState === "success") {
+      return <CheckCircle2 className="h-12 w-12 text-green-600" />;
+    }
+
+    if (viewState === "failure" || viewState === "error") {
+      return <XCircle className="h-12 w-12 text-red-600" />;
+    }
+
+    if (viewState === "expired" || viewState === "refunded") {
+      return <AlertTriangle className="h-12 w-12 text-amber-600" />;
+    }
+
+    return <Clock3 className="h-12 w-12 text-amber-600" />;
+  })();
+
+  const title = (() => {
+    switch (viewState) {
+      case "success":
+        return "¡Pago confirmado!";
+      case "failure":
+        return "Pago no completado";
+      case "expired":
+        return "Checkout vencido";
+      case "refunded":
+        return "Pago reembolsado";
+      case "error":
+        return "No pudimos consultar la compra";
+      case "pending":
+        return "Confirmando tu pago";
+      default:
+        return "Procesando compra";
+    }
+  })();
+
+  const showPendingSpinner =
+    viewState === "loading" || viewState === "pending";
 
   return (
-    <div className="min-h-[calc(100vh-6rem)] pt-24 md:pt-28 pb-16 font-[family-name:var(--font-poppins)]">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between gap-3 mb-6">
-          <button
-            type="button"
-            onClick={() => (history.length > 1 ? router.back() : router.push("/cart"))}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-gray-900"
-          >
-            <ArrowLeft size={18} />
-            Volver
-          </button>
-          <Link href="/client/orders" className="text-sm font-semibold text-primary hover:underline">
-            Ver mis órdenes
-          </Link>
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Checkout</h1>
-              <p className="text-sm text-gray-500">Orden #{orderId ?? "—"}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => load(true)}
-              disabled={loading}
-              className={cn(
-                "inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold",
-                loading ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-gray-900 text-white hover:bg-black",
+    <div className="min-h-screen bg-gray-50 px-4 py-12 font-[family-name:var(--font-poppins)]">
+      <div className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center">
+        <div className="w-full overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-100 px-6 py-8 text-center sm:px-10">
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gray-50">
+              {showPendingSpinner ? (
+                <Loader2 className="h-10 w-10 animate-spin text-[#004e28]" />
+              ) : (
+                icon
               )}
-            >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-              Reintentar
-            </button>
+            </div>
+
+            <h1 className="font-[family-name:var(--font-varela-round)] text-2xl font-bold text-gray-950 sm:text-3xl">
+              {title}
+            </h1>
+
+            <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-gray-600 sm:text-base">
+              {message}
+            </p>
           </div>
 
-          {loading ? (
-            <div className="mt-6 flex items-center gap-2 text-sm text-gray-500">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Cargando información de pago...
-            </div>
-          ) : (
-            <div className="mt-6">
+          <div className="space-y-4 px-6 py-6 sm:px-10">
+            {session ? (
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <div className="flex items-center justify-between gap-4 text-sm">
+                  <span className="text-gray-500">Estado</span>
+                  <span className="font-semibold text-gray-900">
+                    {session.order_id
+                      ? "Aprobado"
+                      : session.status || "Pendiente"}
+                  </span>
+                </div>
+
+                {session.order_id ? (
+                  <div className="mt-3 flex items-center justify-between gap-4 border-t border-gray-200 pt-3 text-sm">
+                    <span className="text-gray-500">Pedido</span>
+                    <span className="font-bold text-gray-900">
+                      #{session.order_id}
+                    </span>
+                  </div>
+                ) : null}
+
+                {!session.order_id &&
+                typeof session.remaining_seconds === "number" &&
+                session.remaining_seconds > 0 ? (
+                  <div className="mt-3 flex items-center justify-between gap-4 border-t border-gray-200 pt-3 text-sm">
+                    <span className="text-gray-500">
+                      Tiempo restante del checkout
+                    </span>
+                    <span className="font-semibold text-gray-900">
+                      {formatRemaining(session.remaining_seconds)}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {viewState === "refunded" ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                Mercado Pago pudo haber aprobado inicialmente el cobro, pero
+                el backend detectó que la orden no podía completarse y procesó
+                la devolución. No se creó un pedido.
+              </div>
+            ) : null}
+
+            {viewState === "expired" ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                No se creó una orden. Los productos continúan sujetos a la
+                disponibilidad actual del inventario.
+              </div>
+            ) : null}
+
+            {viewState === "pending" && pollCount >= 20 ? (
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
+                La confirmación está tardando más de lo habitual. Puedes usar
+                “Actualizar estado”; no necesitas volver a pagar mientras
+                Mercado Pago siga procesando la operación.
+              </div>
+            ) : null}
+
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+              {viewState === "success" && session?.order_id ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(`/client/orders/${session.order_id}`)
+                  }
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#004e28] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#168e00]"
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  Ver mi pedido
+                </button>
+              ) : (
+                <Link
+                  href="/client/cart"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#004e28] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#168e00]"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Volver al carrito
+                </Link>
+              )}
+
               <button
                 type="button"
-                onClick={() => {
-                  const safeInitPoint = getSafeMercadoPagoUrl(checkout?.init_point);
-                  if (!safeInitPoint) return;
-                  window.location.href = safeInitPoint;
-                }}
-                disabled={!canPay}
-                className={cn(
-                  "w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm",
-                  canPay ? "bg-primary text-white hover:bg-primary/90" : "bg-gray-200 text-gray-400 cursor-not-allowed",
-                )}
+                onClick={() => void loadStatus(true)}
+                disabled={refreshing || !checkoutId}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-bold text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <ExternalLink size={16} />
-                Pagar con Mercado Pago
+                {refreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {refreshing ? "Actualizando..." : "Actualizar estado"}
               </button>
-
-              {!canPay ? (
-                <div className="mt-4 text-sm text-gray-600">
-                  No se recibió un link de pago (init_point). Si el backend ya creó la orden, debe exponer el init_point en el
-                  response del start-checkout o en el endpoint de orden/checkout.
-                </div>
-              ) : null}
             </div>
-          )}
+
+            {viewState === "success" ? (
+              <div className="pt-1 text-center">
+                <Link
+                  href="/client/orders"
+                  className="text-sm font-semibold text-[#004e28] hover:underline"
+                >
+                  Ver todas mis órdenes
+                </Link>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
-
-      {toast ? <Toast type={toast.type} message={toast.message} onClose={closeToast} /> : null}
     </div>
+  );
+}
+
+function CheckoutResultFallback() {
+  return (
+    <div className="min-h-screen bg-gray-50 px-4 py-12 font-[family-name:var(--font-poppins)]">
+      <div className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center">
+        <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-6 py-5 text-sm text-gray-600 shadow-sm">
+          <Loader2 className="h-5 w-5 animate-spin text-[#004e28]" />
+          Cargando resultado del pago...
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function CheckoutResultPage() {
+  return (
+    <Suspense fallback={<CheckoutResultFallback />}>
+      <CheckoutResultContent />
+    </Suspense>
   );
 }
