@@ -10,7 +10,7 @@ import type {
   AgendaSettingsPayload,
 } from "@/types/agenda";
 
-const base = "/api/backend/agenda";
+const base = "/api/agenda";
 
 function extractError(value: unknown): string | undefined {
   if (typeof value === "string") return value;

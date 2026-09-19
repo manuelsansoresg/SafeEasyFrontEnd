@@ -9,7 +9,7 @@ import type {
   MenuUpdatePayload,
 } from "@/types/menu";
 
-const base = "/api/backend/menus";
+const base = "/api/menus";
 
 function extractError(value: unknown): string | undefined {
   if (typeof value === "string") return value;
@@ -72,7 +72,7 @@ async function request(
 export const menuService = {
   async publicList(slug: string, signal?: AbortSignal): Promise<Menu[]> {
     const response = await fetch(
-      `/api/backend/public/menus/${encodeURIComponent(slug)}`,
+      `/api/public/menus/${encodeURIComponent(slug)}`,
       {
         cache: "no-store",
         signal,

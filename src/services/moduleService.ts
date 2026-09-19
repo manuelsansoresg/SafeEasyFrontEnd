@@ -108,7 +108,7 @@ function listItems<T>(data: unknown, key: string): T[] {
 
 export const moduleService = {
   async mine(signal?: AbortSignal): Promise<SupplierModule[]> {
-    const response = await request("/api/backend/modules/mine", { signal });
+    const response = await request("/api/modules/mine", { signal });
     const data: unknown = await response.json();
     if (!Array.isArray(data)) throw new Error("Respuesta de módulos no válida.");
     return data as SupplierModule[];
