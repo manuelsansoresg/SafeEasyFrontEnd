@@ -81,8 +81,3 @@ export interface MenuItemPayload {
   is_available: boolean;
   display_order: number;
 }
-
-export interface ModuleAccessResponse {
-  code: string;
-  has_access: boolean;
-}

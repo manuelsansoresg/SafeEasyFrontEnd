@@ -30,8 +30,6 @@ import {
   Trash2,
   Tags,
   Blocks,
-  UtensilsCrossed,
-  CalendarClock
   
 } from "lucide-react";
 import { BriefcaseBusiness } from "lucide-react";
@@ -41,8 +39,8 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
-import { useMenuModuleAccess } from "@/hooks/useMenuModuleAccess";
-import { useAgendaModuleAccess } from "@/hooks/useAgendaModuleAccess";
+import { useSupplierModules } from "@/hooks/useSupplierModules";
+import { supplierModuleScreens } from "@/lib/supplierModules";
 
 interface AdminSidebarProps {
   isCollapsed: boolean;
@@ -87,8 +85,7 @@ export function AdminSidebar({
     user?.role === "admin" || user?.role === "superuser";
 
   const isSupplier = user?.role === "supplier";
-  const { hasAccess: hasMenuAccess } = useMenuModuleAccess(isSupplier);
-  const { hasAccess: hasAgendaAccess } = useAgendaModuleAccess(isSupplier);
+  const { hasModule } = useSupplierModules(isSupplier);
 
   const { isDirectory } =
     useMyDirectorySubscription(isSupplier);
@@ -256,26 +253,12 @@ export function AdminSidebar({
       icon: Tags,
       roles: ["supplier"],
     },
-    ...(isSupplier && hasMenuAccess
-  ? [
-      {
-        title: "Menú",
-        path: "/admin/menu",
-        icon: UtensilsCrossed,
-        roles: ["supplier"] as AdminRole[],
-      },
-    ]
-  : []),
-  ...(isSupplier && hasAgendaAccess
-      ? [
-          {
-            title: "Agenda",
-            path: "/admin/agenda",
-            icon: CalendarClock,
-            roles: ["supplier"] as AdminRole[],
-          },
-        ]
-      : []),
+    ...supplierModuleScreens.filter((module) => isSupplier && hasModule(module.code)).map((module) => ({
+      title: module.title,
+      path: module.path,
+      icon: module.icon,
+      roles: ["supplier"] as AdminRole[],
+    })),
 
     ...(isSupplier && isDirectory
       ? [

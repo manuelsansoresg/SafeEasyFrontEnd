@@ -8,7 +8,6 @@ import type {
   AgendaServicePayload,
   AgendaSettings,
   AgendaSettingsPayload,
-  ModuleAccessResponse,
 } from "@/types/agenda";
 
 const base = "/api/backend/agenda";
@@ -44,11 +43,6 @@ async function request(
 }
 
 export const agendaService = {
-  async access(signal?: AbortSignal): Promise<ModuleAccessResponse> {
-    const response = await request("/api/backend/modules/agenda/access", { signal });
-    return response.json();
-  },
-
   async getSettings(signal?: AbortSignal): Promise<AgendaSettings> {
     const response = await request(`${base}/settings`, { signal });
     return response.json();

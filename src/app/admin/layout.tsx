@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Loader2, Menu, X } from "lucide-react";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   getBrowserPathWithSearchAndHash,
   getLoginUrl,
@@ -22,6 +23,7 @@ export default function AdminLayout({
   // Default to collapsed on mobile (handled by media query in effect), expanded on desktop
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [queryClient] = useState(() => new QueryClient());
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -68,7 +70,8 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <QueryClientProvider client={queryClient}>
+      <div className="flex min-h-screen bg-gray-50">
       <button
         type="button"
         onClick={() => setIsMobileMenuOpen((open) => !open)}
@@ -100,6 +103,7 @@ export default function AdminLayout({
             {children}
         </div>
       </main>
-    </div>
+      </div>
+    </QueryClientProvider>
   );
 }

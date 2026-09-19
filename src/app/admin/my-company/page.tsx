@@ -11,6 +11,8 @@ import BusinessHoursEditor from "@/components/admin/BusinessHoursEditor";
 import QRPanel from "@/components/admin/QRPanel";
 import { CompanyOverview } from "@/components/admin/company/CompanyOverview";
 import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
+import { useSupplierModules } from "@/hooks/useSupplierModules";
+import { supplierModuleScreens } from "@/lib/supplierModules";
 import { getSupplierSlug, resolveCurrentSupplier, type SupplierBusinessType } from "@/lib/currentSupplier";
 import { getCompanyProfileCompletion } from "@/lib/companyProfileCompletion";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -37,6 +39,8 @@ function MyCompanyContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isDirectory, loading: directoryLoading } = useMyDirectorySubscription(Boolean(token));
+  const { hasModule } = useSupplierModules();
+  const enabledModules = supplierModuleScreens.filter((module) => hasModule(module.code));
   const [supplier, setSupplier] = useState<SupplierForForm | null>(null);
   const [loading, setLoading] = useState(true);
   const activeTab = normalizeTab(searchParams.get("tab"));
@@ -105,11 +109,20 @@ function MyCompanyContent() {
               return <button key={item.id} type="button" onClick={() => navigate(item.id)} aria-current={active ? "page" : undefined} className={`inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium transition lg:w-full ${active ? "bg-[#004e28] text-white shadow-sm" : "bg-white text-gray-600 hover:bg-[#004e28]/[0.06] hover:text-[#004e28] lg:bg-transparent"}`}><Icon size={18} aria-hidden="true" />{item.label}</button>;
             })}
             <div className="hidden border-t border-gray-200 pt-3 lg:mt-3 lg:block"><Link href={isDirectory ? "/admin/services" : "/admin/products"} className="flex min-h-11 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28]"><Package size={18} aria-hidden="true" />{isDirectory ? "Mis servicios" : "Mis productos"}</Link></div>
+            {enabledModules.length > 0 ? (
+              <div className="flex shrink-0 items-center gap-2 border-l border-gray-200 pl-3 lg:mt-3 lg:block lg:space-y-1 lg:border-l-0 lg:border-t lg:pl-0 lg:pt-3">
+                <span className="px-2 text-xs font-semibold uppercase tracking-wide text-[#004e28] lg:block">Módulos</span>
+                {enabledModules.map((module) => {
+                  const Icon = module.icon;
+                  return <Link key={module.code} href={module.path} className="inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl bg-white px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28] lg:flex lg:w-full lg:bg-transparent"><Icon size={18} aria-hidden="true" />{module.title}</Link>;
+                })}
+              </div>
+            ) : null}
           </nav>
         </aside>
 
         <main className="min-w-0">
-          {activeTab === "overview" ? <CompanyOverview supplier={supplier} isDirectory={isDirectory} onNavigate={navigate} onSupplierUpdated={() => fetchSupplier({ silent: true })} /> : null}
+          {activeTab === "overview" ? <CompanyOverview supplier={supplier} isDirectory={isDirectory} enabledModules={enabledModules} onNavigate={navigate} onSupplierUpdated={() => fetchSupplier({ silent: true })} /> : null}
           {activeTab === "information" ? <SectionCard title="Información" description="Los datos principales y la ubicación de tu negocio."><SupplierForm initialData={supplier} isEditMode view="information" onSaved={() => fetchSupplier({ silent: true })} /></SectionCard> : null}
           {activeTab === "appearance" ? <SectionCard title="Apariencia" description="Logo e imágenes de identidad de tu negocio."><SupplierForm initialData={supplier} isEditMode view="appearance" onSaved={() => fetchSupplier({ silent: true })} /></SectionCard> : null}
           {activeTab === "header" && token ? <SectionCard title="Encabezado" description="Elige entre un video de portada o un carrusel de imágenes para presentar tu negocio."><StepCarousel supplierId={supplier.id} slug={slug || undefined} token={token} onNext={() => navigate("hours")} /></SectionCard> : null}

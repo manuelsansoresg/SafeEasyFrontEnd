@@ -16,7 +16,8 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
-import { useAgendaModuleAccess } from "@/hooks/useAgendaModuleAccess";
+import { useSupplierModules } from "@/hooks/useSupplierModules";
+import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import { agendaService } from "@/services/agendaService";
 import { agendaBookingService } from "@/services/agendaBookingService";
 import type { AgendaService } from "@/types/agenda";
@@ -79,8 +80,8 @@ function formatSlot(iso: string, timezone: string) {
 }
 
 export default function ProviderAgendaAppointmentsPage() {
-  const { loading: accessLoading, hasAccess } =
-    useAgendaModuleAccess(true);
+  const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
+  const hasAccess = hasModule("agenda");
 
   const [appointments, setAppointments] = useState<
     AgendaProviderBooking[]
@@ -206,13 +207,15 @@ export default function ProviderAgendaAppointmentsPage() {
     }
   };
 
-  if (accessLoading || loading) {
+  if (accessLoading || (hasAccess && loading)) {
     return (
       <div className="flex min-h-[55vh] items-center justify-center">
         <Loader2 className="animate-spin text-[#168e00]" size={34} />
       </div>
     );
   }
+
+  if (accessError) return <ModuleAccessError onRetry={() => void retry()} />;
 
   if (!hasAccess) {
     return (

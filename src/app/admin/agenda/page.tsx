@@ -20,7 +20,8 @@ import {
 } from "lucide-react";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
-import { useAgendaModuleAccess } from "@/hooks/useAgendaModuleAccess";
+import { useSupplierModules } from "@/hooks/useSupplierModules";
+import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import { agendaService } from "@/services/agendaService";
 import type {
   AgendaDay,
@@ -111,7 +112,8 @@ function settingsPayload(settings: AgendaSettings): AgendaSettingsPayload {
 }
 
 export default function AdminAgendaPage() {
-  const { loading: accessLoading, hasAccess } = useAgendaModuleAccess(true);
+  const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
+  const hasAccess = hasModule("agenda");
 
   const [section, setSection] = useState<Section>("general");
   const [loading, setLoading] = useState(true);
@@ -195,13 +197,15 @@ export default function AdminAgendaPage() {
     [],
   );
 
-  if (accessLoading || loading) {
+  if (accessLoading || (hasAccess && loading)) {
     return (
       <div className="flex min-h-[55vh] items-center justify-center">
         <Loader2 className="animate-spin text-[#168e00]" size={34} />
       </div>
     );
   }
+
+  if (accessError) return <ModuleAccessError onRetry={() => void retry()} />;
 
   if (!hasAccess) {
     return (

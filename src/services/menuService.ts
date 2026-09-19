@@ -7,11 +7,9 @@ import type {
   MenuSection,
   MenuSectionPayload,
   MenuUpdatePayload,
-  ModuleAccessResponse,
 } from "@/types/menu";
 
 const base = "/api/backend/menus";
-const moduleBase = "/api/backend/modules";
 
 function extractError(value: unknown): string | undefined {
   if (typeof value === "string") return value;
@@ -111,11 +109,6 @@ export const menuService = {
           .sort(byDisplayOrderAndId),
       }))
       .sort(byDisplayOrderAndId);
-  },
-
-  async access(signal?: AbortSignal): Promise<ModuleAccessResponse> {
-    const response = await request(`${moduleBase}/menu/access`, { signal });
-    return response.json();
   },
 
   async list(signal?: AbortSignal): Promise<Menu[]> {

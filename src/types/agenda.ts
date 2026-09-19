@@ -4,11 +4,6 @@ export type ServiceDuration = 15 | 20 | 30 | 45 | 60 | 90 | 120;
 export type BufferDuration = 0 | 5 | 10 | 15 | 20 | 30 | 45 | 60;
 export type AgendaExceptionType = "closed" | "special_hours" | "blocked";
 
-export interface ModuleAccessResponse {
-  code: string;
-  has_access: boolean;
-}
-
 export interface AgendaSettings {
   id: number;
   supplier_id: number;

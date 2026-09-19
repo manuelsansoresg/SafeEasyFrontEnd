@@ -12,7 +12,8 @@ import {
   Truck,
 } from "lucide-react";
 import { PageHero } from "@/components/ui/PageHero";
-import { useMenuModuleAccess } from "@/hooks/useMenuModuleAccess";
+import { useSupplierModules } from "@/hooks/useSupplierModules";
+import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import {
   MENU_ORDER_STATUS_CLASSES,
   MENU_ORDER_STATUS_LABELS,
@@ -34,7 +35,8 @@ const filters: Array<{ value: "all" | MenuOrderStatus; label: string }> = [
 ];
 
 export default function AdminMenuOrdersPage() {
-  const { loading: accessLoading, hasAccess } = useMenuModuleAccess(true);
+  const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
+  const hasAccess = hasModule("menu");
   const [orders, setOrders] = useState<MenuOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +110,8 @@ export default function AdminMenuOrdersPage() {
       </div>
     );
   }
+
+  if (accessError) return <ModuleAccessError onRetry={() => void retry()} />;
 
   if (!hasAccess) {
     return (

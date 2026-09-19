@@ -59,6 +59,15 @@ export interface SupplierModuleAssignment {
   updated_at: string;
 }
 
+export interface SupplierModule {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  has_access: boolean;
+  display_order: number;
+}
+
 export interface SupplierModuleGrantPayload {
   status: SupplierModuleStatus;
   is_enabled: boolean;

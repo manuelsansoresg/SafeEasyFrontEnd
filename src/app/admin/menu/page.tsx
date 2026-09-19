@@ -19,7 +19,8 @@ import {
 import { MenuForm } from "@/components/admin/menu/MenuForm";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
-import { useMenuModuleAccess } from "@/hooks/useMenuModuleAccess";
+import { useSupplierModules } from "@/hooks/useSupplierModules";
+import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import { menuService } from "@/services/menuService";
 import type { Menu, MenuCreatePayload } from "@/types/menu";
 
@@ -49,7 +50,8 @@ function scheduleText(menu: Menu) {
 }
 
 export default function AdminMenuPage() {
-  const { loading: accessLoading, hasAccess } = useMenuModuleAccess(true);
+  const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
+  const hasAccess = hasModule("menu");
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -210,6 +212,8 @@ export default function AdminMenuPage() {
       </div>
     );
   }
+
+  if (accessError) return <ModuleAccessError onRetry={() => void retry()} />;
 
   if (!hasAccess) {
     return (
