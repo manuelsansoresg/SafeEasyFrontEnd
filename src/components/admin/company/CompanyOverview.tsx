@@ -230,24 +230,29 @@ export function CompanyOverview({ supplier, isDirectory, enabledModules, onNavig
               </button>
             );
           })}
+          {enabledModules.map((module) => {
+            const Icon = module.icon;
+            return (
+              <Link
+                key={module.code}
+                href={module.path}
+                className="group flex min-h-32 items-start gap-4 rounded-2xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#168e00]/40 hover:shadow-lg hover:shadow-[#004e28]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#004e28]/[0.06] text-[#004e28] transition group-hover:bg-[#004e28] group-hover:text-white">
+                  <Icon size={21} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-gray-900">{module.title}</span>
+                  <span className="mt-1 block text-sm leading-5 text-gray-500">{module.description}</span>
+                  <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#168e00]">
+                    Administrar <ArrowRight size={14} aria-hidden="true" />
+                  </span>
+                </span>
+              </Link>
+            );
+          })}
         </div>
       </section>
-
-      {enabledModules.length > 0 ? (
-        <section aria-labelledby="business-modules-title">
-          <h3 id="business-modules-title" className="font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">Módulos de tu negocio</h3>
-          <p className="mt-1 text-sm text-gray-500">Administra las funciones adicionales habilitadas para tu negocio.</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            {enabledModules.map((module) => {
-              const Icon = module.icon;
-              return <Link key={module.code} href={module.path} className="group flex min-h-32 items-start gap-4 rounded-2xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#168e00]/40 hover:shadow-lg hover:shadow-[#004e28]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#004e28]/[0.06] text-[#004e28] transition group-hover:bg-[#004e28] group-hover:text-white"><Icon size={21} aria-hidden="true" /></span>
-                <span className="min-w-0 flex-1"><span className="block font-semibold text-gray-900">{module.title}</span><span className="mt-1 block text-sm leading-5 text-gray-500">{module.description}</span><span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#168e00]">Administrar <ArrowRight size={14} aria-hidden="true" /></span></span>
-              </Link>;
-            })}
-          </div>
-        </section>
-      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <button
