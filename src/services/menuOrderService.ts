@@ -9,24 +9,19 @@ import type {
   MenuOrderStatusUpdate,
 } from "@/types/menuOrder";
 
-const gatewayBase = "/api/menu-orders-gateway";
+const privateBase = "/api/menu-orders";
+const publicBase = "/api/public/menu-orders";
 
 function extractError(value: unknown): string | undefined {
   if (typeof value === "string") return value;
 
   if (Array.isArray(value)) {
-    const parts = value
-      .map(extractError)
-      .filter(Boolean);
-
-    return parts.length
-      ? parts.join("; ")
-      : undefined;
+    const parts = value.map(extractError).filter(Boolean);
+    return parts.length ? parts.join("; ") : undefined;
   }
 
   if (value && typeof value === "object") {
-    const record =
-      value as Record<string, unknown>;
+    const record = value as Record<string, unknown>;
 
     return extractError(
       record.detail ??
@@ -39,52 +34,26 @@ function extractError(value: unknown): string | undefined {
   return undefined;
 }
 
-function isGenericNotFound(detail?: string) {
-  const normalized = String(detail || "")
-    .trim()
-    .toLowerCase();
-
-  return (
-    normalized === "not found" ||
-    normalized === "404 not found"
-  );
-}
-
-async function throwForResponse(
-  response: Response,
-): Promise<never> {
-  const body: unknown = await response
-    .json()
-    .catch(() => null);
-
+async function throwForResponse(response: Response): Promise<never> {
+  const body: unknown = await response.json().catch(() => null);
   const detail = extractError(body);
 
   if (response.status === 400) {
-    throw new Error(
-      detail || "Revisa los datos capturados.",
-    );
+    throw new Error(detail || "Revisa los datos capturados.");
   }
 
   if (response.status === 401) {
-    throw new Error(
-      "Tu sesión expiró. Inicia sesión nuevamente.",
-    );
+    throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
   }
 
   if (response.status === 403) {
     throw new Error(
-      detail ||
-        "No tienes permiso para realizar esta acción.",
+      detail || "No tienes permiso para realizar esta acción.",
     );
   }
 
   if (response.status === 404) {
-    throw new Error(
-      isGenericNotFound(detail)
-        ? "El servicio de pedidos de menú no está disponible en el backend desplegado."
-        : detail ||
-            "El pedido o menú solicitado no existe.",
-    );
+    throw new Error(detail || "El pedido o menú solicitado no existe.");
   }
 
   if (response.status === 409) {
@@ -96,8 +65,7 @@ async function throwForResponse(
 
   if (response.status === 422) {
     throw new Error(
-      detail ||
-        "Revisa los datos del pedido e inténtalo nuevamente.",
+      detail || "Revisa los datos del pedido e inténtalo nuevamente.",
     );
   }
 
@@ -113,14 +81,12 @@ async function throwForResponse(
     response.status === 504
   ) {
     throw new Error(
-      detail ||
-        "El servicio de pedidos de menú no está disponible temporalmente.",
+      detail || "No se pudo comunicar con el servicio de pedidos.",
     );
   }
 
   throw new Error(
-    detail ||
-      `No se pudo completar la solicitud (${response.status}).`,
+    detail || `No se pudo completar la solicitud (${response.status}).`,
   );
 }
 
@@ -142,9 +108,7 @@ async function publicRequest(
 
 async function authRequest(
   url: string,
-  options?: Parameters<
-    typeof fetchWithAuth
-  >[1],
+  options?: Parameters<typeof fetchWithAuth>[1],
 ): Promise<Response> {
   const response = await fetchWithAuth(url, {
     cache: "no-store",
@@ -158,21 +122,14 @@ async function authRequest(
   return response;
 }
 
-function buildStatusQuery(
-  status?: MenuOrderStatus | null,
-) {
+function buildStatusQuery(status?: MenuOrderStatus | null) {
   if (!status) return "";
 
-  const params = new URLSearchParams({
-    status,
-  });
-
+  const params = new URLSearchParams({ status });
   return `?${params.toString()}`;
 }
 
-function defaultPublicSettings(
-  menuId: number,
-): MenuOrderSettings {
+function defaultPublicSettings(menuId: number): MenuOrderSettings {
   return {
     menu_id: menuId,
     supplier_id: 0,
@@ -190,18 +147,16 @@ export const menuOrderService = {
     signal?: AbortSignal,
   ): Promise<MenuOrderSettings> {
     const url =
-      `${gatewayBase}/public/settings/` +
-      `${encodeURIComponent(supplierSlug)}/` +
-      `${menuId}`;
+      `${publicBase}/settings/` +
+      `${encodeURIComponent(supplierSlug)}/${menuId}`;
 
     const response = await fetch(url, {
       cache: "no-store",
       signal,
     });
 
-    // La configuración de pedidos es complementaria.
-    // Si todavía no existe, el menú público sigue visible
-    // y simplemente no muestra controles de compra.
+    // Si el menú/configuración pública no existe, el menú público puede
+    // seguir mostrándose pero sin controles para realizar pedidos.
     if (response.status === 404) {
       return defaultPublicSettings(menuId);
     }
@@ -210,18 +165,13 @@ export const menuOrderService = {
       await throwForResponse(response);
     }
 
-    const data: unknown =
-      await response.json();
+    const data: unknown = await response.json();
 
-    if (
-      !data ||
-      typeof data !== "object"
-    ) {
+    if (!data || typeof data !== "object") {
       return defaultPublicSettings(menuId);
     }
 
-    const settings =
-      data as Partial<MenuOrderSettings>;
+    const settings = data as Partial<MenuOrderSettings>;
 
     return {
       menu_id:
@@ -232,14 +182,10 @@ export const menuOrderService = {
         typeof settings.supplier_id === "number"
           ? settings.supplier_id
           : 0,
-      accepts_orders:
-        settings.accepts_orders === true,
-      allows_pickup:
-        settings.allows_pickup !== false,
-      allows_delivery:
-        settings.allows_delivery === true,
-      allow_guest_orders:
-        settings.allow_guest_orders !== false,
+      accepts_orders: settings.accepts_orders === true,
+      allows_pickup: settings.allows_pickup !== false,
+      allows_delivery: settings.allows_delivery === true,
+      allow_guest_orders: settings.allow_guest_orders !== false,
     };
   },
 
@@ -248,9 +194,7 @@ export const menuOrderService = {
     payload: MenuOrderCreatePayload,
   ): Promise<MenuOrderCreated> {
     const response = await authRequest(
-      `${gatewayBase}/public/${encodeURIComponent(
-        supplierSlug,
-      )}`,
+      `${publicBase}/${encodeURIComponent(supplierSlug)}`,
       {
         method: "POST",
         body: JSON.stringify(payload),
@@ -270,12 +214,8 @@ export const menuOrderService = {
     });
 
     const response = await publicRequest(
-      `${gatewayBase}/public/${encodeURIComponent(
-        orderNumber,
-      )}?${params.toString()}`,
-      {
-        signal,
-      },
+      `${publicBase}/${encodeURIComponent(orderNumber)}?${params.toString()}`,
+      { signal },
     );
 
     return response.json();
@@ -286,10 +226,8 @@ export const menuOrderService = {
     signal?: AbortSignal,
   ): Promise<MenuOrderSettings> {
     const response = await authRequest(
-      `${gatewayBase}/private/settings/${menuId}`,
-      {
-        signal,
-      },
+      `${privateBase}/settings/${menuId}`,
+      { signal },
     );
 
     return response.json();
@@ -300,7 +238,7 @@ export const menuOrderService = {
     payload: MenuOrderSettingsUpdate,
   ): Promise<MenuOrderSettings> {
     const response = await authRequest(
-      `${gatewayBase}/private/settings/${menuId}`,
+      `${privateBase}/settings/${menuId}`,
       {
         method: "PUT",
         body: JSON.stringify(payload),
@@ -315,20 +253,12 @@ export const menuOrderService = {
     signal?: AbortSignal,
   ): Promise<MenuOrder[]> {
     const response = await authRequest(
-      `${gatewayBase}/private/mine${buildStatusQuery(
-        status,
-      )}`,
-      {
-        signal,
-      },
+      `${privateBase}/mine${buildStatusQuery(status)}`,
+      { signal },
     );
 
-    const data: unknown =
-      await response.json();
-
-    return Array.isArray(data)
-      ? (data as MenuOrder[])
-      : [];
+    const data: unknown = await response.json();
+    return Array.isArray(data) ? (data as MenuOrder[]) : [];
   },
 
   async providerOrders(
@@ -336,20 +266,12 @@ export const menuOrderService = {
     signal?: AbortSignal,
   ): Promise<MenuOrder[]> {
     const response = await authRequest(
-      `${gatewayBase}/private${buildStatusQuery(
-        status,
-      )}`,
-      {
-        signal,
-      },
+      `${privateBase}${buildStatusQuery(status)}`,
+      { signal },
     );
 
-    const data: unknown =
-      await response.json();
-
-    return Array.isArray(data)
-      ? (data as MenuOrder[])
-      : [];
+    const data: unknown = await response.json();
+    return Array.isArray(data) ? (data as MenuOrder[]) : [];
   },
 
   async providerOrder(
@@ -357,10 +279,8 @@ export const menuOrderService = {
     signal?: AbortSignal,
   ): Promise<MenuOrder> {
     const response = await authRequest(
-      `${gatewayBase}/private/${orderId}`,
-      {
-        signal,
-      },
+      `${privateBase}/${orderId}`,
+      { signal },
     );
 
     return response.json();
@@ -371,7 +291,7 @@ export const menuOrderService = {
     payload: MenuOrderStatusUpdate,
   ): Promise<MenuOrder> {
     const response = await authRequest(
-      `${gatewayBase}/private/${orderId}/status`,
+      `${privateBase}/${orderId}/status`,
       {
         method: "PATCH",
         body: JSON.stringify(payload),
