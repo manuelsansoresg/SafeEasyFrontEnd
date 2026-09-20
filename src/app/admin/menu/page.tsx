@@ -5,9 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CalendarDays,
-  Clock3,
   Loader2,
-  MoreVertical,
   PackageCheck,
   Pencil,
   Plus,
@@ -17,17 +15,27 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { MenuForm } from "@/components/admin/menu/MenuForm";
+import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
 import { useSupplierModules } from "@/hooks/useSupplierModules";
-import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import { menuService } from "@/services/menuService";
-import type { Menu, MenuCreatePayload } from "@/types/menu";
+import type { Menu, MenuCreatePayload, MenuDay } from "@/types/menu";
 
 type ToastState = {
   type: "success" | "error" | "info";
   message: string;
 } | null;
+
+const dayLabels: Record<MenuDay, string> = {
+  0: "Lun",
+  1: "Mar",
+  2: "Mié",
+  3: "Jue",
+  4: "Vie",
+  5: "Sáb",
+  6: "Dom",
+};
 
 function formatMoney(value: number | null) {
   if (value == null) return null;
@@ -40,23 +48,36 @@ function formatMoney(value: number | null) {
 
 function scheduleText(menu: Menu) {
   const parts: string[] = [];
+
   if (menu.date_start || menu.date_end) {
     parts.push([menu.date_start, menu.date_end].filter(Boolean).join(" → "));
+  } else if (menu.days_of_week?.length) {
+    parts.push(menu.days_of_week.map((day) => dayLabels[day]).join(", "));
+  } else {
+    parts.push("Todos los días");
   }
+
   if (menu.time_start && menu.time_end) {
     parts.push(`${menu.time_start.slice(0, 5)} - ${menu.time_end.slice(0, 5)}`);
   }
+
   return parts.join(" · ");
 }
 
 export default function AdminMenuPage() {
-  const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
+  const {
+    loading: accessLoading,
+    error: accessError,
+    hasModule,
+    retry,
+  } = useSupplierModules();
+
   const hasAccess = hasModule("menu");
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
   const [editingMenu, setEditingMenu] = useState<Menu | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
@@ -70,6 +91,7 @@ export default function AdminMenuPage() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
+
     try {
       const data = await menuService.list(controller.signal);
       setMenus(
@@ -79,9 +101,7 @@ export default function AdminMenuPage() {
       );
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudieron cargar tus menús.",
+        err instanceof Error ? err.message : "No se pudieron cargar tus menús.",
       );
     } finally {
       setLoading(false);
@@ -102,18 +122,12 @@ export default function AdminMenuPage() {
   }, [toast]);
 
   const totals = useMemo(() => {
-    const active = menus.filter((menu) => menu.is_active).length;
-    const sections = menus.reduce(
-      (sum, menu) => sum + menu.sections.length,
-      0,
-    );
-    return { active, sections };
+    const active = menus.filter(
+      (menu) => menu.setup_completed !== false && menu.is_active,
+    ).length;
+    const drafts = menus.filter((menu) => menu.setup_completed === false).length;
+    return { active, drafts };
   }, [menus]);
-
-  const openCreate = () => {
-    setEditingMenu(null);
-    setFormOpen(true);
-  };
 
   const openEdit = (menu: Menu) => {
     setEditingMenu(menu);
@@ -121,36 +135,21 @@ export default function AdminMenuPage() {
   };
 
   const saveMenu = async (payload: MenuCreatePayload) => {
+    if (!editingMenu) return;
+
     setSaving(true);
     try {
-      if (editingMenu) {
-        const updated = await menuService.update(editingMenu.id, payload);
-        setMenus((current) =>
-          current.map((menu) => (menu.id === updated.id ? updated : menu)),
-        );
-        setToast({
-          type: "success",
-          message: "Menú actualizado correctamente.",
-        });
-      } else {
-        const created = await menuService.create(payload);
-        setMenus((current) =>
-          [...current, created].sort(
-            (a, b) => a.display_order - b.display_order || a.id - b.id,
-          ),
-        );
-        setToast({
-          type: "success",
-          message: "Menú creado correctamente.",
-        });
-      }
+      const updated = await menuService.update(editingMenu.id, payload);
+      setMenus((current) =>
+        current.map((menu) => (menu.id === updated.id ? updated : menu)),
+      );
+      setToast({ type: "success", message: "Menú actualizado correctamente." });
       setFormOpen(false);
       setEditingMenu(null);
     } catch (err) {
       setToast({
         type: "error",
-        message:
-          err instanceof Error ? err.message : "No se pudo guardar el menú.",
+        message: err instanceof Error ? err.message : "No se pudo guardar el menú.",
       });
     } finally {
       setSaving(false);
@@ -174,9 +173,7 @@ export default function AdminMenuPage() {
       setToast({
         type: "error",
         message:
-          err instanceof Error
-            ? err.message
-            : "No se pudo cambiar el estado.",
+          err instanceof Error ? err.message : "No se pudo cambiar el estado.",
       });
     } finally {
       setBusyId(null);
@@ -185,7 +182,9 @@ export default function AdminMenuPage() {
 
   const removeMenu = async (menu: Menu) => {
     const accepted = window.confirm(
-      `¿Eliminar definitivamente "${menu.name}"? También se eliminarán sus secciones y elementos.`,
+      menu.setup_completed === false
+        ? `¿Eliminar el borrador "${menu.name}"?`
+        : `¿Eliminar "${menu.name}"? Sus secciones se eliminarán, pero los platillos guardados podrán seguir reutilizándose.`,
     );
     if (!accepted) return;
 
@@ -197,8 +196,7 @@ export default function AdminMenuPage() {
     } catch (err) {
       setToast({
         type: "error",
-        message:
-          err instanceof Error ? err.message : "No se pudo eliminar el menú.",
+        message: err instanceof Error ? err.message : "No se pudo eliminar el menú.",
       });
     } finally {
       setBusyId(null);
@@ -213,7 +211,9 @@ export default function AdminMenuPage() {
     );
   }
 
-  if (accessError) return <ModuleAccessError onRetry={() => void retry()} />;
+  if (accessError) {
+    return <ModuleAccessError onRetry={() => void retry()} />;
+  }
 
   if (!hasAccess) {
     return (
@@ -227,12 +227,9 @@ export default function AdminMenuPage() {
           <div className="flex items-start gap-3">
             <AlertCircle className="mt-0.5 shrink-0" />
             <div>
-              <h2 className="font-bold">
-                El módulo Menú no está activo en tu cuenta
-              </h2>
+              <h2 className="font-bold">El módulo Menú no está activo en tu cuenta</h2>
               <p className="mt-1 text-sm">
-                Activa o solicita el módulo desde tu sección de módulos
-                disponibles antes de administrar contenido.
+                Activa o solicita el módulo antes de administrar contenido.
               </p>
             </div>
           </div>
@@ -246,7 +243,7 @@ export default function AdminMenuPage() {
       <PageHero
         eyebrow="Módulo"
         title="Menú"
-        subtitle="Crea varios menús, organiza secciones, recibe pedidos y administra tus platillos o servicios."
+        subtitle="Crea tu menú paso a paso. Puedes guardar un borrador y continuar después."
         actions={
           <>
             <Link
@@ -255,13 +252,12 @@ export default function AdminMenuPage() {
             >
               <PackageCheck size={18} /> Pedidos recibidos
             </Link>
-            <button
-              type="button"
-              onClick={openCreate}
+            <Link
+              href="/admin/menu/nuevo"
               className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 font-semibold text-white shadow-sm hover:bg-[#117500]"
             >
               <Plus size={18} /> Nuevo menú
-            </button>
+            </Link>
           </>
         }
       />
@@ -272,23 +268,19 @@ export default function AdminMenuPage() {
           <p className="mt-1 text-3xl font-bold text-gray-900">{menus.length}</p>
         </div>
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">Activos</p>
-          <p className="mt-1 text-3xl font-bold text-[#168e00]">
-            {totals.active}
-          </p>
+          <p className="text-sm font-medium text-gray-500">Publicados activos</p>
+          <p className="mt-1 text-3xl font-bold text-[#168e00]">{totals.active}</p>
         </div>
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">Secciones</p>
-          <p className="mt-1 text-3xl font-bold text-gray-900">
-            {totals.sections}
-          </p>
+          <p className="text-sm font-medium text-gray-500">Borradores</p>
+          <p className="mt-1 text-3xl font-bold text-amber-600">{totals.drafts}</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[#168e00]/15 bg-[#168e00]/5 p-4 text-sm text-[#004e28]">
-        <strong>Pedidos de menú:</strong> cada menú puede decidir por separado
-        si recibe pedidos, si permite recoger en el negocio y/o entrega a
-        domicilio. Usa el botón <strong>Configurar pedidos</strong> de cada menú.
+      <div className="rounded-2xl border border-[#168e00]/15 bg-[#168e00]/5 p-4 text-sm leading-6 text-[#004e28]">
+        <strong>Más fácil:</strong> el alta nueva te guía en 5 pasos: datos, disponibilidad,
+        secciones, platillos y revisión. Los platillos que crees quedan guardados para
+        reutilizarlos en otros menús.
       </div>
 
       {error ? (
@@ -306,24 +298,21 @@ export default function AdminMenuPage() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#168e00]/10 text-[#168e00]">
             <UtensilsCrossed size={28} />
           </div>
-          <h2 className="mt-4 text-xl font-bold text-gray-900">
-            Todavía no tienes menús
-          </h2>
+          <h2 className="mt-4 text-xl font-bold text-gray-900">Todavía no tienes menús</h2>
           <p className="mx-auto mt-2 max-w-lg text-gray-500">
-            Puedes crear uno muy sencillo y agregar más información cuando la
-            necesites.
+            Te guiaremos paso a paso para crear el primero.
           </p>
-          <button
-            type="button"
-            onClick={openCreate}
+          <Link
+            href="/admin/menu/nuevo"
             className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-5 py-3 font-semibold text-white"
           >
             <Plus size={18} /> Crear primer menú
-          </button>
+          </Link>
         </div>
       ) : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {menus.map((menu) => {
+            const draft = menu.setup_completed === false;
             const schedule = scheduleText(menu);
             const price = formatMoney(menu.price);
             const itemCount = menu.sections.reduce(
@@ -334,9 +323,11 @@ export default function AdminMenuPage() {
             return (
               <article
                 key={menu.id}
-                className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                className={`overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                  draft ? "border-amber-200" : "border-gray-100"
+                }`}
               >
-                <div className="flex h-40 items-center justify-center bg-gradient-to-br from-[#004e28] to-[#168e00] text-white">
+                <div className="relative flex h-40 items-center justify-center bg-gradient-to-br from-[#004e28] to-[#168e00] text-white">
                   {menu.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -347,100 +338,117 @@ export default function AdminMenuPage() {
                   ) : (
                     <UtensilsCrossed size={42} strokeWidth={1.7} />
                   )}
+
+                  {draft ? (
+                    <span className="absolute left-3 top-3 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-black text-amber-800 shadow-sm">
+                      Borrador · paso {Math.min(5, Math.max(1, menu.setup_step || 1))} de 5
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="truncate text-xl font-bold text-gray-900">
-                          {menu.name}
-                        </h2>
-                        <span
-                          className={
-                            menu.is_active
-                              ? "rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700"
-                              : "rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500"
-                          }
-                        >
-                          {menu.is_active ? "Activo" : "Inactivo"}
-                        </span>
-                      </div>
-                      {menu.description ? (
-                        <p className="mt-2 line-clamp-2 text-sm text-gray-500">
-                          {menu.description}
-                        </p>
-                      ) : null}
-                    </div>
-                    <MoreVertical size={19} className="shrink-0 text-gray-300" />
-                  </div>
-
-                  <div className="mt-4 space-y-2 text-sm text-gray-500">
-                    <p>
-                      <strong className="text-gray-800">
-                        {menu.sections.length}
-                      </strong>{" "}
-                      secciones ·{" "}
-                      <strong className="text-gray-800">{itemCount}</strong>{" "}
-                      elementos
-                    </p>
-                    {price ? (
-                      <p className="font-semibold text-[#004e28]">{price}</p>
-                    ) : null}
-                    {schedule ? (
-                      <p className="flex items-center gap-2">
-                        <CalendarDays size={15} /> {schedule}
-                      </p>
-                    ) : null}
-                    {menu.time_start && menu.time_end ? (
-                      <span className="sr-only">
-                        <Clock3 /> Horario configurado
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="min-w-0 flex-1 truncate text-xl font-bold text-gray-900">
+                      {menu.name}
+                    </h2>
+                    {!draft ? (
+                      <span
+                        className={
+                          menu.is_active
+                            ? "rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700"
+                            : "rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500"
+                        }
+                      >
+                        {menu.is_active ? "Activo" : "Inactivo"}
                       </span>
                     ) : null}
                   </div>
 
-                  <div className="mt-5 grid grid-cols-2 gap-2">
-                    <Link
-                      href={`/admin/menu/${menu.id}`}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#117500]"
-                    >
-                      <UtensilsCrossed size={16} /> Administrar
-                    </Link>
-                    <Link
-                      href={`/admin/menu/${menu.id}/pedidos`}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#168e00]/20 bg-[#168e00]/5 px-3 py-2.5 text-sm font-semibold text-[#004e28] hover:bg-[#168e00]/10"
-                    >
-                      <Settings2 size={16} /> Pedidos
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => openEdit(menu)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
-                    >
-                      <Pencil size={16} /> Editar
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busyId === menu.id}
-                      onClick={() => void toggleActive(menu)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      {busyId === menu.id ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Power size={16} />
-                      )}
-                      {menu.is_active ? "Desactivar" : "Activar"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busyId === menu.id}
-                      onClick={() => void removeMenu(menu)}
-                      className="col-span-2 inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      <Trash2 size={16} /> Eliminar
-                    </button>
+                  {menu.description ? (
+                    <p className="mt-2 line-clamp-2 text-sm text-gray-500">
+                      {menu.description}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-4 space-y-2 text-sm text-gray-500">
+                    <p>
+                      <strong className="text-gray-800">{menu.sections.length}</strong>{" "}
+                      secciones · <strong className="text-gray-800">{itemCount}</strong>{" "}
+                      platillos
+                    </p>
+                    {price ? <p className="font-semibold text-[#004e28]">{price}</p> : null}
+                    <p className="flex items-start gap-2">
+                      <CalendarDays size={15} className="mt-0.5 shrink-0" />
+                      <span>{schedule}</span>
+                    </p>
                   </div>
+
+                  {draft ? (
+                    <div className="mt-5 space-y-2">
+                      <Link
+                        href={`/admin/menu/nuevo?menuId=${menu.id}`}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-3 py-3 text-sm font-bold text-white hover:bg-[#117500]"
+                      >
+                        Continuar configuración
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={busyId === menu.id}
+                        onClick={() => void removeMenu(menu)}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {busyId === menu.id ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                        Eliminar borrador
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-5 grid grid-cols-2 gap-2">
+                      <Link
+                        href={`/admin/menu/${menu.id}`}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#117500]"
+                      >
+                        <UtensilsCrossed size={16} /> Administrar
+                      </Link>
+                      <Link
+                        href={`/admin/menu/${menu.id}/pedidos`}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#168e00]/20 bg-[#168e00]/5 px-3 py-2.5 text-sm font-semibold text-[#004e28] hover:bg-[#168e00]/10"
+                      >
+                        <Settings2 size={16} /> Pedidos
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => openEdit(menu)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                      >
+                        <Pencil size={16} /> Editar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId === menu.id}
+                        onClick={() => void toggleActive(menu)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {busyId === menu.id ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Power size={16} />
+                        )}
+                        {menu.is_active ? "Desactivar" : "Activar"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId === menu.id}
+                        onClick={() => void removeMenu(menu)}
+                        className="col-span-2 inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        <Trash2 size={16} /> Eliminar
+                      </button>
+                    </div>
+                  )}
                 </div>
               </article>
             );

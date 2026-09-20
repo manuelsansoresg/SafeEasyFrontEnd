@@ -1,10 +1,14 @@
 import { fetchWithAuth } from "@/lib/api";
 import type {
   Menu,
+  MenuCatalogItem,
+  MenuCatalogItemCreatePayload,
+  MenuCatalogItemUpdatePayload,
   MenuCreatePayload,
   MenuItem,
   MenuItemPayload,
   MenuSection,
+  MenuSectionItemBulkAttachPayload,
   MenuSectionPayload,
   MenuUpdatePayload,
 } from "@/types/menu";
@@ -43,9 +47,7 @@ async function request(
       throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
     }
     if (response.status === 403) {
-      throw new Error(
-        detail || "No tienes acceso al módulo Menú.",
-      );
+      throw new Error(detail || "No tienes acceso al módulo Menú.");
     }
     if (response.status === 404) {
       throw new Error(detail || "El recurso solicitado no existe.");
@@ -137,6 +139,21 @@ export const menuService = {
     return response.json();
   },
 
+  async updateSetupProgress(id: number, step: number): Promise<Menu> {
+    const response = await request(`${base}/${id}/setup-progress`, {
+      method: "PATCH",
+      body: JSON.stringify({ step }),
+    });
+    return response.json();
+  },
+
+  async publish(id: number): Promise<Menu> {
+    const response = await request(`${base}/${id}/publish`, {
+      method: "POST",
+    });
+    return response.json();
+  },
+
   async remove(id: number): Promise<void> {
     await request(`${base}/${id}`, { method: "DELETE" });
   },
@@ -190,6 +207,73 @@ export const menuService = {
     });
   },
 
+  async listCatalog(
+    options?: {
+      activeOnly?: boolean;
+      q?: string;
+      signal?: AbortSignal;
+    },
+  ): Promise<MenuCatalogItem[]> {
+    const params = new URLSearchParams();
+    if (options?.activeOnly) params.set("active_only", "true");
+    if (options?.q?.trim()) params.set("q", options.q.trim());
+    const query = params.toString();
+
+    const response = await request(
+      `${base}/catalog/items${query ? `?${query}` : ""}`,
+      { signal: options?.signal },
+    );
+    const data: unknown = await response.json();
+    return Array.isArray(data) ? (data as MenuCatalogItem[]) : [];
+  },
+
+  async createCatalogItem(
+    payload: MenuCatalogItemCreatePayload,
+  ): Promise<MenuCatalogItem> {
+    const response = await request(`${base}/catalog/items`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return response.json();
+  },
+
+  async updateCatalogItem(
+    itemId: number,
+    payload: MenuCatalogItemUpdatePayload,
+  ): Promise<MenuCatalogItem> {
+    const response = await request(`${base}/catalog/items/${itemId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    return response.json();
+  },
+
+  async removeCatalogItem(itemId: number): Promise<void> {
+    await request(`${base}/catalog/items/${itemId}`, {
+      method: "DELETE",
+    });
+  },
+
+  async uploadCatalogItemImage(
+    itemId: number,
+    file: File,
+  ): Promise<MenuCatalogItem> {
+    const formData = new FormData();
+    formData.append("image", file);
+    const response = await request(`${base}/catalog/items/${itemId}/image`, {
+      method: "PUT",
+      body: formData,
+    });
+    return response.json();
+  },
+
+  async deleteCatalogItemImage(itemId: number): Promise<MenuCatalogItem> {
+    const response = await request(`${base}/catalog/items/${itemId}/image`, {
+      method: "DELETE",
+    });
+    return response.json();
+  },
+
   async createItem(
     menuId: number,
     sectionId: number,
@@ -197,6 +281,21 @@ export const menuService = {
   ): Promise<MenuItem> {
     const response = await request(
       `${base}/${menuId}/sections/${sectionId}/items`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+    return response.json();
+  },
+
+  async attachItems(
+    menuId: number,
+    sectionId: number,
+    payload: MenuSectionItemBulkAttachPayload,
+  ): Promise<MenuItem[]> {
+    const response = await request(
+      `${base}/${menuId}/sections/${sectionId}/items/attach-many`,
       {
         method: "POST",
         body: JSON.stringify(payload),

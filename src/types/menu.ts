@@ -44,6 +44,8 @@ export interface Menu {
   time_end: string | null;
   is_active: boolean;
   display_order: number;
+  setup_step: number;
+  setup_completed: boolean;
   created_at: string;
   updated_at: string;
   sections: MenuSection[];
@@ -60,9 +62,12 @@ export interface MenuCreatePayload {
   time_end: string | null;
   is_active: boolean;
   display_order: number;
+  wizard_mode?: boolean;
 }
 
-export type MenuUpdatePayload = Partial<MenuCreatePayload>;
+export type MenuUpdatePayload = Partial<
+  Omit<MenuCreatePayload, "wizard_mode">
+>;
 
 export interface MenuSectionPayload {
   name: string;
@@ -80,4 +85,43 @@ export interface MenuItemPayload {
   is_active: boolean;
   is_available: boolean;
   display_order: number;
+}
+
+export interface MenuCatalogItem {
+  id: number;
+  supplier_id: number;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  image_thumbnail_url: string | null;
+  price: number | null;
+  old_price: number | null;
+  label: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MenuCatalogItemCreatePayload {
+  name: string;
+  description: string | null;
+  price: number | null;
+  old_price: number | null;
+  label: string | null;
+  is_active: boolean;
+}
+
+export type MenuCatalogItemUpdatePayload = Partial<
+  MenuCatalogItemCreatePayload
+>;
+
+export interface MenuSectionItemAttachPayload {
+  item_id: number;
+  is_active: boolean;
+  is_available: boolean;
+  display_order: number;
+}
+
+export interface MenuSectionItemBulkAttachPayload {
+  items: MenuSectionItemAttachPayload[];
 }
