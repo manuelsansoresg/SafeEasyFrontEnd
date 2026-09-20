@@ -1712,7 +1712,7 @@ export function MenuWizard() {
           role="dialog"
           aria-modal="true"
           aria-label={`Agregar platillos a ${currentPickerSection.name}`}
-          onClick={closePicker}
+          onClick={() => closePicker()}
         >
           <div
             className="mx-auto my-4 w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl sm:my-8"
@@ -1731,7 +1731,7 @@ export function MenuWizard() {
               <button
                 type="button"
                 disabled={pickerSaving}
-                onClick={closePicker}
+                onClick={() => closePicker()}
                 className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 disabled:opacity-40"
               >
                 <X size={20} />
@@ -1844,7 +1844,7 @@ export function MenuWizard() {
                       <button
                         type="button"
                         disabled={pickerSaving}
-                        onClick={closePicker}
+                        onClick={() => closePicker()}
                         className="rounded-xl border border-gray-200 px-4 py-3 font-semibold text-gray-600"
                       >
                         Cancelar
@@ -1959,7 +1959,7 @@ export function MenuWizard() {
                   <button
                     type="button"
                     disabled={pickerSaving}
-                    onClick={closePicker}
+                    onClick={() => closePicker()}
                     className="rounded-xl border border-gray-200 px-4 py-3 font-semibold text-gray-600"
                   >
                     Cancelar
