@@ -475,12 +475,9 @@ export function PublicSupplierMenu({
     );
 
   const [
-    orderSettings,
-    setOrderSettings,
-  ] =
-    useState<MenuOrderSettings | null>(
-      null,
-    );
+    orderSettingsByMenu,
+    setOrderSettingsByMenu,
+  ] = useState<Record<number, MenuOrderSettings>>({});
 
   const [
     settingsLoading,
@@ -617,79 +614,153 @@ export function PublicSupplierMenu({
 
   useEffect(() => {
     if (
-      !selectedMenu ||
-      !supplierSlug
+      !supplierSlug ||
+      menus.length === 0
     ) {
+      setOrderSettingsByMenu({});
       return;
     }
 
     const controller =
       new AbortController();
 
-    setSettingsLoading(
-      true,
-    );
+    setSettingsLoading(true);
 
-    setOrderSettings(null);
-    setCart({});
-    setCartOpen(false);
-    setCheckoutOpen(false);
+    Promise.all(
+      menus.map(async (menu) => {
+        try {
+          const settings =
+            await menuOrderService.publicSettings(
+              supplierSlug,
+              menu.id,
+              controller.signal,
+            );
 
-    menuOrderService
-      .publicSettings(
-        supplierSlug,
-        selectedMenu.id,
-        controller.signal,
-      )
-      .then((settings) => {
-        setOrderSettings(
-          settings,
-        );
-
-        if (
-          settings.allows_pickup
-        ) {
-          setFulfillmentType(
-            "pickup",
-          );
-        } else if (
-          settings.allows_delivery
-        ) {
-          setFulfillmentType(
-            "delivery",
-          );
-        }
-      })
-      .catch(
-        (error: unknown) => {
+          return [
+            menu.id,
+            settings,
+          ] as const;
+        } catch (error: unknown) {
           if (
             error instanceof
               DOMException &&
             error.name ===
               "AbortError"
           ) {
-            return;
+            throw error;
           }
 
           console.error(
-            "No se pudo consultar la configuración de pedidos del menú:",
+            `No se pudo consultar la configuración de pedidos del menú ${menu.id}:`,
             error,
           );
 
-        },
-      )
-      .finally(() =>
-        setSettingsLoading(
-          false,
-        ),
-      );
+          return [
+            menu.id,
+            {
+              menu_id: menu.id,
+              supplier_id:
+                menu.supplier_id,
+              accepts_orders:
+                false,
+              allows_pickup:
+                true,
+              allows_delivery:
+                false,
+              allow_guest_orders:
+                true,
+            } satisfies MenuOrderSettings,
+          ] as const;
+        }
+      }),
+    )
+      .then((entries) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setOrderSettingsByMenu(
+          Object.fromEntries(
+            entries,
+          ),
+        );
+      })
+      .catch((error: unknown) => {
+        if (
+          error instanceof
+            DOMException &&
+          error.name ===
+            "AbortError"
+        ) {
+          return;
+        }
+
+        console.error(
+          "No se pudieron consultar las configuraciones de pedidos:",
+          error,
+        );
+      })
+      .finally(() => {
+        if (
+          !controller.signal.aborted
+        ) {
+          setSettingsLoading(
+            false,
+          );
+        }
+      });
 
     return () =>
       controller.abort();
   }, [
-    selectedMenu?.id,
+    menus,
     supplierSlug,
   ]);
+
+  const orderSettings =
+    selectedMenu
+      ? orderSettingsByMenu[
+          selectedMenu.id
+        ] ?? null
+      : null;
+
+  const hasAnyOrderMenu =
+    useMemo(
+      () =>
+        Object.values(
+          orderSettingsByMenu,
+        ).some(
+          (settings) =>
+            settings.accepts_orders,
+        ),
+      [orderSettingsByMenu],
+    );
+
+  useEffect(() => {
+    setCart({});
+    setCartOpen(false);
+    setCheckoutOpen(false);
+  }, [selectedMenu?.id]);
+
+  useEffect(() => {
+    if (!orderSettings) {
+      return;
+    }
+
+    if (
+      orderSettings.allows_pickup
+    ) {
+      setFulfillmentType(
+        "pickup",
+      );
+    } else if (
+      orderSettings.allows_delivery
+    ) {
+      setFulfillmentType(
+        "delivery",
+      );
+    }
+  }, [orderSettings]);
 
   useEffect(() => {
     const modalOpen =
@@ -881,6 +952,26 @@ export function PublicSupplierMenu({
     acceptsOrders &&
     (isAuthenticated ||
       allowsGuestOrders);
+
+  const hasOrderableItems =
+    useMemo(
+      () =>
+        Boolean(
+          selectedMenu?.sections.some(
+            (section) =>
+              section.items.some(
+                (item) =>
+                  item.is_available &&
+                  typeof item.price ===
+                    "number" &&
+                  Number.isFinite(
+                    item.price,
+                  ),
+              ),
+          ),
+        ),
+      [selectedMenu],
+    );
 
   const goToLoginForOrder =
     () => {
@@ -1281,7 +1372,9 @@ export function PublicSupplierMenu({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {isAuthenticated ? (
+            {isAuthenticated &&
+            !settingsLoading &&
+            hasAnyOrderMenu ? (
               <button
                 type="button"
                 onClick={() =>
@@ -1569,6 +1662,17 @@ export function PublicSupplierMenu({
                     />
                     Iniciar sesión
                   </button>
+                </div>
+              ) : null}
+
+              {!settingsLoading &&
+              acceptsOrders &&
+              canCurrentUserOrder &&
+              !hasOrderableItems ? (
+                <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-bold text-amber-900">
+                    Los pedidos están activados, pero todavía no hay platillos con precio disponibles para agregar.
+                  </p>
                 </div>
               ) : null}
 
