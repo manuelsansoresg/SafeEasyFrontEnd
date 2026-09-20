@@ -384,11 +384,7 @@ function MenuItemCard({
                 </span>
               ) : null}
             </div>
-          ) : (
-            <span className="text-xs font-medium text-gray-400">
-              Precio por consultar
-            </span>
-          )}
+          ) : null}
 
           {canOrder ? (
             <div className="mt-3">
@@ -490,12 +486,6 @@ export function PublicSupplierMenu({
     settingsLoading,
     setSettingsLoading,
   ] = useState(false);
-
-  const [
-    settingsError,
-    setSettingsError,
-  ] =
-    useState<string | null>(null);
 
   const [cart, setCart] =
     useState<
@@ -640,7 +630,6 @@ export function PublicSupplierMenu({
       true,
     );
 
-    setSettingsError(null);
     setOrderSettings(null);
     setCart({});
     setCartOpen(false);
@@ -687,9 +676,6 @@ export function PublicSupplierMenu({
             error,
           );
 
-          setSettingsError(
-            "La opción de pedidos no está disponible temporalmente.",
-          );
         },
       )
       .finally(() =>
@@ -1549,18 +1535,6 @@ export function PublicSupplierMenu({
               ) : null}
 
               {!settingsLoading &&
-              !acceptsOrders ? (
-                <p className="mt-5 text-sm font-medium text-gray-500">
-                  Este menú se
-                  puede consultar
-                  en línea, pero
-                  actualmente no
-                  recibe pedidos
-                  desde Drooopy.
-                </p>
-              ) : null}
-
-              {!settingsLoading &&
               acceptsOrders &&
               !canCurrentUserOrder ? (
                 <div className="mt-5 rounded-2xl border border-[#004e28]/10 bg-[#004e28]/5 p-4">
@@ -1598,13 +1572,6 @@ export function PublicSupplierMenu({
                 </div>
               ) : null}
 
-              {settingsError ? (
-                <p className="mt-3 text-xs text-gray-400">
-                  {
-                    settingsError
-                  }
-                </p>
-              ) : null}
             </div>
 
             {cover ? (
@@ -2545,9 +2512,7 @@ export function PublicSupplierMenu({
                 <h3 className="mt-2 font-[family-name:var(--font-varela-round)] text-2xl font-black leading-tight sm:text-3xl">{lightboxImage.name}</h3>
                 {lightboxImage.price ? (
                   <p className="mt-3 text-xl font-black text-[#7cde68] sm:text-2xl">{lightboxImage.price}</p>
-                ) : (
-                  <p className="mt-3 text-sm font-semibold text-white/55">Precio por consultar</p>
-                )}
+                ) : null}
               </div>
 
               {lightboxImage.description ? (

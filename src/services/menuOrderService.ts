@@ -15,12 +15,18 @@ function extractError(value: unknown): string | undefined {
   if (typeof value === "string") return value;
 
   if (Array.isArray(value)) {
-    const parts = value.map(extractError).filter(Boolean);
-    return parts.length ? parts.join("; ") : undefined;
+    const parts = value
+      .map(extractError)
+      .filter(Boolean);
+
+    return parts.length
+      ? parts.join("; ")
+      : undefined;
   }
 
   if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
+    const record =
+      value as Record<string, unknown>;
 
     return extractError(
       record.detail ??
@@ -31,6 +37,17 @@ function extractError(value: unknown): string | undefined {
   }
 
   return undefined;
+}
+
+function isGenericNotFound(detail?: string) {
+  const normalized = String(detail || "")
+    .trim()
+    .toLowerCase();
+
+  return (
+    normalized === "not found" ||
+    normalized === "404 not found"
+  );
 }
 
 async function throwForResponse(
@@ -63,8 +80,10 @@ async function throwForResponse(
 
   if (response.status === 404) {
     throw new Error(
-      detail ||
-        "El pedido o menú solicitado no existe.",
+      isGenericNotFound(detail)
+        ? "El servicio de pedidos de menú no está disponible en el backend desplegado."
+        : detail ||
+            "El pedido o menú solicitado no existe.",
     );
   }
 
@@ -85,6 +104,17 @@ async function throwForResponse(
   if (response.status === 429) {
     throw new Error(
       "Se hicieron demasiados intentos. Espera un momento e inténtalo de nuevo.",
+    );
+  }
+
+  if (
+    response.status === 502 ||
+    response.status === 503 ||
+    response.status === 504
+  ) {
+    throw new Error(
+      detail ||
+        "El servicio de pedidos de menú no está disponible temporalmente.",
     );
   }
 
@@ -140,14 +170,6 @@ function buildStatusQuery(
   return `?${params.toString()}`;
 }
 
-/**
- * Configuración segura para un menú que puede
- * consultarse públicamente pero que todavía no
- * tiene habilitados pedidos.
- *
- * supplier_id no se utiliza para mostrar el menú
- * público cuando accepts_orders es false.
- */
 function defaultPublicSettings(
   menuId: number,
 ): MenuOrderSettings {
@@ -172,25 +194,14 @@ export const menuOrderService = {
       `${encodeURIComponent(supplierSlug)}/` +
       `${menuId}`;
 
-    /*
-     * IMPORTANTE:
-     *
-     * La configuración de pedidos es complementaria
-     * al menú público.
-     *
-     * Si el menú existe pero la configuración de
-     * pedidos todavía no existe o el endpoint
-     * responde 404, no debemos romper la página ni
-     * mostrar "Not Found" al cliente.
-     *
-     * En ese caso tratamos el menú como únicamente
-     * informativo, sin recepción de pedidos.
-     */
     const response = await fetch(url, {
       cache: "no-store",
       signal,
     });
 
+    // La configuración de pedidos es complementaria.
+    // Si todavía no existe, el menú público sigue visible
+    // y simplemente no muestra controles de compra.
     if (response.status === 404) {
       return defaultPublicSettings(menuId);
     }
@@ -217,25 +228,18 @@ export const menuOrderService = {
         typeof settings.menu_id === "number"
           ? settings.menu_id
           : menuId,
-
       supplier_id:
-        typeof settings.supplier_id ===
-        "number"
+        typeof settings.supplier_id === "number"
           ? settings.supplier_id
           : 0,
-
       accepts_orders:
         settings.accepts_orders === true,
-
       allows_pickup:
         settings.allows_pickup !== false,
-
       allows_delivery:
         settings.allows_delivery === true,
-
       allow_guest_orders:
-        settings.allow_guest_orders !==
-        false,
+        settings.allow_guest_orders !== false,
     };
   },
 
