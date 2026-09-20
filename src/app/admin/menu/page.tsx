@@ -14,13 +14,12 @@ import {
   Trash2,
   UtensilsCrossed,
 } from "lucide-react";
-import { MenuForm } from "@/components/admin/menu/MenuForm";
 import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
 import { useSupplierModules } from "@/hooks/useSupplierModules";
 import { menuService } from "@/services/menuService";
-import type { Menu, MenuCreatePayload, MenuDay } from "@/types/menu";
+import type { Menu, MenuDay } from "@/types/menu";
 
 type ToastState = {
   type: "success" | "error" | "info";
@@ -76,9 +75,6 @@ export default function AdminMenuPage() {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingMenu, setEditingMenu] = useState<Menu | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
 
@@ -128,33 +124,6 @@ export default function AdminMenuPage() {
     const drafts = menus.filter((menu) => menu.setup_completed === false).length;
     return { active, drafts };
   }, [menus]);
-
-  const openEdit = (menu: Menu) => {
-    setEditingMenu(menu);
-    setFormOpen(true);
-  };
-
-  const saveMenu = async (payload: MenuCreatePayload) => {
-    if (!editingMenu) return;
-
-    setSaving(true);
-    try {
-      const updated = await menuService.update(editingMenu.id, payload);
-      setMenus((current) =>
-        current.map((menu) => (menu.id === updated.id ? updated : menu)),
-      );
-      setToast({ type: "success", message: "Menú actualizado correctamente." });
-      setFormOpen(false);
-      setEditingMenu(null);
-    } catch (err) {
-      setToast({
-        type: "error",
-        message: err instanceof Error ? err.message : "No se pudo guardar el menú.",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const toggleActive = async (menu: Menu) => {
     setBusyId(menu.id);
@@ -408,10 +377,10 @@ export default function AdminMenuPage() {
                   ) : (
                     <div className="mt-5 grid grid-cols-2 gap-2">
                       <Link
-                        href={`/admin/menu/${menu.id}`}
+                        href={`/admin/menu/nuevo?menuId=${menu.id}`}
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#117500]"
                       >
-                        <UtensilsCrossed size={16} /> Administrar
+                        <Pencil size={16} /> Editar menú
                       </Link>
                       <Link
                         href={`/admin/menu/${menu.id}/pedidos`}
@@ -419,13 +388,12 @@ export default function AdminMenuPage() {
                       >
                         <Settings2 size={16} /> Pedidos
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() => openEdit(menu)}
+                      <Link
+                        href={`/admin/menu/nuevo?menuId=${menu.id}`}
                         className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
                       >
-                        <Pencil size={16} /> Editar
-                      </button>
+                        <UtensilsCrossed size={16} /> Contenido
+                      </Link>
                       <button
                         type="button"
                         disabled={busyId === menu.id}
@@ -455,19 +423,6 @@ export default function AdminMenuPage() {
           })}
         </div>
       )}
-
-      <MenuForm
-        open={formOpen}
-        menu={editingMenu}
-        saving={saving}
-        onClose={() => {
-          if (!saving) {
-            setFormOpen(false);
-            setEditingMenu(null);
-          }
-        }}
-        onSubmit={saveMenu}
-      />
 
       {toast ? (
         <Toast

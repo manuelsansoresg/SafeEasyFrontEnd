@@ -9,8 +9,10 @@ import {
   Camera,
   Check,
   ChevronLeft,
+  ImageOff,
   ImagePlus,
   Loader2,
+  Pencil,
   Plus,
   Search,
   Store,
@@ -18,6 +20,8 @@ import {
   UtensilsCrossed,
   X,
 } from "lucide-react";
+import { MenuItemForm } from "@/components/admin/menu/MenuItemForm";
+import { MenuSectionForm } from "@/components/admin/menu/MenuSectionForm";
 import { Toast } from "@/components/ui/Toast";
 import { menuService } from "@/services/menuService";
 import type {
@@ -25,7 +29,9 @@ import type {
   MenuCatalogItem,
   MenuDay,
   MenuItem,
+  MenuItemPayload,
   MenuSection,
+  MenuSectionPayload,
 } from "@/types/menu";
 
 type ToastState = {
@@ -151,6 +157,9 @@ export function MenuWizard() {
   // Paso 3
   const [customSection, setCustomSection] = useState("");
   const [sectionBusy, setSectionBusy] = useState<number | "new" | null>(null);
+  const [sectionFormOpen, setSectionFormOpen] = useState(false);
+  const [editingSection, setEditingSection] = useState<MenuSection | null>(null);
+  const [sectionFormSaving, setSectionFormSaving] = useState(false);
 
   // Paso 4
   const [catalog, setCatalog] = useState<MenuCatalogItem[]>([]);
@@ -167,6 +176,13 @@ export function MenuWizard() {
   const [dishPrice, setDishPrice] = useState("");
   const [dishImage, setDishImage] = useState<File | null>(null);
   const [dishImagePreview, setDishImagePreview] = useState<string | null>(null);
+
+  // Edición de platillos existentes dentro del mismo wizard
+  const [itemFormOpen, setItemFormOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [editingItemSectionId, setEditingItemSectionId] = useState<number | null>(null);
+  const [itemFormSaving, setItemFormSaving] = useState(false);
+  const [itemImageBusy, setItemImageBusy] = useState<number | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -218,7 +234,9 @@ export function MenuWizard() {
         if (!active) return;
 
         applyMenuToForm(loaded);
-        setStep(loaded.setup_completed ? 5 : clampStep(loaded.setup_step));
+        // Un menú publicado entra al mismo wizard desde el paso 1 para editarlo.
+        // Un borrador continúa exactamente donde se quedó.
+        setStep(loaded.setup_completed ? 1 : clampStep(loaded.setup_step));
       } catch (error) {
         if (!active) return;
         setPageError(
@@ -369,9 +387,14 @@ export function MenuWizard() {
         router.push("/admin/menu");
         return;
       }
-      const progressed = await menuService.updateSetupProgress(saved.id, 2);
-      applyMenuToForm(progressed);
-      setStep(2);
+      if (saved.setup_completed) {
+        applyMenuToForm(saved);
+        setStep(2);
+      } else {
+        const progressed = await menuService.updateSetupProgress(saved.id, 2);
+        applyMenuToForm(progressed);
+        setStep(2);
+      }
     } catch (error) {
       setStepError(
         error instanceof Error ? error.message : "No se pudo guardar el menú.",
@@ -421,9 +444,14 @@ export function MenuWizard() {
         router.push("/admin/menu");
         return;
       }
-      const progressed = await menuService.updateSetupProgress(saved.id, 3);
-      applyMenuToForm(progressed);
-      setStep(3);
+      if (saved.setup_completed) {
+        applyMenuToForm(saved);
+        setStep(3);
+      } else {
+        const progressed = await menuService.updateSetupProgress(saved.id, 3);
+        applyMenuToForm(progressed);
+        setStep(3);
+      }
     } catch (error) {
       setStepError(
         error instanceof Error
@@ -469,6 +497,32 @@ export function MenuWizard() {
     }
   };
 
+  const openEditSection = (section: MenuSection) => {
+    setEditingSection(section);
+    setSectionFormOpen(true);
+    setStepError(null);
+  };
+
+  const saveEditedSection = async (payload: MenuSectionPayload) => {
+    if (!menu || !editingSection) return;
+
+    setSectionFormSaving(true);
+    setStepError(null);
+    try {
+      await menuService.updateSection(menu.id, editingSection.id, payload);
+      await refreshMenu(menu.id);
+      setSectionFormOpen(false);
+      setEditingSection(null);
+      setToast({ type: "success", message: "Sección actualizada." });
+    } catch (error) {
+      setStepError(
+        error instanceof Error ? error.message : "No se pudo actualizar la sección.",
+      );
+    } finally {
+      setSectionFormSaving(false);
+    }
+  };
+
   const removeSection = async (section: MenuSection) => {
     if (!menu) return;
     const accepted = window.confirm(
@@ -503,13 +557,19 @@ export function MenuWizard() {
     setStepError(null);
     try {
       if (exitAfterSave) {
-        await menuService.updateSetupProgress(menu.id, 3);
+        if (!menu.setup_completed) {
+          await menuService.updateSetupProgress(menu.id, 3);
+        }
         router.push("/admin/menu");
         return;
       }
-      const progressed = await menuService.updateSetupProgress(menu.id, 4);
-      applyMenuToForm(progressed);
-      setStep(4);
+      if (menu.setup_completed) {
+        setStep(4);
+      } else {
+        const progressed = await menuService.updateSetupProgress(menu.id, 4);
+        applyMenuToForm(progressed);
+        setStep(4);
+      }
     } catch (error) {
       setStepError(
         error instanceof Error ? error.message : "No se pudo guardar el avance.",
@@ -535,8 +595,8 @@ export function MenuWizard() {
     setStepError(null);
   };
 
-  const closePicker = () => {
-    if (pickerSaving) return;
+  const closePicker = (force = false) => {
+    if (pickerSaving && !force) return;
     setPickerSectionId(null);
     setPickerSelected([]);
     setPickerSearch("");
@@ -589,7 +649,7 @@ export function MenuWizard() {
 
       await refreshMenu(menu.id);
       setToast({ type: "success", message: "Platillos actualizados." });
-      closePicker();
+      closePicker(true);
     } catch (error) {
       setStepError(
         error instanceof Error
@@ -643,13 +703,90 @@ export function MenuWizard() {
         type: "success",
         message: `${created.name} se agregó y quedó guardado para reutilizarlo.`,
       });
-      closePicker();
+      closePicker(true);
     } catch (error) {
       setStepError(
         error instanceof Error ? error.message : "No se pudo crear el platillo.",
       );
     } finally {
       setPickerSaving(false);
+    }
+  };
+
+  const openEditItem = (sectionId: number, item: MenuItem) => {
+    setEditingItemSectionId(sectionId);
+    setEditingItem(item);
+    setItemFormOpen(true);
+    setStepError(null);
+  };
+
+  const saveEditedItem = async (payload: MenuItemPayload) => {
+    if (!menu || !editingItem || editingItemSectionId == null) return;
+
+    setItemFormSaving(true);
+    setStepError(null);
+    try {
+      await menuService.updateItem(
+        menu.id,
+        editingItemSectionId,
+        editingItem.id,
+        payload,
+      );
+      await Promise.all([refreshMenu(menu.id), loadCatalog()]);
+      setItemFormOpen(false);
+      setEditingItem(null);
+      setEditingItemSectionId(null);
+      setToast({ type: "success", message: "Platillo actualizado." });
+    } catch (error) {
+      setStepError(
+        error instanceof Error ? error.message : "No se pudo actualizar el platillo.",
+      );
+    } finally {
+      setItemFormSaving(false);
+    }
+  };
+
+  const uploadExistingItemImage = async (
+    sectionId: number,
+    itemId: number,
+    file?: File,
+  ) => {
+    if (!menu || !file) return;
+    const validationError = validateImage(file);
+    if (validationError) {
+      setStepError(validationError);
+      return;
+    }
+
+    setItemImageBusy(itemId);
+    setStepError(null);
+    try {
+      await menuService.uploadItemImage(menu.id, sectionId, itemId, file);
+      await Promise.all([refreshMenu(menu.id), loadCatalog()]);
+      setToast({ type: "success", message: "Foto actualizada." });
+    } catch (error) {
+      setStepError(
+        error instanceof Error ? error.message : "No se pudo actualizar la foto.",
+      );
+    } finally {
+      setItemImageBusy(null);
+    }
+  };
+
+  const deleteExistingItemImage = async (sectionId: number, itemId: number) => {
+    if (!menu) return;
+    setItemImageBusy(itemId);
+    setStepError(null);
+    try {
+      await menuService.deleteItemImage(menu.id, sectionId, itemId);
+      await Promise.all([refreshMenu(menu.id), loadCatalog()]);
+      setToast({ type: "success", message: "Foto eliminada." });
+    } catch (error) {
+      setStepError(
+        error instanceof Error ? error.message : "No se pudo eliminar la foto.",
+      );
+    } finally {
+      setItemImageBusy(null);
     }
   };
 
@@ -685,13 +822,20 @@ export function MenuWizard() {
     setStepError(null);
     try {
       if (exitAfterSave) {
-        await menuService.updateSetupProgress(menu.id, 4);
+        if (!menu.setup_completed) {
+          await menuService.updateSetupProgress(menu.id, 4);
+        }
         router.push("/admin/menu");
         return;
       }
-      const progressed = await menuService.updateSetupProgress(menu.id, 5);
-      applyMenuToForm(progressed);
-      setStep(5);
+
+      if (menu.setup_completed) {
+        setStep(5);
+      } else {
+        const progressed = await menuService.updateSetupProgress(menu.id, 5);
+        applyMenuToForm(progressed);
+        setStep(5);
+      }
     } catch (error) {
       setStepError(
         error instanceof Error ? error.message : "No se pudo guardar el avance.",
@@ -825,10 +969,16 @@ export function MenuWizard() {
             Alta guiada
           </p>
           <h1 className="mt-1 font-[family-name:var(--font-varela-round)] text-3xl font-black text-[#004e28] sm:text-4xl">
-            {menu ? "Configura tu menú" : "Crea tu menú"}
+            {menu?.setup_completed
+              ? "Edita tu menú"
+              : menu
+                ? "Configura tu menú"
+                : "Crea tu menú"}
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
-            Solo sigue los pasos. Puedes guardar y continuar después.
+            {menu?.setup_completed
+              ? "Recorre los pasos y cambia solo lo que necesites."
+              : "Solo sigue los pasos. Puedes guardar y continuar después."}
           </p>
         </div>
 
@@ -1241,19 +1391,30 @@ export function MenuWizard() {
                           {section.name}
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        disabled={sectionBusy !== null}
-                        onClick={() => void removeSection(section)}
-                        className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
-                        aria-label={`Quitar ${section.name}`}
-                      >
-                        {sectionBusy === section.id ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                          <Trash2 size={16} />
-                        )}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={sectionBusy !== null}
+                          onClick={() => openEditSection(section)}
+                          className="rounded-lg p-2 text-gray-400 hover:bg-white hover:text-[#168e00] disabled:opacity-40"
+                          aria-label={`Editar ${section.name}`}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={sectionBusy !== null}
+                          onClick={() => void removeSection(section)}
+                          className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                          aria-label={`Quitar ${section.name}`}
+                        >
+                          {sectionBusy === section.id ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1322,11 +1483,59 @@ export function MenuWizard() {
                             <p className="mt-0.5 text-xs font-semibold text-[#168e00]">
                               {money(item.price)}
                             </p>
+                            <p className={`mt-1 text-[0.68rem] font-semibold ${
+                              item.is_available ? "text-emerald-600" : "text-amber-600"
+                            }`}>
+                              {item.is_available ? "Disponible" : "Agotado"}
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <button
+                                type="button"
+                                disabled={saving || itemImageBusy === item.id}
+                                onClick={() => openEditItem(section.id, item)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1 text-[0.7rem] font-semibold text-gray-600 hover:border-[#168e00]/30 hover:text-[#168e00]"
+                              >
+                                <Pencil size={12} /> Editar
+                              </button>
+                              <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-200 px-2 py-1 text-[0.7rem] font-semibold text-gray-600 hover:border-[#168e00]/30 hover:text-[#168e00]">
+                                {itemImageBusy === item.id ? (
+                                  <Loader2 size={12} className="animate-spin" />
+                                ) : (
+                                  <Camera size={12} />
+                                )}
+                                Foto
+                                <input
+                                  type="file"
+                                  accept="image/jpeg,image/png,image/webp"
+                                  className="hidden"
+                                  disabled={saving || itemImageBusy === item.id}
+                                  onChange={(event) => {
+                                    void uploadExistingItemImage(
+                                      section.id,
+                                      item.id,
+                                      event.target.files?.[0],
+                                    );
+                                    event.currentTarget.value = "";
+                                  }}
+                                />
+                              </label>
+                              {item.image_url ? (
+                                <button
+                                  type="button"
+                                  disabled={saving || itemImageBusy === item.id}
+                                  onClick={() => void deleteExistingItemImage(section.id, item.id)}
+                                  className="inline-flex items-center rounded-lg border border-gray-200 px-2 py-1 text-gray-400 hover:text-red-500"
+                                  aria-label={`Quitar foto de ${item.name}`}
+                                >
+                                  <ImageOff size={12} />
+                                </button>
+                              ) : null}
+                            </div>
                             <button
                               type="button"
-                              disabled={saving}
+                              disabled={saving || itemImageBusy === item.id}
                               onClick={() => void removeItemFromSection(section, item)}
-                              className="mt-1 text-[0.7rem] font-semibold text-red-500"
+                              className="mt-2 text-[0.7rem] font-semibold text-red-500"
                             >
                               Quitar de esta sección
                             </button>
@@ -1350,9 +1559,13 @@ export function MenuWizard() {
               <p className="mt-4 text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">
                 Paso 5 de 5
               </p>
-              <h2 className="mt-1 text-2xl font-bold text-gray-900">Todo listo para publicar</h2>
+              <h2 className="mt-1 text-2xl font-bold text-gray-900">
+                {menu.setup_completed ? "Revisa tus cambios" : "Todo listo para publicar"}
+              </h2>
               <p className="mt-1 text-sm text-gray-500">
-                Revisa lo básico. Siempre podrás editarlo después.
+                {menu.setup_completed
+                  ? "Tus datos, secciones y platillos se conservaron. Verifica que todo esté como quieres."
+                  : "Revisa lo básico. Siempre podrás editarlo después."}
               </p>
             </div>
 
@@ -1399,7 +1612,9 @@ export function MenuWizard() {
               </div>
 
               <div className="rounded-2xl border border-[#168e00]/15 bg-[#168e00]/5 p-4 text-sm leading-6 text-[#004e28]">
-                Al publicar, el menú quedará visible en la página de tu negocio. Puedes desactivarlo o editarlo cuando quieras.
+                {menu.setup_completed
+                  ? "Los cambios se guardan sobre este mismo menú; no se duplican secciones ni platillos."
+                  : "Al publicar, el menú quedará visible en la página de tu negocio. Puedes desactivarlo o editarlo cuando quieras."}
               </div>
             </div>
           </div>
@@ -1477,11 +1692,15 @@ export function MenuWizard() {
             <button
               type="button"
               disabled={saving}
-              onClick={() => void publishMenu()}
+              onClick={() =>
+                menu?.setup_completed
+                  ? router.push("/admin/menu")
+                  : void publishMenu()
+              }
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-6 py-3 font-black text-white shadow-sm hover:bg-[#117500] disabled:opacity-50"
             >
               {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-              Publicar menú
+              {menu?.setup_completed ? "Terminar edición" : "Publicar menú"}
             </button>
           ) : null}
         </div>
@@ -1760,6 +1979,33 @@ export function MenuWizard() {
           </div>
         </div>
       ) : null}
+
+      <MenuSectionForm
+        open={sectionFormOpen}
+        section={editingSection}
+        saving={sectionFormSaving}
+        onClose={() => {
+          if (!sectionFormSaving) {
+            setSectionFormOpen(false);
+            setEditingSection(null);
+          }
+        }}
+        onSubmit={saveEditedSection}
+      />
+
+      <MenuItemForm
+        open={itemFormOpen}
+        item={editingItem}
+        saving={itemFormSaving}
+        onClose={() => {
+          if (!itemFormSaving) {
+            setItemFormOpen(false);
+            setEditingItem(null);
+            setEditingItemSectionId(null);
+          }
+        }}
+        onSubmit={saveEditedItem}
+      />
 
       {toast ? (
         <Toast
