@@ -2516,75 +2516,55 @@ export function PublicSupplierMenu({
 
       {lightboxImage ? (
         <div
-          className="fixed inset-0 z-[24000] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm sm:p-8"
+          className="fixed inset-0 z-[24000] flex items-center justify-center bg-black/90 p-3 backdrop-blur-md sm:p-5 lg:p-7"
           role="dialog"
           aria-modal="true"
           aria-label={`Imagen ampliada: ${lightboxImage.alt}`}
-          onClick={() =>
-            setLightboxImage(
-              null,
-            )
-          }
+          onClick={() => setLightboxImage(null)}
         >
           <div
-            className="relative flex max-h-[90vh] w-[85vw] max-w-6xl flex-col overflow-hidden rounded-2xl bg-[#0d1712] shadow-2xl"
-            onClick={(
-              event,
-            ) =>
-              event.stopPropagation()
-            }
+            className="relative grid max-h-[94vh] w-[94vw] max-w-7xl overflow-hidden rounded-3xl border border-white/10 bg-[#08110c] shadow-2xl lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.65fr)]"
+            onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
-              onClick={() =>
-                setLightboxImage(
-                  null,
-                )
-              }
-              className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white shadow-lg backdrop-blur hover:bg-black/75"
+              onClick={() => setLightboxImage(null)}
+              className="absolute right-3 top-3 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 sm:right-4 sm:top-4"
               aria-label="Cerrar imagen ampliada"
             >
               <X className="h-5 w-5" />
             </button>
 
-            <div className="relative h-[68vh] min-h-64 w-full bg-black">
-              <MenuImage
-                src={
-                  lightboxImage.src
-                }
-                alt={
-                  lightboxImage.alt
-                }
-                sizes="85vw"
-                fit="contain"
-              />
+            <div className="relative h-[52vh] min-h-[300px] w-full bg-black sm:h-[60vh] lg:h-[88vh]">
+              <MenuImage src={lightboxImage.src} alt={lightboxImage.alt} sizes="(max-width: 1023px) 94vw, 70vw" fit="contain" />
             </div>
 
-            <div className="shrink-0 border-t border-white/10 bg-[#0d1712] px-4 py-3 text-white sm:px-5 sm:py-4">
-              <div className="flex items-start justify-between gap-4">
-                <h3 className="min-w-0 font-[family-name:var(--font-varela-round)] text-base font-bold leading-snug sm:text-lg">
-                  {
-                    lightboxImage.name
-                  }
-                </h3>
-
+            <aside className="max-h-[42vh] overflow-y-auto border-t border-white/10 bg-gradient-to-b from-[#102219] to-[#08110c] px-5 py-5 text-white sm:px-7 sm:py-6 lg:max-h-[88vh] lg:border-l lg:border-t-0 lg:px-8 lg:py-10">
+              <div className="pr-10 lg:pr-0">
+                <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-[#7cde68]">Detalle del platillo</p>
+                <h3 className="mt-2 font-[family-name:var(--font-varela-round)] text-2xl font-black leading-tight sm:text-3xl">{lightboxImage.name}</h3>
                 {lightboxImage.price ? (
-                  <p className="shrink-0 text-sm font-black text-[#7cde68] sm:text-base">
-                    {
-                      lightboxImage.price
-                    }
-                  </p>
-                ) : null}
+                  <p className="mt-3 text-xl font-black text-[#7cde68] sm:text-2xl">{lightboxImage.price}</p>
+                ) : (
+                  <p className="mt-3 text-sm font-semibold text-white/55">Precio por consultar</p>
+                )}
               </div>
 
               {lightboxImage.description ? (
-                <p className="mt-1 line-clamp-2 max-w-3xl text-xs leading-5 text-white/65 sm:text-sm">
-                  {
-                    lightboxImage.description
-                  }
-                </p>
-              ) : null}
-            </div>
+                <div className="mt-6 border-t border-white/10 pt-5">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/40">Descripción</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-white/80 sm:text-base">{lightboxImage.description}</p>
+                </div>
+              ) : (
+                <div className="mt-6 border-t border-white/10 pt-5">
+                  <p className="text-sm text-white/45">Este platillo no tiene descripción adicional.</p>
+                </div>
+              )}
+
+              <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-xs leading-5 text-white/45">La fotografía se muestra completa, sin recortes. Puedes desplazarte en esta información si la descripción es larga.</p>
+              </div>
+            </aside>
           </div>
         </div>
       ) : null}
