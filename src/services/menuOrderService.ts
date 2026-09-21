@@ -193,6 +193,10 @@ export const menuOrderService = {
     supplierSlug: string,
     payload: MenuOrderCreatePayload,
   ): Promise<MenuOrderCreated> {
+    if (payload.items.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1 ||
+      (item.variant_id != null && (!Number.isInteger(item.variant_id) || item.variant_id < 1)))) {
+      throw new Error("Revisa la cantidad y presentación de cada producto.");
+    }
     const response = await authRequest(
       `${publicBase}/${encodeURIComponent(supplierSlug)}`,
       {

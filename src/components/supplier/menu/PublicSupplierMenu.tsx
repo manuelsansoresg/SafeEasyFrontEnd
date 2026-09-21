@@ -37,6 +37,7 @@ import type {
   Menu,
   MenuDay,
   MenuItem,
+  MenuItemVariant,
 } from "@/types/menu";
 import type {
   MenuOrderFulfillmentType,
@@ -242,6 +243,7 @@ type LightboxImage = {
 
 type CartLine = {
   item: MenuItem;
+  variant: MenuItemVariant | null;
   quantity: number;
   notes: string;
 };
@@ -258,6 +260,8 @@ function MenuItemCard({
   onOpenImage,
   onAdd,
   onDecrease,
+  variantQuantity,
+  onVariantChange,
 }: {
   item: MenuItem;
   quantity: number;
@@ -267,6 +271,8 @@ function MenuItemCard({
   ) => void;
   onAdd: () => void;
   onDecrease: () => void;
+  variantQuantity: (variantId: number) => number;
+  onVariantChange: (variant: MenuItemVariant, delta: number) => void;
 }) {
   const thumbnail =
     item.image_thumbnail_url ||
@@ -276,9 +282,10 @@ function MenuItemCard({
     item.image_url ||
     item.image_thumbnail_url;
 
-  const price = formatPrice(
-    item.price,
-  );
+  const variants = Array.isArray(item.variants) ? [...item.variants].sort(
+    (a, b) => a.display_order - b.display_order || a.id - b.id,
+  ) : [];
+  const price = variants.length ? null : formatPrice(item.price);
 
   const showOldPrice =
     typeof item.old_price ===
@@ -386,7 +393,34 @@ function MenuItemCard({
             </div>
           ) : null}
 
-          {canOrder ? (
+          {variants.length > 0 ? (
+            <div className="mt-3 space-y-2" aria-label={`Presentaciones de ${item.name}`}>
+              {variants.map((variant) => {
+                const available = item.is_available && variant.is_active && variant.is_available &&
+                  typeof variant.price === "number" && Number.isFinite(variant.price);
+                const selectedQuantity = variantQuantity(variant.id);
+                return (
+                  <div key={variant.id} className="rounded-xl border border-[#004e28]/10 bg-[#f2f3f4] p-2.5">
+                    <div className="flex items-start justify-between gap-2 text-xs">
+                      <span className="font-semibold text-[#004e28]">{variant.name}</span>
+                      <span className="shrink-0 text-right font-black text-[#168e00]">
+                        {formatPrice(variant.price)}
+                        {variant.old_price != null && variant.old_price > variant.price ?
+                          <span className="block text-[10px] font-normal text-gray-400 line-through">{formatPrice(variant.old_price)}</span> : null}
+                      </span>
+                    </div>
+                    {!available ? <span className="mt-1 block text-xs font-semibold text-gray-500">Agotada</span> : canOrder ? (
+                      selectedQuantity ? <div className="mt-2 flex items-center justify-between rounded-lg bg-white p-1">
+                        <button type="button" onClick={() => onVariantChange(variant, -1)} aria-label={`Quitar ${variant.name}`} className="rounded p-1 text-[#004e28]"><Minus size={15} /></button>
+                        <span className="text-xs font-bold">{selectedQuantity}</span>
+                        <button type="button" onClick={() => onVariantChange(variant, 1)} aria-label={`Agregar ${variant.name}`} className="rounded bg-[#168e00] p-1 text-white"><Plus size={15} /></button>
+                      </div> : <button type="button" onClick={() => onVariantChange(variant, 1)} className="mt-2 w-full rounded-lg bg-[#168e00] px-2 py-1.5 text-xs font-bold text-white">Agregar {variant.name}</button>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : canOrder ? (
             <div className="mt-3">
               {quantity > 0 ? (
                 <div className="flex w-full items-center justify-between rounded-xl border border-[#168e00]/20 bg-[#168e00]/5 p-1">
@@ -486,7 +520,7 @@ export function PublicSupplierMenu({
 
   const [cart, setCart] =
     useState<
-      Record<number, CartLine>
+      Record<string, CartLine>
     >({});
 
   const [
@@ -859,8 +893,7 @@ export function PublicSupplierMenu({
           ) =>
             sum +
             Number(
-              line.item
-                .price ||
+              (line.variant?.price ?? line.item.price) ||
                 0,
             ) *
               line.quantity,
@@ -953,25 +986,12 @@ export function PublicSupplierMenu({
     (isAuthenticated ||
       allowsGuestOrders);
 
-  const hasOrderableItems =
-    useMemo(
-      () =>
-        Boolean(
-          selectedMenu?.sections.some(
-            (section) =>
-              section.items.some(
-                (item) =>
-                  item.is_available &&
-                  typeof item.price ===
-                    "number" &&
-                  Number.isFinite(
-                    item.price,
-                  ),
-              ),
-          ),
-        ),
-      [selectedMenu],
-    );
+  const hasOrderableItems = selectedMenu.sections.some((section) =>
+    section.items.some((item) => item.is_available &&
+      (item.variants?.length
+        ? item.variants.some((variant) => variant.is_active && variant.is_available && Number.isFinite(variant.price))
+        : typeof item.price === "number" && Number.isFinite(item.price))),
+  );
 
   const goToLoginForOrder =
     () => {
@@ -985,21 +1005,17 @@ export function PublicSupplierMenu({
   const changeQuantity = (
     item: MenuItem,
     delta: number,
+    variant: MenuItemVariant | null = null,
   ) => {
-    if (
-      !item.is_available ||
-      typeof item.price !==
-        "number"
-    ) {
-      return;
-    }
+    if (!item.is_available || (Array.isArray(item.variants) && item.variants.length > 0 && !variant) ||
+      (variant && (!variant.is_active || !variant.is_available || !Number.isFinite(variant.price))) ||
+      (!variant && (typeof item.price !== "number" || !Number.isFinite(item.price)))) return;
+    const key = `${item.id}:${variant?.id ?? "base"}`;
 
     setCart(
       (current) => {
         const existing =
-          current[
-            item.id
-          ];
+          current[key];
 
         const quantity =
           Math.max(
@@ -1019,13 +1035,12 @@ export function PublicSupplierMenu({
         if (
           quantity === 0
         ) {
-          delete next[
-            item.id
-          ];
+          delete next[key];
         } else {
-          next[item.id] =
+          next[key] =
             {
               item,
+              variant,
               quantity,
               notes:
                 existing?.notes ||
@@ -1039,15 +1054,13 @@ export function PublicSupplierMenu({
   };
 
   const updateLineNotes = (
-    itemId: number,
+    key: string,
     notes: string,
   ) => {
     setCart(
       (current) => {
         const line =
-          current[
-            itemId
-          ];
+          current[key];
 
         if (!line) {
           return current;
@@ -1055,7 +1068,7 @@ export function PublicSupplierMenu({
 
         return {
           ...current,
-          [itemId]: {
+          [key]: {
             ...line,
             notes,
           },
@@ -1065,7 +1078,7 @@ export function PublicSupplierMenu({
   };
 
   const removeLine = (
-    itemId: number,
+    key: string,
   ) => {
     setCart(
       (current) => {
@@ -1073,9 +1086,7 @@ export function PublicSupplierMenu({
           ...current,
         };
 
-        delete next[
-          itemId
-        ];
+        delete next[key];
 
         return next;
       },
@@ -1205,6 +1216,7 @@ export function PublicSupplierMenu({
                     menu_item_id:
                       line.item
                         .id,
+                    ...(line.variant ? { variant_id: line.variant.id } : {}),
                     quantity:
                       line.quantity,
                     notes:
@@ -1751,22 +1763,13 @@ export function PublicSupplierMenu({
                         item={
                           item
                         }
-                        quantity={
-                          cart[
-                            item
-                              .id
-                          ]
-                            ?.quantity ||
-                          0
-                        }
+                        quantity={cart[`${item.id}:base`]?.quantity || 0}
+                        variantQuantity={(variantId) => cart[`${item.id}:${variantId}`]?.quantity || 0}
+                        onVariantChange={(variant, delta) => changeQuantity(item, delta, variant)}
                         canOrder={
                           canCurrentUserOrder &&
                           item.is_available &&
-                          typeof item.price ===
-                            "number" &&
-                          Number.isFinite(
-                            item.price,
-                          )
+                          (item.variants?.length ? true : typeof item.price === "number" && Number.isFinite(item.price))
                         }
                         onOpenImage={
                           setLightboxImage
@@ -1871,11 +1874,7 @@ export function PublicSupplierMenu({
                       line,
                     ) => (
                       <div
-                        key={
-                          line
-                            .item
-                            .id
-                        }
+                        key={`${line.item.id}:${line.variant?.id ?? "base"}`}
                         className="rounded-2xl border border-gray-100 p-4"
                       >
                         <div className="flex gap-3">
@@ -1887,13 +1886,12 @@ export function PublicSupplierMenu({
                                   .name
                               }
                             </p>
+                            {line.variant ? <p className="text-xs font-semibold text-gray-500">{line.variant.name}</p> : null}
 
                             <p className="mt-0.5 text-sm font-black text-[#168e00]">
                               {currencyFormatter.format(
                                 Number(
-                                  line
-                                    .item
-                                    .price ||
+                                  (line.variant?.price ?? line.item.price) ||
                                     0,
                                 ) *
                                   line.quantity,
@@ -1904,11 +1902,7 @@ export function PublicSupplierMenu({
                           <button
                             type="button"
                             onClick={() =>
-                              removeLine(
-                                line
-                                  .item
-                                  .id,
-                              )
+                              removeLine(`${line.item.id}:${line.variant?.id ?? "base"}`)
                             }
                             className="rounded-lg p-2 text-red-500 hover:bg-red-50"
                             aria-label={`Eliminar ${line.item.name}`}
@@ -1929,6 +1923,7 @@ export function PublicSupplierMenu({
                                 changeQuantity(
                                   line.item,
                                   -1,
+                                  line.variant,
                                 )
                               }
                               className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-50"
@@ -1952,6 +1947,7 @@ export function PublicSupplierMenu({
                                 changeQuantity(
                                   line.item,
                                   1,
+                                  line.variant,
                                 )
                               }
                               className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#168e00] text-white"
@@ -1985,9 +1981,7 @@ export function PublicSupplierMenu({
                               event,
                             ) =>
                               updateLineNotes(
-                                line
-                                  .item
-                                  .id,
+                                `${line.item.id}:${line.variant?.id ?? "base"}`,
                                 event
                                   .target
                                   .value,

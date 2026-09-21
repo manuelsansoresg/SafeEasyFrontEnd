@@ -194,7 +194,7 @@ export default function AdminMenuOrderDetailPage() {
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#168e00]/10 font-black text-[#168e00]">{item.quantity}×</div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
-                    <div><p className="font-bold text-gray-900">{item.item_name}</p>{item.notes ? <p className="mt-1 text-sm text-gray-500">Nota: {item.notes}</p> : null}</div>
+                    <div><p className="font-bold text-gray-900">{item.item_name}{item.variant_name && !item.item_name.includes(item.variant_name) ? ` · ${item.variant_name}` : ""}</p>{item.notes ? <p className="mt-1 text-sm text-gray-500">Nota: {item.notes}</p> : null}</div>
                     <div className="shrink-0 text-right"><p className="font-black text-[#004e28]">{formatMenuOrderMoney(item.line_total)}</p><p className="text-xs text-gray-400">{formatMenuOrderMoney(item.unit_price)} c/u</p></div>
                   </div>
                 </div>

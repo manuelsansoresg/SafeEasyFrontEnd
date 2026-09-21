@@ -26,6 +26,7 @@ export interface MenuOrderSettingsUpdate {
 
 export interface MenuOrderItemCreate {
   menu_item_id: number;
+  variant_id?: number | null;
   quantity: number;
   notes?: string | null;
 }
@@ -46,6 +47,8 @@ export interface MenuOrderItem {
   id: number;
   menu_item_id: number | null;
   item_name: string;
+  menu_item_variant_id: number | null;
+  variant_name: string | null;
   unit_price: number;
   quantity: number;
   notes: string | null;

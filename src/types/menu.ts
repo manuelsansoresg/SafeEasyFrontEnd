@@ -1,5 +1,23 @@
 export type MenuDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
+export interface MenuItemVariant {
+  id: number;
+  menu_item_id: number;
+  name: string;
+  price: number;
+  old_price: number | null;
+  is_active: boolean;
+  is_available: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type MenuItemVariantPayload = Pick<
+  MenuItemVariant,
+  "name" | "price" | "old_price" | "is_active" | "is_available" | "display_order"
+>;
+
 export interface MenuItem {
   id: number;
   section_id: number;
@@ -15,6 +33,7 @@ export interface MenuItem {
   display_order: number;
   created_at: string;
   updated_at: string;
+  variants?: MenuItemVariant[];
 }
 
 export interface MenuSection {
@@ -88,6 +107,7 @@ export interface MenuItemPayload {
 }
 
 export interface MenuCatalogItem {
+  variants?: MenuItemVariant[];
   id: number;
   supplier_id: number;
   name: string;

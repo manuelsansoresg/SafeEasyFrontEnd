@@ -20,7 +20,7 @@ import {
   UtensilsCrossed,
   X,
 } from "lucide-react";
-import { MenuItemForm } from "@/components/admin/menu/MenuItemForm";
+import { MenuItemForm, VariantFields, type VariantDraft } from "@/components/admin/menu/MenuItemForm";
 import { MenuSectionForm } from "@/components/admin/menu/MenuSectionForm";
 import { Toast } from "@/components/ui/Toast";
 import { menuService } from "@/services/menuService";
@@ -174,6 +174,7 @@ export function MenuWizard() {
   const [dishName, setDishName] = useState("");
   const [dishDescription, setDishDescription] = useState("");
   const [dishPrice, setDishPrice] = useState("");
+  const [dishVariants, setDishVariants] = useState<VariantDraft[]>([]);
   const [dishImage, setDishImage] = useState<File | null>(null);
   const [dishImagePreview, setDishImagePreview] = useState<string | null>(null);
 
@@ -587,6 +588,7 @@ export function MenuWizard() {
     setDishName("");
     setDishDescription("");
     setDishPrice("");
+    setDishVariants([]);
     setDishImage(null);
     if (dishImagePreview?.startsWith("blob:")) {
       URL.revokeObjectURL(dishImagePreview);
@@ -675,6 +677,13 @@ export function MenuWizard() {
       return;
     }
 
+    if (dishVariants.some((variant) => !variant.name.trim() || variant.name.trim().length > 120 || !Number.isFinite(variant.price) || variant.price < 0 ||
+      (variant.old_price != null && (!Number.isFinite(variant.old_price) || variant.old_price < 0)) ||
+      !Number.isInteger(variant.display_order) || variant.display_order < 0)) {
+      setStepError("Completa el nombre y precio de cada presentación.");
+      return;
+    }
+
     setPickerSaving(true);
     setStepError(null);
     try {
@@ -688,6 +697,8 @@ export function MenuWizard() {
         is_available: true,
         display_order: currentPickerSection.items.length,
       });
+
+      await menuService.saveVariants(created.id, dishVariants, []);
 
       if (dishImage) {
         created = await menuService.uploadItemImage(
@@ -720,7 +731,7 @@ export function MenuWizard() {
     setStepError(null);
   };
 
-  const saveEditedItem = async (payload: MenuItemPayload) => {
+  const saveEditedItem = async (payload: MenuItemPayload, variants: VariantDraft[], originalVariantIds: number[]) => {
     if (!menu || !editingItem || editingItemSectionId == null) return;
 
     setItemFormSaving(true);
@@ -732,15 +743,15 @@ export function MenuWizard() {
         editingItem.id,
         payload,
       );
+      await menuService.saveVariants(editingItem.id, variants, originalVariantIds);
       await Promise.all([refreshMenu(menu.id), loadCatalog()]);
       setItemFormOpen(false);
       setEditingItem(null);
       setEditingItemSectionId(null);
       setToast({ type: "success", message: "Platillo actualizado." });
     } catch (error) {
-      setStepError(
-        error instanceof Error ? error.message : "No se pudo actualizar el platillo.",
-      );
+      setStepError(error instanceof Error ? error.message : "No se pudo actualizar el platillo.");
+      throw error;
     } finally {
       setItemFormSaving(false);
     }
@@ -1481,7 +1492,7 @@ export function MenuWizard() {
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-bold text-gray-800">{item.name}</p>
                             <p className="mt-0.5 text-xs font-semibold text-[#168e00]">
-                              {money(item.price)}
+                              {item.variants?.length ? `${item.variants.length} presentaciones` : money(item.price)}
                             </p>
                             <p className={`mt-1 text-[0.68rem] font-semibold ${
                               item.is_available ? "text-emerald-600" : "text-amber-600"
@@ -1818,7 +1829,7 @@ export function MenuWizard() {
                               <div className="min-w-0 flex-1">
                                 <p className="truncate font-bold text-gray-800">{item.name}</p>
                                 <p className="mt-0.5 text-xs font-semibold text-[#168e00]">
-                                  {money(item.price)}
+                                  {item.variants?.length ? `${item.variants.length} presentaciones` : money(item.price)}
                                 </p>
                               </div>
                               <span
@@ -1949,6 +1960,10 @@ export function MenuWizard() {
                       />
                     </label>
                   </div>
+                </div>
+
+                <div className="mt-5 border-t border-gray-100 pt-5">
+                  <VariantFields variants={dishVariants} onChange={setDishVariants} disabled={pickerSaving} />
                 </div>
 
                 <div className="mt-5 rounded-2xl bg-[#168e00]/5 p-3 text-xs leading-5 text-[#004e28]">

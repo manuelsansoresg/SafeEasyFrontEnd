@@ -481,7 +481,7 @@ export default function PublicMenuOrderTrackingPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-bold text-gray-900">
-                          {item.item_name}
+                          {item.item_name}{item.variant_name && !item.item_name.includes(item.variant_name) ? ` · ${item.variant_name}` : ""}
                         </p>
 
                         {item.notes ? (

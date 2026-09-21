@@ -7,6 +7,8 @@ import type {
   MenuCreatePayload,
   MenuItem,
   MenuItemPayload,
+  MenuItemVariant,
+  MenuItemVariantPayload,
   MenuSection,
   MenuSectionItemBulkAttachPayload,
   MenuSectionPayload,
@@ -272,6 +274,42 @@ export const menuService = {
       method: "DELETE",
     });
     return response.json();
+  },
+
+  async listVariants(itemId: number, signal?: AbortSignal): Promise<MenuItemVariant[]> {
+    const response = await request(`${base}/catalog/items/${itemId}/variants`, { signal });
+    const data: unknown = await response.json();
+    return Array.isArray(data) ? data as MenuItemVariant[] : [];
+  },
+
+  async createVariant(itemId: number, payload: MenuItemVariantPayload): Promise<MenuItemVariant> {
+    const response = await request(`${base}/catalog/items/${itemId}/variants`, {
+      method: "POST", body: JSON.stringify(payload),
+    });
+    return response.json();
+  },
+
+  async updateVariant(itemId: number, variantId: number, payload: Partial<MenuItemVariantPayload>): Promise<MenuItemVariant> {
+    const response = await request(`${base}/catalog/items/${itemId}/variants/${variantId}`, {
+      method: "PATCH", body: JSON.stringify(payload),
+    });
+    return response.json();
+  },
+
+  async removeVariant(itemId: number, variantId: number): Promise<void> {
+    await request(`${base}/catalog/items/${itemId}/variants/${variantId}`, { method: "DELETE" });
+  },
+
+  async saveVariants(itemId: number, variants: Array<MenuItemVariantPayload & { id?: number }>, originalIds: number[]): Promise<void> {
+    const retained = new Set(variants.map((variant) => variant.id).filter((id): id is number => id != null));
+    for (const variant of variants) {
+      const { id, ...payload } = variant;
+      if (id != null) await this.updateVariant(itemId, id, payload);
+      else await this.createVariant(itemId, payload);
+    }
+    for (const id of originalIds) {
+      if (!retained.has(id)) await this.removeVariant(itemId, id);
+    }
   },
 
   async createItem(

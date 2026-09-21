@@ -17,7 +17,7 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { MenuForm } from "@/components/admin/menu/MenuForm";
-import { MenuItemForm } from "@/components/admin/menu/MenuItemForm";
+import { MenuItemForm, type VariantDraft } from "@/components/admin/menu/MenuItemForm";
 import { MenuSectionForm } from "@/components/admin/menu/MenuSectionForm";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
@@ -222,15 +222,17 @@ export default function AdminMenuDetailPage() {
     setItemFormOpen(true);
   };
 
-  const saveItem = async (payload: MenuItemPayload) => {
+  const saveItem = async (payload: MenuItemPayload, variants: VariantDraft[], originalVariantIds: number[]) => {
     if (!menu || !targetSectionId) return;
     setSaving(true);
     try {
       if (editingItem) {
         await menuService.updateItem(menu.id, targetSectionId, editingItem.id, payload);
+        await menuService.saveVariants(editingItem.id, variants, originalVariantIds);
         setToast({ type: "success", message: "Elemento actualizado." });
       } else {
-        await menuService.createItem(menu.id, targetSectionId, payload);
+        const created = await menuService.createItem(menu.id, targetSectionId, payload);
+        await menuService.saveVariants(created.id, variants, []);
         setToast({ type: "success", message: "Elemento agregado." });
       }
       setItemFormOpen(false);
@@ -239,6 +241,7 @@ export default function AdminMenuDetailPage() {
       await loadMenu();
     } catch (err) {
       setToast({ type: "error", message: err instanceof Error ? err.message : "No se pudo guardar el elemento." });
+      throw err;
     } finally {
       setSaving(false);
     }
@@ -444,7 +447,7 @@ export default function AdminMenuDetailPage() {
                                     </div>
                                     {item.description ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">{item.description}</p> : null}
                                   </div>
-                                  {money(item.price) ? <div className="shrink-0 text-right"><p className="font-bold text-[#004e28]">{money(item.price)}</p>{money(item.old_price) ? <p className="text-xs text-gray-400 line-through">{money(item.old_price)}</p> : null}</div> : null}
+                                  {item.variants?.length ? <div className="shrink-0 text-right text-xs font-semibold text-[#168e00]">{item.variants.length} presentaciones</div> : money(item.price) ? <div className="shrink-0 text-right"><p className="font-bold text-[#004e28]">{money(item.price)}</p>{money(item.old_price) ? <p className="text-xs text-gray-400 line-through">{money(item.old_price)}</p> : null}</div> : null}
                                 </div>
 
                                 <div className="mt-3 flex flex-wrap gap-2">

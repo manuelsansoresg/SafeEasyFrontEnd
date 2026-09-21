@@ -99,7 +99,7 @@ export default function ClientMenuOrdersPage() {
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2"><h2 className="font-[family-name:var(--font-varela-round)] text-lg font-black text-[#004e28]">{order.order_number}</h2><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${MENU_ORDER_STATUS_CLASSES[order.status]}`}>{MENU_ORDER_STATUS_LABELS[order.status]}</span></div>
-                  <p className="mt-1 font-semibold text-gray-900">{order.menu_name}</p>
+                  <p className="mt-1 font-semibold text-gray-900">{order.menu_name}{order.items?.length ? ` · ${order.items.map((item) => `${item.quantity} ${item.item_name}${item.variant_name && !item.item_name.includes(item.variant_name) ? ` (${item.variant_name})` : ""}`).join(", ")}` : ""}</p>
                   <p className="mt-1 flex items-center gap-1.5 text-sm text-gray-500"><Clock3 size={14} /> {formatMenuOrderDate(order.created_at)}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-4 md:justify-end">
