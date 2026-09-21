@@ -5,7 +5,9 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  Banknote,
   CheckCircle2,
+  CreditCard,
   Clock3,
   Loader2,
   Mail,
@@ -128,7 +130,12 @@ export default function AdminMenuOrderDetailPage() {
     );
   }
 
-  const primaryLabel = nextPrimaryStatusLabel(order.status);
+  const paymentReady =
+    order.payment_method === "cash" ||
+    order.payment_status === "paid";
+  const primaryLabel = paymentReady
+    ? nextPrimaryStatusLabel(order.status)
+    : null;
   const canCancel = ["pending", "confirmed", "preparing"].includes(order.status);
   const currentProgress = MENU_ORDER_STATUS_FLOW.indexOf(order.status);
 
@@ -217,6 +224,40 @@ export default function AdminMenuOrderDetailPage() {
             <p className="mt-3 font-bold text-gray-900">{order.customer_name}</p>
             <a href={`tel:${order.customer_phone}`} className="mt-3 flex items-center gap-2 text-sm font-semibold text-[#168e00] hover:underline"><Phone size={16} /> {order.customer_phone}</a>
             <a href={`mailto:${order.customer_email}`} className="mt-2 flex items-center gap-2 break-all text-sm font-semibold text-[#168e00] hover:underline"><Mail size={16} /> {order.customer_email}</a>
+          </section>
+
+          <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-black text-[#004e28]">Pago</h2>
+            <p className="mt-3 flex items-center gap-2 font-semibold text-gray-800">
+              {order.payment_method === "online" ? (
+                <CreditCard size={18} className="text-[#168e00]" />
+              ) : (
+                <Banknote size={18} className="text-[#168e00]" />
+              )}
+              {order.payment_method === "online" ? "Pago en línea" : "Efectivo"}
+            </p>
+            <span
+              className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-black ${
+                order.payment_status === "paid"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : order.payment_status === "failed"
+                    ? "bg-red-50 text-red-700"
+                    : "bg-amber-50 text-amber-700"
+              }`}
+            >
+              {order.payment_status === "paid"
+                ? "PAGADO"
+                : order.payment_status === "failed"
+                  ? "PAGO FALLIDO"
+                  : order.payment_method === "cash"
+                    ? "PAGO AL RECIBIR"
+                    : "ESPERANDO PAGO"}
+            </span>
+            {order.payment_method === "online" && order.payment_status !== "paid" ? (
+              <p className="mt-3 text-xs leading-5 text-amber-700">
+                No confirmes ni prepares este pedido hasta que Mercado Pago marque el pago como aprobado.
+              </p>
+            ) : null}
           </section>
 
           <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
