@@ -1,0 +1,60 @@
+name: ChatGPT package deferred card frontend
+
+on:
+  push:
+    branches:
+      - "chatgpt/deferred-card-capture-zip-20260921"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_API_BASE_URL: https://drooopy.com/api
+      NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY: TEST-public-key-placeholder
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate build
+        id: build
+        continue-on-error: true
+        run: npm run build
+
+      - name: Prepare replacement package
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="package"
+          mkdir -p "$ROOT/src/app/cart"
+          mkdir -p "$ROOT/src/app/client/orders/[order_id]"
+          mkdir -p "$ROOT/src/app/admin/orders/[order_id]"
+          mkdir -p "$ROOT/src/services"
+          cp "src/app/cart/page.tsx" "$ROOT/src/app/cart/page.tsx"
+          cp "src/app/client/orders/[order_id]/page.tsx" "$ROOT/src/app/client/orders/[order_id]/page.tsx"
+          cp "src/app/admin/orders/[order_id]/page.tsx" "$ROOT/src/app/admin/orders/[order_id]/page.tsx"
+          cp "src/services/orderService.ts" "$ROOT/src/services/orderService.ts"
+          cd "$ROOT"
+          zip -r "../Drooopy-frontend-deferred-card-capture.zip" src
+
+      - name: Upload replacement ZIP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Drooopy-frontend-deferred-card-capture
+          path: Drooopy-frontend-deferred-card-capture.zip
+          if-no-files-found: error
+          retention-days: 2
