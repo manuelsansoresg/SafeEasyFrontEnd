@@ -1,0 +1,35 @@
+name: Package menu payments frontend fast
+
+on:
+  push:
+    branches:
+      - chatgpt-menu-payments-frontend-20260921
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare package
+        run: |
+          mkdir -p package/src/types
+          mkdir -p package/src/services
+          mkdir -p "package/src/app/admin/menu/[menuId]/pedidos"
+          mkdir -p "package/src/components/supplier/menu"
+          mkdir -p "package/src/app/admin/menu/pedidos/[orderId]"
+          mkdir -p "package/src/app/pedidos/menu/[orderNumber]"
+
+          cp src/types/menuOrder.ts package/src/types/menuOrder.ts
+          cp src/services/menuOrderService.ts package/src/services/menuOrderService.ts
+          cp "src/app/admin/menu/[menuId]/pedidos/page.tsx" "package/src/app/admin/menu/[menuId]/pedidos/page.tsx"
+          cp src/components/supplier/menu/PublicSupplierMenu.tsx package/src/components/supplier/menu/PublicSupplierMenu.tsx
+          cp "src/app/admin/menu/pedidos/[orderId]/page.tsx" "package/src/app/admin/menu/pedidos/[orderId]/page.tsx"
+          cp "src/app/pedidos/menu/[orderNumber]/page.tsx" "package/src/app/pedidos/menu/[orderNumber]/page.tsx"
+          cp IMPLEMENTACION_PAGOS_MENU_FRONTEND.md package/IMPLEMENTACION_PAGOS_MENU_FRONTEND.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drooopy-frontend-pagos-menu-fast
+          path: package/
+          if-no-files-found: error
