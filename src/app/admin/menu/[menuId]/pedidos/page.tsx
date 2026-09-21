@@ -5,6 +5,9 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
+  Banknote,
+  CreditCard,
+  Link2,
   Loader2,
   PackageCheck,
   Save,
@@ -14,6 +17,7 @@ import {
 } from "lucide-react";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
+import { startMercadoPagoConnect } from "@/lib/mercadoPagoConnect";
 import { menuOrderService } from "@/services/menuOrderService";
 import { menuService } from "@/services/menuService";
 import type { Menu } from "@/types/menu";
@@ -65,6 +69,7 @@ export default function AdminMenuOrderSettingsPage() {
   const [settings, setSettings] = useState<MenuOrderSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [connectingMp, setConnectingMp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
 
@@ -126,22 +131,22 @@ export default function AdminMenuOrderSettingsPage() {
         };
       }
 
-      if (current.allows_pickup || current.allows_delivery) {
-        return {
-          ...current,
-          accepts_orders: true,
-        };
-      }
-
       return {
         ...current,
         accepts_orders: true,
-        allows_pickup: true,
+        allows_pickup:
+          current.allows_pickup || current.allows_delivery
+            ? current.allows_pickup
+            : true,
+        allows_cash:
+          current.allows_cash || current.allows_online_payment
+            ? current.allows_cash
+            : true,
       };
     });
   };
 
-  const toggleMethod = (
+  const toggleDeliveryMethod = (
     key: "allows_pickup" | "allows_delivery",
   ) => {
     setSettings((current) => {
@@ -164,8 +169,80 @@ export default function AdminMenuOrderSettingsPage() {
     });
   };
 
+  const togglePaymentMethod = (
+    key: "allows_cash" | "allows_online_payment",
+  ) => {
+    setSettings((current) => {
+      if (!current) return current;
+
+      if (
+        key === "allows_online_payment" &&
+        !current.allows_online_payment &&
+        !current.mercadopago_linked
+      ) {
+        return current;
+      }
+
+      const next = {
+        ...current,
+        [key]: !current[key],
+      };
+
+      if (
+        next.accepts_orders &&
+        !next.allows_cash &&
+        !next.allows_online_payment
+      ) {
+        return current;
+      }
+
+      return next;
+    });
+  };
+
+  const connectMercadoPago = async () => {
+    setConnectingMp(true);
+
+    try {
+      await startMercadoPagoConnect("supplier");
+    } catch (err) {
+      setToast({
+        type: "error",
+        message:
+          err instanceof Error
+            ? err.message
+            : "No se pudo iniciar la vinculación con Mercado Pago.",
+      });
+      setConnectingMp(false);
+    }
+  };
+
   const save = async () => {
     if (!settings) return;
+
+    if (
+      settings.accepts_orders &&
+      !settings.allows_cash &&
+      !settings.allows_online_payment
+    ) {
+      setToast({
+        type: "error",
+        message: "Activa al menos una forma de pago.",
+      });
+      return;
+    }
+
+    if (
+      settings.allows_online_payment &&
+      !settings.mercadopago_linked
+    ) {
+      setToast({
+        type: "error",
+        message:
+          "Vincula tu cuenta de Mercado Pago antes de activar el pago en línea.",
+      });
+      return;
+    }
 
     setSaving(true);
 
@@ -177,6 +254,8 @@ export default function AdminMenuOrderSettingsPage() {
           allows_pickup: settings.allows_pickup,
           allows_delivery: settings.allows_delivery,
           allow_guest_orders: settings.allow_guest_orders,
+          allows_cash: settings.allows_cash,
+          allows_online_payment: settings.allows_online_payment,
         },
       );
 
@@ -250,7 +329,7 @@ export default function AdminMenuOrderSettingsPage() {
       <PageHero
         eyebrow="Pedidos del menú"
         title={menu.name}
-        subtitle="Decide si este menú recibe pedidos en línea, las modalidades de entrega y si los visitantes pueden pedir sin crear una cuenta."
+        subtitle="Configura entrega, clientes y formas de pago. Puedes aceptar efectivo, pago en línea o ambos."
       />
 
       <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
@@ -260,8 +339,8 @@ export default function AdminMenuOrderSettingsPage() {
               Recibir pedidos desde Drooopy
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500">
-              Al activarlo, los clientes podrán agregar elementos disponibles
-              con precio y enviarte un pedido directamente desde el menú público.
+              Los clientes podrán agregar platillos con precio y enviarte
+              pedidos directamente desde el menú público.
             </p>
           </div>
 
@@ -287,7 +366,7 @@ export default function AdminMenuOrderSettingsPage() {
             <button
               type="button"
               disabled={!settings.accepts_orders}
-              onClick={() => toggleMethod("allows_pickup")}
+              onClick={() => toggleDeliveryMethod("allows_pickup")}
               className={`flex items-start gap-4 rounded-2xl border p-5 text-left transition ${
                 settings.allows_pickup
                   ? "border-[#168e00] bg-[#168e00]/5"
@@ -311,24 +390,13 @@ export default function AdminMenuOrderSettingsPage() {
                 <p className="mt-1 text-sm leading-5 text-gray-500">
                   El cliente realiza el pedido y pasa por él cuando esté listo.
                 </p>
-                <p
-                  className={`mt-3 text-xs font-bold ${
-                    settings.allows_pickup
-                      ? "text-[#168e00]"
-                      : "text-gray-400"
-                  }`}
-                >
-                  {settings.allows_pickup
-                    ? "ACTIVADO"
-                    : "DESACTIVADO"}
-                </p>
               </div>
             </button>
 
             <button
               type="button"
               disabled={!settings.accepts_orders}
-              onClick={() => toggleMethod("allows_delivery")}
+              onClick={() => toggleDeliveryMethod("allows_delivery")}
               className={`flex items-start gap-4 rounded-2xl border p-5 text-left transition ${
                 settings.allows_delivery
                   ? "border-[#168e00] bg-[#168e00]/5"
@@ -350,31 +418,133 @@ export default function AdminMenuOrderSettingsPage() {
                   Entrega a domicilio
                 </p>
                 <p className="mt-1 text-sm leading-5 text-gray-500">
-                  El cliente captura su dirección. En esta primera versión la
-                  tarifa de entrega es $0 y la logística la gestiona el negocio.
-                </p>
-                <p
-                  className={`mt-3 text-xs font-bold ${
-                    settings.allows_delivery
-                      ? "text-[#168e00]"
-                      : "text-gray-400"
-                  }`}
-                >
-                  {settings.allows_delivery
-                    ? "ACTIVADO"
-                    : "DESACTIVADO"}
+                  El cliente captura su dirección y el negocio gestiona la entrega.
                 </p>
               </div>
             </button>
           </div>
 
-          {settings.accepts_orders &&
-          !settings.allows_pickup &&
-          !settings.allows_delivery ? (
-            <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              Debes mantener al menos una modalidad activa.
+          <div className="mt-8 border-t border-gray-100 pt-7">
+            <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#004e28]">
+              Formas de pago
+            </h3>
+
+            <p className="mt-1 text-sm leading-6 text-gray-500">
+              Puedes activar una sola forma de pago o permitir que el cliente elija.
             </p>
-          ) : null}
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <button
+                type="button"
+                disabled={!settings.accepts_orders}
+                onClick={() => togglePaymentMethod("allows_cash")}
+                className={`flex items-start gap-4 rounded-2xl border p-5 text-left transition ${
+                  settings.allows_cash
+                    ? "border-[#168e00] bg-[#168e00]/5"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                <div
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                    settings.allows_cash
+                      ? "bg-[#168e00] text-white"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  <Banknote size={22} />
+                </div>
+
+                <div>
+                  <p className="font-black text-gray-900">
+                    Pago en efectivo
+                  </p>
+                  <p className="mt-1 text-sm leading-5 text-gray-500">
+                    El cliente paga al recoger o recibir su pedido.
+                  </p>
+                </div>
+              </button>
+
+              <div
+                className={`rounded-2xl border p-5 transition ${
+                  settings.allows_online_payment
+                    ? "border-[#168e00] bg-[#168e00]/5"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                      settings.allows_online_payment
+                        ? "bg-[#168e00] text-white"
+                        : "bg-gray-100 text-gray-500"
+                    }`}
+                  >
+                    <CreditCard size={22} />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-black text-gray-900">
+                          Pago en línea
+                        </p>
+                        <p className="mt-1 text-sm leading-5 text-gray-500">
+                          El cobro se procesa con Mercado Pago y el dinero llega
+                          a la cuenta vinculada del proveedor.
+                        </p>
+                      </div>
+
+                      <Toggle
+                        active={settings.allows_online_payment}
+                        disabled={
+                          !settings.accepts_orders ||
+                          !settings.mercadopago_linked
+                        }
+                        onClick={() =>
+                          togglePaymentMethod("allows_online_payment")
+                        }
+                        label="Activar pago en línea"
+                      />
+                    </div>
+
+                    {settings.mercadopago_linked ? (
+                      <p className="mt-3 text-xs font-black text-[#168e00]">
+                        MERCADO PAGO VINCULADO
+                      </p>
+                    ) : (
+                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-xs leading-5 text-amber-800">
+                          Para activar el pago en línea primero vincula tu cuenta.
+                        </p>
+
+                        <button
+                          type="button"
+                          disabled={connectingMp}
+                          onClick={() => void connectMercadoPago()}
+                          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#004e28] px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                        >
+                          {connectingMp ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : (
+                            <Link2 size={15} />
+                          )}
+                          Vincular Mercado Pago
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {settings.accepts_orders &&
+            !settings.allows_cash &&
+            !settings.allows_online_payment ? (
+              <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Debes mantener al menos una forma de pago activa.
+              </p>
+            ) : null}
+          </div>
 
           <div className="mt-8 border-t border-gray-100 pt-7">
             <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#004e28]">
@@ -404,20 +574,9 @@ export default function AdminMenuOrderSettingsPage() {
                     Permitir pedidos sin iniciar sesión
                   </p>
                   <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500">
-                    Si está activado, un visitante podrá comprar como invitado
-                    proporcionando nombre, correo y teléfono. Recibirá por correo
-                    el enlace privado para consultar el estado de su pedido.
+                    Un visitante puede pedir como invitado proporcionando nombre,
+                    correo y teléfono.
                   </p>
-
-                  {!settings.allow_guest_orders ? (
-                    <p className="mt-3 text-xs font-bold text-[#004e28]">
-                      SOLO USUARIOS CON CUENTA
-                    </p>
-                  ) : (
-                    <p className="mt-3 text-xs font-bold text-[#168e00]">
-                      INVITADOS PERMITIDOS
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -438,19 +597,13 @@ export default function AdminMenuOrderSettingsPage() {
                 label="Permitir pedidos de invitados"
               />
             </div>
-
-            <p className="mt-3 text-xs leading-5 text-gray-400">
-              Si lo desactivas, el menú seguirá siendo público y visible. Los
-              visitantes solamente tendrán que iniciar sesión antes de poder
-              agregar productos o finalizar un pedido.
-            </p>
           </div>
         </div>
 
         <div className="mt-8 flex flex-col-reverse gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs leading-5 text-gray-400">
-            Los precios siempre se recalculan en el backend al crear el pedido.
-            Un elemento agotado o sin precio no se puede pedir.
+            Los precios siempre se recalculan en el backend. Para pago en línea,
+            el pedido solo se notifica al negocio cuando Mercado Pago confirma el cobro.
           </p>
 
           <button
