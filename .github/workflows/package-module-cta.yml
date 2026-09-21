@@ -1,0 +1,25 @@
+name: Package module CTA files
+
+on:
+  push:
+    branches:
+      - chatgpt-fix-module-cta-tabs-20260921
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare package
+        run: |
+          mkdir -p package/src/app/empresas/'[slug]'
+          mkdir -p package/src/components/supplier
+          mkdir -p package/src/components/agenda
+          cp "src/app/empresas/[slug]/page.tsx" "package/src/app/empresas/[slug]/page.tsx"
+          cp "src/components/supplier/SupplierModuleNavigation.tsx" "package/src/components/supplier/SupplierModuleNavigation.tsx"
+          cp "src/components/agenda/PublicSupplierAgendaTab.tsx" "package/src/components/agenda/PublicSupplierAgendaTab.tsx"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drooopy-module-cta-complete-files
+          path: package/
+          if-no-files-found: error
