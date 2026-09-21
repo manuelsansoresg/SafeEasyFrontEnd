@@ -51,7 +51,17 @@ function normalizeStatusKey(value: string) {
   const v = ascii.toLowerCase().trim().replace(/\s+/g, "_");
 
   if (v === "pending" || v === "pendiente") return "pending";
-  if (v === "paid" || v === "pagado" || v === "pago_verificado" || v === "validado" || v === "validated")
+  if (v === "authorized" || v === "autorizado" || v === "authorization_pending") return "authorized";
+  if (
+    v === "paid" ||
+    v === "pagado" ||
+    v === "approved" ||
+    v === "aprobado" ||
+    v === "accredited" ||
+    v === "pago_verificado" ||
+    v === "validado" ||
+    v === "validated"
+  )
     return "paid";
   if (v === "verified" || v === "verificado") return "verified";
   if (v === "completed" || v === "completado" || v === "delivered" || v === "entregado") return "completed";
@@ -112,6 +122,7 @@ function toSpanishStatusLabel(value: string) {
   const map: Record<string, string> = {
     created: "Creado",
     pending: "Pendiente",
+    authorized: "Pago autorizado",
     paid: "Pago recibido",
     preparing: "En preparación",
     in_transit: "En camino",
@@ -225,7 +236,7 @@ type ProgressStep = { key: string; label: string; Icon: typeof Check };
 function getSteps(mode: DeliveryTypeKey, acceptsCourier: boolean): ProgressStep[] {
   if (mode === "shipping" && acceptsCourier) {
     return [
-      { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
+      { key: "paid", label: "Pago confirmado", Icon: BadgeCheck },
       { key: "preparing", label: "En preparación", Icon: FileText },
       { key: "en_route_to_pickup", label: "A recoger", Icon: Truck },
       { key: "in_transit", label: "En camino", Icon: Truck },
@@ -235,7 +246,7 @@ function getSteps(mode: DeliveryTypeKey, acceptsCourier: boolean): ProgressStep[
 
   if (mode === "shipping") {
     return [
-      { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
+      { key: "paid", label: "Pago confirmado", Icon: BadgeCheck },
       { key: "preparing", label: "En preparación", Icon: FileText },
       { key: "in_transit", label: "En camino", Icon: Truck },
       { key: "delivered", label: "Entregado", Icon: PackageCheck },
@@ -243,7 +254,7 @@ function getSteps(mode: DeliveryTypeKey, acceptsCourier: boolean): ProgressStep[
   }
 
   return [
-    { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
+    { key: "paid", label: "Pago confirmado", Icon: BadgeCheck },
     { key: "ready_for_pickup", label: "Listo para recoger", Icon: Store },
     { key: "picked", label: "Entregado", Icon: PackageCheck },
   ];
@@ -261,19 +272,19 @@ function getProgressRank(mode: DeliveryTypeKey, statusKey: string, acceptsCourie
     if (!acceptsCourier) {
       if (k === "in_transit" || k === "shipped" || k === "picked_up") return 3;
       if (k === "ready_for_pickup" || k === "preparing") return 2;
-      if (k === "paid" || k === "created" || k === "pending") return 1;
+      if (k === "paid" || k === "authorized" || k === "created" || k === "pending") return 1;
       return 1;
     }
     if (k === "in_transit" || k === "shipped" || k === "picked_up") return 4;
     if (k === "en_route_to_pickup") return 3;
     if (k === "ready_for_pickup" || k === "preparing") return 2;
-    if (k === "paid" || k === "created" || k === "pending") return 1;
+    if (k === "paid" || k === "authorized" || k === "created" || k === "pending") return 1;
     return 1;
   }
 
   if (k === "shipped" || k === "en_route_to_pickup" || k === "picked_up") return 3;
   if (k === "ready_for_pickup" || k === "preparing") return 2;
-  if (k === "paid" || k === "created" || k === "pending") return 1;
+  if (k === "paid" || k === "authorized" || k === "created" || k === "pending") return 1;
   return 1;
 }
 
@@ -531,7 +542,10 @@ export default function AdminOrderDetailPage() {
     return normalizeStatusKey(raw || "pending");
   }, [order]);
 
-  const isPaymentPaid = useMemo(() => paymentStatusKey === "paid", [paymentStatusKey]);
+  const isPaymentPaid = useMemo(
+    () => paymentStatusKey === "paid" || paymentStatusKey === "authorized",
+    [paymentStatusKey],
+  );
 
   const handleMarkReady = async () => {
     if (!orderId) return;
@@ -645,15 +659,15 @@ export default function AdminOrderDetailPage() {
 
   const handleVerifyDeliveryCode = async () => {
     if (!orderId) return;
-    const code = deliveryCode.replace(/[^a-zA-Z0-9]/g, "").trim();
-    if (!code) {
-      setToast({ type: "error", message: "Ingresa el código que te proporcionó el cliente." });
+    const code = deliveryCode.replace(/\D/g, "").slice(0, 6);
+    if (code.length !== 6) {
+      setToast({ type: "error", message: "Ingresa los 6 dígitos del código que te proporcionó el cliente." });
       return;
     }
     setActionLoading("verify-delivery-code");
     try {
       await orderService.verifyDeliveryCode(orderId, code);
-      setToast({ type: "success", message: "Código validado. Orden marcada como entregada." });
+      setToast({ type: "success", message: "Código validado. Entrega confirmada y cobro finalizado." });
       setDeliveryCode("");
       await refresh();
     } catch (e) {
@@ -775,6 +789,7 @@ export default function AdminOrderDetailPage() {
   }, [effectiveKey]);
   const canStartOwnDelivery = isOwnHomeDelivery && isPaymentPaid && (courierNotified || isReadyToSend) && !isDeliveryInProgress;
   const showDeliveryCodeEntry = isOwnHomeDelivery && isPaymentPaid && isDeliveryInProgress;
+  const showPickupDeliveryCodeEntry = mode === "pickup" && isPaymentPaid && isReadyForPickup;
 
   useEffect(() => {
     if (!showDeliveryCodeEntry) return;
@@ -859,6 +874,7 @@ export default function AdminOrderDetailPage() {
     if (k === "in_transit" || k === "shipped") return "En camino";
     if (k === "ready_for_pickup") return "Paquete listo";
     if (k === "preparing") return "En preparación";
+    if (k === "authorized") return "Pago autorizado";
     if (k === "paid") return "Pago confirmado";
     if (k === "completed" || k === "verified") return "Entregado";
     if (k === "cancelled") return "Cancelado";
@@ -1159,20 +1175,46 @@ export default function AdminOrderDetailPage() {
                           <Store className="h-4 w-4 mr-2" />
                           Marcar listo para recoger
                         </button>
-                        <button
-                          type="button"
-                          disabled={actionLoading !== null || !isPaymentPaid || !canMarkDelivered}
-                          onClick={() => handleComplete()}
-                          title={completeDisabledMessage || undefined}
-                          className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-                          style={{ backgroundColor: "#004e28" }}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          Marcar como Entregado
-                        </button>
-                        {isReadyForPickup ? (
-                          <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
-                            La orden ya está lista para recoger.
+                        {showPickupDeliveryCodeEntry ? (
+                          <div className="rounded-2xl border border-[#004e28]/15 bg-[#f2f3f4] p-4">
+                            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-bold text-[#004e28]">
+                              <KeyRound className="h-3.5 w-3.5" />
+                              Cliente en tienda
+                            </div>
+                            <div className="mt-3 text-sm font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
+                              Código de entrega
+                            </div>
+                            <p className="mt-1 text-xs font-semibold text-gray-600">
+                              Pide al cliente su código de 6 dígitos. El pedido y el cobro se completan solamente después de validarlo.
+                            </p>
+                            <div className="mt-4 flex flex-col gap-2">
+                              <label htmlFor="pickup-delivery-code" className="sr-only">
+                                Código de entrega
+                              </label>
+                              <div className="flex items-center gap-2 rounded-xl border border-[#004e28]/15 bg-white px-3 py-2">
+                                <KeyRound className="h-4 w-4 shrink-0 text-[#004e28]" />
+                                <input
+                                  id="pickup-delivery-code"
+                                  type="text"
+                                  value={deliveryCode}
+                                  onChange={(event) => setDeliveryCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                                  placeholder="000000"
+                                  className="min-w-0 flex-1 bg-transparent text-sm font-bold tracking-[0.25em] text-gray-900 outline-none placeholder:text-gray-400"
+                                  autoComplete="one-time-code"
+                                  inputMode="numeric"
+                                  maxLength={6}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                disabled={actionLoading !== null || deliveryCode.replace(/\D/g, "").length !== 6}
+                                onClick={handleVerifyDeliveryCode}
+                                className="w-full inline-flex items-center justify-center rounded-xl bg-[#004e28] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Validar código y entregar
+                              </button>
+                            </div>
                           </div>
                         ) : isPaymentPaid && completeDisabledMessage ? (
                           <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
@@ -1553,23 +1595,18 @@ export default function AdminOrderDetailPage() {
                                       type="text"
                                       value={deliveryCode}
                                       onChange={(event) => {
-                                        const nextCode = event.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-                                        setDeliveryCode(nextCode);
+                                        setDeliveryCode(event.target.value.replace(/\D/g, "").slice(0, 6));
                                       }}
-                                      onFocus={() => {
-                                        if (normalizeStatusKey(deliveryCode) === normalizeStatusKey(effectiveKey)) {
-                                          setDeliveryCode("");
-                                        }
-                                      }}
-                                      placeholder="Código del cliente"
-                                      className="min-w-0 flex-1 bg-transparent text-sm font-bold text-gray-900 outline-none placeholder:text-gray-400"
-                                      autoComplete="off"
-                                      inputMode="text"
+                                      placeholder="000000"
+                                      className="min-w-0 flex-1 bg-transparent text-sm font-bold tracking-[0.25em] text-gray-900 outline-none placeholder:text-gray-400"
+                                      autoComplete="one-time-code"
+                                      inputMode="numeric"
+                                      maxLength={6}
                                     />
                                   </div>
                                   <button
                                     type="button"
-                                    disabled={actionLoading !== null || !deliveryCode.trim()}
+                                    disabled={actionLoading !== null || deliveryCode.replace(/\D/g, "").length !== 6}
                                     onClick={handleVerifyDeliveryCode}
                                     className="w-full inline-flex items-center justify-center rounded-xl bg-[#004e28] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
                                   >
