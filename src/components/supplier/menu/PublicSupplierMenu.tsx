@@ -10,6 +10,7 @@ import {
   CreditCard,
   Loader2,
   LogIn,
+  Maximize2,
   Minus,
   Plus,
   Share2,
@@ -150,6 +151,7 @@ function MenuItemCard({
   cart,
   canOrder,
   changeQuantity,
+  onOpen,
 }: {
   item: MenuItem;
   cart: Record<string, CartLine>;
@@ -159,6 +161,7 @@ function MenuItemCard({
     delta: number,
     variant?: MenuItemVariant | null,
   ) => void;
+  onOpen: (item: MenuItem) => void;
 }) {
   const variants = availableVariants(item);
   const image = item.image_thumbnail_url || item.image_url;
@@ -166,34 +169,47 @@ function MenuItemCard({
 
   return (
     <article
-      className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
+      className={`flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
         item.is_available
           ? "border-[#004e28]/10"
           : "border-gray-200 opacity-70"
       }`}
     >
-      <div className="relative aspect-[4/3] bg-[#edf3ee]">
+      <button
+        type="button"
+        onClick={() => onOpen(item)}
+        className="group relative aspect-[4/3] w-full overflow-hidden bg-[#edf3ee] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#168e00]"
+        aria-label={`Ver información completa de ${item.name}`}
+      >
         {image ? (
           <Image
             src={image}
             alt={item.name}
             fill
             unoptimized
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-            className="object-cover"
+            sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 25vw"
+            className="object-cover transition duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-[#004e28]/30">
             <UtensilsCrossed size={34} />
           </div>
         )}
-      </div>
 
-      <div className="p-4">
+        <span className="absolute inset-x-3 bottom-3 flex translate-y-2 items-center justify-center gap-1.5 rounded-xl bg-[#004e28]/90 px-3 py-2 text-xs font-bold text-white opacity-0 shadow-lg backdrop-blur-sm transition group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+          <Maximize2 size={14} /> Ver detalle
+        </span>
+      </button>
+
+      <div className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-2">
-          <h4 className="min-w-0 flex-1 font-[family-name:var(--font-varela-round)] text-base font-black text-[#004e28]">
+          <button
+            type="button"
+            onClick={() => onOpen(item)}
+            className="min-w-0 flex-1 text-left font-[family-name:var(--font-varela-round)] text-base font-black leading-snug text-[#004e28] hover:text-[#168e00] focus-visible:outline-none focus-visible:underline"
+          >
             {item.name}
-          </h4>
+          </button>
           {!item.is_available ? (
             <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-bold uppercase text-gray-500">
               Agotado
@@ -202,7 +218,7 @@ function MenuItemCard({
         </div>
 
         {item.description ? (
-          <p className="mt-1 line-clamp-3 text-sm leading-5 text-gray-500">
+          <p className="mt-1 line-clamp-4 text-sm leading-5 text-gray-500">
             {item.description}
           </p>
         ) : null}
@@ -234,7 +250,7 @@ function MenuItemCard({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-gray-800">
+                      <p className="line-clamp-2 text-sm font-bold leading-5 text-gray-800">
                         {variant.name}
                       </p>
                       <p className="text-sm font-black text-[#168e00]">
@@ -326,6 +342,207 @@ function MenuItemCard({
   );
 }
 
+function MenuItemDetailModal({
+  item,
+  cart,
+  canOrder,
+  changeQuantity,
+  onClose,
+}: {
+  item: MenuItem;
+  cart: Record<string, CartLine>;
+  canOrder: boolean;
+  changeQuantity: (
+    item: MenuItem,
+    delta: number,
+    variant?: MenuItemVariant | null,
+  ) => void;
+  onClose: () => void;
+}) {
+  const variants = availableVariants(item);
+  const image = item.image_url || item.image_thumbnail_url;
+  const baseQuantity = cart[lineKey(item.id)]?.quantity || 0;
+  const basePrice = formatMoney(item.price);
+  const showBaseOldPrice =
+    typeof item.old_price === "number" &&
+    typeof item.price === "number" &&
+    item.old_price > item.price;
+
+  return (
+    <div
+      className="fixed inset-0 z-[20500] flex items-center justify-center bg-black/65 p-3 backdrop-blur-sm sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`menu-item-detail-${item.id}`}
+      onClick={onClose}
+    >
+      <article
+        className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#004e28] shadow-lg backdrop-blur hover:bg-white"
+          aria-label="Cerrar detalle del platillo"
+        >
+          <X size={20} />
+        </button>
+
+        <div className="grid md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div className="relative min-h-64 overflow-hidden bg-[#edf3ee] md:min-h-[560px]">
+            {image ? (
+              <Image
+                src={image}
+                alt={item.name}
+                fill
+                unoptimized
+                sizes="(max-width: 767px) 100vw, 45vw"
+                className="object-cover"
+              />
+            ) : (
+              <div className="flex h-full min-h-64 items-center justify-center text-[#004e28]/25">
+                <UtensilsCrossed size={64} strokeWidth={1.4} />
+              </div>
+            )}
+
+            {!item.is_available ? (
+              <span className="absolute bottom-4 left-4 rounded-full bg-gray-900/85 px-4 py-2 text-xs font-black uppercase tracking-wide text-white">
+                Agotado
+              </span>
+            ) : null}
+          </div>
+
+          <div className="p-5 sm:p-7 md:p-8">
+            {item.label ? (
+              <span className="inline-flex rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">
+                {item.label}
+              </span>
+            ) : null}
+
+            <h3
+              id={`menu-item-detail-${item.id}`}
+              className="mt-3 font-[family-name:var(--font-varela-round)] text-3xl font-black leading-tight text-[#004e28]"
+            >
+              {item.name}
+            </h3>
+
+            {hasText(item.description) ? (
+              <p className="mt-4 whitespace-pre-line text-sm leading-7 text-gray-600 sm:text-base">
+                {item.description}
+              </p>
+            ) : null}
+
+            {variants.length ? (
+              <div className="mt-7">
+                <p className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-[#168e00]">
+                  Elige una presentación
+                </p>
+                <div className="space-y-3">
+                  {variants.map((variant) => {
+                    const quantity =
+                      cart[lineKey(item.id, variant.id)]?.quantity || 0;
+                    const enabled =
+                      canOrder &&
+                      item.is_available &&
+                      variant.is_available &&
+                      Number.isFinite(variant.price);
+                    const showOldPrice =
+                      typeof variant.old_price === "number" &&
+                      variant.old_price > variant.price;
+
+                    return (
+                      <div
+                        key={variant.id}
+                        className={`rounded-2xl border p-4 ${
+                          variant.is_available
+                            ? "border-[#004e28]/10 bg-[#f7f9f8]"
+                            : "border-gray-100 bg-gray-50 opacity-65"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="font-bold leading-6 text-gray-900">
+                              {variant.name}
+                            </p>
+                            <div className="mt-1 flex flex-wrap items-baseline gap-2">
+                              <span className="text-lg font-black text-[#168e00]">
+                                {formatMoney(variant.price)}
+                              </span>
+                              {showOldPrice ? (
+                                <span className="text-xs text-gray-400 line-through">
+                                  {formatMoney(variant.old_price)}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          {enabled ? (
+                            quantity > 0 ? (
+                              <div className="flex items-center justify-between rounded-xl border border-[#168e00]/20 bg-white p-1 sm:min-w-32">
+                                <button type="button" onClick={() => changeQuantity(item, -1, variant)} className="flex h-9 w-9 items-center justify-center rounded-lg text-[#004e28] hover:bg-[#f2f3f4]" aria-label={`Quitar ${variant.name}`}>
+                                  <Minus size={16} />
+                                </button>
+                                <span className="min-w-8 text-center text-sm font-black text-[#004e28]">{quantity}</span>
+                                <button type="button" onClick={() => changeQuantity(item, 1, variant)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#168e00] text-white" aria-label={`Agregar ${variant.name}`}>
+                                  <Plus size={16} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button type="button" onClick={() => changeQuantity(item, 1, variant)} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white">
+                                <Plus size={16} /> Agregar
+                              </button>
+                            )
+                          ) : (
+                            <span className="w-fit rounded-full bg-gray-200 px-3 py-1.5 text-xs font-bold text-gray-500">
+                              No disponible
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-7 border-t border-gray-100 pt-5">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-2xl font-black text-[#168e00]">
+                    {basePrice || "Sin precio"}
+                  </span>
+                  {showBaseOldPrice ? (
+                    <span className="text-sm text-gray-400 line-through">
+                      {formatMoney(item.old_price)}
+                    </span>
+                  ) : null}
+                </div>
+
+                {canOrder && item.is_available && typeof item.price === "number" ? (
+                  baseQuantity > 0 ? (
+                    <div className="mt-4 flex items-center justify-between rounded-xl border border-[#168e00]/20 bg-[#168e00]/5 p-1">
+                      <button type="button" onClick={() => changeQuantity(item, -1)} className="flex h-10 w-10 items-center justify-center rounded-lg text-[#004e28] hover:bg-white" aria-label={`Quitar ${item.name}`}>
+                        <Minus size={17} />
+                      </button>
+                      <span className="min-w-10 text-center font-black text-[#004e28]">{baseQuantity}</span>
+                      <button type="button" onClick={() => changeQuantity(item, 1)} className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#168e00] text-white" aria-label={`Agregar ${item.name}`}>
+                        <Plus size={17} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => changeQuantity(item, 1)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 font-bold text-white">
+                      <Plus size={17} /> Agregar al pedido
+                    </button>
+                  )
+                ) : null}
+              </div>
+            )}
+          </div>
+        </div>
+      </article>
+    </div>
+  );
+}
+
 export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
@@ -342,6 +559,7 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [clientRequestId, setClientRequestId] = useState(createRequestId);
@@ -361,6 +579,23 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
   const orderSettings = selectedMenu
     ? settingsByMenu[selectedMenu.id] ?? null
     : null;
+
+  useEffect(() => {
+    if (!detailItem) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDetailItem(null);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [detailItem]);
 
   useEffect(() => {
     if (!user) return;
@@ -726,7 +961,10 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
               <button
                 key={menu.id}
                 type="button"
-                onClick={() => setSelectedMenuId(menu.id)}
+                onClick={() => {
+                  setSelectedMenuId(menu.id);
+                  setDetailItem(null);
+                }}
                 className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
                   menu.id === selectedMenu.id
                     ? "bg-[#004e28] text-white"
@@ -816,7 +1054,7 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
                 ) : null}
               </header>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {section.items.map((item) => (
                   <MenuItemCard
                     key={item.id}
@@ -824,6 +1062,7 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
                     cart={cart}
                     canOrder={canCurrentUserOrder}
                     changeQuantity={changeQuantity}
+                    onOpen={setDetailItem}
                   />
                 ))}
               </div>
@@ -831,6 +1070,16 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
           ))}
         </div>
       </div>
+
+      {detailItem ? (
+        <MenuItemDetailModal
+          item={detailItem}
+          cart={cart}
+          canOrder={canCurrentUserOrder}
+          changeQuantity={changeQuantity}
+          onClose={() => setDetailItem(null)}
+        />
+      ) : null}
 
       {acceptsOrders && hasOrderableItems && cartQuantity > 0 && !cartOpen && !checkoutOpen ? (
         <button
