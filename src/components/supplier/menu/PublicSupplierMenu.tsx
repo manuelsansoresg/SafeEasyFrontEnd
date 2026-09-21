@@ -3,9 +3,11 @@
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import {
+  Banknote,
   CalendarDays,
   Check,
   Clock3,
+  CreditCard,
   Copy,
   Facebook,
   Loader2,
@@ -41,6 +43,7 @@ import type {
 } from "@/types/menu";
 import type {
   MenuOrderFulfillmentType,
+  MenuOrderPaymentMethod,
   MenuOrderSettings,
 } from "@/types/menuOrder";
 
@@ -590,6 +593,11 @@ export function PublicSupplierMenu({
   ] = useState("");
 
   const [
+    paymentMethod,
+    setPaymentMethod,
+  ] = useState<MenuOrderPaymentMethod>("cash");
+
+  const [
     generalNotes,
     setGeneralNotes,
   ] = useState("");
@@ -703,6 +711,14 @@ export function PublicSupplierMenu({
                 false,
               allow_guest_orders:
                 true,
+              allows_cash:
+                true,
+              allows_online_payment:
+                false,
+              mercadopago_linked:
+                false,
+              online_payment_available:
+                false,
             } satisfies MenuOrderSettings,
           ] as const;
         }
@@ -793,6 +809,14 @@ export function PublicSupplierMenu({
       setFulfillmentType(
         "delivery",
       );
+    }
+
+    if (orderSettings.allows_cash) {
+      setPaymentMethod("cash");
+    } else if (
+      orderSettings.online_payment_available
+    ) {
+      setPaymentMethod("mercadopago");
     }
   }, [orderSettings]);
 
@@ -981,8 +1005,15 @@ export function PublicSupplierMenu({
       orderSettings?.allow_guest_orders,
     );
 
+  const hasPaymentMethod =
+    Boolean(
+      orderSettings?.allows_cash ||
+      orderSettings?.online_payment_available,
+    );
+
   const canCurrentUserOrder =
     acceptsOrders &&
+    hasPaymentMethod &&
     (isAuthenticated ||
       allowsGuestOrders);
 
@@ -1132,6 +1163,14 @@ export function PublicSupplierMenu({
         );
       }
 
+      if (orderSettings.allows_cash) {
+        setPaymentMethod("cash");
+      } else if (
+        orderSettings.online_payment_available
+      ) {
+        setPaymentMethod("mercadopago");
+      }
+
       setCartOpen(false);
       setCheckoutOpen(
         true,
@@ -1200,6 +1239,8 @@ export function PublicSupplierMenu({
                 customerPhone.trim(),
               fulfillment_type:
                 fulfillmentType,
+              payment_method:
+                paymentMethod,
               delivery_address:
                 fulfillmentType ===
                 "delivery"
@@ -1241,6 +1282,16 @@ export function PublicSupplierMenu({
         );
 
         setCart({});
+
+        if (
+          paymentMethod === "mercadopago" &&
+          order.payment_checkout_url
+        ) {
+          window.location.assign(
+            order.payment_checkout_url,
+          );
+          return;
+        }
 
         router.push(
           `/pedidos/menu/${encodeURIComponent(
@@ -1674,6 +1725,16 @@ export function PublicSupplierMenu({
                     />
                     Iniciar sesión
                   </button>
+                </div>
+              ) : null}
+
+              {!settingsLoading &&
+              acceptsOrders &&
+              !hasPaymentMethod ? (
+                <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-bold text-amber-900">
+                    Este negocio tiene los pedidos activados, pero temporalmente no tiene un método de pago disponible.
+                  </p>
                 </div>
               ) : null}
 
@@ -2311,6 +2372,80 @@ export function PublicSupplierMenu({
                   />
                 </label>
               ) : null}
+
+              <fieldset>
+                <legend className="text-sm font-bold text-gray-700">
+                  ¿Cómo quieres pagar?
+                </legend>
+
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  {orderSettings?.allows_cash ? (
+                    <label
+                      className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${
+                        paymentMethod === "cash"
+                          ? "border-[#168e00] bg-[#168e00]/5"
+                          : "border-gray-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="payment_method"
+                        value="cash"
+                        checked={paymentMethod === "cash"}
+                        onChange={() => setPaymentMethod("cash")}
+                        className="accent-[#168e00]"
+                      />
+
+                      <Banknote
+                        className="text-[#168e00]"
+                        size={21}
+                      />
+
+                      <span>
+                        <strong className="block text-sm text-gray-900">
+                          Efectivo
+                        </strong>
+                        <span className="text-xs text-gray-500">
+                          Paga al recoger o recibir tu pedido
+                        </span>
+                      </span>
+                    </label>
+                  ) : null}
+
+                  {orderSettings?.online_payment_available ? (
+                    <label
+                      className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${
+                        paymentMethod === "mercadopago"
+                          ? "border-[#168e00] bg-[#168e00]/5"
+                          : "border-gray-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="payment_method"
+                        value="mercadopago"
+                        checked={paymentMethod === "mercadopago"}
+                        onChange={() => setPaymentMethod("mercadopago")}
+                        className="accent-[#168e00]"
+                      />
+
+                      <CreditCard
+                        className="text-[#168e00]"
+                        size={21}
+                      />
+
+                      <span>
+                        <strong className="block text-sm text-gray-900">
+                          Pago en línea
+                        </strong>
+                        <span className="text-xs text-gray-500">
+                          Paga ahora con Mercado Pago
+                        </span>
+                      </span>
+                    </label>
+                  ) : null}
+                </div>
+              </fieldset>
 
               <label className="block text-sm font-bold text-gray-700">
                 Notas generales{" "}
