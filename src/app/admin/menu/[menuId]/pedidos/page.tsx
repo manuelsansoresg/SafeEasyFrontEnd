@@ -5,6 +5,9 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
+  Banknote,
+  CreditCard,
+  ExternalLink,
   Loader2,
   PackageCheck,
   Save,
@@ -126,18 +129,20 @@ export default function AdminMenuOrderSettingsPage() {
         };
       }
 
-      if (current.allows_pickup || current.allows_delivery) {
-        return {
-          ...current,
-          accepts_orders: true,
-        };
-      }
-
-      return {
+      const next = {
         ...current,
         accepts_orders: true,
-        allows_pickup: true,
       };
+
+      if (!next.allows_pickup && !next.allows_delivery) {
+        next.allows_pickup = true;
+      }
+
+      if (!next.allows_cash && !next.allows_online_payment) {
+        next.allows_cash = true;
+      }
+
+      return next;
     });
   };
 
@@ -164,6 +169,42 @@ export default function AdminMenuOrderSettingsPage() {
     });
   };
 
+  const togglePaymentMethod = (
+    key: "allows_cash" | "allows_online_payment",
+  ) => {
+    setSettings((current) => {
+      if (!current) return current;
+
+      if (
+        key === "allows_online_payment" &&
+        !current.allows_online_payment &&
+        !current.mercadopago_linked
+      ) {
+        setToast({
+          type: "info",
+          message:
+            "Primero vincula tu cuenta de Mercado Pago para activar pagos en línea.",
+        });
+        return current;
+      }
+
+      const next = {
+        ...current,
+        [key]: !current[key],
+      };
+
+      if (
+        next.accepts_orders &&
+        !next.allows_cash &&
+        !next.allows_online_payment
+      ) {
+        return current;
+      }
+
+      return next;
+    });
+  };
+
   const save = async () => {
     if (!settings) return;
 
@@ -177,6 +218,8 @@ export default function AdminMenuOrderSettingsPage() {
           allows_pickup: settings.allows_pickup,
           allows_delivery: settings.allows_delivery,
           allow_guest_orders: settings.allow_guest_orders,
+          allows_cash: settings.allows_cash,
+          allows_online_payment: settings.allows_online_payment,
         },
       );
 
@@ -375,6 +418,134 @@ export default function AdminMenuOrderSettingsPage() {
               Debes mantener al menos una modalidad activa.
             </p>
           ) : null}
+
+          <div className="mt-8 border-t border-gray-100 pt-7">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#004e28]">
+                  Métodos de pago
+                </h3>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500">
+                  Puedes aceptar efectivo, pago en línea o ambos. Debe quedar
+                  al menos un método activo.
+                </p>
+              </div>
+
+              {!settings.mercadopago_linked ? (
+                <a
+                  href="/api/mercadopago/connect?account_type=supplier&redirect=true"
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#168e00]/25 bg-[#168e00]/5 px-4 py-2.5 text-sm font-bold text-[#168e00] hover:bg-[#168e00]/10"
+                >
+                  Vincular Mercado Pago
+                  <ExternalLink size={15} />
+                </a>
+              ) : (
+                <span className="rounded-full bg-[#168e00]/10 px-3 py-1.5 text-xs font-black text-[#168e00]">
+                  Mercado Pago vinculado
+                </span>
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <button
+                type="button"
+                disabled={!settings.accepts_orders}
+                onClick={() => togglePaymentMethod("allows_cash")}
+                className={`flex items-start gap-4 rounded-2xl border p-5 text-left transition ${
+                  settings.allows_cash
+                    ? "border-[#168e00] bg-[#168e00]/5"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                <div
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                    settings.allows_cash
+                      ? "bg-[#168e00] text-white"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  <Banknote size={22} />
+                </div>
+
+                <div>
+                  <p className="font-black text-gray-900">
+                    Pago en efectivo
+                  </p>
+                  <p className="mt-1 text-sm leading-5 text-gray-500">
+                    El cliente paga al recoger o recibir el pedido.
+                  </p>
+                  <p
+                    className={`mt-3 text-xs font-bold ${
+                      settings.allows_cash
+                        ? "text-[#168e00]"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {settings.allows_cash ? "ACTIVADO" : "DESACTIVADO"}
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  !settings.accepts_orders ||
+                  !settings.mercadopago_linked
+                }
+                onClick={() => togglePaymentMethod("allows_online_payment")}
+                className={`flex items-start gap-4 rounded-2xl border p-5 text-left transition ${
+                  settings.allows_online_payment
+                    ? "border-[#168e00] bg-[#168e00]/5"
+                    : "border-gray-200 bg-white"
+                } ${
+                  !settings.mercadopago_linked
+                    ? "cursor-not-allowed opacity-60"
+                    : ""
+                }`}
+              >
+                <div
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                    settings.allows_online_payment
+                      ? "bg-[#168e00] text-white"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  <CreditCard size={22} />
+                </div>
+
+                <div>
+                  <p className="font-black text-gray-900">
+                    Pago en línea
+                  </p>
+                  <p className="mt-1 text-sm leading-5 text-gray-500">
+                    El cobro se procesa con Mercado Pago y llega directamente
+                    a tu cuenta vinculada.
+                  </p>
+                  <p
+                    className={`mt-3 text-xs font-bold ${
+                      settings.allows_online_payment
+                        ? "text-[#168e00]"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {!settings.mercadopago_linked
+                      ? "REQUIERE VINCULAR MERCADO PAGO"
+                      : settings.allows_online_payment
+                        ? "ACTIVADO"
+                        : "DESACTIVADO"}
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            {settings.accepts_orders &&
+            !settings.allows_cash &&
+            !settings.allows_online_payment ? (
+              <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Debes mantener al menos un método de pago activo.
+              </p>
+            ) : null}
+          </div>
 
           <div className="mt-8 border-t border-gray-100 pt-7">
             <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#004e28]">
