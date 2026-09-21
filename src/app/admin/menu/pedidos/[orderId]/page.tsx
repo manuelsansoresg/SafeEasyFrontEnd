@@ -5,7 +5,9 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  Banknote,
   CheckCircle2,
+  CreditCard,
   Clock3,
   Loader2,
   Mail,
@@ -24,6 +26,8 @@ import {
   formatMenuOrderDate,
   formatMenuOrderMoney,
   fulfillmentLabel,
+  menuOrderPaymentMethodLabel,
+  menuOrderPaymentStatusLabel,
   nextPrimaryStatus,
   nextPrimaryStatusLabel,
 } from "@/lib/menuOrders";
@@ -217,6 +221,26 @@ export default function AdminMenuOrderDetailPage() {
             <p className="mt-3 font-bold text-gray-900">{order.customer_name}</p>
             <a href={`tel:${order.customer_phone}`} className="mt-3 flex items-center gap-2 text-sm font-semibold text-[#168e00] hover:underline"><Phone size={16} /> {order.customer_phone}</a>
             <a href={`mailto:${order.customer_email}`} className="mt-2 flex items-center gap-2 break-all text-sm font-semibold text-[#168e00] hover:underline"><Mail size={16} /> {order.customer_email}</a>
+          </section>
+
+          <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-black text-[#004e28]">Pago</h2>
+            <div className="mt-3 flex items-center gap-2 font-semibold text-gray-800">
+              {order.payment_method === "mercadopago" ? (
+                <CreditCard size={18} className="text-[#168e00]" />
+              ) : (
+                <Banknote size={18} className="text-[#168e00]" />
+              )}
+              {menuOrderPaymentMethodLabel(order.payment_method)}
+            </div>
+            <p className="mt-2 text-sm text-gray-600">
+              Estado: <strong>{menuOrderPaymentStatusLabel(order.payment_status)}</strong>
+            </p>
+            {order.paid_at ? (
+              <p className="mt-2 text-xs text-gray-400">
+                Pagado: {formatMenuOrderDate(order.paid_at)}
+              </p>
+            ) : null}
           </section>
 
           <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
