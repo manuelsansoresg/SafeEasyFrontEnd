@@ -24,7 +24,7 @@ type SupplierModuleNavigationProps = {
   hasMenu: boolean;
   isDirectory: boolean;
   activeTab: SupplierPublicTab;
-  onChangeTab: (tab: SupplierPublicTab) => void;
+  onChangeTab: (tab: SupplierPublicTab, replace?: boolean) => void;
   tabsRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -86,7 +86,7 @@ export function SupplierModuleNavigation({
       !agendaLoading &&
       !agendaAvailable
     ) {
-      onChangeTab("main");
+      onChangeTab("main", true);
     }
   }, [
     activeTab,

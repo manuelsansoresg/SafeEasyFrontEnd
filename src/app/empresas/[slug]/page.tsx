@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useParams, notFound } from "next/navigation";
+import { useCallback, useEffect, useState, useRef } from "react";
+import { useParams, useRouter, notFound } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
@@ -422,10 +422,18 @@ const unwrapSupplierProducts = (data: unknown): SupplierProduct[] => {
 import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCarousel";
 
 export default function SupplierPage() {
-  const { slug } = useParams();
+  const { slug, tab } = useParams<{ slug: string; tab?: string }>();
+  const router = useRouter();
+  const activeTab = tab === "menu" ? "menu" : tab === "agenda" ? "agenda" : tab === "productos" ? "products" : "main";
+  const supplierBasePath = `/empresas/${encodeURIComponent(String(slug))}/`;
+  const navigateTab = useCallback((nextTab: 'main' | 'menu' | 'agenda' | 'products', replace = false) => {
+    const path = nextTab === 'main' ? supplierBasePath : `${supplierBasePath}${nextTab === 'products' ? 'productos' : nextTab}/`;
+    if (replace) router.replace(path, { scroll: false });
+    else router.push(path, { scroll: false });
+  }, [router, supplierBasePath]);
   const [supplier, setSupplier] = useState<Supplier | null>(null);
-  const [activeTab, setActiveTab] = useState<'main' | 'menu' | 'agenda' | 'products'>('main');
   const [publicMenus, setPublicMenus] = useState<Menu[]>([]);
+  const [publicMenusLoading, setPublicMenusLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const headerVideoRef = useRef<HTMLVideoElement>(null);
   const supplierViewSentRef = useRef<Set<string>>(new Set());
@@ -435,13 +443,13 @@ export default function SupplierPage() {
   const [shouldScrollToContact, setShouldScrollToContact] = useState(false);
 
   const handleShowProducts = () => {
-    setActiveTab('products');
+    navigateTab('products');
     tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const handleContactClick = () => {
     if (activeTab !== 'main') {
-      setActiveTab('main');
+      navigateTab('main');
       setShouldScrollToContact(true);
     } else {
       const section = document.getElementById('contacto');
@@ -574,24 +582,32 @@ export default function SupplierPage() {
     if (!slug) return;
 
     const controller = new AbortController();
+    setPublicMenusLoading(true);
     setPublicMenus([]);
 
     menuService
       .publicList(String(slug), controller.signal)
-      .then(setPublicMenus)
+      .then((menus) => { if (!controller.signal.aborted) setPublicMenus(menus); })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setPublicMenus([]);
-      });
+      })
+      .finally(() => { if (!controller.signal.aborted) setPublicMenusLoading(false); });
 
     return () => controller.abort();
   }, [slug]);
 
   useEffect(() => {
-    if (activeTab === "menu" && publicMenus.length === 0) {
-      setActiveTab("main");
+    if (activeTab === "menu" && !publicMenusLoading && publicMenus.length === 0) {
+      navigateTab("main", true);
     }
-  }, [activeTab, publicMenus.length]);
+  }, [activeTab, publicMenusLoading, publicMenus.length, navigateTab]);
+
+  useEffect(() => {
+    if (activeTab === "products" && supplier && supplierHasDirectorySubscription(supplier)) {
+      navigateTab("main", true);
+    }
+  }, [activeTab, supplier, navigateTab]);
 
   useEffect(() => {
     if (supplier?.id) {
@@ -1240,7 +1256,7 @@ const contactHref = supplier?.phone
         hasMenu={publicMenus.length > 0}
         isDirectory={isDirectory}
         activeTab={activeTab}
-        onChangeTab={setActiveTab}
+        onChangeTab={navigateTab}
         tabsRef={tabsRef}
       />
 
