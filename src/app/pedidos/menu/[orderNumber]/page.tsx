@@ -12,8 +12,10 @@ import {
   useState,
 } from "react";
 import {
+  Banknote,
   CheckCircle2,
   Clock3,
+  CreditCard,
   Loader2,
   Mail,
   MapPin,
@@ -577,6 +579,47 @@ export default function PublicMenuOrderTrackingPage() {
                     className="mt-1 shrink-0 text-[#168e00]"
                   />
                   {order.delivery_address}
+                </p>
+              ) : null}
+            </section>
+
+            <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-black text-[#004e28]">
+                Pago
+              </h2>
+
+              <p className="mt-3 flex items-center gap-2 font-semibold text-gray-800">
+                {order.payment_method === "online" ? (
+                  <CreditCard size={18} className="text-[#168e00]" />
+                ) : (
+                  <Banknote size={18} className="text-[#168e00]" />
+                )}
+                {order.payment_method === "online"
+                  ? "Pago en línea"
+                  : "Efectivo"}
+              </p>
+
+              <p
+                className={`mt-3 text-sm font-bold ${
+                  order.payment_status === "paid"
+                    ? "text-emerald-700"
+                    : order.payment_status === "failed"
+                      ? "text-red-600"
+                      : "text-amber-700"
+                }`}
+              >
+                {order.payment_status === "paid"
+                  ? "Pago confirmado"
+                  : order.payment_status === "failed"
+                    ? "El pago no fue aprobado"
+                    : order.payment_method === "cash"
+                      ? "Pagarás al recibir o recoger"
+                      : "Esperando confirmación de Mercado Pago"}
+              </p>
+
+              {order.paid_at ? (
+                <p className="mt-2 text-xs text-gray-400">
+                  Pagado {formatMenuOrderDate(order.paid_at)}
                 </p>
               ) : null}
             </section>
