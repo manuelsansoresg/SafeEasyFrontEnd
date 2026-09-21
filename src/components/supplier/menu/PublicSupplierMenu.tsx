@@ -3,8 +3,10 @@
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import {
+  Banknote,
   CalendarDays,
   Check,
+  CreditCard,
   Clock3,
   Copy,
   Facebook,
@@ -41,6 +43,7 @@ import type {
 } from "@/types/menu";
 import type {
   MenuOrderFulfillmentType,
+  MenuOrderPaymentMethod,
   MenuOrderSettings,
 } from "@/types/menuOrder";
 
@@ -585,6 +588,14 @@ export function PublicSupplierMenu({
     );
 
   const [
+    paymentMethod,
+    setPaymentMethod,
+  ] =
+    useState<MenuOrderPaymentMethod>(
+      "cash",
+    );
+
+  const [
     deliveryAddress,
     setDeliveryAddress,
   ] = useState("");
@@ -703,6 +714,14 @@ export function PublicSupplierMenu({
                 false,
               allow_guest_orders:
                 true,
+              allows_cash:
+                true,
+              allows_online_payment:
+                false,
+              mercadopago_linked:
+                false,
+              online_payment_available:
+                false,
             } satisfies MenuOrderSettings,
           ] as const;
         }
@@ -792,6 +811,20 @@ export function PublicSupplierMenu({
     ) {
       setFulfillmentType(
         "delivery",
+      );
+    }
+
+    if (
+      orderSettings.allows_cash
+    ) {
+      setPaymentMethod(
+        "cash",
+      );
+    } else if (
+      orderSettings.online_payment_available
+    ) {
+      setPaymentMethod(
+        "online",
       );
     }
   }, [orderSettings]);
@@ -1132,6 +1165,20 @@ export function PublicSupplierMenu({
         );
       }
 
+      if (
+        orderSettings.allows_cash
+      ) {
+        setPaymentMethod(
+          "cash",
+        );
+      } else if (
+        orderSettings.online_payment_available
+      ) {
+        setPaymentMethod(
+          "online",
+        );
+      }
+
       setCartOpen(false);
       setCheckoutOpen(
         true,
@@ -1182,6 +1229,28 @@ export function PublicSupplierMenu({
         return;
       }
 
+      if (
+        paymentMethod ===
+          "cash" &&
+        !orderSettings.allows_cash
+      ) {
+        setCheckoutError(
+          "El pago en efectivo no está disponible.",
+        );
+        return;
+      }
+
+      if (
+        paymentMethod ===
+          "online" &&
+        !orderSettings.online_payment_available
+      ) {
+        setCheckoutError(
+          "El pago en línea no está disponible para este negocio.",
+        );
+        return;
+      }
+
       setSubmitting(true);
       setCheckoutError(null);
 
@@ -1200,6 +1269,8 @@ export function PublicSupplierMenu({
                 customerPhone.trim(),
               fulfillment_type:
                 fulfillmentType,
+              payment_method:
+                paymentMethod,
               delivery_address:
                 fulfillmentType ===
                 "delivery"
@@ -1233,7 +1304,25 @@ export function PublicSupplierMenu({
             order.management_token,
           );
         } catch {
-          // El enlace también lleva el token.
+          // El token queda disponible también en memoria mientras dure la sesión.
+        }
+
+        if (
+          paymentMethod ===
+          "online"
+        ) {
+          if (
+            !order.payment_checkout_url
+          ) {
+            throw new Error(
+              "Mercado Pago no devolvió una URL para completar el pago.",
+            );
+          }
+
+          window.location.assign(
+            order.payment_checkout_url,
+          );
+          return;
         }
 
         setCheckoutOpen(
@@ -2283,6 +2372,98 @@ export function PublicSupplierMenu({
                 </div>
               </fieldset>
 
+              <fieldset>
+                <legend className="text-sm font-bold text-gray-700">
+                  ¿Cómo quieres pagar?
+                </legend>
+
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  {orderSettings?.allows_cash ? (
+                    <label
+                      className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${
+                        paymentMethod ===
+                        "cash"
+                          ? "border-[#168e00] bg-[#168e00]/5"
+                          : "border-gray-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="payment_method"
+                        value="cash"
+                        checked={
+                          paymentMethod ===
+                          "cash"
+                        }
+                        onChange={() =>
+                          setPaymentMethod(
+                            "cash",
+                          )
+                        }
+                        className="accent-[#168e00]"
+                      />
+
+                      <Banknote
+                        className="text-[#168e00]"
+                        size={21}
+                      />
+
+                      <span>
+                        <strong className="block text-sm text-gray-900">
+                          Efectivo
+                        </strong>
+
+                        <span className="text-xs text-gray-500">
+                          Paga al recibir o recoger
+                        </span>
+                      </span>
+                    </label>
+                  ) : null}
+
+                  {orderSettings?.online_payment_available ? (
+                    <label
+                      className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${
+                        paymentMethod ===
+                        "online"
+                          ? "border-[#168e00] bg-[#168e00]/5"
+                          : "border-gray-200"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="payment_method"
+                        value="online"
+                        checked={
+                          paymentMethod ===
+                          "online"
+                        }
+                        onChange={() =>
+                          setPaymentMethod(
+                            "online",
+                          )
+                        }
+                        className="accent-[#168e00]"
+                      />
+
+                      <CreditCard
+                        className="text-[#168e00]"
+                        size={21}
+                      />
+
+                      <span>
+                        <strong className="block text-sm text-gray-900">
+                          Pago en línea
+                        </strong>
+
+                        <span className="text-xs text-gray-500">
+                          Continúa con Mercado Pago
+                        </span>
+                      </span>
+                    </label>
+                  ) : null}
+                </div>
+              </fieldset>
+
               {fulfillmentType ===
               "delivery" ? (
                 <label className="block text-sm font-bold text-gray-700">
@@ -2385,8 +2566,12 @@ export function PublicSupplierMenu({
                 )}
 
                 {submitting
-                  ? "Creando pedido..."
-                  : "Confirmar pedido"}
+                  ? paymentMethod === "online"
+                    ? "Preparando pago..."
+                    : "Creando pedido..."
+                  : paymentMethod === "online"
+                    ? "Continuar a Mercado Pago"
+                    : "Confirmar pedido"}
               </button>
             </div>
           </form>
