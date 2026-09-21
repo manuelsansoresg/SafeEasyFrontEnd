@@ -1284,7 +1284,7 @@ const contactHref = supplier?.phone
         </section>
       ) : null}
 
-      {isDirectory && activeTab === "main" ? (
+      {isDirectory && activeTab === "main" && (servicesLoading || services.length > 0) ? (
         <section
           id="servicios"
           className="relative scroll-mt-20 overflow-hidden bg-[#f2f3f4] py-20"
