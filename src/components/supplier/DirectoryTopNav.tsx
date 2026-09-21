@@ -28,7 +28,7 @@ export function DirectoryTopNav({
 
   return (
     <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#004e28] text-white shadow-md backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5 md:px-8">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5 md:px-8">
         {/* Logo + nombre del proveedor */}
         <Link
           href="#inicio"

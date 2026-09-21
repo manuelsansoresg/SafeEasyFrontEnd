@@ -91,7 +91,7 @@ export function PublicSupplierAgendaTab({
   if (loading) {
     return (
       <section className="bg-[#f7f9f8] py-16">
-        <div className="mx-auto flex max-w-5xl items-center justify-center px-5 md:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-center px-5 md:px-8">
           <div className="inline-flex items-center gap-3 rounded-2xl bg-white px-6 py-4 font-semibold text-[#004e28] shadow-sm">
             <Loader2
               size={20}
@@ -107,7 +107,7 @@ export function PublicSupplierAgendaTab({
   if (error) {
     return (
       <section className="bg-[#f7f9f8] py-16">
-        <div className="mx-auto max-w-5xl px-5 md:px-8">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
           <div className="rounded-3xl border border-red-100 bg-white p-7 text-center shadow-sm">
             <p className="font-semibold text-red-600">
               {error}
@@ -124,7 +124,7 @@ export function PublicSupplierAgendaTab({
 
   return (
     <section className="bg-[#f7f9f8] py-14 md:py-18">
-      <div className="mx-auto max-w-5xl px-5 md:px-8">
+      <div className="mx-auto max-w-6xl px-5 md:px-8">
         <div className="rounded-[2rem] bg-[#004e28] p-6 text-white sm:p-8">
           <div className="flex items-start gap-4">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10">

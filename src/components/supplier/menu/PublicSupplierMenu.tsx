@@ -675,7 +675,7 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
 
   return (
     <section id="menu" className="bg-[#f7f9f8] py-8 md:py-12">
-      <div className="mx-auto max-w-7xl px-4 md:px-8">
+      <div className="mx-auto max-w-6xl px-5 md:px-8">
         <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#168e00]">Menú</p>

@@ -1163,7 +1163,7 @@ const contactHref = supplier?.phone
 
          {/* Content */}
          <div
-           className={`relative z-20 flex flex-col items-center justify-center px-5 py-10 text-center sm:px-8 sm:py-12 md:items-start md:px-16 md:py-14 md:text-left lg:px-24 xl:px-32 ${
+           className={`relative z-20 flex flex-col items-center justify-center px-5 py-10 text-center sm:py-12 md:px-8 md:py-14 md:text-left ${
              isDirectory
                ? "min-h-[calc(100svh-4rem)]"
                : "min-h-[100svh] pt-28 md:pt-36"
@@ -1171,7 +1171,7 @@ const contactHref = supplier?.phone
              hasHeroHighlights ? "pb-32 md:pb-28 xl:pb-8" : ""
            }`}
          >
-             <div className="animate-in fade-in slide-in-from-left-10 w-full max-w-[min(72rem,100%)] duration-1000 md:max-w-[min(72rem,72vw)] xl:max-w-[min(78rem,80vw)]">
+             <div className="animate-in fade-in slide-in-from-left-10 mx-auto w-full max-w-6xl duration-1000">
                 {supplierLogo && !logoError && (
                     <div className="mx-auto mb-5 h-[clamp(4.5rem,11svh,7rem)] w-[clamp(4.5rem,11svh,7rem)] rounded-2xl border border-white/20 bg-white/10 p-3 shadow-2xl backdrop-blur-md sm:mb-6 md:mx-0 md:rounded-3xl">
                         <img src={getImageUrl(supplierLogo)} alt={supplier.name} className="w-full h-full object-contain drop-shadow-md" onError={() => setLogoError(true)} />
@@ -1219,7 +1219,7 @@ const contactHref = supplier?.phone
          {/* Floating Stats Bar */}
          {hasHeroHighlights ? (
          <div className="absolute bottom-0 left-0 z-30 w-full border-t border-white/10 bg-black/20 backdrop-blur-xl xl:relative xl:bottom-auto xl:left-auto">
-             <div className="container mx-auto flex flex-wrap items-center gap-10 px-6 py-6 md:gap-16">
+             <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-10 px-5 py-6 md:gap-16 md:px-8">
                  {Number(supplier.rating_count) > 0 && Number(supplier.average_rating) > 0 ? (
                    <div className="text-center md:text-left">
                        <div className="text-3xl font-black text-[#168e00] font-[family-name:var(--font-varela-round)]">{supplier.average_rating?.toFixed(1)}</div>
@@ -1415,7 +1415,7 @@ const contactHref = supplier?.phone
         {/* Decorative Background Blob */}
         <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#004e28]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 
-        <div className={`container mx-auto px-4 md:px-8 relative z-10 ${isDirectory ? "max-w-6xl" : ""}`}>
+        <div className="relative z-10 mx-auto max-w-6xl px-5 md:px-8">
             <div className={`flex flex-col md:flex-row items-center justify-between gap-6 ${isDirectory ? "mb-10" : "mb-16"}`}>
                 <div className="max-w-2xl">
                     <h2 className={`${isDirectory ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl"} font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]`}>
@@ -1508,7 +1508,7 @@ const contactHref = supplier?.phone
       <>
         {/* Recommended Carousels */}
         {!isDirectory ? (
-        <div className="container mx-auto px-4 md:px-8 py-12 space-y-8 bg-gray-50/30">
+        <div className="mx-auto max-w-6xl space-y-8 bg-gray-50/30 px-5 py-12 md:px-8">
              <SupplierProductCarousel supplierId={supplier.id} kind="most_searched" title="Más Buscados" />
              <SupplierProductCarousel supplierId={supplier.id} kind="most_purchased" title="Más Comprados" />
              <SupplierProductCarousel supplierId={supplier.id} kind="best_rated" title="Mejor Calificados" />
@@ -1523,7 +1523,7 @@ const contactHref = supplier?.phone
             useDirectoryPresentation ? "bg-[#f2f3f4] py-16 md:py-24" : "bg-white py-24"
           }`}
         >
-          <div className={isDirectory ? "mx-auto max-w-6xl px-5 md:px-8" : "container mx-auto px-5 md:px-12"}>
+          <div className="mx-auto max-w-6xl px-5 md:px-8">
             {useDirectoryPresentation ? (
               <>
                 <header className="mb-8">
@@ -1712,7 +1712,7 @@ const contactHref = supplier?.phone
       {/* --- CERTIFICATES SECTION --- */}
       {supplier.certificates && supplier.certificates.length > 0 && (
         <section className="py-20 bg-[#f9fafb]">
-            <div className={isDirectory ? "mx-auto max-w-6xl px-5 md:px-8" : "container mx-auto px-6 md:px-12"}>
+            <div className="mx-auto max-w-6xl px-5 md:px-8">
                 <div className="text-center mb-16">
                     <h2 className="text-3xl md:text-4xl font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]">
                         {supplier.certificates_title || 'Calidad Certificada'}
@@ -1755,7 +1755,7 @@ const contactHref = supplier?.phone
         <DirectoryRatingsSection slug={supplier.slug || String(slug)} />
       ) : (
         <section id="experiencia" className="scroll-mt-20 border-t border-gray-100 bg-white py-24">
-          <div className={`container mx-auto px-6 md:px-12 ${useDirectoryPresentation ? "max-w-6xl" : ""}`}>
+          <div className="mx-auto max-w-6xl px-5 md:px-8">
               <div className="flex flex-col md:flex-row items-center justify-between mb-12 gap-8">
                   <div>
                       <h2 className="text-3xl md:text-4xl font-black text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">
@@ -1832,7 +1832,7 @@ const contactHref = supplier?.phone
           {/* Background Elements */}
           <div className={`absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] via-transparent to-transparent ${useDirectoryPresentation ? "from-[#168e00]/10" : "from-white opacity-10"}`} />
           
-          <div className="container mx-auto px-4 md:px-8 max-w-6xl relative z-10">
+          <div className="relative z-10 mx-auto max-w-6xl px-5 md:px-8">
               
               {/* TOP ROW: Info & Hours */}
               <div className={`mb-12 grid grid-cols-1 gap-8 ${hasContactInfo && hasBusinessHours ? "md:grid-cols-2" : ""}`}>
