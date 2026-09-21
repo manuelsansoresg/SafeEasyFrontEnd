@@ -22,12 +22,8 @@ function extractError(value: unknown): string | undefined {
 
   if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
-
     return extractError(
-      record.detail ??
-        record.message ??
-        record.msg ??
-        record.error,
+      record.detail ?? record.message ?? record.msg ?? record.error,
     );
   }
 
@@ -41,45 +37,31 @@ async function throwForResponse(response: Response): Promise<never> {
   if (response.status === 400) {
     throw new Error(detail || "Revisa los datos capturados.");
   }
-
   if (response.status === 401) {
-    throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
+    throw new Error(detail || "Debes iniciar sesión para realizar esta acción.");
   }
-
   if (response.status === 403) {
-    throw new Error(
-      detail || "No tienes permiso para realizar esta acción.",
-    );
+    throw new Error(detail || "No tienes permiso para realizar esta acción.");
   }
-
   if (response.status === 404) {
     throw new Error(detail || "El pedido o menú solicitado no existe.");
   }
-
   if (response.status === 409) {
     throw new Error(
-      detail ||
-        "La operación ya no se puede completar en el estado actual.",
+      detail || "La operación ya no se puede completar en el estado actual.",
     );
   }
-
   if (response.status === 422) {
     throw new Error(
       detail || "Revisa los datos del pedido e inténtalo nuevamente.",
     );
   }
-
   if (response.status === 429) {
     throw new Error(
       "Se hicieron demasiados intentos. Espera un momento e inténtalo de nuevo.",
     );
   }
-
-  if (
-    response.status === 502 ||
-    response.status === 503 ||
-    response.status === 504
-  ) {
+  if ([502, 503, 504].includes(response.status)) {
     throw new Error(
       detail || "No se pudo comunicar con el servicio de pedidos.",
     );
@@ -99,10 +81,7 @@ async function publicRequest(
     ...options,
   });
 
-  if (!response.ok) {
-    await throwForResponse(response);
-  }
-
+  if (!response.ok) await throwForResponse(response);
   return response;
 }
 
@@ -115,16 +94,12 @@ async function authRequest(
     ...options,
   });
 
-  if (!response.ok) {
-    await throwForResponse(response);
-  }
-
+  if (!response.ok) await throwForResponse(response);
   return response;
 }
 
 function buildStatusQuery(status?: MenuOrderStatus | null) {
   if (!status) return "";
-
   const params = new URLSearchParams({ status });
   return `?${params.toString()}`;
 }
@@ -137,6 +112,35 @@ function defaultPublicSettings(menuId: number): MenuOrderSettings {
     allows_pickup: true,
     allows_delivery: false,
     allow_guest_orders: true,
+    allows_cash: true,
+    allows_online_payment: false,
+    mercadopago_linked: false,
+    online_payment_available: false,
+  };
+}
+
+function normalizeSettings(
+  data: unknown,
+  menuId: number,
+): MenuOrderSettings {
+  if (!data || typeof data !== "object") {
+    return defaultPublicSettings(menuId);
+  }
+
+  const settings = data as Partial<MenuOrderSettings>;
+
+  return {
+    menu_id: typeof settings.menu_id === "number" ? settings.menu_id : menuId,
+    supplier_id:
+      typeof settings.supplier_id === "number" ? settings.supplier_id : 0,
+    accepts_orders: settings.accepts_orders === true,
+    allows_pickup: settings.allows_pickup !== false,
+    allows_delivery: settings.allows_delivery === true,
+    allow_guest_orders: settings.allow_guest_orders !== false,
+    allows_cash: settings.allows_cash !== false,
+    allows_online_payment: settings.allows_online_payment === true,
+    mercadopago_linked: settings.mercadopago_linked === true,
+    online_payment_available: settings.online_payment_available === true,
   };
 }
 
@@ -155,48 +159,32 @@ export const menuOrderService = {
       signal,
     });
 
-    // Si el menú/configuración pública no existe, el menú público puede
-    // seguir mostrándose pero sin controles para realizar pedidos.
     if (response.status === 404) {
       return defaultPublicSettings(menuId);
     }
 
-    if (!response.ok) {
-      await throwForResponse(response);
-    }
-
-    const data: unknown = await response.json();
-
-    if (!data || typeof data !== "object") {
-      return defaultPublicSettings(menuId);
-    }
-
-    const settings = data as Partial<MenuOrderSettings>;
-
-    return {
-      menu_id:
-        typeof settings.menu_id === "number"
-          ? settings.menu_id
-          : menuId,
-      supplier_id:
-        typeof settings.supplier_id === "number"
-          ? settings.supplier_id
-          : 0,
-      accepts_orders: settings.accepts_orders === true,
-      allows_pickup: settings.allows_pickup !== false,
-      allows_delivery: settings.allows_delivery === true,
-      allow_guest_orders: settings.allow_guest_orders !== false,
-    };
+    if (!response.ok) await throwForResponse(response);
+    return normalizeSettings(await response.json(), menuId);
   },
 
   async createPublic(
     supplierSlug: string,
     payload: MenuOrderCreatePayload,
   ): Promise<MenuOrderCreated> {
-    if (payload.items.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1 ||
-      (item.variant_id != null && (!Number.isInteger(item.variant_id) || item.variant_id < 1)))) {
+    if (
+      payload.items.some(
+        (item) =>
+          !Number.isInteger(item.quantity) ||
+          item.quantity < 1 ||
+          (item.variant_id != null &&
+            (!Number.isInteger(item.variant_id) || item.variant_id < 1)),
+      )
+    ) {
       throw new Error("Revisa la cantidad y presentación de cada producto.");
     }
+
+    // fetchWithAuth funciona también sin token y, cuando existe una sesión,
+    // permite que el backend relacione el pedido con el usuario actual.
     const response = await authRequest(
       `${publicBase}/${encodeURIComponent(supplierSlug)}`,
       {
@@ -234,7 +222,7 @@ export const menuOrderService = {
       { signal },
     );
 
-    return response.json();
+    return normalizeSettings(await response.json(), menuId);
   },
 
   async updateSettings(
@@ -249,7 +237,7 @@ export const menuOrderService = {
       },
     );
 
-    return response.json();
+    return normalizeSettings(await response.json(), menuId);
   },
 
   async mine(
@@ -286,7 +274,6 @@ export const menuOrderService = {
       `${privateBase}/${orderId}`,
       { signal },
     );
-
     return response.json();
   },
 
@@ -301,7 +288,6 @@ export const menuOrderService = {
         body: JSON.stringify(payload),
       },
     );
-
     return response.json();
   },
 };

@@ -19,6 +19,7 @@ export interface ModuleAdminList {
   billing_period: ModuleBillingPeriod | null;
   availability: ModuleAvailability;
   display_order: number;
+  linked_plans_count: number;
   allowed_suppliers_count: number;
   assigned_suppliers_count: number;
   created_at: string;
@@ -26,6 +27,8 @@ export interface ModuleAdminList {
 }
 
 export interface ModuleAdminDetail extends ModuleAdminList {
+  plan_ids: number[];
+  specific_supplier_id: number | null;
   allowed_supplier_ids: number[];
 }
 
@@ -37,11 +40,25 @@ export interface ModuleCreatePayload {
   has_price: boolean;
   price: number | null;
   billing_period: ModuleBillingPeriod | null;
+  /** Campo legacy que el backend conserva por compatibilidad. */
   availability: ModuleAvailability;
   display_order: number;
+  plan_ids: number[];
+  specific_supplier_id?: number | null;
 }
 
-export type ModuleUpdatePayload = Omit<ModuleCreatePayload, "code">;
+export interface ModuleUpdatePayload {
+  name?: string;
+  description?: string | null;
+  is_active?: boolean;
+  has_price?: boolean;
+  price?: number | null;
+  billing_period?: ModuleBillingPeriod | null;
+  availability?: ModuleAvailability;
+  display_order?: number;
+  plan_ids?: number[];
+  specific_supplier_id?: number | null;
+}
 
 export interface SupplierModuleAssignment {
   id: number;
@@ -59,13 +76,47 @@ export interface SupplierModuleAssignment {
   updated_at: string;
 }
 
-export interface SupplierModule {
+export interface SupplierModuleCatalogItem {
   id: number;
   code: string;
   name: string;
   description: string | null;
-  has_access: boolean;
+  has_price: boolean;
+  price: number | null;
+  billing_period: ModuleBillingPeriod | null;
   display_order: number;
+  offered: boolean;
+  included_by_plan: boolean;
+  specific_supplier_offer: boolean;
+  eligible_plan_id: number | null;
+  payment_required: boolean;
+  can_activate: boolean;
+  has_access: boolean;
+  assignment: SupplierModuleAssignment | null;
+}
+
+/** Alias mantenido para no romper useSupplierModules y pantallas existentes. */
+export type SupplierModule = SupplierModuleCatalogItem;
+
+export interface ModulePurchaseResponse {
+  init_point: string;
+  sandbox_init_point: string | null;
+  preference_id: string | null;
+  module_payment_id: number;
+}
+
+export interface ModulePayment {
+  id: number;
+  supplier_id: number;
+  module_id: number;
+  amount: number;
+  status: string;
+  mp_payment_id: string | null;
+  mp_preference_id: string | null;
+  period_start: string;
+  period_end: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SupplierModuleGrantPayload {

@@ -3,16 +3,15 @@
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import {
+  Banknote,
   CalendarDays,
   Check,
   Clock3,
-  Copy,
-  Facebook,
+  CreditCard,
   Loader2,
   LogIn,
   Minus,
   Plus,
-  Send,
   Share2,
   ShoppingBag,
   Store,
@@ -31,6 +30,7 @@ import {
   getBrowserPathWithSearchAndHash,
   getLoginUrl,
 } from "@/lib/authRedirect";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { menuOrderService } from "@/services/menuOrderService";
 import { useAuthStore } from "@/store/useAuthStore";
 import type {
@@ -41,29 +41,14 @@ import type {
 } from "@/types/menu";
 import type {
   MenuOrderFulfillmentType,
+  MenuOrderPaymentMethod,
   MenuOrderSettings,
 } from "@/types/menuOrder";
 
-const currencyFormatter =
-  new Intl.NumberFormat("es-MX", {
-    style: "currency",
-    currency: "MXN",
-  });
-
-const dateFormatter =
-  new Intl.DateTimeFormat("es-MX", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-
-const shortDateFormatter =
-  new Intl.DateTimeFormat("es-MX", {
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-  });
+const currencyFormatter = new Intl.NumberFormat("es-MX", {
+  style: "currency",
+  currency: "MXN",
+});
 
 const dayNames: Record<MenuDay, string> = {
   0: "Lunes",
@@ -75,114 +60,6 @@ const dayNames: Record<MenuDay, string> = {
   6: "Domingo",
 };
 
-function hasText(
-  value: string | null | undefined,
-): value is string {
-  return Boolean(value?.trim());
-}
-
-function formatPrice(
-  value: number | null,
-): string | null {
-  return typeof value === "number" &&
-    Number.isFinite(value)
-    ? currencyFormatter.format(value)
-    : null;
-}
-
-function parseDate(
-  value: string,
-): Date | null {
-  const match =
-    /^(\d{4})-(\d{2})-(\d{2})/.exec(
-      value,
-    );
-
-  if (!match) return null;
-
-  const [, year, month, day] = match;
-
-  return new Date(
-    Date.UTC(
-      Number(year),
-      Number(month) - 1,
-      Number(day),
-    ),
-  );
-}
-
-function formatDate(value: string): string {
-  const date = parseDate(value);
-
-  return date
-    ? dateFormatter.format(date)
-    : value;
-}
-
-function formatDateRange(
-  start: string,
-  end: string,
-): string {
-  if (start === end) {
-    return formatDate(start);
-  }
-
-  const startDate = parseDate(start);
-  const endDate = parseDate(end);
-
-  if (!startDate || !endDate) {
-    return `${formatDate(
-      start,
-    )} – ${formatDate(end)}`;
-  }
-
-  if (
-    startDate.getUTCFullYear() ===
-    endDate.getUTCFullYear()
-  ) {
-    return `${shortDateFormatter.format(
-      startDate,
-    )} – ${dateFormatter.format(
-      endDate,
-    )}`;
-  }
-
-  return `${dateFormatter.format(
-    startDate,
-  )} – ${dateFormatter.format(
-    endDate,
-  )}`;
-}
-
-function formatTime(
-  value: string,
-): string {
-  const [
-    hoursValue,
-    minutesValue = "00",
-  ] = value.split(":");
-
-  const hours = Number(hoursValue);
-
-  if (!Number.isFinite(hours)) {
-    return value
-      .split(":")
-      .slice(0, 2)
-      .join(":");
-  }
-
-  const period =
-    hours >= 12 ? "p.m." : "a.m.";
-
-  const displayHours =
-    hours % 12 || 12;
-
-  return `${displayHours}:${minutesValue.padStart(
-    2,
-    "0",
-  )} ${period}`;
-}
-
 function createRequestId() {
   if (
     typeof crypto !== "undefined" &&
@@ -191,55 +68,58 @@ function createRequestId() {
     return crypto.randomUUID();
   }
 
-  return `menu-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 12)}`;
+  return `menu-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-function MenuImage({
-  src,
-  alt,
-  sizes,
-  fit = "cover",
-}: {
-  src: string | null;
-  alt: string;
-  sizes: string;
-  fit?: "cover" | "contain";
-}) {
-  const [failedSrc, setFailedSrc] =
-    useState<string | null>(null);
+function hasText(value: string | null | undefined): value is string {
+  return Boolean(value?.trim());
+}
 
-  if (!src || failedSrc === src) {
-    return null;
+function formatMoney(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? currencyFormatter.format(value)
+    : null;
+}
+
+function formatTime(value: string) {
+  const [hoursValue, minutesValue = "00"] = value.split(":");
+  const hours = Number(hoursValue);
+  if (!Number.isFinite(hours)) return value;
+  const period = hours >= 12 ? "p.m." : "a.m.";
+  return `${hours % 12 || 12}:${minutesValue.padStart(2, "0")} ${period}`;
+}
+
+function menuSchedule(menu: Menu) {
+  const parts: string[] = [];
+
+  if (menu.days_of_week?.length) {
+    parts.push(
+      [...menu.days_of_week]
+        .sort((a, b) => a - b)
+        .map((day) => dayNames[day])
+        .join(", "),
+    );
   }
 
-  return (
-    <Image
-      src={src}
-      alt={alt}
-      fill
-      unoptimized
-      sizes={sizes}
-      className={
-        fit === "contain"
-          ? "object-contain"
-          : "object-cover"
-      }
-      onError={() =>
-        setFailedSrc(src)
-      }
-    />
-  );
-}
+  if (menu.date_start || menu.date_end) {
+    parts.push(
+      [menu.date_start, menu.date_end]
+        .filter(Boolean)
+        .join(" → "),
+    );
+  }
 
-type LightboxImage = {
-  src: string;
-  alt: string;
-  name: string;
-  price: string | null;
-  description: string | null;
-};
+  if (menu.time_start || menu.time_end) {
+    parts.push(
+      [menu.time_start, menu.time_end]
+        .filter((value): value is string => Boolean(value))
+        .map(formatTime)
+        .join(" – "),
+    );
+  }
+
+  return parts.join(" · ");
+}
 
 type CartLine = {
   item: MenuItem;
@@ -248,527 +128,294 @@ type CartLine = {
   notes: string;
 };
 
-/* =========================================================
-   TARJETA DE PRODUCTO
-   Foto arriba + información abajo
-   ========================================================= */
+function lineKey(itemId: number, variantId?: number | null) {
+  return `${itemId}:${variantId ?? "base"}`;
+}
+
+function itemHasVariants(item: MenuItem) {
+  return Array.isArray(item.variants) && item.variants.length > 0;
+}
+
+function availableVariants(item: MenuItem) {
+  return [...(item.variants ?? [])]
+    .filter((variant) => variant.is_active)
+    .sort(
+      (a, b) =>
+        a.display_order - b.display_order || a.id - b.id,
+    );
+}
 
 function MenuItemCard({
   item,
-  quantity,
+  cart,
   canOrder,
-  onOpenImage,
-  onAdd,
-  onDecrease,
-  variantQuantity,
-  onVariantChange,
+  changeQuantity,
 }: {
   item: MenuItem;
-  quantity: number;
+  cart: Record<string, CartLine>;
   canOrder: boolean;
-  onOpenImage: (
-    image: LightboxImage,
+  changeQuantity: (
+    item: MenuItem,
+    delta: number,
+    variant?: MenuItemVariant | null,
   ) => void;
-  onAdd: () => void;
-  onDecrease: () => void;
-  variantQuantity: (variantId: number) => number;
-  onVariantChange: (variant: MenuItemVariant, delta: number) => void;
 }) {
-  const thumbnail =
-    item.image_thumbnail_url ||
-    item.image_url;
-
-  const largeImage =
-    item.image_url ||
-    item.image_thumbnail_url;
-
-  const variants = Array.isArray(item.variants) ? [...item.variants].sort(
-    (a, b) => a.display_order - b.display_order || a.id - b.id,
-  ) : [];
-  const price = variants.length ? null : formatPrice(item.price);
-
-  const showOldPrice =
-    typeof item.old_price ===
-      "number" &&
-    item.old_price > 0 &&
-    typeof item.price === "number" &&
-    Number.isFinite(item.price) &&
-    item.old_price > item.price;
+  const variants = availableVariants(item);
+  const image = item.image_thumbnail_url || item.image_url;
+  const baseQuantity = cart[lineKey(item.id)]?.quantity || 0;
 
   return (
     <article
-      className={`group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
+      className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
         item.is_available
           ? "border-[#004e28]/10"
-          : "border-gray-200 bg-gray-50"
+          : "border-gray-200 opacity-70"
       }`}
     >
-      {thumbnail &&
-      largeImage ? (
-        <button
-          type="button"
-          onClick={() =>
-            onOpenImage({
-              src: largeImage,
-              alt: item.name,
-              name: item.name,
-              price,
-              description: hasText(
-                item.description,
-              )
-                ? item.description.trim()
-                : null,
-            })
-          }
-          className={`relative aspect-[4/3] w-full cursor-zoom-in overflow-hidden bg-[#e8eee9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#168e00] ${
-            item.is_available
-              ? ""
-              : "opacity-60 grayscale"
-          }`}
-          aria-label={`Ampliar imagen de ${item.name}`}
-        >
-          <MenuImage
-            src={thumbnail}
+      <div className="relative aspect-[4/3] bg-[#edf3ee]">
+        {image ? (
+          <Image
+            src={image}
             alt={item.name}
-            sizes="(max-width: 639px) 50vw, (max-width: 1023px) 33vw, 20vw"
+            fill
+            unoptimized
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+            className="object-cover"
           />
-        </button>
-      ) : (
-        <div
-          className={`flex aspect-[4/3] w-full items-center justify-center bg-gradient-to-br from-[#edf3ee] to-[#e5eee7] ${
-            item.is_available
-              ? ""
-              : "opacity-60 grayscale"
-          }`}
-        >
-          <UtensilsCrossed
-            size={34}
-            strokeWidth={1.4}
-            className="text-[#004e28]/25"
-          />
-        </div>
-      )}
+        ) : (
+          <div className="flex h-full items-center justify-center text-[#004e28]/30">
+            <UtensilsCrossed size={34} />
+          </div>
+        )}
+      </div>
 
-      <div className="flex flex-1 flex-col p-3.5 sm:p-4">
+      <div className="p-4">
         <div className="flex items-start justify-between gap-2">
-          <h4 className="line-clamp-2 min-w-0 flex-1 font-[family-name:var(--font-varela-round)] text-sm font-bold leading-snug text-[#004e28] sm:text-base">
+          <h4 className="min-w-0 flex-1 font-[family-name:var(--font-varela-round)] text-base font-black text-[#004e28]">
             {item.name}
           </h4>
-
           {!item.is_available ? (
-            <span className="shrink-0 rounded-full bg-gray-200 px-2 py-1 text-[0.58rem] font-bold uppercase tracking-wide text-gray-700">
+            <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-bold uppercase text-gray-500">
               Agotado
             </span>
           ) : null}
         </div>
 
-        {hasText(
-          item.description,
-        ) ? (
-          <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-gray-500 sm:text-sm">
-            {item.description.trim()}
+        {item.description ? (
+          <p className="mt-1 line-clamp-3 text-sm leading-5 text-gray-500">
+            {item.description}
           </p>
         ) : null}
 
-        {hasText(item.label) ? (
-          <span className="mt-2 w-fit rounded-full bg-[#168e00]/10 px-2 py-1 text-[0.65rem] font-bold text-[#168e00]">
-            {item.label.trim()}
+        {item.label ? (
+          <span className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">
+            {item.label}
           </span>
         ) : null}
 
-        <div className="mt-auto pt-3">
-          {price ? (
-            <div className="flex flex-wrap items-baseline gap-2">
-              <span className="text-base font-black text-[#168e00] sm:text-lg">
-                {price}
-              </span>
+        {variants.length ? (
+          <div className="mt-4 space-y-2">
+            {variants.map((variant) => {
+              const quantity = cart[lineKey(item.id, variant.id)]?.quantity || 0;
+              const enabled =
+                canOrder &&
+                item.is_available &&
+                variant.is_available &&
+                Number.isFinite(variant.price);
 
-              {showOldPrice ? (
-                <span className="text-xs text-gray-400 line-through">
-                  {currencyFormatter.format(
-                    item.old_price as number,
-                  )}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-
-          {variants.length > 0 ? (
-            <div className="mt-3 space-y-2" aria-label={`Presentaciones de ${item.name}`}>
-              {variants.map((variant) => {
-                const available = item.is_available && variant.is_active && variant.is_available &&
-                  typeof variant.price === "number" && Number.isFinite(variant.price);
-                const selectedQuantity = variantQuantity(variant.id);
-                return (
-                  <div key={variant.id} className="rounded-xl border border-[#004e28]/10 bg-[#f2f3f4] p-2.5">
-                    <div className="flex items-start justify-between gap-2 text-xs">
-                      <span className="font-semibold text-[#004e28]">{variant.name}</span>
-                      <span className="shrink-0 text-right font-black text-[#168e00]">
-                        {formatPrice(variant.price)}
-                        {variant.old_price != null && variant.old_price > variant.price ?
-                          <span className="block text-[10px] font-normal text-gray-400 line-through">{formatPrice(variant.old_price)}</span> : null}
-                      </span>
+              return (
+                <div
+                  key={variant.id}
+                  className={`rounded-xl border p-3 ${
+                    variant.is_available
+                      ? "border-gray-200"
+                      : "border-gray-100 bg-gray-50 opacity-60"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-gray-800">
+                        {variant.name}
+                      </p>
+                      <p className="text-sm font-black text-[#168e00]">
+                        {formatMoney(variant.price)}
+                      </p>
                     </div>
-                    {!available ? <span className="mt-1 block text-xs font-semibold text-gray-500">Agotada</span> : canOrder ? (
-                      selectedQuantity ? <div className="mt-2 flex items-center justify-between rounded-lg bg-white p-1">
-                        <button type="button" onClick={() => onVariantChange(variant, -1)} aria-label={`Quitar ${variant.name}`} className="rounded p-1 text-[#004e28]"><Minus size={15} /></button>
-                        <span className="text-xs font-bold">{selectedQuantity}</span>
-                        <button type="button" onClick={() => onVariantChange(variant, 1)} aria-label={`Agregar ${variant.name}`} className="rounded bg-[#168e00] p-1 text-white"><Plus size={15} /></button>
-                      </div> : <button type="button" onClick={() => onVariantChange(variant, 1)} className="mt-2 w-full rounded-lg bg-[#168e00] px-2 py-1.5 text-xs font-bold text-white">Agregar {variant.name}</button>
-                    ) : null}
+
+                    {enabled ? (
+                      quantity > 0 ? (
+                        <div className="flex items-center rounded-xl border border-[#168e00]/20 bg-[#168e00]/5 p-1">
+                          <button
+                            type="button"
+                            onClick={() => changeQuantity(item, -1, variant)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#004e28] hover:bg-white"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span className="min-w-7 text-center text-sm font-black text-[#004e28]">
+                            {quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => changeQuantity(item, 1, variant)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#168e00] text-white"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => changeQuantity(item, 1, variant)}
+                          className="rounded-xl bg-[#168e00] px-3 py-2 text-xs font-bold text-white"
+                        >
+                          Agregar
+                        </button>
+                      )
+                    ) : (
+                      <span className="text-xs text-gray-400">
+                        No disponible
+                      </span>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          ) : canOrder ? (
-            <div className="mt-3">
-              {quantity > 0 ? (
-                <div className="flex w-full items-center justify-between rounded-xl border border-[#168e00]/20 bg-[#168e00]/5 p-1">
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-4">
+            <p className="text-base font-black text-[#168e00]">
+              {formatMoney(item.price) || "Sin precio"}
+            </p>
+
+            {canOrder && item.is_available && typeof item.price === "number" ? (
+              baseQuantity > 0 ? (
+                <div className="mt-3 flex items-center justify-between rounded-xl border border-[#168e00]/20 bg-[#168e00]/5 p-1">
                   <button
                     type="button"
-                    onClick={
-                      onDecrease
-                    }
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-[#004e28] transition hover:bg-white"
-                    aria-label={`Quitar una unidad de ${item.name}`}
+                    onClick={() => changeQuantity(item, -1)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-[#004e28] hover:bg-white"
                   >
-                    <Minus
-                      size={15}
-                    />
+                    <Minus size={15} />
                   </button>
-
                   <span className="min-w-8 text-center text-sm font-black text-[#004e28]">
-                    {quantity}
+                    {baseQuantity}
                   </span>
-
                   <button
                     type="button"
-                    onClick={onAdd}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#168e00] text-white transition hover:bg-[#117500]"
-                    aria-label={`Agregar una unidad de ${item.name}`}
+                    onClick={() => changeQuantity(item, 1)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#168e00] text-white"
                   >
-                    <Plus
-                      size={15}
-                    />
+                    <Plus size={15} />
                   </button>
                 </div>
               ) : (
                 <button
                   type="button"
-                  onClick={onAdd}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#168e00] px-3 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#117500]"
+                  onClick={() => changeQuantity(item, 1)}
+                  className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#168e00] px-3 py-2.5 text-xs font-bold text-white"
                 >
-                  <Plus
-                    size={15}
-                  />
-                  Agregar
+                  <Plus size={15} /> Agregar
                 </button>
-              )}
-            </div>
-          ) : null}
-        </div>
+              )
+            ) : null}
+          </div>
+        )}
       </div>
     </article>
   );
 }
 
-export function PublicSupplierMenu({
-  menus,
-}: {
-  menus: Menu[];
-}) {
-  const params =
-    useParams<{
-      slug: string;
-    }>();
-
+export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
+  const params = useParams<{ slug: string }>();
   const router = useRouter();
+  const { user, isAuthenticated } = useAuthStore();
+  const supplierSlug = String(params?.slug || "");
 
-  const {
-    user,
-    isAuthenticated,
-  } = useAuthStore();
-
-  const supplierSlug = String(
-    params?.slug || "",
-  );
-
-  const [
-    selectedMenuId,
-    setSelectedMenuId,
-  ] = useState(
+  const [selectedMenuId, setSelectedMenuId] = useState<number | null>(
     menus[0]?.id ?? null,
   );
+  const [settingsByMenu, setSettingsByMenu] = useState<
+    Record<number, MenuOrderSettings>
+  >({});
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [cart, setCart] = useState<Record<string, CartLine>>({});
+  const [cartOpen, setCartOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [clientRequestId, setClientRequestId] = useState(createRequestId);
 
-  const [
-    lightboxImage,
-    setLightboxImage,
-  ] =
-    useState<LightboxImage | null>(
-      null,
-    );
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [fulfillmentType, setFulfillmentType] =
+    useState<MenuOrderFulfillmentType>("pickup");
+  const [paymentMethod, setPaymentMethod] =
+    useState<MenuOrderPaymentMethod>("cash");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [generalNotes, setGeneralNotes] = useState("");
 
-  const [
-    orderSettingsByMenu,
-    setOrderSettingsByMenu,
-  ] = useState<Record<number, MenuOrderSettings>>({});
-
-  const [
-    settingsLoading,
-    setSettingsLoading,
-  ] = useState(false);
-
-  const [cart, setCart] =
-    useState<
-      Record<string, CartLine>
-    >({});
-
-  const [
-    cartOpen,
-    setCartOpen,
-  ] = useState(false);
-
-  const [
-    checkoutOpen,
-    setCheckoutOpen,
-  ] = useState(false);
-
-  const [
-    shareOpen,
-    setShareOpen,
-  ] = useState(false);
-
-  const [
-    copied,
-    setCopied,
-  ] = useState(false);
-
-  const [
-    submitting,
-    setSubmitting,
-  ] = useState(false);
-
-  const [
-    checkoutError,
-    setCheckoutError,
-  ] =
-    useState<string | null>(null);
-
-  const [
-    clientRequestId,
-    setClientRequestId,
-  ] = useState(
-    createRequestId,
-  );
-
-  const [
-    customerName,
-    setCustomerName,
-  ] = useState("");
-
-  const [
-    customerEmail,
-    setCustomerEmail,
-  ] = useState("");
-
-  const [
-    customerPhone,
-    setCustomerPhone,
-  ] = useState("");
-
-  const [
-    fulfillmentType,
-    setFulfillmentType,
-  ] =
-    useState<MenuOrderFulfillmentType>(
-      "pickup",
-    );
-
-  const [
-    deliveryAddress,
-    setDeliveryAddress,
-  ] = useState("");
-
-  const [
-    generalNotes,
-    setGeneralNotes,
-  ] = useState("");
+  const selectedMenu =
+    menus.find((menu) => menu.id === selectedMenuId) ?? menus[0];
+  const orderSettings = selectedMenu
+    ? settingsByMenu[selectedMenu.id] ?? null
+    : null;
 
   useEffect(() => {
     if (!user) return;
-
-    setCustomerName(
-      (current) =>
-        current ||
-        user.name ||
-        "",
-    );
-
-    setCustomerEmail(
-      (current) =>
-        current ||
-        user.email ||
-        "",
-    );
+    setCustomerName((current) => current || user.name || "");
+    setCustomerEmail((current) => current || user.email || "");
   }, [user]);
 
   useEffect(() => {
-    const query =
-      new URLSearchParams(
-        window.location.search,
-      );
+    if (!supplierSlug || menus.length === 0) return;
 
-    const menuFromUrl =
-      Number(
-        query.get("menu"),
-      );
-
-    if (
-      Number.isFinite(
-        menuFromUrl,
-      ) &&
-      menus.some(
-        (menu) =>
-          menu.id ===
-          menuFromUrl,
-      )
-    ) {
-      setSelectedMenuId(
-        menuFromUrl,
-      );
-    }
-  }, [menus]);
-
-  const selectedMenu =
-    menus.find(
-      (menu) =>
-        menu.id ===
-        selectedMenuId,
-    ) ?? menus[0];
-
-  useEffect(() => {
-    if (
-      !supplierSlug ||
-      menus.length === 0
-    ) {
-      setOrderSettingsByMenu({});
-      return;
-    }
-
-    const controller =
-      new AbortController();
-
+    const controller = new AbortController();
     setSettingsLoading(true);
 
     Promise.all(
       menus.map(async (menu) => {
         try {
-          const settings =
-            await menuOrderService.publicSettings(
-              supplierSlug,
-              menu.id,
-              controller.signal,
-            );
-
-          return [
+          const settings = await menuOrderService.publicSettings(
+            supplierSlug,
             menu.id,
-            settings,
-          ] as const;
-        } catch (error: unknown) {
-          if (
-            error instanceof
-              DOMException &&
-            error.name ===
-              "AbortError"
-          ) {
+            controller.signal,
+          );
+          return [menu.id, settings] as const;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") {
             throw error;
           }
-
-          console.error(
-            `No se pudo consultar la configuración de pedidos del menú ${menu.id}:`,
-            error,
-          );
-
           return [
             menu.id,
             {
               menu_id: menu.id,
-              supplier_id:
-                menu.supplier_id,
-              accepts_orders:
-                false,
-              allows_pickup:
-                true,
-              allows_delivery:
-                false,
-              allow_guest_orders:
-                true,
+              supplier_id: menu.supplier_id,
+              accepts_orders: false,
+              allows_pickup: true,
+              allows_delivery: false,
+              allow_guest_orders: true,
+              allows_cash: true,
+              allows_online_payment: false,
+              mercadopago_linked: false,
+              online_payment_available: false,
             } satisfies MenuOrderSettings,
           ] as const;
         }
       }),
     )
       .then((entries) => {
-        if (controller.signal.aborted) {
-          return;
+        if (!controller.signal.aborted) {
+          setSettingsByMenu(Object.fromEntries(entries));
         }
-
-        setOrderSettingsByMenu(
-          Object.fromEntries(
-            entries,
-          ),
-        );
-      })
-      .catch((error: unknown) => {
-        if (
-          error instanceof
-            DOMException &&
-          error.name ===
-            "AbortError"
-        ) {
-          return;
-        }
-
-        console.error(
-          "No se pudieron consultar las configuraciones de pedidos:",
-          error,
-        );
       })
       .finally(() => {
-        if (
-          !controller.signal.aborted
-        ) {
-          setSettingsLoading(
-            false,
-          );
-        }
+        if (!controller.signal.aborted) setSettingsLoading(false);
       });
 
-    return () =>
-      controller.abort();
-  }, [
-    menus,
-    supplierSlug,
-  ]);
-
-  const orderSettings =
-    selectedMenu
-      ? orderSettingsByMenu[
-          selectedMenu.id
-        ] ?? null
-      : null;
-
-  const hasAnyOrderMenu =
-    useMemo(
-      () =>
-        Object.values(
-          orderSettingsByMenu,
-        ).some(
-          (settings) =>
-            settings.accepts_orders,
-        ),
-      [orderSettingsByMenu],
-    );
+    return () => controller.abort();
+  }, [menus, supplierSlug]);
 
   useEffect(() => {
     setCart({});
@@ -777,685 +424,296 @@ export function PublicSupplierMenu({
   }, [selectedMenu?.id]);
 
   useEffect(() => {
-    if (!orderSettings) {
+    if (!orderSettings) return;
+
+    if (orderSettings.allows_pickup) setFulfillmentType("pickup");
+    else if (orderSettings.allows_delivery) setFulfillmentType("delivery");
+
+    if (orderSettings.allows_cash) setPaymentMethod("cash");
+    else if (orderSettings.online_payment_available) setPaymentMethod("online");
+  }, [orderSettings]);
+
+  const cartItems = useMemo(() => Object.values(cart), [cart]);
+  const cartQuantity = useMemo(
+    () => cartItems.reduce((sum, line) => sum + line.quantity, 0),
+    [cartItems],
+  );
+  const cartSubtotal = useMemo(
+    () =>
+      cartItems.reduce(
+        (sum, line) =>
+          sum +
+          Number(line.variant?.price ?? line.item.price ?? 0) *
+            line.quantity,
+        0,
+      ),
+    [cartItems],
+  );
+
+  if (!selectedMenu) return null;
+
+  const acceptsOrders = Boolean(orderSettings?.accepts_orders);
+  const canCurrentUserOrder =
+    acceptsOrders &&
+    (isAuthenticated || Boolean(orderSettings?.allow_guest_orders));
+
+  const hasOrderableItems = selectedMenu.sections.some((section) =>
+    section.items.some((item) => {
+      if (!item.is_available) return false;
+      if (itemHasVariants(item)) {
+        return availableVariants(item).some(
+          (variant) =>
+            variant.is_available && Number.isFinite(variant.price),
+        );
+      }
+      return typeof item.price === "number" && Number.isFinite(item.price);
+    }),
+  );
+
+  const schedule = menuSchedule(selectedMenu);
+  const cover = selectedMenu.image_url || selectedMenu.image_thumbnail_url;
+
+  function goToLoginForOrder() {
+    router.push(getLoginUrl(getBrowserPathWithSearchAndHash()));
+  }
+
+  function changeQuantity(
+    item: MenuItem,
+    delta: number,
+    variant: MenuItemVariant | null = null,
+  ) {
+    if (!item.is_available) return;
+    if (itemHasVariants(item) && !variant) return;
+    if (
+      variant &&
+      (!variant.is_active ||
+        !variant.is_available ||
+        !Number.isFinite(variant.price))
+    ) {
+      return;
+    }
+    if (
+      !variant &&
+      (typeof item.price !== "number" || !Number.isFinite(item.price))
+    ) {
+      return;
+    }
+
+    const key = lineKey(item.id, variant?.id);
+    setCart((current) => {
+      const existing = current[key];
+      const quantity = Math.max(
+        0,
+        Math.min(99, (existing?.quantity || 0) + delta),
+      );
+      const next = { ...current };
+
+      if (quantity === 0) delete next[key];
+      else {
+        next[key] = {
+          item,
+          variant,
+          quantity,
+          notes: existing?.notes || "",
+        };
+      }
+      return next;
+    });
+  }
+
+  function updateNotes(key: string, notes: string) {
+    setCart((current) => {
+      const line = current[key];
+      if (!line) return current;
+      return { ...current, [key]: { ...line, notes } };
+    });
+  }
+
+  function removeLine(key: string) {
+    setCart((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function openCheckout() {
+    if (!cartItems.length || !orderSettings?.accepts_orders) return;
+
+    if (!isAuthenticated && !orderSettings.allow_guest_orders) {
+      goToLoginForOrder();
+      return;
+    }
+
+    setCheckoutError(null);
+    setClientRequestId(createRequestId());
+
+    if (orderSettings.allows_pickup) setFulfillmentType("pickup");
+    else if (orderSettings.allows_delivery) setFulfillmentType("delivery");
+
+    if (orderSettings.allows_cash) setPaymentMethod("cash");
+    else if (orderSettings.online_payment_available) setPaymentMethod("online");
+
+    setCartOpen(false);
+    setCheckoutOpen(true);
+  }
+
+  async function submitOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!orderSettings?.accepts_orders || !supplierSlug || !cartItems.length) {
+      return;
+    }
+
+    if (!isAuthenticated && !orderSettings.allow_guest_orders) {
+      goToLoginForOrder();
+      return;
+    }
+
+    if (!customerName.trim() || !customerEmail.trim() || !customerPhone.trim()) {
+      setCheckoutError("Completa tu nombre, correo y teléfono.");
+      return;
+    }
+
+    if (fulfillmentType === "delivery" && !deliveryAddress.trim()) {
+      setCheckoutError("Escribe la dirección para la entrega.");
+      return;
+    }
+
+    if (paymentMethod === "cash" && !orderSettings.allows_cash) {
+      setCheckoutError("El pago en efectivo ya no está disponible.");
       return;
     }
 
     if (
-      orderSettings.allows_pickup
+      paymentMethod === "online" &&
+      !orderSettings.online_payment_available
     ) {
-      setFulfillmentType(
-        "pickup",
-      );
-    } else if (
-      orderSettings.allows_delivery
-    ) {
-      setFulfillmentType(
-        "delivery",
-      );
-    }
-  }, [orderSettings]);
-
-  useEffect(() => {
-    const modalOpen =
-      Boolean(
-        lightboxImage ||
-          cartOpen ||
-          checkoutOpen ||
-          shareOpen,
-      );
-
-    if (!modalOpen) {
+      setCheckoutError("El pago en línea ya no está disponible.");
       return;
     }
 
-    const previousOverflow =
-      document.body.style
-        .overflow;
+    setSubmitting(true);
+    setCheckoutError(null);
 
-    const closeOnEscape = (
-      event: KeyboardEvent,
-    ) => {
-      if (
-        event.key !==
-        "Escape"
-      ) {
+    try {
+      const order = await menuOrderService.createPublic(supplierSlug, {
+        menu_id: selectedMenu.id,
+        customer_name: customerName.trim(),
+        customer_email: customerEmail.trim(),
+        customer_phone: customerPhone.trim(),
+        fulfillment_type: fulfillmentType,
+        payment_method: paymentMethod,
+        delivery_address:
+          fulfillmentType === "delivery" ? deliveryAddress.trim() : null,
+        notes: generalNotes.trim() || null,
+        client_request_id: clientRequestId,
+        items: cartItems.map((line) => ({
+          menu_item_id: line.item.id,
+          ...(line.variant ? { variant_id: line.variant.id } : {}),
+          quantity: line.quantity,
+          notes: line.notes.trim() || null,
+        })),
+      });
+
+      try {
+        window.localStorage.setItem(
+          `menu-order-token:${order.order_number}`,
+          order.management_token,
+        );
+      } catch {
+        // El usuario registrado también puede recuperar el pedido desde /mine.
+      }
+
+      setCheckoutOpen(false);
+      setCart({});
+
+      if (order.payment_method === "online") {
+        const safeCheckout = getSafeMercadoPagoUrl(order.payment_checkout_url);
+        if (!safeCheckout) {
+          router.push(
+            `/pedidos/menu/${encodeURIComponent(order.order_number)}?management_token=${encodeURIComponent(order.management_token)}`,
+          );
+          return;
+        }
+
+        window.location.assign(safeCheckout);
         return;
       }
 
-      setLightboxImage(
-        null,
+      router.push(
+        `/pedidos/menu/${encodeURIComponent(order.order_number)}?management_token=${encodeURIComponent(order.management_token)}`,
       );
-
-      setCartOpen(false);
-      setCheckoutOpen(
-        false,
+    } catch (error) {
+      setCheckoutError(
+        error instanceof Error ? error.message : "No se pudo crear el pedido.",
       );
-
-      setShareOpen(false);
-    };
-
-    document.body.style.overflow =
-      "hidden";
-
-    window.addEventListener(
-      "keydown",
-      closeOnEscape,
-    );
-
-    return () => {
-      document.body.style.overflow =
-        previousOverflow;
-
-      window.removeEventListener(
-        "keydown",
-        closeOnEscape,
-      );
-    };
-  }, [
-    lightboxImage,
-    cartOpen,
-    checkoutOpen,
-    shareOpen,
-  ]);
-
-  const cartItems =
-    useMemo(
-      () =>
-        Object.values(
-          cart,
-        ),
-      [cart],
-    );
-
-  const cartQuantity =
-    useMemo(
-      () =>
-        cartItems.reduce(
-          (
-            sum,
-            line,
-          ) =>
-            sum +
-            line.quantity,
-          0,
-        ),
-      [cartItems],
-    );
-
-  const cartSubtotal =
-    useMemo(
-      () =>
-        cartItems.reduce(
-          (
-            sum,
-            line,
-          ) =>
-            sum +
-            Number(
-              (line.variant?.price ?? line.item.price) ||
-                0,
-            ) *
-              line.quantity,
-          0,
-        ),
-      [cartItems],
-    );
-
-  if (!selectedMenu) {
-    return null;
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  const cover =
-    selectedMenu.image_url ||
-    selectedMenu.image_thumbnail_url;
-
-  const menuPrice =
-    typeof selectedMenu.price ===
-      "number" &&
-    selectedMenu.price > 0
-      ? formatPrice(
-          selectedMenu.price,
-        )
-      : null;
-
-  const days =
-    selectedMenu.days_of_week
-      ?.filter(
-        (
-          day,
-        ): day is MenuDay =>
-          Object.prototype.hasOwnProperty.call(
-            dayNames,
-            day,
-          ),
-      )
-      .sort(
-        (
-          first,
-          second,
-        ) =>
-          first -
-          second,
-      )
-      .map(
-        (day) =>
-          dayNames[day],
-      );
-
-  const hasDates =
-    hasText(
-      selectedMenu.date_start,
-    ) ||
-    hasText(
-      selectedMenu.date_end,
-    );
-
-  const hasStartTime =
-    hasText(
-      selectedMenu.time_start,
-    );
-
-  const hasEndTime =
-    hasText(
-      selectedMenu.time_end,
-    );
-
-  const hasTimes =
-    (hasStartTime ||
-      hasEndTime) &&
-    !(
-      hasStartTime &&
-      hasEndTime &&
-      selectedMenu.time_start ===
-        selectedMenu.time_end
-    );
-
-  const acceptsOrders =
-    Boolean(
-      orderSettings?.accepts_orders,
-    );
-
-  const allowsGuestOrders =
-    Boolean(
-      orderSettings?.allow_guest_orders,
-    );
-
-  const canCurrentUserOrder =
-    acceptsOrders &&
-    (isAuthenticated ||
-      allowsGuestOrders);
-
-  const hasOrderableItems = selectedMenu.sections.some((section) =>
-    section.items.some((item) => item.is_available &&
-      (item.variants?.length
-        ? item.variants.some((variant) => variant.is_active && variant.is_available && Number.isFinite(variant.price))
-        : typeof item.price === "number" && Number.isFinite(item.price))),
-  );
-
-  const goToLoginForOrder =
-    () => {
-      router.push(
-        getLoginUrl(
-          getBrowserPathWithSearchAndHash(),
-        ),
-      );
-    };
-
-  const changeQuantity = (
-    item: MenuItem,
-    delta: number,
-    variant: MenuItemVariant | null = null,
-  ) => {
-    if (!item.is_available || (Array.isArray(item.variants) && item.variants.length > 0 && !variant) ||
-      (variant && (!variant.is_active || !variant.is_available || !Number.isFinite(variant.price))) ||
-      (!variant && (typeof item.price !== "number" || !Number.isFinite(item.price)))) return;
-    const key = `${item.id}:${variant?.id ?? "base"}`;
-
-    setCart(
-      (current) => {
-        const existing =
-          current[key];
-
-        const quantity =
-          Math.max(
-            0,
-            Math.min(
-              99,
-              (existing?.quantity ||
-                0) +
-                delta,
-            ),
-          );
-
-        const next = {
-          ...current,
-        };
-
-        if (
-          quantity === 0
-        ) {
-          delete next[key];
-        } else {
-          next[key] =
-            {
-              item,
-              variant,
-              quantity,
-              notes:
-                existing?.notes ||
-                "",
-            };
-        }
-
-        return next;
-      },
-    );
-  };
-
-  const updateLineNotes = (
-    key: string,
-    notes: string,
-  ) => {
-    setCart(
-      (current) => {
-        const line =
-          current[key];
-
-        if (!line) {
-          return current;
-        }
-
-        return {
-          ...current,
-          [key]: {
-            ...line,
-            notes,
-          },
-        };
-      },
-    );
-  };
-
-  const removeLine = (
-    key: string,
-  ) => {
-    setCart(
-      (current) => {
-        const next = {
-          ...current,
-        };
-
-        delete next[key];
-
-        return next;
-      },
-    );
-  };
-
-  const openCheckout =
-    () => {
-      if (
-        !cartItems.length ||
-        !orderSettings?.accepts_orders
-      ) {
-        return;
-      }
-
-      if (
-        !isAuthenticated &&
-        !orderSettings.allow_guest_orders
-      ) {
-        goToLoginForOrder();
-        return;
-      }
-
-      setCheckoutError(
-        null,
-      );
-
-      setClientRequestId(
-        createRequestId(),
-      );
-
-      if (
-        orderSettings.allows_pickup
-      ) {
-        setFulfillmentType(
-          "pickup",
-        );
-      } else if (
-        orderSettings.allows_delivery
-      ) {
-        setFulfillmentType(
-          "delivery",
-        );
-      }
-
-      setCartOpen(false);
-      setCheckoutOpen(
-        true,
-      );
-    };
-
-  const submitOrder =
-    async (
-      event: FormEvent<HTMLFormElement>,
-    ) => {
-      event.preventDefault();
-
-      if (
-        !orderSettings?.accepts_orders ||
-        !supplierSlug ||
-        !cartItems.length
-      ) {
-        return;
-      }
-
-      if (
-        !isAuthenticated &&
-        !orderSettings.allow_guest_orders
-      ) {
-        goToLoginForOrder();
-        return;
-      }
-
-      if (
-        !customerName.trim() ||
-        !customerEmail.trim() ||
-        !customerPhone.trim()
-      ) {
-        setCheckoutError(
-          "Completa tu nombre, correo y teléfono.",
-        );
-        return;
-      }
-
-      if (
-        fulfillmentType ===
-          "delivery" &&
-        !deliveryAddress.trim()
-      ) {
-        setCheckoutError(
-          "Escribe la dirección para la entrega.",
-        );
-        return;
-      }
-
-      setSubmitting(true);
-      setCheckoutError(null);
-
-      try {
-        const order =
-          await menuOrderService.createPublic(
-            supplierSlug,
-            {
-              menu_id:
-                selectedMenu.id,
-              customer_name:
-                customerName.trim(),
-              customer_email:
-                customerEmail.trim(),
-              customer_phone:
-                customerPhone.trim(),
-              fulfillment_type:
-                fulfillmentType,
-              delivery_address:
-                fulfillmentType ===
-                "delivery"
-                  ? deliveryAddress.trim()
-                  : null,
-              notes:
-                generalNotes.trim() ||
-                null,
-              client_request_id:
-                clientRequestId,
-              items:
-                cartItems.map(
-                  (line) => ({
-                    menu_item_id:
-                      line.item
-                        .id,
-                    ...(line.variant ? { variant_id: line.variant.id } : {}),
-                    quantity:
-                      line.quantity,
-                    notes:
-                      line.notes.trim() ||
-                      null,
-                  }),
-                ),
-            },
-          );
-
-        try {
-          window.localStorage.setItem(
-            `menu-order-token:${order.order_number}`,
-            order.management_token,
-          );
-        } catch {
-          // El enlace también lleva el token.
-        }
-
-        setCheckoutOpen(
-          false,
-        );
-
-        setCart({});
-
-        router.push(
-          `/pedidos/menu/${encodeURIComponent(
-            order.order_number,
-          )}?management_token=${encodeURIComponent(
-            order.management_token,
-          )}`,
-        );
-      } catch (error) {
-        setCheckoutError(
-          error instanceof Error
-            ? error.message
-            : "No se pudo crear el pedido.",
-        );
-      } finally {
-        setSubmitting(
-          false,
-        );
-      }
-    };
-
-  const shareUrl = () => {
-    const url =
-      new URL(
-        window.location.href,
-      );
-
-    url.searchParams.set(
-      "menu",
-      String(
-        selectedMenu.id,
-      ),
-    );
-
+  async function shareMenu() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("menu", String(selectedMenu.id));
     url.hash = "menu";
 
-    return url.toString();
-  };
-
-  const shareText =
-    `Mira el menú ${selectedMenu.name}`;
-
-  const openShareUrl = (
-    url: string,
-  ) => {
-    window.open(
-      url,
-      "_blank",
-      "noopener,noreferrer,width=760,height=640",
-    );
-  };
-
-  const copyShareUrl =
-    async () => {
-      const url =
-        shareUrl();
-
-      try {
-        await navigator.clipboard.writeText(
-          url,
-        );
-      } catch {
-        const textarea =
-          document.createElement(
-            "textarea",
-          );
-
-        textarea.value =
-          url;
-
-        textarea.style.position =
-          "fixed";
-
-        textarea.style.opacity =
-          "0";
-
-        document.body.appendChild(
-          textarea,
-        );
-
-        textarea.select();
-
-        document.execCommand(
-          "copy",
-        );
-
-        textarea.remove();
-      }
-
-      setCopied(true);
-
-      window.setTimeout(
-        () =>
-          setCopied(
-            false,
-          ),
-        1800,
-      );
-    };
-
-  const nativeShare =
-    async () => {
-      if (!navigator.share) {
-        await copyShareUrl();
-        return;
-      }
-
-      try {
+    try {
+      if (navigator.share) {
         await navigator.share({
-          title:
-            selectedMenu.name,
-          text: shareText,
-          url: shareUrl(),
+          title: selectedMenu.name,
+          text: `Mira el menú ${selectedMenu.name}`,
+          url: url.toString(),
         });
-      } catch {
-        // Cerrar el diálogo nativo no es un error.
+      } else {
+        await navigator.clipboard.writeText(url.toString());
       }
-    };
+    } catch {
+      // Cancelar compartir no necesita mostrar error.
+    }
+  }
 
   return (
-    <section
-      id="menu"
-      aria-labelledby="public-menu-title"
-      className="relative scroll-mt-24 overflow-hidden bg-[#f2f3f4] py-14 md:py-20"
-    >
-      <div className="pointer-events-none absolute -right-52 -top-52 h-[30rem] w-[30rem] rounded-full bg-[#168e00]/10 blur-3xl" />
-
-      <div className="container relative z-10 mx-auto px-4 md:px-8">
-        <div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <section id="menu" className="bg-[#f7f9f8] py-8 md:py-12">
+      <div className="mx-auto max-w-7xl px-4 md:px-8">
+        <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#168e00]">
-              Descubre nuestra propuesta
-            </p>
-
-            <h2
-              id="public-menu-title"
-              className="mt-1 font-[family-name:var(--font-varela-round)] text-4xl font-black text-[#004e28] md:text-5xl"
-            >
-              Menú
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#168e00]">Menú</p>
+            <h2 className="mt-1 font-[family-name:var(--font-varela-round)] text-3xl font-black text-[#004e28]">
+              {selectedMenu.name}
             </h2>
+            {selectedMenu.description ? (
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+                {selectedMenu.description}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {isAuthenticated &&
-            !settingsLoading &&
-            hasAnyOrderMenu ? (
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(
-                    "/client/menu-orders",
-                  )
-                }
-                className="inline-flex items-center gap-2 rounded-xl border border-[#004e28]/10 bg-white px-4 py-3 text-sm font-bold text-[#004e28] shadow-sm hover:border-[#168e00]/40"
-              >
-                <ShoppingBag
-                  size={17}
-                />
-                Mis pedidos
-              </button>
-            ) : null}
-
             <button
               type="button"
-              onClick={() =>
-                setShareOpen(
-                  true,
-                )
-              }
-              className="inline-flex items-center gap-2 rounded-xl border border-[#004e28]/10 bg-white px-4 py-3 text-sm font-bold text-[#004e28] shadow-sm hover:border-[#168e00]/40"
+              onClick={() => void shareMenu()}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-[#004e28] shadow-sm"
             >
-              <Share2
-                size={17}
-              />
-              Compartir
+              <Share2 size={16} /> Compartir
             </button>
 
-            {acceptsOrders ? (
-              canCurrentUserOrder ? (
+            {acceptsOrders && hasOrderableItems ? (
+              !isAuthenticated && !orderSettings?.allow_guest_orders ? (
                 <button
                   type="button"
-                  onClick={() =>
-                    setCartOpen(
-                      true,
-                    )
-                  }
-                  className="relative inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#117500]"
+                  onClick={goToLoginForOrder}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white"
                 >
-                  <ShoppingBag
-                    size={17}
-                  />
-                  Pedido
-
-                  {cartQuantity >
-                  0 ? (
-                    <span className="ml-1 inline-flex min-w-6 items-center justify-center rounded-full bg-white px-1.5 py-0.5 text-xs font-black text-[#168e00]">
-                      {
-                        cartQuantity
-                      }
-                    </span>
-                  ) : null}
+                  <LogIn size={16} /> Iniciar sesión para pedir
                 </button>
               ) : (
                 <button
                   type="button"
-                  onClick={
-                    goToLoginForOrder
-                  }
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#003b1f]"
+                  onClick={() => setCartOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white"
                 >
-                  <LogIn
-                    size={17}
-                  />
-                  Inicia sesión
-                  para pedir
+                  <ShoppingBag size={16} /> Pedido ({cartQuantity})
                 </button>
               )
             ) : null}
@@ -1463,338 +721,128 @@ export function PublicSupplierMenu({
         </div>
 
         {menus.length > 1 ? (
-          <div
-            className="mb-5 flex gap-2 overflow-x-auto pb-2"
-            role="tablist"
-            aria-label="Seleccionar menú"
-          >
-            {menus.map(
-              (menu) => {
-                const isSelected =
-                  menu.id ===
-                  selectedMenu.id;
-
-                return (
-                  <button
-                    key={
-                      menu.id
-                    }
-                    type="button"
-                    role="tab"
-                    aria-selected={
-                      isSelected
-                    }
-                    onClick={() =>
-                      setSelectedMenuId(
-                        menu.id,
-                      )
-                    }
-                    className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2 ${
-                      isSelected
-                        ? "bg-[#004e28] text-white shadow-lg"
-                        : "border border-[#004e28]/10 bg-white text-[#004e28] hover:border-[#168e00] hover:text-[#168e00]"
-                    }`}
-                  >
-                    {
-                      menu.name
-                    }
-                  </button>
-                );
-              },
-            )}
+          <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
+            {menus.map((menu) => (
+              <button
+                key={menu.id}
+                type="button"
+                onClick={() => setSelectedMenuId(menu.id)}
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
+                  menu.id === selectedMenu.id
+                    ? "bg-[#004e28] text-white"
+                    : "bg-white text-gray-600 shadow-sm"
+                }`}
+              >
+                {menu.name}
+              </button>
+            ))}
           </div>
         ) : null}
 
-        <article className="overflow-hidden rounded-[28px] border border-[#004e28]/10 bg-white shadow-[0_24px_70px_-50px_rgba(0,78,40,0.8)]">
-          <div className="h-1.5 bg-[#168e00]" />
+        <article className="mb-8 overflow-hidden rounded-3xl border border-[#004e28]/10 bg-white shadow-sm">
+          <div className="grid md:grid-cols-[320px_1fr]">
+            {cover ? (
+              <div className="relative min-h-52 bg-[#e8eee9] md:min-h-64">
+                <Image
+                  src={cover}
+                  alt={`Portada de ${selectedMenu.name}`}
+                  fill
+                  unoptimized
+                  sizes="(max-width: 767px) 100vw, 320px"
+                  className="object-cover"
+                />
+              </div>
+            ) : (
+              <div className="flex min-h-48 items-center justify-center bg-gradient-to-br from-[#004e28] to-[#168e00] text-white md:min-h-64">
+                <UtensilsCrossed size={58} strokeWidth={1.4} />
+              </div>
+            )}
 
-          <div
-            className={
-              cover
-                ? "grid items-stretch lg:grid-cols-[1fr_22rem]"
-                : ""
-            }
-          >
-            <div className="flex min-w-0 flex-col justify-center p-6 sm:p-8 lg:p-10">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-[#168e00]/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-[#168e00]">
-                  Menú
-                  disponible
-                </span>
-
+            <div className="p-5 sm:p-7">
+              <div className="flex flex-wrap gap-2">
+                {schedule ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#004e28]/[0.06] px-3 py-1.5 text-xs font-bold text-[#004e28]">
+                    <CalendarDays size={14} /> {schedule}
+                  </span>
+                ) : null}
                 {settingsLoading ? (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400">
-                    <Loader2
-                      size={13}
-                      className="animate-spin"
-                    />
-                    Consultando
-                    pedidos
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs text-gray-500">
+                    <Loader2 size={13} className="animate-spin" /> Consultando pedidos
                   </span>
                 ) : acceptsOrders ? (
-                  <span className="rounded-full bg-[#004e28]/10 px-3 py-1 text-xs font-bold text-[#004e28]">
-                    {canCurrentUserOrder
-                      ? "Pedidos en línea"
-                      : "Pedidos solo con cuenta"}
-                  </span>
+                  <span className="rounded-full bg-[#168e00]/10 px-3 py-1.5 text-xs font-bold text-[#0b6d00]">Acepta pedidos</span>
                 ) : null}
               </div>
 
-              <h3 className="mt-4 font-[family-name:var(--font-varela-round)] text-3xl font-black leading-tight text-[#004e28] md:text-4xl">
-                {
-                  selectedMenu.name
-                }
-              </h3>
-
-              {hasText(
-                selectedMenu.description,
-              ) ? (
-                <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-gray-600 md:text-base">
-                  {selectedMenu.description.trim()}
-                </p>
-              ) : null}
-
-              {menuPrice ? (
-                <p className="mt-4 text-xl font-black text-[#168e00]">
-                  {menuPrice}
-                </p>
-              ) : null}
-
-              {hasDates ||
-              days?.length ||
-              hasTimes ? (
-                <dl className="mt-6 flex flex-wrap gap-2 text-xs text-gray-600 sm:text-sm">
-                  {hasDates ? (
-                    <div className="flex items-center gap-2 rounded-full bg-[#f2f3f4] px-3 py-2">
-                      <dt className="sr-only">
-                        Fechas
-                      </dt>
-
-                      <CalendarDays className="h-4 w-4 shrink-0 text-[#168e00]" />
-
-                      <dd>
-                        {hasText(
-                          selectedMenu.date_start,
-                        ) &&
-                        hasText(
-                          selectedMenu.date_end,
-                        )
-                          ? formatDateRange(
-                              selectedMenu.date_start,
-                              selectedMenu.date_end,
-                            )
-                          : hasText(
-                                selectedMenu.date_start,
-                              )
-                            ? `Desde ${formatDate(
-                                selectedMenu.date_start,
-                              )}`
-                            : `Hasta ${formatDate(
-                                selectedMenu.date_end as string,
-                              )}`}
-                      </dd>
-                    </div>
-                  ) : null}
-
-                  {days?.length ? (
-                    <div className="flex items-center gap-2 rounded-full bg-[#f2f3f4] px-3 py-2">
-                      <CalendarDays className="h-4 w-4 shrink-0 text-[#168e00]" />
-
-                      <dd>
-                        {days.join(
-                          ", ",
-                        )}
-                      </dd>
-                    </div>
-                  ) : null}
-
-                  {hasTimes ? (
-                    <div className="flex items-center gap-2 rounded-full bg-[#f2f3f4] px-3 py-2">
-                      <Clock3 className="h-4 w-4 shrink-0 text-[#168e00]" />
-
-                      <dd>
-                        {hasText(
-                          selectedMenu.time_start,
-                        ) &&
-                        hasText(
-                          selectedMenu.time_end,
-                        )
-                          ? `${formatTime(
-                              selectedMenu.time_start,
-                            )} – ${formatTime(
-                              selectedMenu.time_end,
-                            )}`
-                          : hasText(
-                                selectedMenu.time_start,
-                              )
-                            ? `Desde ${formatTime(
-                                selectedMenu.time_start,
-                              )}`
-                            : `Hasta ${formatTime(
-                                selectedMenu.time_end as string,
-                              )}`}
-                      </dd>
-                    </div>
-                  ) : null}
-                </dl>
-              ) : null}
-
-              {!settingsLoading &&
-              acceptsOrders &&
-              !canCurrentUserOrder ? (
-                <div className="mt-5 rounded-2xl border border-[#004e28]/10 bg-[#004e28]/5 p-4">
-                  <p className="text-sm font-bold text-[#004e28]">
-                    Este negocio
-                    recibe pedidos
-                    de usuarios
-                    registrados.
-                  </p>
-
-                  <p className="mt-1 text-sm leading-6 text-gray-600">
-                    Puedes
-                    consultar todo
-                    el menú. Para
-                    agregar
-                    productos y
-                    realizar tu
-                    pedido solo
-                    necesitas
-                    iniciar sesión.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={
-                      goToLoginForOrder
-                    }
-                    className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#003b1f]"
-                  >
-                    <LogIn
-                      size={16}
-                    />
-                    Iniciar sesión
-                  </button>
-                </div>
-              ) : null}
-
-              {!settingsLoading &&
-              acceptsOrders &&
-              canCurrentUserOrder &&
-              !hasOrderableItems ? (
-                <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-sm font-bold text-amber-900">
-                    Los pedidos están activados, pero todavía no hay platillos con precio disponibles para agregar.
-                  </p>
-                </div>
-              ) : null}
-
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {orderSettings?.allows_pickup ? (
+                  <div className="rounded-2xl bg-gray-50 p-4">
+                    <Store size={20} className="text-[#168e00]" />
+                    <p className="mt-2 text-sm font-bold text-gray-900">Recoger</p>
+                  </div>
+                ) : null}
+                {orderSettings?.allows_delivery ? (
+                  <div className="rounded-2xl bg-gray-50 p-4">
+                    <Truck size={20} className="text-[#168e00]" />
+                    <p className="mt-2 text-sm font-bold text-gray-900">Domicilio</p>
+                  </div>
+                ) : null}
+                {orderSettings?.allows_cash ? (
+                  <div className="rounded-2xl bg-gray-50 p-4">
+                    <Banknote size={20} className="text-[#168e00]" />
+                    <p className="mt-2 text-sm font-bold text-gray-900">Efectivo</p>
+                  </div>
+                ) : null}
+                {orderSettings?.online_payment_available ? (
+                  <div className="rounded-2xl bg-gray-50 p-4">
+                    <CreditCard size={20} className="text-[#168e00]" />
+                    <p className="mt-2 text-sm font-bold text-gray-900">Tarjeta</p>
+                  </div>
+                ) : null}
+              </div>
             </div>
-
-            {cover ? (
-              <button
-                type="button"
-                onClick={() =>
-                  setLightboxImage(
-                    {
-                      src: cover,
-                      alt: `Portada de ${selectedMenu.name}`,
-                      name:
-                        selectedMenu.name,
-                      price:
-                        menuPrice,
-                      description:
-                        hasText(
-                          selectedMenu.description,
-                        )
-                          ? selectedMenu.description.trim()
-                          : null,
-                    },
-                  )
-                }
-                className="relative min-h-56 cursor-zoom-in bg-[#e8eee9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#168e00] lg:min-h-72"
-                aria-label={`Ampliar portada de ${selectedMenu.name}`}
-              >
-                <MenuImage
-                  src={cover}
-                  alt={`Portada de ${selectedMenu.name}`}
-                  sizes="(max-width: 1023px) calc(100vw - 32px), 352px"
-                />
-              </button>
-            ) : null}
           </div>
         </article>
 
-        <div className="mt-10 space-y-10">
-          {selectedMenu.sections.map(
-            (section) => (
-              <section
-                key={
-                  section.id
-                }
-                aria-labelledby={`menu-section-${section.id}`}
-                className="border-t border-[#004e28]/10 pt-7 first:border-0 first:pt-0"
-              >
-                <header className="mb-4 max-w-3xl">
-                  <h3
-                    id={`menu-section-${section.id}`}
-                    className="font-[family-name:var(--font-varela-round)] text-2xl font-bold text-[#004e28]"
-                  >
-                    {
-                      section.name
-                    }
-                  </h3>
+        <div className="space-y-9">
+          {selectedMenu.sections.map((section) => (
+            <section key={section.id}>
+              <header className="mb-4">
+                <h3 className="font-[family-name:var(--font-varela-round)] text-2xl font-black text-[#004e28]">
+                  {section.name}
+                </h3>
+                {section.description ? (
+                  <p className="mt-1 text-sm text-gray-500">{section.description}</p>
+                ) : null}
+              </header>
 
-                  {hasText(
-                    section.description,
-                  ) ? (
-                    <p className="mt-1.5 text-sm leading-6 text-gray-600">
-                      {section.description.trim()}
-                    </p>
-                  ) : null}
-                </header>
-
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
-                  {section.items.map(
-                    (item) => (
-                      <MenuItemCard
-                        key={
-                          item.id
-                        }
-                        item={
-                          item
-                        }
-                        quantity={cart[`${item.id}:base`]?.quantity || 0}
-                        variantQuantity={(variantId) => cart[`${item.id}:${variantId}`]?.quantity || 0}
-                        onVariantChange={(variant, delta) => changeQuantity(item, delta, variant)}
-                        canOrder={
-                          canCurrentUserOrder &&
-                          item.is_available &&
-                          (item.variants?.length ? true : typeof item.price === "number" && Number.isFinite(item.price))
-                        }
-                        onOpenImage={
-                          setLightboxImage
-                        }
-                        onAdd={() =>
-                          changeQuantity(
-                            item,
-                            1,
-                          )
-                        }
-                        onDecrease={() =>
-                          changeQuantity(
-                            item,
-                            -1,
-                          )
-                        }
-                      />
-                    ),
-                  )}
-                </div>
-              </section>
-            ),
-          )}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {section.items.map((item) => (
+                  <MenuItemCard
+                    key={item.id}
+                    item={item}
+                    cart={cart}
+                    canOrder={canCurrentUserOrder}
+                    changeQuantity={changeQuantity}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       </div>
+
+      {acceptsOrders && hasOrderableItems && cartQuantity > 0 && !cartOpen && !checkoutOpen ? (
+        <button
+          type="button"
+          onClick={() => setCartOpen(true)}
+          className="fixed bottom-5 right-5 z-[19000] inline-flex items-center gap-3 rounded-2xl bg-[#004e28] px-5 py-3.5 font-bold text-white shadow-2xl"
+        >
+          <ShoppingBag size={20} />
+          <span>{cartQuantity} productos</span>
+          <span className="text-white/70">{currencyFormatter.format(cartSubtotal)}</span>
+        </button>
+      ) : null}
 
       {cartOpen ? (
         <div
@@ -1802,238 +850,88 @@ export function PublicSupplierMenu({
           role="dialog"
           aria-modal="true"
           aria-label="Tu pedido"
-          onClick={() =>
-            setCartOpen(
-              false,
-            )
-          }
+          onClick={() => setCartOpen(false)}
         >
           <div
             className="flex h-full w-full max-w-lg flex-col bg-white shadow-2xl"
-            onClick={(
-              event,
-            ) =>
-              event.stopPropagation()
-            }
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">
-                  Tu pedido
-                </p>
-
-                <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[#004e28]">
-                  {
-                    selectedMenu.name
-                  }
-                </h3>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">Tu pedido</p>
+                <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[#004e28]">{selectedMenu.name}</h3>
               </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setCartOpen(
-                    false,
-                  )
-                }
-                className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
-                aria-label="Cerrar pedido"
-              >
-                <X
-                  size={20}
-                />
+              <button type="button" onClick={() => setCartOpen(false)} className="rounded-full p-2 text-gray-500 hover:bg-gray-100" aria-label="Cerrar pedido">
+                <X size={20} />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5">
-              {cartItems.length ===
-              0 ? (
+              {cartItems.length === 0 ? (
                 <div className="flex min-h-72 flex-col items-center justify-center text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#168e00]/10 text-[#168e00]">
-                    <ShoppingBag
-                      size={30}
-                    />
-                  </div>
-
-                  <h4 className="mt-4 text-lg font-bold text-gray-900">
-                    Tu pedido
-                    está vacío
-                  </h4>
-
-                  <p className="mt-1 max-w-xs text-sm text-gray-500">
-                    Agrega
-                    productos del
-                    menú para
-                    continuar.
-                  </p>
+                  <ShoppingBag size={40} className="text-[#168e00]" />
+                  <h4 className="mt-4 text-lg font-bold text-gray-900">Tu pedido está vacío</h4>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {cartItems.map(
-                    (
-                      line,
-                    ) => (
-                      <div
-                        key={`${line.item.id}:${line.variant?.id ?? "base"}`}
-                        className="rounded-2xl border border-gray-100 p-4"
-                      >
+                  {cartItems.map((line) => {
+                    const key = lineKey(line.item.id, line.variant?.id);
+                    return (
+                      <div key={key} className="rounded-2xl border border-gray-100 p-4">
                         <div className="flex gap-3">
                           <div className="min-w-0 flex-1">
-                            <p className="font-bold text-[#004e28]">
-                              {
-                                line
-                                  .item
-                                  .name
-                              }
-                            </p>
+                            <p className="font-bold text-[#004e28]">{line.item.name}</p>
                             {line.variant ? <p className="text-xs font-semibold text-gray-500">{line.variant.name}</p> : null}
-
-                            <p className="mt-0.5 text-sm font-black text-[#168e00]">
-                              {currencyFormatter.format(
-                                Number(
-                                  (line.variant?.price ?? line.item.price) ||
-                                    0,
-                                ) *
-                                  line.quantity,
-                              )}
+                            <p className="mt-1 text-sm font-black text-[#168e00]">
+                              {currencyFormatter.format(Number(line.variant?.price ?? line.item.price ?? 0) * line.quantity)}
                             </p>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeLine(`${line.item.id}:${line.variant?.id ?? "base"}`)
-                            }
-                            className="rounded-lg p-2 text-red-500 hover:bg-red-50"
-                            aria-label={`Eliminar ${line.item.name}`}
-                          >
-                            <Trash2
-                              size={
-                                17
-                              }
-                            />
+                          <button type="button" onClick={() => removeLine(key)} className="rounded-lg p-2 text-red-500 hover:bg-red-50" aria-label={`Eliminar ${line.item.name}`}>
+                            <Trash2 size={17} />
                           </button>
                         </div>
 
-                        <div className="mt-3 flex items-center justify-between gap-3">
+                        <div className="mt-3 flex items-center justify-between">
                           <div className="flex items-center rounded-xl border border-gray-200 p-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                changeQuantity(
-                                  line.item,
-                                  -1,
-                                  line.variant,
-                                )
-                              }
-                              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-50"
-                            >
-                              <Minus
-                                size={
-                                  15
-                                }
-                              />
+                            <button type="button" onClick={() => changeQuantity(line.item, -1, line.variant)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-50">
+                              <Minus size={15} />
                             </button>
-
-                            <span className="min-w-8 text-center text-sm font-bold">
-                              {
-                                line.quantity
-                              }
-                            </span>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                changeQuantity(
-                                  line.item,
-                                  1,
-                                  line.variant,
-                                )
-                              }
-                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#168e00] text-white"
-                            >
-                              <Plus
-                                size={
-                                  15
-                                }
-                              />
+                            <span className="min-w-8 text-center text-sm font-bold">{line.quantity}</span>
+                            <button type="button" onClick={() => changeQuantity(line.item, 1, line.variant)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#168e00] text-white">
+                              <Plus size={15} />
                             </button>
                           </div>
-
-                          <span className="text-xs text-gray-400">
-                            Máximo 99
-                          </span>
                         </div>
 
                         <label className="mt-3 block text-xs font-bold text-gray-500">
-                          Nota para
-                          este
-                          producto
-
+                          Nota para este producto
                           <textarea
-                            value={
-                              line.notes
-                            }
-                            maxLength={
-                              500
-                            }
-                            onChange={(
-                              event,
-                            ) =>
-                              updateLineNotes(
-                                `${line.item.id}:${line.variant?.id ?? "base"}`,
-                                event
-                                  .target
-                                  .value,
-                              )
-                            }
+                            value={line.notes}
+                            maxLength={500}
+                            onChange={(event) => updateNotes(key, event.target.value)}
                             placeholder="Ej. sin cebolla, salsa aparte..."
-                            className="mt-1.5 min-h-20 w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm font-normal text-gray-800 outline-none focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10"
+                            className="mt-1.5 min-h-20 w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm font-normal text-gray-800 outline-none focus:border-[#168e00]"
                           />
                         </label>
                       </div>
-                    ),
-                  )}
+                    );
+                  })}
                 </div>
               )}
             </div>
 
             <div className="border-t border-gray-100 bg-white p-5">
               <div className="mb-4 flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-500">
-                  Subtotal
-                  estimado
-                </span>
-
-                <span className="text-xl font-black text-[#004e28]">
-                  {currencyFormatter.format(
-                    cartSubtotal,
-                  )}
-                </span>
+                <span className="text-sm font-semibold text-gray-500">Subtotal estimado</span>
+                <span className="text-xl font-black text-[#004e28]">{currencyFormatter.format(cartSubtotal)}</span>
               </div>
-
-              <p className="mb-4 text-xs leading-5 text-gray-400">
-                El total
-                definitivo se
-                vuelve a calcular
-                en el servidor
-                usando los
-                precios
-                vigentes.
-              </p>
-
               <button
                 type="button"
-                disabled={
-                  !cartItems.length
-                }
-                onClick={
-                  openCheckout
-                }
-                className="w-full rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!cartItems.length}
+                onClick={openCheckout}
+                className="w-full rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white disabled:opacity-40"
               >
-                Continuar con el
-                pedido
+                Continuar con el pedido
               </button>
             </div>
           </div>
@@ -2046,589 +944,114 @@ export function PublicSupplierMenu({
           role="dialog"
           aria-modal="true"
           aria-label="Finalizar pedido"
-          onClick={() =>
-            !submitting &&
-            setCheckoutOpen(
-              false,
-            )
-          }
+          onClick={() => !submitting && setCheckoutOpen(false)}
         >
           <form
-            onSubmit={
-              submitOrder
-            }
+            onSubmit={submitOrder}
             className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
-            onClick={(
-              event,
-            ) =>
-              event.stopPropagation()
-            }
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">
-                  Finalizar
-                  pedido
-                </p>
-
-                <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[#004e28]">
-                  Tus datos
-                </h3>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">Finalizar pedido</p>
+                <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[#004e28]">Tus datos</h3>
               </div>
-
-              <button
-                type="button"
-                disabled={
-                  submitting
-                }
-                onClick={() =>
-                  setCheckoutOpen(
-                    false,
-                  )
-                }
-                className="rounded-full p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-40"
-                aria-label="Cerrar"
-              >
-                <X
-                  size={20}
-                />
+              <button type="button" disabled={submitting} onClick={() => setCheckoutOpen(false)} className="rounded-full p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-40" aria-label="Cerrar">
+                <X size={20} />
               </button>
             </div>
 
-            <div className="space-y-5 p-5 sm:p-6">
+            <div className="space-y-6 p-5 sm:p-6">
               {checkoutError ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
-                  {
-                    checkoutError
-                  }
-                </div>
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{checkoutError}</div>
               ) : null}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm font-bold text-gray-700 sm:col-span-2">
                   Nombre
-
-                  <input
-                    value={
-                      customerName
-                    }
-                    onChange={(
-                      event,
-                    ) =>
-                      setCustomerName(
-                        event
-                          .target
-                          .value,
-                      )
-                    }
-                    required
-                    minLength={
-                      2
-                    }
-                    maxLength={
-                      255
-                    }
-                    className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10"
-                  />
+                  <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} required minLength={2} maxLength={255} className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
                 </label>
-
                 <label className="text-sm font-bold text-gray-700">
                   Correo
-
-                  <input
-                    type="email"
-                    value={
-                      customerEmail
-                    }
-                    onChange={(
-                      event,
-                    ) =>
-                      setCustomerEmail(
-                        event
-                          .target
-                          .value,
-                      )
-                    }
-                    required
-                    className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10"
-                  />
+                  <input type="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
                 </label>
-
                 <label className="text-sm font-bold text-gray-700">
                   Teléfono
-
-                  <input
-                    type="tel"
-                    value={
-                      customerPhone
-                    }
-                    onChange={(
-                      event,
-                    ) =>
-                      setCustomerPhone(
-                        event
-                          .target
-                          .value,
-                      )
-                    }
-                    required
-                    minLength={
-                      7
-                    }
-                    maxLength={
-                      40
-                    }
-                    className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10"
-                  />
+                  <input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} required minLength={7} maxLength={40} className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
                 </label>
               </div>
 
               <fieldset>
-                <legend className="text-sm font-bold text-gray-700">
-                  ¿Cómo quieres
-                  recibirlo?
-                </legend>
-
+                <legend className="text-sm font-bold text-gray-700">¿Cómo quieres recibirlo?</legend>
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
                   {orderSettings?.allows_pickup ? (
-                    <label
-                      className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${
-                        fulfillmentType ===
-                        "pickup"
-                          ? "border-[#168e00] bg-[#168e00]/5"
-                          : "border-gray-200"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="fulfillment"
-                        value="pickup"
-                        checked={
-                          fulfillmentType ===
-                          "pickup"
-                        }
-                        onChange={() =>
-                          setFulfillmentType(
-                            "pickup",
-                          )
-                        }
-                        className="accent-[#168e00]"
-                      />
-
-                      <Store
-                        className="text-[#168e00]"
-                        size={
-                          21
-                        }
-                      />
-
-                      <span>
-                        <strong className="block text-sm text-gray-900">
-                          Recoger
-                        </strong>
-
-                        <span className="text-xs text-gray-500">
-                          En el
-                          establecimiento
-                        </span>
-                      </span>
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${fulfillmentType === "pickup" ? "border-[#168e00] bg-[#168e00]/5" : "border-gray-200"}`}>
+                      <input type="radio" name="fulfillment" value="pickup" checked={fulfillmentType === "pickup"} onChange={() => setFulfillmentType("pickup")} className="accent-[#168e00]" />
+                      <Store className="text-[#168e00]" size={21} />
+                      <span><strong className="block text-sm text-gray-900">Recoger</strong><span className="text-xs text-gray-500">En el establecimiento</span></span>
                     </label>
                   ) : null}
-
                   {orderSettings?.allows_delivery ? (
-                    <label
-                      className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${
-                        fulfillmentType ===
-                        "delivery"
-                          ? "border-[#168e00] bg-[#168e00]/5"
-                          : "border-gray-200"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="fulfillment"
-                        value="delivery"
-                        checked={
-                          fulfillmentType ===
-                          "delivery"
-                        }
-                        onChange={() =>
-                          setFulfillmentType(
-                            "delivery",
-                          )
-                        }
-                        className="accent-[#168e00]"
-                      />
-
-                      <Truck
-                        className="text-[#168e00]"
-                        size={
-                          21
-                        }
-                      />
-
-                      <span>
-                        <strong className="block text-sm text-gray-900">
-                          Domicilio
-                        </strong>
-
-                        <span className="text-xs text-gray-500">
-                          Entrega
-                          por el
-                          negocio
-                        </span>
-                      </span>
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${fulfillmentType === "delivery" ? "border-[#168e00] bg-[#168e00]/5" : "border-gray-200"}`}>
+                      <input type="radio" name="fulfillment" value="delivery" checked={fulfillmentType === "delivery"} onChange={() => setFulfillmentType("delivery")} className="accent-[#168e00]" />
+                      <Truck className="text-[#168e00]" size={21} />
+                      <span><strong className="block text-sm text-gray-900">Domicilio</strong><span className="text-xs text-gray-500">Entrega por el negocio</span></span>
                     </label>
                   ) : null}
                 </div>
               </fieldset>
 
-              {fulfillmentType ===
-              "delivery" ? (
+              {fulfillmentType === "delivery" ? (
                 <label className="block text-sm font-bold text-gray-700">
-                  Dirección de
-                  entrega
-
-                  <textarea
-                    value={
-                      deliveryAddress
-                    }
-                    onChange={(
-                      event,
-                    ) =>
-                      setDeliveryAddress(
-                        event
-                          .target
-                          .value,
-                      )
-                    }
-                    required
-                    maxLength={
-                      1500
-                    }
-                    placeholder="Calle, número, colonia, referencias..."
-                    className="mt-1.5 min-h-24 w-full resize-none rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10"
-                  />
+                  Dirección de entrega
+                  <textarea value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} required maxLength={1500} placeholder="Calle, número, colonia, referencias..." className="mt-1.5 min-h-24 w-full resize-none rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
                 </label>
               ) : null}
 
+              <fieldset>
+                <legend className="text-sm font-bold text-gray-700">¿Cómo quieres pagar?</legend>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  {orderSettings?.allows_cash ? (
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${paymentMethod === "cash" ? "border-[#168e00] bg-[#168e00]/5" : "border-gray-200"}`}>
+                      <input type="radio" name="payment" value="cash" checked={paymentMethod === "cash"} onChange={() => setPaymentMethod("cash")} className="accent-[#168e00]" />
+                      <Banknote className="text-[#168e00]" size={22} />
+                      <span><strong className="block text-sm text-gray-900">Efectivo</strong><span className="text-xs text-gray-500">Paga al recoger o recibir</span></span>
+                    </label>
+                  ) : null}
+
+                  {orderSettings?.online_payment_available ? (
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${paymentMethod === "online" ? "border-[#168e00] bg-[#168e00]/5" : "border-gray-200"}`}>
+                      <input type="radio" name="payment" value="online" checked={paymentMethod === "online"} onChange={() => setPaymentMethod("online")} className="accent-[#168e00]" />
+                      <CreditCard className="text-[#168e00]" size={22} />
+                      <span><strong className="block text-sm text-gray-900">Tarjeta / Mercado Pago</strong><span className="text-xs text-gray-500">Paga en línea de forma segura</span></span>
+                    </label>
+                  ) : null}
+                </div>
+
+                {orderSettings?.allows_online_payment && !orderSettings.online_payment_available ? (
+                  <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+                    El negocio configuró pago en línea, pero temporalmente no está disponible.
+                  </p>
+                ) : null}
+              </fieldset>
+
               <label className="block text-sm font-bold text-gray-700">
-                Notas generales{" "}
-
-                <span className="font-normal text-gray-400">
-                  (opcional)
-                </span>
-
-                <textarea
-                  value={
-                    generalNotes
-                  }
-                  onChange={(
-                    event,
-                  ) =>
-                    setGeneralNotes(
-                      event
-                        .target
-                        .value,
-                    )
-                  }
-                  maxLength={
-                    1500
-                  }
-                  placeholder="Cualquier indicación general para el negocio"
-                  className="mt-1.5 min-h-20 w-full resize-none rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10"
-                />
+                Notas generales <span className="font-normal text-gray-400">(opcional)</span>
+                <textarea value={generalNotes} onChange={(event) => setGeneralNotes(event.target.value)} maxLength={1500} placeholder="Cualquier indicación general para el negocio" className="mt-1.5 min-h-20 w-full resize-none rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
               </label>
 
               <div className="rounded-2xl bg-[#f2f3f4] p-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">
-                    Productos
-                  </span>
-
-                  <strong>
-                    {
-                      cartQuantity
-                    }
-                  </strong>
-                </div>
-
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="font-bold text-[#004e28]">
-                    Total estimado
-                  </span>
-
-                  <strong className="text-xl text-[#168e00]">
-                    {currencyFormatter.format(
-                      cartSubtotal,
-                    )}
-                  </strong>
-                </div>
+                <div className="flex items-center justify-between text-sm"><span className="text-gray-500">Productos</span><strong>{cartQuantity}</strong></div>
+                <div className="mt-2 flex items-center justify-between"><span className="font-bold text-[#004e28]">Total estimado</span><strong className="text-xl text-[#168e00]">{currencyFormatter.format(cartSubtotal)}</strong></div>
+                {paymentMethod === "online" ? <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"><CreditCard size={13} /> Después de confirmar serás enviado a Mercado Pago.</p> : null}
               </div>
 
-              <button
-                type="submit"
-                disabled={
-                  submitting
-                }
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:opacity-50"
-              >
-                {submitting ? (
-                  <Loader2
-                    size={18}
-                    className="animate-spin"
-                  />
-                ) : (
-                  <Check
-                    size={18}
-                  />
-                )}
-
-                {submitting
-                  ? "Creando pedido..."
-                  : "Confirmar pedido"}
+              <button type="submit" disabled={submitting} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:opacity-50">
+                {submitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                {submitting ? "Creando pedido..." : paymentMethod === "online" ? "Continuar a Mercado Pago" : "Confirmar pedido"}
               </button>
             </div>
           </form>
-        </div>
-      ) : null}
-
-      {shareOpen ? (
-        <div
-          className="fixed inset-0 z-[23000] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Compartir menú"
-          onClick={() =>
-            setShareOpen(
-              false,
-            )
-          }
-        >
-          <div
-            className="w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl"
-            onClick={(
-              event,
-            ) =>
-              event.stopPropagation()
-            }
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">
-                  Compartir
-                </p>
-
-                <h3 className="mt-1 text-xl font-black text-[#004e28]">
-                  {
-                    selectedMenu.name
-                  }
-                </h3>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShareOpen(
-                    false,
-                  )
-                }
-                className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
-              >
-                <X
-                  size={20}
-                />
-              </button>
-            </div>
-
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  openShareUrl(
-                    `https://wa.me/?text=${encodeURIComponent(
-                      `${shareText} ${shareUrl()}`,
-                    )}`,
-                  )
-                }
-                className="rounded-2xl border border-gray-200 p-4 text-left hover:bg-gray-50"
-              >
-                <span className="font-bold text-gray-900">
-                  WhatsApp
-                </span>
-
-                <span className="mt-1 block text-xs text-gray-500">
-                  Enviar por
-                  chat
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  openShareUrl(
-                    `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
-                      shareUrl(),
-                    )}`,
-                  )
-                }
-                className="rounded-2xl border border-gray-200 p-4 text-left hover:bg-gray-50"
-              >
-                <span className="flex items-center gap-2 font-bold text-gray-900">
-                  <Facebook
-                    size={
-                      17
-                    }
-                  />
-                  Facebook
-                </span>
-
-                <span className="mt-1 block text-xs text-gray-500">
-                  Compartir
-                  enlace
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  openShareUrl(
-                    `https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                      shareText,
-                    )}&url=${encodeURIComponent(
-                      shareUrl(),
-                    )}`,
-                  )
-                }
-                className="rounded-2xl border border-gray-200 p-4 text-left hover:bg-gray-50"
-              >
-                <span className="font-bold text-gray-900">
-                  X
-                </span>
-
-                <span className="mt-1 block text-xs text-gray-500">
-                  Publicar
-                  enlace
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  openShareUrl(
-                    `https://t.me/share/url?url=${encodeURIComponent(
-                      shareUrl(),
-                    )}&text=${encodeURIComponent(
-                      shareText,
-                    )}`,
-                  )
-                }
-                className="rounded-2xl border border-gray-200 p-4 text-left hover:bg-gray-50"
-              >
-                <span className="flex items-center gap-2 font-bold text-gray-900">
-                  <Send
-                    size={
-                      17
-                    }
-                  />
-                  Telegram
-                </span>
-
-                <span className="mt-1 block text-xs text-gray-500">
-                  Enviar
-                  enlace
-                </span>
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                void copyShareUrl()
-              }
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-3 text-sm font-bold text-[#004e28] hover:bg-gray-50"
-            >
-              {copied ? (
-                <Check
-                  size={17}
-                />
-              ) : (
-                <Copy
-                  size={17}
-                />
-              )}
-
-              {copied
-                ? "Enlace copiado"
-                : "Copiar enlace"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                void nativeShare()
-              }
-              className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 text-sm font-bold text-white hover:bg-[#117500]"
-            >
-              <Share2
-                size={17}
-              />
-              Más opciones
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {lightboxImage ? (
-        <div
-          className="fixed inset-0 z-[24000] flex items-center justify-center bg-black/90 p-3 backdrop-blur-md sm:p-5 lg:p-7"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Imagen ampliada: ${lightboxImage.alt}`}
-          onClick={() => setLightboxImage(null)}
-        >
-          <div
-            className="relative grid max-h-[94vh] w-[94vw] max-w-7xl overflow-hidden rounded-3xl border border-white/10 bg-[#08110c] shadow-2xl lg:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.65fr)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setLightboxImage(null)}
-              className="absolute right-3 top-3 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white shadow-lg backdrop-blur-md transition hover:bg-black/80 sm:right-4 sm:top-4"
-              aria-label="Cerrar imagen ampliada"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="relative h-[52vh] min-h-[300px] w-full bg-black sm:h-[60vh] lg:h-[88vh]">
-              <MenuImage src={lightboxImage.src} alt={lightboxImage.alt} sizes="(max-width: 1023px) 94vw, 70vw" fit="contain" />
-            </div>
-
-            <aside className="max-h-[42vh] overflow-y-auto border-t border-white/10 bg-gradient-to-b from-[#102219] to-[#08110c] px-5 py-5 text-white sm:px-7 sm:py-6 lg:max-h-[88vh] lg:border-l lg:border-t-0 lg:px-8 lg:py-10">
-              <div className="pr-10 lg:pr-0">
-                <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-[#7cde68]">Detalle del platillo</p>
-                <h3 className="mt-2 font-[family-name:var(--font-varela-round)] text-2xl font-black leading-tight sm:text-3xl">{lightboxImage.name}</h3>
-                {lightboxImage.price ? (
-                  <p className="mt-3 text-xl font-black text-[#7cde68] sm:text-2xl">{lightboxImage.price}</p>
-                ) : null}
-              </div>
-
-              {lightboxImage.description ? (
-                <div className="mt-6 border-t border-white/10 pt-5">
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/40">Descripción</p>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-white/80 sm:text-base">{lightboxImage.description}</p>
-                </div>
-              ) : (
-                <div className="mt-6 border-t border-white/10 pt-5">
-                  <p className="text-sm text-white/45">Este platillo no tiene descripción adicional.</p>
-                </div>
-              )}
-
-              <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-xs leading-5 text-white/45">La fotografía se muestra completa, sin recortes. Puedes desplazarte en esta información si la descripción es larga.</p>
-              </div>
-            </aside>
-          </div>
         </div>
       ) : null}
     </section>

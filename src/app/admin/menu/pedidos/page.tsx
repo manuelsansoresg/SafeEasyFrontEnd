@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft,
+  Banknote,
   Clock3,
+  CreditCard,
   Loader2,
   PackageCheck,
   Search,
@@ -22,7 +23,11 @@ import {
   fulfillmentLabel,
 } from "@/lib/menuOrders";
 import { menuOrderService } from "@/services/menuOrderService";
-import type { MenuOrder, MenuOrderStatus } from "@/types/menuOrder";
+import type {
+  MenuOrder,
+  MenuOrderPaymentStatus,
+  MenuOrderStatus,
+} from "@/types/menuOrder";
 
 const filters: Array<{ value: "all" | MenuOrderStatus; label: string }> = [
   { value: "all", label: "Todos" },
@@ -33,6 +38,18 @@ const filters: Array<{ value: "all" | MenuOrderStatus; label: string }> = [
   { value: "completed", label: "Completados" },
   { value: "cancelled", label: "Cancelados" },
 ];
+
+function paymentStatusLabel(status: MenuOrderPaymentStatus) {
+  if (status === "paid") return "Pagado";
+  if (status === "failed") return "Fallido";
+  return "Pendiente";
+}
+
+function paymentStatusClass(status: MenuOrderPaymentStatus) {
+  if (status === "paid") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "failed") return "border-red-200 bg-red-50 text-red-700";
+  return "border-amber-200 bg-amber-50 text-amber-800";
+}
 
 export default function AdminMenuOrdersPage() {
   const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
@@ -86,6 +103,16 @@ export default function AdminMenuOrdersPage() {
     return result;
   }, [orders]);
 
+  const paidOnlineCount = useMemo(
+    () => orders.filter((order) => order.payment_method === "online" && order.payment_status === "paid").length,
+    [orders],
+  );
+
+  const cashCount = useMemo(
+    () => orders.filter((order) => order.payment_method === "cash").length,
+    [orders],
+  );
+
   const visibleOrders = useMemo(() => {
     const needle = search.trim().toLowerCase();
 
@@ -99,6 +126,8 @@ export default function AdminMenuOrdersPage() {
         order.customer_email,
         order.customer_phone,
         order.menu_name,
+        order.payment_method,
+        order.payment_status,
       ].some((value) => String(value || "").toLowerCase().includes(needle));
     });
   }, [orders, search, statusFilter]);
@@ -126,22 +155,22 @@ export default function AdminMenuOrdersPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <Link href="/admin/menu" className="inline-flex items-center gap-2 text-sm font-semibold text-[#168e00] hover:underline">
-        <ArrowLeft size={17} /> Volver a Menús
-      </Link>
-
       <PageHero
         eyebrow="Módulo Menú"
         title="Pedidos recibidos"
-        subtitle="Consulta clientes, productos, modalidad y avance de cada pedido."
+        subtitle="Consulta clientes, productos, forma de entrega, pago y avance de cada pedido."
         actions={
-          <button type="button" onClick={() => void loadOrders()} className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          <button
+            type="button"
+            onClick={() => void loadOrders()}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
             Actualizar
           </button>
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
           <p className="text-sm font-medium text-gray-500">Pedidos totales</p>
           <p className="mt-1 text-3xl font-black text-gray-900">{orders.length}</p>
@@ -150,13 +179,13 @@ export default function AdminMenuOrdersPage() {
           <p className="text-sm font-medium text-gray-500">Por confirmar</p>
           <p className="mt-1 text-3xl font-black text-amber-600">{counts.pending}</p>
         </div>
-        <div className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">En preparación</p>
-          <p className="mt-1 text-3xl font-black text-violet-600">{counts.preparing}</p>
-        </div>
         <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-gray-500">Listos</p>
-          <p className="mt-1 text-3xl font-black text-emerald-600">{counts.ready}</p>
+          <p className="text-sm font-medium text-gray-500">Pagados en línea</p>
+          <p className="mt-1 text-3xl font-black text-emerald-600">{paidOnlineCount}</p>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
+          <p className="text-sm font-medium text-gray-500">Pago en efectivo</p>
+          <p className="mt-1 text-3xl font-black text-blue-600">{cashCount}</p>
         </div>
       </div>
 
@@ -184,7 +213,7 @@ export default function AdminMenuOrdersPage() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Folio, cliente, teléfono..."
+              placeholder="Folio, cliente, pago..."
               className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10"
             />
           </label>
@@ -211,24 +240,34 @@ export default function AdminMenuOrdersPage() {
               href={`/admin/menu/pedidos/${order.id}`}
               className="block rounded-3xl border border-gray-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#168e00]/20 hover:shadow-md"
             >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="font-[family-name:var(--font-varela-round)] text-lg font-black text-[#004e28]">{order.order_number}</h2>
                     <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${MENU_ORDER_STATUS_CLASSES[order.status]}`}>
                       {MENU_ORDER_STATUS_LABELS[order.status]}
                     </span>
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${paymentStatusClass(order.payment_status)}`}>
+                      {paymentStatusLabel(order.payment_status)}
+                    </span>
                   </div>
                   <p className="mt-1 font-semibold text-gray-900">{order.customer_name}</p>
                   <p className="mt-1 text-sm text-gray-500">{order.menu_name} · {order.items.reduce((sum, item) => sum + item.quantity, 0)} productos</p>
                 </div>
 
-                <div className="grid gap-3 text-sm sm:grid-cols-3 lg:min-w-[520px]">
+                <div className="grid gap-3 text-sm sm:grid-cols-4 xl:min-w-[680px]">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wide text-gray-400">Modalidad</p>
                     <p className="mt-1 flex items-center gap-1.5 font-semibold text-gray-700">
                       {order.fulfillment_type === "delivery" ? <Truck size={15} /> : <Store size={15} />}
                       {fulfillmentLabel(order.fulfillment_type)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-gray-400">Pago</p>
+                    <p className="mt-1 flex items-center gap-1.5 font-semibold text-gray-700">
+                      {order.payment_method === "online" ? <CreditCard size={15} /> : <Banknote size={15} />}
+                      {order.payment_method === "online" ? "Mercado Pago" : "Efectivo"}
                     </p>
                   </div>
                   <div>

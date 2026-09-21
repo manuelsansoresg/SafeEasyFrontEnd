@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Banknote,
   Clock3,
+  CreditCard,
   Loader2,
   ShoppingBag,
   Store,
@@ -20,7 +22,11 @@ import {
 } from "@/lib/menuOrders";
 import { menuOrderService } from "@/services/menuOrderService";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
-import type { MenuOrder, MenuOrderStatus } from "@/types/menuOrder";
+import type {
+  MenuOrder,
+  MenuOrderPaymentStatus,
+  MenuOrderStatus,
+} from "@/types/menuOrder";
 
 const filters: Array<{ value: "all" | MenuOrderStatus; label: string }> = [
   { value: "all", label: "Todos" },
@@ -31,6 +37,18 @@ const filters: Array<{ value: "all" | MenuOrderStatus; label: string }> = [
   { value: "completed", label: "Completados" },
   { value: "cancelled", label: "Cancelados" },
 ];
+
+function paymentStatusLabel(status: MenuOrderPaymentStatus) {
+  if (status === "paid") return "Pagado";
+  if (status === "failed") return "Pago fallido";
+  return "Pago pendiente";
+}
+
+function paymentStatusClass(status: MenuOrderPaymentStatus) {
+  if (status === "paid") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "failed") return "border-red-200 bg-red-50 text-red-700";
+  return "border-amber-200 bg-amber-50 text-amber-800";
+}
 
 export default function ClientMenuOrdersPage() {
   const router = useRouter();
@@ -64,7 +82,7 @@ export default function ClientMenuOrdersPage() {
   }, [hydrated, isAuthenticated, router]);
 
   const visible = useMemo(
-    () => filter === "all" ? orders : orders.filter((order) => order.status === filter),
+    () => (filter === "all" ? orders : orders.filter((order) => order.status === filter)),
     [filter, orders],
   );
 
@@ -74,11 +92,16 @@ export default function ClientMenuOrdersPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-6">
-      <PageHero eyebrow="Mi cuenta" title="Pedidos de menú" subtitle="Consulta los pedidos que realizaste desde menús de negocios en Drooopy." />
+      <PageHero eyebrow="Mi cuenta" title="Pedidos de menú" subtitle="Consulta tus pedidos, forma de entrega y estado de pago." />
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {filters.map((item) => (
-          <button key={item.value} type="button" onClick={() => setFilter(item.value)} className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-bold ${filter === item.value ? "bg-[#004e28] text-white" : "bg-white text-gray-600 shadow-sm"}`}>
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => setFilter(item.value)}
+            className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-bold ${filter === item.value ? "bg-[#004e28] text-white" : "bg-white text-gray-600 shadow-sm"}`}
+          >
             {item.label}{item.value === "all" ? ` (${orders.length})` : ` (${orders.filter((order) => order.status === item.value).length})`}
           </button>
         ))}
@@ -95,16 +118,50 @@ export default function ClientMenuOrdersPage() {
       ) : (
         <div className="space-y-4">
           {visible.map((order) => (
-            <Link key={order.id} href={`/pedidos/menu/${encodeURIComponent(order.order_number)}`} className="block rounded-3xl border border-gray-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <Link
+              key={order.id}
+              href={`/pedidos/menu/${encodeURIComponent(order.order_number)}`}
+              className="block rounded-3xl border border-gray-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            >
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2"><h2 className="font-[family-name:var(--font-varela-round)] text-lg font-black text-[#004e28]">{order.order_number}</h2><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${MENU_ORDER_STATUS_CLASSES[order.status]}`}>{MENU_ORDER_STATUS_LABELS[order.status]}</span></div>
-                  <p className="mt-1 font-semibold text-gray-900">{order.menu_name}{order.items?.length ? ` · ${order.items.map((item) => `${item.quantity} ${item.item_name}${item.variant_name && !item.item_name.includes(item.variant_name) ? ` (${item.variant_name})` : ""}`).join(", ")}` : ""}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-[family-name:var(--font-varela-round)] text-lg font-black text-[#004e28]">{order.order_number}</h2>
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${MENU_ORDER_STATUS_CLASSES[order.status]}`}>
+                      {MENU_ORDER_STATUS_LABELS[order.status]}
+                    </span>
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${paymentStatusClass(order.payment_status)}`}>
+                      {paymentStatusLabel(order.payment_status)}
+                    </span>
+                  </div>
+                  <p className="mt-1 font-semibold text-gray-900">
+                    {order.menu_name}
+                    {order.items?.length
+                      ? ` · ${order.items.map((item) => `${item.quantity} ${item.item_name}${item.variant_name && !item.item_name.includes(item.variant_name) ? ` (${item.variant_name})` : ""}`).join(", ")}`
+                      : ""}
+                  </p>
                   <p className="mt-1 flex items-center gap-1.5 text-sm text-gray-500"><Clock3 size={14} /> {formatMenuOrderDate(order.created_at)}</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-4 md:justify-end">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-gray-600">{order.fulfillment_type === "delivery" ? <Truck size={16} /> : <Store size={16} />} {fulfillmentLabel(order.fulfillment_type)}</p>
-                  <p className="text-xl font-black text-[#168e00]">{formatMenuOrderMoney(order.total)}</p>
+
+                <div className="grid gap-2 sm:grid-cols-3 md:min-w-[460px]">
+                  <div className="rounded-xl bg-gray-50 p-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Entrega</p>
+                    <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                      {order.fulfillment_type === "delivery" ? <Truck size={16} /> : <Store size={16} />}
+                      {fulfillmentLabel(order.fulfillment_type)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-gray-50 p-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Pago</p>
+                    <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                      {order.payment_method === "online" ? <CreditCard size={16} /> : <Banknote size={16} />}
+                      {order.payment_method === "online" ? "Mercado Pago" : "Efectivo"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-[#168e00]/5 p-3 sm:text-right">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Total</p>
+                    <p className="mt-1 text-lg font-black text-[#168e00]">{formatMenuOrderMoney(order.total)}</p>
+                  </div>
                 </div>
               </div>
             </Link>

@@ -1,25 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import {
-  useParams,
-  useSearchParams,
-} from "next/navigation";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import {
+  Banknote,
   CheckCircle2,
   Clock3,
+  CreditCard,
   Loader2,
-  Mail,
   MapPin,
-  Phone,
   RefreshCw,
-  ShoppingBag,
   Store,
   Truck,
   XCircle,
@@ -32,616 +23,288 @@ import {
   formatMenuOrderMoney,
   fulfillmentLabel,
 } from "@/lib/menuOrders";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { menuOrderService } from "@/services/menuOrderService";
-import {
-  useAuthHydrated,
-  useAuthStore,
-} from "@/store/useAuthStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import type { MenuOrder } from "@/types/menuOrder";
 
-const TERMINAL_STATUSES = new Set([
-  "completed",
-  "cancelled",
-]);
+const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
+
+function paymentMethodLabel(order: MenuOrder) {
+  return order.payment_method === "online"
+    ? "Tarjeta / Mercado Pago"
+    : "Efectivo";
+}
+
+function paymentStatusLabel(order: MenuOrder) {
+  if (order.payment_method === "cash") {
+    return order.status === "completed" ? "Cobro en efectivo" : "Pago al recibir / recoger";
+  }
+  if (order.payment_status === "paid") return "Pago confirmado";
+  if (order.payment_status === "failed") return "Pago no aprobado";
+  return "Esperando confirmación";
+}
 
 export default function PublicMenuOrderTrackingPage() {
-  const params = useParams<{
-    orderNumber: string;
-  }>();
+  const params = useParams<{ orderNumber: string }>();
   const searchParams = useSearchParams();
-
-  const hydrated = useAuthHydrated();
   const { isAuthenticated } = useAuthStore();
 
-  const orderNumber = String(
-    params?.orderNumber || "",
-  );
+  const orderNumber = String(params?.orderNumber || "").trim();
+  const queryToken = String(searchParams.get("management_token") || "").trim();
+  const [storedToken, setStoredToken] = useState("");
+  const [order, setOrder] = useState<MenuOrder | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const queryToken =
-    searchParams.get("management_token") || "";
-
-  const [order, setOrder] =
-    useState<MenuOrder | null>(null);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [refreshing, setRefreshing] =
-    useState(false);
-
-  const [error, setError] =
-    useState<string | null>(null);
-
-  const [token, setToken] =
-    useState(queryToken);
-
-  const tokenStorageKey =
-    `menu-order-token:${orderNumber}`;
+  const paymentReturn = searchParams.get("payment");
+  const tokenKey = `menu-order-token:${orderNumber}`;
 
   useEffect(() => {
     if (!orderNumber) return;
 
     if (queryToken) {
-      setToken(queryToken);
-
+      setStoredToken(queryToken);
       try {
-        window.localStorage.setItem(
-          tokenStorageKey,
-          queryToken,
-        );
+        window.localStorage.setItem(tokenKey, queryToken);
       } catch {
-        // El token sigue disponible en memoria.
+        // No bloquea el seguimiento.
       }
-
-      // Una vez guardado localmente quitamos el token de
-      // la barra del navegador para reducir exposición accidental.
-      try {
-        const url = new URL(
-          window.location.href,
-        );
-
-        if (
-          url.searchParams.has(
-            "management_token",
-          )
-        ) {
-          url.searchParams.delete(
-            "management_token",
-          );
-
-          window.history.replaceState(
-            {},
-            "",
-            `${url.pathname}${url.search}${url.hash}`,
-          );
-        }
-      } catch {
-        // No bloqueamos el seguimiento si el navegador
-        // no permite modificar la URL.
-      }
-
       return;
     }
 
     try {
-      const stored =
-        window.localStorage.getItem(
-          tokenStorageKey,
-        ) || "";
-
-      setToken(stored);
+      setStoredToken(window.localStorage.getItem(tokenKey) || "");
     } catch {
-      setToken("");
+      setStoredToken("");
     }
-  }, [
-    orderNumber,
-    queryToken,
-    tokenStorageKey,
-  ]);
+  }, [orderNumber, queryToken, tokenKey]);
 
   const loadOrder = useCallback(
     async (silent = false) => {
       if (!orderNumber) return;
-
-      if (silent) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-
+      if (silent) setRefreshing(true);
+      else setLoading(true);
       setError(null);
 
       try {
+        let data: MenuOrder | null = null;
+        const token = queryToken || storedToken;
+
         if (token) {
-          const data =
-            await menuOrderService.publicOrder(
-              orderNumber,
-              token,
-            );
-
-          setOrder(data);
-          return;
+          data = await menuOrderService.publicOrder(orderNumber, token);
+        } else if (isAuthenticated) {
+          const items = await menuOrderService.mine();
+          data = items.find((item) => item.order_number === orderNumber) ?? null;
         }
 
-        // Sin token solo un usuario autenticado puede
-        // recuperar el pedido desde "Mis pedidos".
-        if (!hydrated) {
-          return;
+        if (!data) {
+          throw new Error(
+            "No pudimos abrir este pedido. Inicia sesión con la cuenta que lo realizó o usa el enlace privado recibido al crear el pedido.",
+          );
         }
 
-        if (isAuthenticated) {
-          const mine =
-            await menuOrderService.mine();
-
-          const found =
-            mine.find(
-              (item) =>
-                item.order_number ===
-                orderNumber,
-            ) || null;
-
-          if (!found) {
-            throw new Error(
-              "No encontramos este pedido entre tus pedidos registrados.",
-            );
-          }
-
-          setOrder(found);
-          return;
-        }
-
-        throw new Error(
-          "Para consultar este pedido abre el enlace privado que recibiste por correo.",
-        );
+        setOrder(data);
       } catch (err) {
         setError(
-          err instanceof Error
-            ? err.message
-            : "No se pudo consultar el pedido.",
+          err instanceof Error ? err.message : "No se pudo cargar el pedido.",
         );
       } finally {
-        if (
-          token ||
-          hydrated
-        ) {
-          setLoading(false);
-          setRefreshing(false);
-        }
+        setLoading(false);
+        setRefreshing(false);
       }
-    },
-    [
-      hydrated,
-      isAuthenticated,
-      orderNumber,
-      token,
-    ],
+    }, [isAuthenticated, orderNumber, queryToken, storedToken],
   );
 
   useEffect(() => {
-    void loadOrder();
-  }, [loadOrder]);
-
-  useEffect(() => {
-    if (
-      !order ||
-      TERMINAL_STATUSES.has(order.status)
-    ) {
+    if (!queryToken && !storedToken && !isAuthenticated) {
+      setLoading(false);
       return;
     }
+    void loadOrder();
+  }, [isAuthenticated, loadOrder, queryToken, storedToken]);
 
-    const id = window.setInterval(
-      () => void loadOrder(true),
-      30000,
-    );
+  useEffect(() => {
+    if (!order) return;
+    const shouldPoll =
+      !TERMINAL_STATUSES.has(order.status) ||
+      (order.payment_method === "online" && order.payment_status === "pending");
+    if (!shouldPoll) return;
 
-    return () =>
-      window.clearInterval(id);
+    const id = window.setInterval(() => void loadOrder(true), 5000);
+    return () => window.clearInterval(id);
   }, [loadOrder, order]);
 
   const productCount = useMemo(
-    () =>
-      order?.items.reduce(
-        (sum, item) =>
-          sum + item.quantity,
-        0,
-      ) ?? 0,
+    () => order?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
     [order],
   );
 
-  if (
-    (loading && !order) ||
-    (!token && !hydrated)
-  ) {
+  if (loading && !order) {
     return (
-      <main className="min-h-[70vh] bg-[#f2f3f4] px-4 py-16">
-        <div className="mx-auto flex max-w-4xl items-center justify-center rounded-3xl border border-gray-100 bg-white py-24 shadow-sm">
-          <Loader2
-            size={34}
-            className="animate-spin text-[#168e00]"
-          />
-        </div>
-      </main>
+      <div className="mx-auto flex min-h-[55vh] max-w-4xl items-center justify-center px-4 py-10">
+        <Loader2 size={34} className="animate-spin text-[#168e00]" />
+      </div>
     );
   }
 
   if (error || !order) {
     return (
-      <main className="min-h-[70vh] bg-[#f2f3f4] px-4 py-16">
-        <div className="mx-auto max-w-3xl rounded-3xl border border-red-100 bg-white p-7 text-center shadow-sm">
-          <XCircle
-            size={42}
-            className="mx-auto text-red-500"
-          />
-
-          <h1 className="mt-4 text-2xl font-black text-[#004e28]">
-            No pudimos abrir el pedido
-          </h1>
-
-          <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-500">
-            {error ||
-              "No se encontró el pedido."}
-          </p>
-
-          {!isAuthenticated ? (
-            <p className="mx-auto mt-3 max-w-xl text-xs leading-5 text-gray-400">
-              Si realizaste el pedido como invitado,
-              revisa tu correo y abre el botón
-              “Ver mi pedido”. Ese enlace contiene la
-              llave privada de seguimiento.
-            </p>
-          ) : null}
-
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Link
-              href="/"
-              className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-700"
-            >
-              Ir al inicio
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <div className="rounded-3xl border border-red-100 bg-white p-7 text-center shadow-sm">
+          <XCircle size={34} className="mx-auto text-red-500" />
+          <h1 className="mt-3 text-xl font-black text-gray-900">No pudimos mostrar el pedido</h1>
+          <p className="mt-2 text-sm leading-6 text-gray-600">{error || "Pedido no encontrado."}</p>
+          {isAuthenticated ? (
+            <Link href="/client/menu-orders" className="mt-5 inline-flex rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-bold text-white">
+              Ver mis pedidos
             </Link>
-
-            {isAuthenticated ? (
-              <Link
-                href="/client/menu-orders"
-                className="rounded-xl bg-[#168e00] px-4 py-3 text-sm font-bold text-white"
-              >
-                Mis pedidos de menú
-              </Link>
-            ) : null}
-          </div>
+          ) : null}
         </div>
-      </main>
+      </div>
     );
   }
 
-  const currentProgress =
-    MENU_ORDER_STATUS_FLOW.indexOf(
-      order.status,
-    );
+  const progress = MENU_ORDER_STATUS_FLOW.indexOf(order.status);
+  const safeCheckout = getSafeMercadoPagoUrl(order.payment_checkout_url);
 
   return (
-    <main className="min-h-screen bg-[#f2f3f4] px-4 py-10 md:py-14">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <section className="overflow-hidden rounded-3xl border border-[#004e28]/10 bg-white shadow-[0_22px_60px_-45px_rgba(0,78,40,0.75)]">
-          <div className="h-1.5 bg-[#168e00]" />
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 md:px-6">
+      {paymentReturn ? (
+        <div
+          className={`rounded-2xl border p-4 text-sm ${
+            paymentReturn === "success"
+              ? "border-[#168e00]/30 bg-[#168e00]/5 text-[#004e28]"
+              : paymentReturn === "pending"
+                ? "border-amber-200 bg-amber-50 text-amber-800"
+                : "border-red-200 bg-red-50 text-red-700"
+          }`}
+        >
+          {paymentReturn === "success"
+            ? order.payment_status === "paid"
+              ? "Pago confirmado correctamente."
+              : "Mercado Pago recibió la operación. Estamos esperando la confirmación final."
+            : paymentReturn === "pending"
+              ? "El pago sigue pendiente de confirmación. Esta pantalla se actualizará automáticamente."
+              : "El pago no se completó. Puedes volver a intentarlo si la liga sigue disponible."}
+        </div>
+      ) : null}
 
-          <div className="p-6 sm:p-8">
-            <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#168e00]">
-                  Seguimiento de pedido
-                </p>
-
-                <h1 className="mt-1 font-[family-name:var(--font-varela-round)] text-3xl font-black text-[#004e28] md:text-4xl">
-                  {order.order_number}
-                </h1>
-
-                <p className="mt-2 text-sm text-gray-500">
-                  {order.menu_name}
-                  {" · "}
-                  {productCount} productos
-                  {" · "}
-                  creado{" "}
-                  {formatMenuOrderDate(
-                    order.created_at,
-                  )}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span
-                  className={`rounded-full border px-3 py-1.5 text-sm font-bold ${
-                    MENU_ORDER_STATUS_CLASSES[
-                      order.status
-                    ]
-                  }`}
-                >
-                  {
-                    MENU_ORDER_STATUS_LABELS[
-                      order.status
-                    ]
-                  }
-                </span>
-
-                <button
-                  type="button"
-                  disabled={refreshing}
-                  onClick={() =>
-                    void loadOrder(true)
-                  }
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                  aria-label="Actualizar pedido"
-                >
-                  <RefreshCw
-                    size={17}
-                    className={
-                      refreshing
-                        ? "animate-spin"
-                        : ""
-                    }
-                  />
-                </button>
-              </div>
+      <section className="overflow-hidden rounded-3xl border border-[#004e28]/10 bg-white shadow-sm">
+        <div className="bg-[#004e28] p-6 text-white sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/70">Pedido de menú</p>
+              <h1 className="mt-1 font-[family-name:var(--font-varela-round)] text-2xl font-black">{order.order_number}</h1>
+              <p className="mt-1 text-sm text-white/75">{order.menu_name} · {productCount} productos</p>
             </div>
+            <div className="flex items-center gap-2">
+              <span className={`rounded-full border px-3 py-1.5 text-sm font-bold ${MENU_ORDER_STATUS_CLASSES[order.status]}`}>
+                {MENU_ORDER_STATUS_LABELS[order.status]}
+              </span>
+              <button
+                type="button"
+                disabled={refreshing}
+                onClick={() => void loadOrder(true)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 text-white hover:bg-white/10 disabled:opacity-50"
+                aria-label="Actualizar pedido"
+              >
+                <RefreshCw size={17} className={refreshing ? "animate-spin" : ""} />
+              </button>
+            </div>
+          </div>
+        </div>
 
-            {order.status !== "cancelled" ? (
-              <div className="mt-7 grid gap-3 sm:grid-cols-5">
-                {MENU_ORDER_STATUS_FLOW.map(
-                  (status, index) => {
-                    const completed =
-                      index <=
-                      currentProgress;
+        <div className="p-5 sm:p-7">
+          {order.status !== "cancelled" ? (
+            <div className="grid gap-2 sm:grid-cols-5">
+              {MENU_ORDER_STATUS_FLOW.map((status, index) => {
+                const complete = index <= progress;
+                return (
+                  <div key={status} className={`rounded-2xl border p-3 ${complete ? "border-[#168e00]/20 bg-[#168e00]/5" : "border-gray-100 bg-gray-50"}`}>
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-full ${complete ? "bg-[#168e00] text-white" : "bg-gray-200 text-gray-500"}`}>
+                      {complete ? <CheckCircle2 size={16} /> : index + 1}
+                    </span>
+                    <p className={`mt-2 text-xs font-bold ${complete ? "text-[#004e28]" : "text-gray-400"}`}>
+                      {MENU_ORDER_STATUS_LABELS[status]}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+              <strong>Pedido cancelado.</strong>{order.cancellation_reason ? ` ${order.cancellation_reason}` : ""}
+            </div>
+          )}
+        </div>
+      </section>
 
-                    return (
-                      <div
-                        key={status}
-                        className={`rounded-2xl border p-3 ${
-                          completed
-                            ? "border-[#168e00]/20 bg-[#168e00]/5"
-                            : "border-gray-100 bg-gray-50"
-                        }`}
-                      >
-                        <div
-                          className={`flex h-7 w-7 items-center justify-center rounded-full ${
-                            completed
-                              ? "bg-[#168e00] text-white"
-                              : "bg-gray-200 text-gray-500"
-                          }`}
-                        >
-                          {completed ? (
-                            <CheckCircle2
-                              size={16}
-                            />
-                          ) : (
-                            <span className="text-xs font-black">
-                              {index + 1}
-                            </span>
-                          )}
-                        </div>
-
-                        <p
-                          className={`mt-2 text-xs font-bold ${
-                            completed
-                              ? "text-[#004e28]"
-                              : "text-gray-400"
-                          }`}
-                        >
-                          {
-                            MENU_ORDER_STATUS_LABELS[
-                              status
-                            ]
-                          }
-                        </p>
-                      </div>
-                    );
-                  },
-                )}
+      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+        <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
+          <h2 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[#004e28]">Productos</h2>
+          <div className="mt-4 divide-y divide-gray-100">
+            {order.items.map((item) => (
+              <div key={item.id} className="flex gap-4 py-4 first:pt-0 last:pb-0">
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-gray-900">{item.quantity} × {item.item_name}</p>
+                  {item.variant_name ? <p className="text-xs font-semibold text-gray-500">{item.variant_name}</p> : null}
+                  {item.notes ? <p className="mt-1 text-sm text-gray-500">{item.notes}</p> : null}
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="font-black text-[#004e28]">{formatMenuOrderMoney(item.line_total)}</p>
+                  <p className="text-xs text-gray-400">{formatMenuOrderMoney(item.unit_price)} c/u</p>
+                </div>
               </div>
-            ) : (
-              <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 p-4 text-red-700">
-                <p className="font-bold">
-                  Este pedido fue cancelado.
-                </p>
+            ))}
+          </div>
 
-                {order.cancellation_reason ? (
-                  <p className="mt-1 text-sm">
-                    Motivo:{" "}
-                    {order.cancellation_reason}
-                  </p>
-                ) : null}
-              </div>
-            )}
+          <div className="mt-5 space-y-2 border-t border-gray-100 pt-4 text-sm">
+            <div className="flex justify-between text-gray-600"><span>Subtotal</span><strong>{formatMenuOrderMoney(order.subtotal)}</strong></div>
+            <div className="flex justify-between text-gray-600"><span>Entrega</span><strong>{formatMenuOrderMoney(order.delivery_fee)}</strong></div>
+            <div className="flex justify-between border-t border-gray-100 pt-2 text-lg text-[#004e28]"><span className="font-black">Total</span><strong className="text-[#168e00]">{formatMenuOrderMoney(order.total)}</strong></div>
           </div>
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-          <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-black text-[#004e28]">
-                Tu pedido
-              </h2>
-
-              <span className="text-xl font-black text-[#168e00]">
-                {formatMenuOrderMoney(
-                  order.total,
-                )}
+        <aside className="space-y-4">
+          <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-gray-400">Pago</p>
+            <div className="mt-3 flex items-start gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#168e00]/10 text-[#168e00]">
+                {order.payment_method === "online" ? <CreditCard size={20} /> : <Banknote size={20} />}
               </span>
-            </div>
-
-            <div className="mt-4 divide-y divide-gray-100">
-              {order.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex gap-4 py-4 first:pt-0 last:pb-0"
-                >
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#168e00]/10 font-black text-[#168e00]">
-                    {item.quantity}×
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-bold text-gray-900">
-                          {item.item_name}{item.variant_name && !item.item_name.includes(item.variant_name) ? ` · ${item.variant_name}` : ""}
-                        </p>
-
-                        {item.notes ? (
-                          <p className="mt-1 text-sm text-gray-500">
-                            Nota: {item.notes}
-                          </p>
-                        ) : null}
-                      </div>
-
-                      <p className="shrink-0 font-black text-[#004e28]">
-                        {formatMenuOrderMoney(
-                          item.line_total,
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 space-y-2 rounded-2xl bg-[#f2f3f4] p-4 text-sm">
-              <div className="flex justify-between text-gray-600">
-                <span>Subtotal</span>
-                <strong>
-                  {formatMenuOrderMoney(
-                    order.subtotal,
-                  )}
-                </strong>
-              </div>
-
-              <div className="flex justify-between text-gray-600">
-                <span>Entrega</span>
-                <strong>
-                  {formatMenuOrderMoney(
-                    order.delivery_fee,
-                  )}
-                </strong>
-              </div>
-
-              <div className="flex justify-between border-t border-gray-200 pt-2 text-lg">
-                <span className="font-black text-[#004e28]">
-                  Total
-                </span>
-                <strong className="text-[#168e00]">
-                  {formatMenuOrderMoney(
-                    order.total,
-                  )}
-                </strong>
-              </div>
-            </div>
-
-            {order.notes ? (
-              <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
-                  Notas
+              <div>
+                <p className="font-bold text-gray-900">{paymentMethodLabel(order)}</p>
+                <p className={`mt-1 text-sm font-semibold ${order.payment_status === "paid" ? "text-[#168e00]" : order.payment_status === "failed" ? "text-red-600" : "text-amber-600"}`}>
+                  {paymentStatusLabel(order)}
                 </p>
-                <p className="mt-1 text-sm text-amber-900">
-                  {order.notes}
-                </p>
+                {order.paid_at ? <p className="mt-1 text-xs text-gray-400">{formatMenuOrderDate(order.paid_at)}</p> : null}
               </div>
+            </div>
+
+            {order.payment_method === "online" && order.payment_status !== "paid" && safeCheckout ? (
+              <a href={safeCheckout} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white">
+                <CreditCard size={16} /> Intentar pago nuevamente
+              </a>
             ) : null}
           </section>
 
-          <aside className="space-y-5">
-            <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-black text-[#004e28]">
-                Modalidad
-              </h2>
+          <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-gray-400">Entrega</p>
+            <p className="mt-3 flex items-center gap-2 font-semibold text-gray-800">
+              {order.fulfillment_type === "delivery" ? <Truck size={18} className="text-[#168e00]" /> : <Store size={18} className="text-[#168e00]" />}
+              {fulfillmentLabel(order.fulfillment_type)}
+            </p>
+            {order.delivery_address ? <p className="mt-3 flex items-start gap-2 text-sm leading-6 text-gray-600"><MapPin size={17} className="mt-0.5 shrink-0 text-[#168e00]" /> {order.delivery_address}</p> : null}
+          </section>
 
-              <p className="mt-3 flex items-center gap-2 font-semibold text-gray-800">
-                {order.fulfillment_type ===
-                "delivery" ? (
-                  <Truck
-                    size={18}
-                    className="text-[#168e00]"
-                  />
-                ) : (
-                  <Store
-                    size={18}
-                    className="text-[#168e00]"
-                  />
-                )}
-
-                {fulfillmentLabel(
-                  order.fulfillment_type,
-                )}
-              </p>
-
-              {order.delivery_address ? (
-                <p className="mt-3 flex items-start gap-2 text-sm leading-6 text-gray-600">
-                  <MapPin
-                    size={17}
-                    className="mt-1 shrink-0 text-[#168e00]"
-                  />
-                  {order.delivery_address}
-                </p>
-              ) : null}
-            </section>
-
-            <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-black text-[#004e28]">
-                Datos del pedido
-              </h2>
-
-              <p className="mt-3 font-bold text-gray-900">
-                {order.customer_name}
-              </p>
-
-              <p className="mt-3 flex items-center gap-2 break-all text-sm text-gray-600">
-                <Mail
-                  size={16}
-                  className="text-[#168e00]"
-                />
-                {order.customer_email}
-              </p>
-
-              <p className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-                <Phone
-                  size={16}
-                  className="text-[#168e00]"
-                />
-                {order.customer_phone}
-              </p>
-            </section>
-
-            <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-black text-[#004e28]">
-                Actualizaciones
-              </h2>
-
-              <p className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                <Clock3
-                  size={16}
-                  className="text-[#168e00]"
-                />
-                Última actualización:{" "}
-                {formatMenuOrderDate(
-                  order.updated_at,
-                )}
-              </p>
-
-              <p className="mt-3 text-xs leading-5 text-gray-400">
-                Mientras el pedido esté activo,
-                esta página se actualiza
-                automáticamente cada 30 segundos.
-              </p>
-            </section>
-
-            {isAuthenticated ? (
-              <Link
-                href="/client/menu-orders"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-3 font-bold text-white hover:bg-[#003b1f]"
-              >
-                <ShoppingBag size={17} />
-                Ver todos mis pedidos
-              </Link>
-            ) : null}
-          </aside>
-        </div>
+          <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-gray-400">Actualización</p>
+            <p className="mt-3 flex items-center gap-2 text-sm text-gray-600"><Clock3 size={16} className="text-[#168e00]" /> {formatMenuOrderDate(order.updated_at)}</p>
+          </section>
+        </aside>
       </div>
-    </main>
+    </div>
   );
 }

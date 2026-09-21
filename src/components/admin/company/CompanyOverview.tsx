@@ -15,6 +15,7 @@ import {
   Store,
 } from "lucide-react";
 import { BusinessTypePickerModal } from "@/components/admin/company/BusinessTypePickerModal";
+import { SupplierModulesPanel } from "@/components/admin/company/SupplierModulesPanel";
 import { Toast } from "@/components/ui/Toast";
 import { getCompanyProfileCompletion } from "@/lib/companyProfileCompletion";
 import type { SupplierBusinessType } from "@/lib/currentSupplier";
@@ -70,7 +71,13 @@ const cards = [
   },
 ] as const;
 
-export function CompanyOverview({ supplier, isDirectory, enabledModules, onNavigate, onSupplierUpdated }: CompanyOverviewProps) {
+export function CompanyOverview({
+  supplier,
+  isDirectory,
+  enabledModules,
+  onNavigate,
+  onSupplierUpdated,
+}: CompanyOverviewProps) {
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const completion = getCompanyProfileCompletion(supplier, { isDirectory });
@@ -98,8 +105,12 @@ export function CompanyOverview({ supplier, isDirectory, enabledModules, onNavig
           <div className="flex min-w-0 items-start gap-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f2f3f4] text-[#004e28] ring-1 ring-black/5">
               {logo ? (
-                // The API may return either an absolute URL or the existing proxied static path.
-                <img src={logo} alt={`Logo de ${supplier.name || "tu negocio"}`} className="h-full w-full object-cover" />
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logo}
+                  alt={`Logo de ${supplier.name || "tu negocio"}`}
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <Store size={28} aria-hidden="true" />
               )}
@@ -175,28 +186,55 @@ export function CompanyOverview({ supplier, isDirectory, enabledModules, onNavig
         </div>
       </section>
 
-      {businessType ? <section aria-labelledby="business-type-title" className="rounded-2xl border border-[#004e28]/15 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-[#f2f3f4]">
-            {businessType.icon_url ? <Image src={businessType.icon_url} alt="" fill sizes="64px" className="object-contain p-2" /> : <BriefcaseBusiness size={28} className="text-[#004e28]" aria-hidden="true" />}
+      {businessType ? (
+        <section aria-labelledby="business-type-title" className="rounded-2xl border border-[#004e28]/15 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-[#f2f3f4]">
+              {businessType.icon_url ? (
+                <Image src={businessType.icon_url} alt="" fill sizes="64px" className="object-contain p-2" />
+              ) : (
+                <BriefcaseBusiness size={28} className="text-[#004e28]" aria-hidden="true" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p id="business-type-title" className="text-xs font-semibold uppercase tracking-[0.14em] text-[#168e00]">Tipo de negocio</p>
+              <h3 className="mt-1 font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">{businessType.name}</h3>
+              <p className="mt-1 max-w-xl text-sm leading-6 text-gray-600">
+                Este tipo ayuda a clasificar tu negocio y mostrarlo en las secciones correctas.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTypePickerOpen(true)}
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-[#168e00]/30 px-4 py-2.5 text-sm font-semibold text-[#0b6d00] transition hover:border-[#168e00] hover:bg-[#168e00]/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2"
+            >
+              Cambiar tipo
+            </button>
           </div>
-          <div className="min-w-0 flex-1">
-            <p id="business-type-title" className="text-xs font-semibold uppercase tracking-[0.14em] text-[#168e00]">Tipo de negocio</p>
-            <h3 className="mt-1 font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">{businessType.name}</h3>
-            <p className="mt-1 max-w-xl text-sm leading-6 text-gray-600">Este tipo ayuda a clasificar tu negocio y mostrarlo en las secciones correctas.</p>
+        </section>
+      ) : (
+        <section aria-labelledby="business-type-title" className="rounded-2xl border border-[#168e00]/30 bg-[#168e00]/[0.06] p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-[#004e28] shadow-sm ring-1 ring-[#168e00]/15">
+              <BriefcaseBusiness size={26} aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p id="business-type-title" className="text-xs font-bold uppercase tracking-[0.16em] text-[#0b6d00]">Clasifica tu negocio</p>
+              <p className="mt-1 text-sm leading-6 text-gray-700">Selecciona qué tipo de negocio describe mejor tu actividad.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTypePickerOpen(true)}
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#004e28] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2"
+            >
+              Elegir tipo de negocio
+            </button>
           </div>
-          <button type="button" onClick={() => setTypePickerOpen(true)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-[#168e00]/30 px-4 py-2.5 text-sm font-semibold text-[#0b6d00] transition hover:border-[#168e00] hover:bg-[#168e00]/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2">Cambiar tipo</button>
-        </div>
-      </section> : <section aria-labelledby="business-type-title" className="rounded-2xl border border-[#168e00]/30 bg-[#168e00]/[0.06] p-5 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-[#004e28] shadow-sm ring-1 ring-[#168e00]/15"><BriefcaseBusiness size={26} aria-hidden="true" /></span>
-          <div className="min-w-0 flex-1">
-            <p id="business-type-title" className="text-xs font-bold uppercase tracking-[0.16em] text-[#0b6d00]">Clasifica tu negocio</p>
-            <p className="mt-1 text-sm leading-6 text-gray-700">Selecciona qué tipo de negocio describe mejor tu actividad.</p>
-          </div>
-          <button type="button" onClick={() => setTypePickerOpen(true)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#004e28] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2">Elegir tipo de negocio</button>
-        </div>
-      </section>}
+        </section>
+      )}
+
+      {/* NUEVO: catálogo, activación y compra de módulos del proveedor */}
+      <SupplierModulesPanel />
 
       <section aria-labelledby="quick-access-title">
         <div className="mb-3 flex items-end justify-between gap-4">
@@ -230,6 +268,7 @@ export function CompanyOverview({ supplier, isDirectory, enabledModules, onNavig
               </button>
             );
           })}
+
           {enabledModules.map((module) => {
             const Icon = module.icon;
             return (
@@ -280,7 +319,14 @@ export function CompanyOverview({ supplier, isDirectory, enabledModules, onNavig
         </Link>
       </div>
 
-      {typePickerOpen ? <BusinessTypePickerModal supplierId={supplier.id} currentId={businessTypeId} onClose={() => setTypePickerOpen(false)} onSaved={handleBusinessTypeSaved} /> : null}
+      {typePickerOpen ? (
+        <BusinessTypePickerModal
+          supplierId={supplier.id}
+          currentId={businessTypeId}
+          onClose={() => setTypePickerOpen(false)}
+          onSaved={handleBusinessTypeSaved}
+        />
+      ) : null}
       {toast ? <Toast type="success" message={toast} onClose={() => setToast(null)} /> : null}
     </div>
   );

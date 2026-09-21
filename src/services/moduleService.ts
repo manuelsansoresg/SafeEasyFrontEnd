@@ -3,14 +3,17 @@ import type {
   ModuleAdminDetail,
   ModuleAdminList,
   ModuleCreatePayload,
+  ModulePayment,
+  ModulePurchaseResponse,
   ModuleUpdatePayload,
+  SupplierModule,
   SupplierModuleAssignment,
   SupplierModuleGrantPayload,
   SupplierSummary,
-  SupplierModule,
 } from "@/types/module";
 
 const adminBase = "/api/admin/modules";
+const supplierBase = "/api/modules";
 
 function errorMessage(value: unknown): string | undefined {
   if (typeof value === "string") return value;
@@ -58,9 +61,13 @@ async function request(
       throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
     }
 
+    if (response.status === 402) {
+      throw new Error(detail || "Este módulo requiere pago antes de activarse.");
+    }
+
     if (response.status === 403) {
       throw new Error(
-        detail || "No tienes permiso para administrar módulos.",
+        detail || "No tienes permiso para realizar esta acción.",
       );
     }
 
@@ -107,12 +114,74 @@ function listItems<T>(data: unknown, key: string): T[] {
 }
 
 export const moduleService = {
-  async mine(signal?: AbortSignal): Promise<SupplierModule[]> {
-    const response = await request("/api/modules/mine", { signal });
+  // =======================================================
+  // PROVEEDOR
+  // =======================================================
+
+  async available(signal?: AbortSignal): Promise<SupplierModule[]> {
+    const response = await request(`${supplierBase}/available`, { signal });
     const data: unknown = await response.json();
-    if (!Array.isArray(data)) throw new Error("Respuesta de módulos no válida.");
+    if (!Array.isArray(data)) {
+      throw new Error("Respuesta de módulos disponibles no válida.");
+    }
     return data as SupplierModule[];
   },
+
+  async mine(signal?: AbortSignal): Promise<SupplierModule[]> {
+    const response = await request(`${supplierBase}/mine`, { signal });
+    const data: unknown = await response.json();
+    if (!Array.isArray(data)) {
+      throw new Error("Respuesta de módulos no válida.");
+    }
+    return data as SupplierModule[];
+  },
+
+  async activate(moduleId: number): Promise<SupplierModule> {
+    const response = await request(`${supplierBase}/${moduleId}/activate`, {
+      method: "POST",
+    });
+    return response.json();
+  },
+
+  async setEnabled(moduleId: number, enabled: boolean): Promise<SupplierModule> {
+    const response = await request(`${supplierBase}/${moduleId}/enabled`, {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    });
+    return response.json();
+  },
+
+  async purchase(moduleId: number): Promise<ModulePurchaseResponse> {
+    const response = await request(`${supplierBase}/${moduleId}/purchase`, {
+      method: "POST",
+    });
+    return response.json();
+  },
+
+  async payments(signal?: AbortSignal): Promise<ModulePayment[]> {
+    const response = await request(`${supplierBase}/payments`, { signal });
+    return listItems<ModulePayment>(await response.json(), "payments");
+  },
+
+  async paymentStatus(paymentId: number, signal?: AbortSignal): Promise<ModulePayment> {
+    const response = await request(`${supplierBase}/payments/${paymentId}/status`, {
+      signal,
+    });
+    return response.json();
+  },
+
+  async refreshPayment(mpPaymentId: string): Promise<ModulePayment> {
+    const query = new URLSearchParams({ mp_payment_id: mpPaymentId });
+    const response = await request(`${supplierBase}/payments/refresh?${query.toString()}`, {
+      method: "POST",
+    });
+    return response.json();
+  },
+
+  // =======================================================
+  // ADMINISTRADOR
+  // =======================================================
+
   async list(
     params: {
       search?: string;
@@ -169,7 +238,7 @@ export const moduleService = {
 
   async update(
     id: number,
-    payload: Partial<ModuleUpdatePayload>,
+    payload: ModuleUpdatePayload,
   ): Promise<ModuleAdminDetail> {
     const response = await request(
       `${adminBase}/${id}`,
@@ -185,6 +254,17 @@ export const moduleService = {
     await request(`${adminBase}/${id}`, {
       method: "DELETE",
     });
+  },
+
+  async setPlans(
+    id: number,
+    planIds: number[],
+  ): Promise<ModuleAdminDetail> {
+    const response = await request(`${adminBase}/${id}/plans`, {
+      method: "PUT",
+      body: JSON.stringify({ plan_ids: planIds }),
+    });
+    return response.json();
   },
 
   async setAllowedSuppliers(
