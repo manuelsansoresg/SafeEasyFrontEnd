@@ -166,9 +166,12 @@ function formatDeliveryCode(value: string | null) {
   return raw.length === 6 ? `${raw.slice(0, 3)} ${raw.slice(3)}` : raw;
 }
 
-function isDeliveryCodeStage(value: string) {
+function isDeliveryCodeStage(value: string, mode: DeliveryTypeKey) {
   const k = normalizeStatusKey(value);
-  return ["en_route_to_pickup", "picked_up", "in_transit", "completed", "verified"].includes(k);
+  if (mode === "pickup") {
+    return ["ready_for_pickup", "preparing"].includes(k);
+  }
+  return ["en_route_to_pickup", "picked_up", "in_transit", "shipped"].includes(k);
 }
 
 function getDeliveryTypeKey(order: Order): DeliveryTypeKey {
@@ -442,7 +445,7 @@ export default function ClientOrderDetailPage() {
   const cancelled = normalizeStatusKey(effectiveKey) === "cancelled" || isExpired;
   const rank = getProgressRank(mode, effectiveKey);
   const activeRefund = useMemo(() => pickLatestRefund(refunds), [refunds]);
-  const deliveryCodeStage = mode === "shipping" && !cancelled && isDeliveryCodeStage(effectiveKey);
+  const deliveryCodeStage = !cancelled && isDeliveryCodeStage(effectiveKey, mode);
   const showDeliveryCodeCard = Boolean(order && !isExpired && deliveryCodeStage);
 
   const address = useMemo(() => {
@@ -687,16 +690,16 @@ export default function ClientOrderDetailPage() {
                         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                           <div className="min-w-0">
                             <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-bold text-[#004e28]">
-                              <Truck className="h-3.5 w-3.5" />
-                              {deliveryCodeStage ? "Entrega en curso" : "Código de entrega"}
+                              {mode === "shipping" ? <Truck className="h-3.5 w-3.5" /> : <Store className="h-3.5 w-3.5" />}
+                              {mode === "shipping" ? "Entrega en curso" : "Pedido listo para recoger"}
                             </div>
                             <div className="mt-3 text-sm font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
                               Código de entrega
                             </div>
                             <p className="mt-1 text-sm leading-relaxed text-gray-600">
                               {mode === "shipping"
-                                ? "Compartilo con el repartidor solo cuando recibas tu pedido."
-                                : "Mostralo en tienda para retirar tu pedido."}
+                                ? "Compártelo con el repartidor únicamente cuando recibas tu pedido."
+                                : "Muéstralo al proveedor únicamente cuando recibas tu pedido en tienda."}
                             </p>
                           </div>
 
@@ -713,7 +716,10 @@ export default function ClientOrderDetailPage() {
                                 </div>
                               ) : (
                                 <div className="text-sm font-semibold text-gray-500">
-                                  {deliveryCodeError || "El código estará disponible cuando el repartidor esté en camino."}
+                                  {deliveryCodeError ||
+                                    (mode === "shipping"
+                                      ? "El código estará disponible cuando comience la entrega."
+                                      : "El código estará disponible cuando el pedido esté listo para recoger.")}
                                 </div>
                               )}
                             </div>

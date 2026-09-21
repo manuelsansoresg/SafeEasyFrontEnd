@@ -19,7 +19,11 @@ export interface Order {
   fulfillment_status?: string;
   visual_status?: string;
   receipt_url?: string;
-  status?: 'pending' | 'completed' | 'cancelled' | string;
+  settlement_status?: "ON_HOLD" | "RELEASED" | "CANCELLED" | string;
+  settlement_released_at?: string | null;
+  delivery_code_used_at?: string | null;
+  delivery_code_verified_at?: string | null;
+  status?: "pending" | "completed" | "cancelled" | string;
   created_at: string;
   updated_at: string;
   supplier: {
@@ -48,7 +52,6 @@ export interface Order {
     id: string;
     title: string;
     price: number;
-    // ... other product fields
     supplier_id?: number;
     slug?: string;
     thumbnail_url?: string | null;
@@ -85,6 +88,20 @@ export interface OrderDeliveryCode {
   code: string | null;
 }
 
+async function parseError(response: Response | null, fallback: string) {
+  if (!response) return fallback;
+  const raw = await response.text().catch(() => "");
+  if (!raw) return fallback;
+
+  try {
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    const detail = data.detail ?? data.message ?? data.error;
+    if (typeof detail === "string" && detail.trim()) return detail.trim();
+  } catch {}
+
+  return raw.trim() || fallback;
+}
+
 export const orderService = {
   getOrderById: async (orderId: number): Promise<Order> => {
     const tryUrls = [
@@ -101,7 +118,7 @@ export const orderService = {
       response = await fetchWithAuth(url, { headers: { Accept: "application/json" } });
       if (response.ok) break;
       if (response.status === 404 || response.status === 405) continue;
-      if (response.status === 301 || response.status === 302 || response.status === 307 || response.status === 308) continue;
+      if ([301, 302, 307, 308].includes(response.status)) continue;
       break;
     }
 
@@ -114,8 +131,7 @@ export const orderService = {
     if (data && typeof data === "object") {
       const record = data as Record<string, unknown>;
       const nested = record.order && typeof record.order === "object" ? (record.order as Record<string, unknown>) : null;
-      const candidate = (nested || record) as unknown;
-      return candidate as Order;
+      return (nested || record) as unknown as Order;
     }
 
     throw new Error("Failed to fetch order: invalid response");
@@ -123,8 +139,7 @@ export const orderService = {
 
   getMyOrderById: async (orderId: number): Promise<Order> => {
     try {
-      const order = await orderService.getOrderById(orderId);
-      return order;
+      return await orderService.getOrderById(orderId);
     } catch {
       const all = await orderService.getMyOrders();
       const found = all.find((o) => Number(o.id) === Number(orderId));
@@ -145,6 +160,7 @@ export const orderService = {
       skip: String((safePage - 1) * safeLimit),
       limit: String(safeLimit),
     });
+
     if (supplierId && Number.isFinite(supplierId)) query.set("supplier_id", String(supplierId));
     if (productId) query.set("product_id", String(productId));
 
@@ -152,6 +168,7 @@ export const orderService = {
     const tryUrls = [`/api/orders/?${queryString}`, `/api/orders?${queryString}`];
     let response: Response | null = null;
     let usedUrl = "";
+
     for (const url of tryUrls) {
       usedUrl = url;
       response = await fetchWithAuth(url);
@@ -183,7 +200,6 @@ export const orderService = {
     if (productId) {
       filtered = filtered.filter((o) => String(o.product_id) === String(productId));
     }
-
     return filtered;
   },
 
@@ -196,9 +212,7 @@ export const orderService = {
       response = await fetchWithAuth(url);
     }
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch order history");
-    }
+    if (!response.ok) throw new Error("Failed to fetch order history");
 
     const data: unknown = await response.json().catch(() => null);
     if (Array.isArray(data)) return data as OrderHistoryItem[];
@@ -225,13 +239,13 @@ export const orderService = {
       response = await fetchWithAuth(url, { headers: { Accept: "application/json" } });
       if (response.ok) break;
       if (response.status === 404 || response.status === 405) continue;
-      if (response.status === 301 || response.status === 302 || response.status === 307 || response.status === 308) continue;
+      if ([301, 302, 307, 308].includes(response.status)) continue;
       break;
     }
 
     if (!response || !response.ok) {
-      const errorText = await response?.text().catch(() => "") ?? "";
-      throw new Error(`Failed to fetch delivery code: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+      const message = await parseError(response, "No se pudo cargar el código de entrega.");
+      throw new Error(message);
     }
 
     const data: unknown = await response.json().catch(() => null);
@@ -247,15 +261,9 @@ export const orderService = {
 
   updateOrderStatus: async (orderId: number, status: string, note?: string) => {
     const payload: Record<string, unknown> = { status };
-    if (typeof note === "string" && note.trim().length > 0) {
-      payload.note = note;
-    }
-    const body = JSON.stringify(payload);
-    const options = {
-      method: 'PUT',
-      body,
-    };
+    if (typeof note === "string" && note.trim().length > 0) payload.note = note;
 
+    const options = { method: "PUT" as const, body: JSON.stringify(payload) };
     const tryUrls = [
       `/api/orders/${orderId}/status/`,
       `/api/orders/${orderId}/status`,
@@ -265,17 +273,18 @@ export const orderService = {
 
     let response: Response | null = null;
     let usedUrl = "";
+
     for (const url of tryUrls) {
       usedUrl = url;
       response = await fetchWithAuth(url, options);
       if (response.ok) break;
       if (response.status === 404 || response.status === 405) continue;
-      if (response.status === 301 || response.status === 302 || response.status === 307 || response.status === 308) continue;
+      if ([301, 302, 307, 308].includes(response.status)) continue;
       break;
     }
 
     if (!response || !response.ok) {
-      const errorText = await response?.text().catch(() => 'No error details') ?? '';
+      const errorText = await response?.text().catch(() => "No error details") ?? "";
       throw new Error(`Failed to update order status: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
     }
 
@@ -291,13 +300,13 @@ export const orderService = {
       skip: String((safePage - 1) * safeLimit),
       limit: String(safeLimit),
     });
+
     const usedUrl = `/api/users/me/orders?${query.toString()}`;
     const response = await fetchWithAuth(usedUrl);
 
     if (!response.ok) {
-      const status = response.status;
       const bodyText = await response.text().catch(() => "");
-      throw new Error(`Failed to fetch my orders (${status}) ${usedUrl} ${bodyText}`.trim());
+      throw new Error(`Failed to fetch my orders (${response.status}) ${usedUrl} ${bodyText}`.trim());
     }
 
     const data: unknown = await response.json().catch(() => null);
@@ -314,11 +323,7 @@ export const orderService = {
     const form = new FormData();
     form.append("file", file);
 
-    const options = {
-      method: "POST",
-      body: form,
-    };
-
+    const options = { method: "POST" as const, body: form };
     const tryUrls = [
       `/api/orders/${orderId}/receipt`,
       `/api/orders/${orderId}/receipt/`,
@@ -340,24 +345,16 @@ export const orderService = {
     }
 
     const contentType = response.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      return response.json();
-    }
+    if (contentType.includes("application/json")) return response.json();
     return null;
   },
 
   requestOrderRefund: async (orderId: number, reason: string, file?: File | null) => {
     const form = new FormData();
     form.append("reason", reason);
-    if (file) {
-      form.append("file", file);
-    }
+    if (file) form.append("file", file);
 
-    const options = {
-      method: "POST",
-      body: form,
-    };
-
+    const options = { method: "POST" as const, body: form };
     const tryUrls = [
       `/api/orders/${orderId}/refunds`,
       `/api/orders/${orderId}/refunds/`,
@@ -375,15 +372,11 @@ export const orderService = {
 
     if (!response || !response.ok) {
       const errorText = await response?.text().catch(() => "") ?? "";
-      throw new Error(
-        `Failed to request refund: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim()
-      );
+      throw new Error(`Failed to request refund: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
     }
 
     const contentType = response.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      return response.json();
-    }
+    if (contentType.includes("application/json")) return response.json();
     return null;
   },
 
@@ -397,6 +390,7 @@ export const orderService = {
 
     let response: Response | null = null;
     let usedUrl = "";
+
     for (const url of tryUrls) {
       usedUrl = url;
       response = await fetchWithAuth(url);
@@ -415,13 +409,7 @@ export const orderService = {
       const record = data as Record<string, unknown>;
       const items = record.items ?? record.results ?? record.data ?? record.refunds;
       if (Array.isArray(items)) return items as OrderRefund[];
-      if (
-        "id" in record ||
-        "reason" in record ||
-        "file" in record ||
-        "file_url" in record ||
-        "evidence_url" in record
-      ) {
+      if ("id" in record || "reason" in record || "file" in record || "file_url" in record || "evidence_url" in record) {
         return [record as unknown as OrderRefund];
       }
     }
@@ -430,9 +418,8 @@ export const orderService = {
 
   approveOrderRefund: async (orderId: number, refundId: number, note?: string) => {
     const payload: Record<string, unknown> = {};
-    if (typeof note === "string" && note.trim().length > 0) {
-      payload.note = note.trim();
-    }
+    if (typeof note === "string" && note.trim().length > 0) payload.note = note.trim();
+
     const options = { method: "POST" as const, body: JSON.stringify(payload) };
     const tryUrls = [
       `/api/orders/${orderId}/refunds/${refundId}/approve`,
@@ -460,6 +447,7 @@ export const orderService = {
       const errorText = await response?.text().catch(() => "") ?? "";
       throw new Error(`Failed to approve refund: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
     }
+
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return response.json();
     return null;
@@ -477,6 +465,7 @@ export const orderService = {
 
     let response: Response | null = null;
     let usedUrl = "";
+
     for (const url of tryUrls) {
       usedUrl = url;
       response = await fetchWithAuth(url, options);
@@ -494,6 +483,7 @@ export const orderService = {
       const errorText = await response?.text().catch(() => "") ?? "";
       throw new Error(`Failed to reject refund: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
     }
+
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return response.json();
     return null;
@@ -501,12 +491,8 @@ export const orderService = {
 
   markOrderRefunded: async (orderId: number, refundId: number, note?: string, file?: File | null) => {
     const form = new FormData();
-    if (typeof note === "string" && note.trim().length > 0) {
-      form.append("note", note.trim());
-    }
-    if (file) {
-      form.append("file", file);
-    }
+    if (typeof note === "string" && note.trim().length > 0) form.append("note", note.trim());
+    if (file) form.append("file", file);
 
     const options = { method: "POST" as const, body: form };
     const tryUrls = [
@@ -518,6 +504,7 @@ export const orderService = {
 
     let response: Response | null = null;
     let usedUrl = "";
+
     for (const url of tryUrls) {
       usedUrl = url;
       response = await fetchWithAuth(url, options);
@@ -535,6 +522,7 @@ export const orderService = {
       const errorText = await response?.text().catch(() => "") ?? "";
       throw new Error(`Failed to mark refunded: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
     }
+
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return response.json();
     return null;
@@ -542,7 +530,6 @@ export const orderService = {
 
   markOrderReady: async (orderId: number) => {
     const response = await fetchWithAuth(`/api/orders/${orderId}/mark-ready`, { method: "POST" });
-
     if (!response.ok) {
       const errorText = await response.text().catch(() => "") ?? "";
       throw new Error(`Failed to mark order ready: ${response.status} ${errorText}`.trim());
@@ -554,7 +541,6 @@ export const orderService = {
 
   markOrderReadyForCourierPickup: async (orderId: number) => {
     const response = await fetchWithAuth(`/api/orders/${orderId}/mark-ready/courier-pickup`, { method: "POST" });
-
     if (!response.ok) {
       const errorText = await response.text().catch(() => "") ?? "";
       throw new Error(`Failed to mark order ready for courier pickup: ${response.status} ${errorText}`.trim());
@@ -566,7 +552,6 @@ export const orderService = {
 
   startSupplierOrderPreparing: async (orderId: number) => {
     const response = await fetchWithAuth(`/api/suppliers/orders/${orderId}/start-preparing`, { method: "POST" });
-
     if (!response.ok) {
       const errorText = await response.text().catch(() => "") ?? "";
       throw new Error(`Failed to start supplier order preparing: ${response.status} ${errorText}`.trim());
@@ -578,7 +563,6 @@ export const orderService = {
 
   markSupplierOrderOutForDelivery: async (orderId: number) => {
     const response = await fetchWithAuth(`/api/suppliers/orders/${orderId}/out-for-delivery`, { method: "POST" });
-
     if (!response.ok) {
       const errorText = await response.text().catch(() => "") ?? "";
       throw new Error(`Failed to mark supplier order out for delivery: ${response.status} ${errorText}`.trim());
@@ -589,9 +573,22 @@ export const orderService = {
   },
 
   verifyDeliveryCode: async (orderId: number, code: string) => {
-    const payload = JSON.stringify({ code: code.trim(), delivery_code: code.trim() });
+    const cleanCode = code.replace(/\D/g, "").trim();
+    if (!cleanCode) throw new Error("Ingresa el código de entrega.");
+
+    const payload = JSON.stringify({
+      code: cleanCode,
+      delivery_code: cleanCode,
+    });
     const options = { method: "POST" as const, body: payload };
+
+    // Nuevo endpoint del backend. Se dejan los endpoints legacy al final
+    // solo como compatibilidad con despliegues anteriores.
     const tryUrls = [
+      `/api/orders/${orderId}/confirm-delivery`,
+      `/api/orders/${orderId}/confirm-delivery/`,
+      `/api/v1/orders/${orderId}/confirm-delivery`,
+      `/api/v1/orders/${orderId}/confirm-delivery/`,
       `/api/orders/${orderId}/verify-code`,
       `/api/orders/${orderId}/verify-code/`,
       `/api/v1/orders/${orderId}/verify-code`,
@@ -600,17 +597,20 @@ export const orderService = {
 
     let response: Response | null = null;
     let usedUrl = "";
+
     for (const url of tryUrls) {
       usedUrl = url;
       response = await fetchWithAuth(url, options);
       if (response.ok) break;
-      if (response.status !== 404 && response.status !== 405) break;
+      if (response.status === 404 || response.status === 405) continue;
+      break;
     }
 
     if (!response || !response.ok) {
-      const errorText = await response?.text().catch(() => "") ?? "";
-      throw new Error(`Failed to verify delivery code: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+      const message = await parseError(response, "No se pudo validar el código de entrega.");
+      throw new Error(message);
     }
+
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return response.json();
     return null;
@@ -618,9 +618,8 @@ export const orderService = {
 
   completeOrder: async (orderId: number, note?: string) => {
     const payload: Record<string, unknown> = {};
-    if (typeof note === "string" && note.trim().length > 0) {
-      payload.note = note.trim();
-    }
+    if (typeof note === "string" && note.trim().length > 0) payload.note = note.trim();
+
     const options = { method: "PUT" as const, body: JSON.stringify(payload) };
     const tryUrls = [
       `/api/orders/${orderId}/complete`,
@@ -631,6 +630,7 @@ export const orderService = {
 
     let response: Response | null = null;
     let usedUrl = "";
+
     for (const url of tryUrls) {
       usedUrl = url;
       response = await fetchWithAuth(url, options);
@@ -648,6 +648,7 @@ export const orderService = {
       const errorText = await response?.text().catch(() => "") ?? "";
       throw new Error(`Failed to complete order: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
     }
+
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return response.json();
     return null;
