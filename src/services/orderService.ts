@@ -16,6 +16,15 @@ export interface Order {
   pickup_address?: string | null;
   total_amount?: string | number;
   payment_status?: string;
+  settlement_status?: "on_hold" | "released" | "cancelled" | string | null;
+  settlement_released_at?: string | null;
+  mp_payment_id?: string | null;
+  payment_status_detail?: string | null;
+  payment_authorized_at?: string | null;
+  payment_authorization_expires_at?: string | null;
+  payment_captured_at?: string | null;
+  payment_cancelled_at?: string | null;
+  capture_status?: "pending" | "processing" | "succeeded" | "failed" | string | null;
   fulfillment_status?: string;
   visual_status?: string;
   receipt_url?: string;
@@ -589,9 +598,19 @@ export const orderService = {
   },
 
   verifyDeliveryCode: async (orderId: number, code: string) => {
-    const payload = JSON.stringify({ code: code.trim(), delivery_code: code.trim() });
+    const normalizedCode = code.replace(/\D/g, "").slice(0, 6);
+    if (normalizedCode.length !== 6) {
+      throw new Error("El código de entrega debe tener 6 dígitos.");
+    }
+
+    const payload = JSON.stringify({ code: normalizedCode });
     const options = { method: "POST" as const, body: payload };
     const tryUrls = [
+      `/api/orders/${orderId}/confirm-delivery`,
+      `/api/orders/${orderId}/confirm-delivery/`,
+      `/api/v1/orders/${orderId}/confirm-delivery`,
+      `/api/v1/orders/${orderId}/confirm-delivery/`,
+      // Compatibilidad con backends anteriores.
       `/api/orders/${orderId}/verify-code`,
       `/api/orders/${orderId}/verify-code/`,
       `/api/v1/orders/${orderId}/verify-code`,
@@ -604,12 +623,21 @@ export const orderService = {
       usedUrl = url;
       response = await fetchWithAuth(url, options);
       if (response.ok) break;
-      if (response.status !== 404 && response.status !== 405) break;
+      if (response.status === 404 || response.status === 405) continue;
+      break;
     }
 
     if (!response || !response.ok) {
       const errorText = await response?.text().catch(() => "") ?? "";
-      throw new Error(`Failed to verify delivery code: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+      let detail = errorText.trim();
+      if (detail) {
+        try {
+          const parsed = JSON.parse(detail) as { detail?: unknown; message?: unknown };
+          if (typeof parsed.detail === "string") detail = parsed.detail;
+          else if (typeof parsed.message === "string") detail = parsed.message;
+        } catch {}
+      }
+      throw new Error(detail || `No se pudo confirmar la entrega (HTTP ${response?.status ?? "?"}).`);
     }
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) return response.json();
