@@ -1,0 +1,21 @@
+name: Package hide empty services fix
+
+on:
+  push:
+    branches:
+      - chatgpt-hide-empty-services-20260921
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare package
+        run: |
+          mkdir -p package/src/app/empresas/'[slug]'
+          cp "src/app/empresas/[slug]/page.tsx" "package/src/app/empresas/[slug]/page.tsx"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drooopy-hide-empty-services-complete-file
+          path: package/
+          if-no-files-found: error
