@@ -27,8 +27,9 @@ import { DirectoryRatingsSection } from "@/components/supplier/DirectoryRatingsS
 import { DirectoryContactButton } from "@/components/supplier/DirectoryContactButton";
 import { DirectoryTopNav } from "@/components/supplier/DirectoryTopNav";
 import { DirectoryGallerySection } from "@/components/supplier/DirectoryGallerySection";
-import { AgendaBookingButton } from "@/components/agenda/AgendaBookingButton";
+import { SupplierModuleNavigation } from "@/components/supplier/SupplierModuleNavigation";
 import { PublicSupplierMenu } from "@/components/supplier/menu/PublicSupplierMenu";
+import { PublicSupplierAgendaTab } from "@/components/agenda/PublicSupplierAgendaTab";
 import { menuService } from "@/services/menuService";
 import type { Menu } from "@/types/menu";
 
@@ -423,7 +424,7 @@ import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCa
 export default function SupplierPage() {
   const { slug } = useParams();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
-  const [activeTab, setActiveTab] = useState<'main' | 'menu' | 'products'>('main');
+  const [activeTab, setActiveTab] = useState<'main' | 'menu' | 'agenda' | 'products'>('main');
   const [publicMenus, setPublicMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const headerVideoRef = useRef<HTMLVideoElement>(null);
@@ -1181,10 +1182,6 @@ const contactHref = supplier?.phone
                             Ver Catálogo <ArrowDown size={20} />
                         </button>
                       ) : null}
-                      <AgendaBookingButton
-                        supplierId={supplier.id}
-                        className="w-full sm:w-auto"
-                      />
                       {isDirectory ? (
                         <DirectoryContactButton
                           supplierId={supplier.id}
@@ -1238,40 +1235,21 @@ const contactHref = supplier?.phone
          ) : null}
       </section>
 
-      {/* --- TABS NAVIGATION (solo tienda; directorio usa DirectoryTopNav propio) --- */}
-      {!isDirectory || publicMenus.length > 0 ? (
-       <div ref={tabsRef} className="sticky top-[0px] md:top-[0px] z-40 bg-white border-b border-gray-100 shadow-sm backdrop-blur-md bg-white/90">
-        <div className="container mx-auto px-4 md:px-8">
-           <div className="flex gap-8 overflow-x-auto no-scrollbar">
-              <button
-                onClick={() => setActiveTab('main')}
-                className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'main' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
-              >
-                Página Principal
-              </button>
-              {publicMenus.length > 0 ? (
-              <button
-                onClick={() => setActiveTab('menu')}
-                className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'menu' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
-              >
-                Menú
-              </button>
-              ) : null}
-              {!isDirectory ? (
-              <button
-                onClick={() => setActiveTab('products')}
-                className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'products' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
-              >
-                Productos
-              </button>
-              ) : null}
-           </div>
-        </div>
-      </div>
-      ) : null}
+      <SupplierModuleNavigation
+        supplierId={supplier.id}
+        hasMenu={publicMenus.length > 0}
+        isDirectory={isDirectory}
+        activeTab={activeTab}
+        onChangeTab={setActiveTab}
+        tabsRef={tabsRef}
+      />
 
       {activeTab === "menu" && publicMenus.length > 0 ? (
         <PublicSupplierMenu menus={publicMenus} />
+      ) : null}
+
+      {activeTab === "agenda" ? (
+        <PublicSupplierAgendaTab supplierId={supplier.id} />
       ) : null}
 
       {activeTab === "main" && supplier.description?.trim() ? (
