@@ -7,6 +7,14 @@ export type MenuOrderStatus =
   | "cancelled";
 
 export type MenuOrderFulfillmentType = "pickup" | "delivery";
+export type MenuOrderPaymentMethod = "cash" | "mercadopago";
+export type MenuOrderPaymentStatus =
+  | "pending"
+  | "paid"
+  | "failed"
+  | "review"
+  | "refunded"
+  | "cancelled";
 
 export interface MenuOrderSettings {
   menu_id: number;
@@ -15,6 +23,10 @@ export interface MenuOrderSettings {
   allows_pickup: boolean;
   allows_delivery: boolean;
   allow_guest_orders: boolean;
+  allows_cash: boolean;
+  allows_online_payment: boolean;
+  mercadopago_linked: boolean;
+  online_payment_available: boolean;
 }
 
 export interface MenuOrderSettingsUpdate {
@@ -22,6 +34,8 @@ export interface MenuOrderSettingsUpdate {
   allows_pickup: boolean;
   allows_delivery: boolean;
   allow_guest_orders: boolean;
+  allows_cash: boolean;
+  allows_online_payment: boolean;
 }
 
 export interface MenuOrderItemCreate {
@@ -37,6 +51,7 @@ export interface MenuOrderCreatePayload {
   customer_email: string;
   customer_phone: string;
   fulfillment_type: MenuOrderFulfillmentType;
+  payment_method: MenuOrderPaymentMethod;
   delivery_address?: string | null;
   notes?: string | null;
   client_request_id?: string | null;
@@ -70,6 +85,12 @@ export interface MenuOrder {
   delivery_address: string | null;
   notes: string | null;
   status: MenuOrderStatus;
+  payment_method: MenuOrderPaymentMethod;
+  payment_status: MenuOrderPaymentStatus;
+  mp_preference_id: string | null;
+  mp_payment_id: string | null;
+  payment_checkout_url: string | null;
+  paid_at: string | null;
   subtotal: number;
   delivery_fee: number;
   total: number;
