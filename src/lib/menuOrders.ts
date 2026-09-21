@@ -1,6 +1,8 @@
 import type {
   MenuOrder,
   MenuOrderFulfillmentType,
+  MenuOrderPaymentMethod,
+  MenuOrderPaymentStatus,
   MenuOrderStatus,
 } from "@/types/menuOrder";
 
@@ -87,4 +89,23 @@ export function nextPrimaryStatusLabel(status: MenuOrderStatus) {
 export function orderProgressIndex(order: MenuOrder) {
   if (order.status === "cancelled") return -1;
   return MENU_ORDER_STATUS_FLOW.indexOf(order.status);
+}
+
+export function menuOrderPaymentMethodLabel(
+  method: MenuOrderPaymentMethod,
+) {
+  return method === "mercadopago"
+    ? "Pago en línea"
+    : "Efectivo";
+}
+
+export function menuOrderPaymentStatusLabel(
+  status: MenuOrderPaymentStatus,
+) {
+  if (status === "paid") return "Pagado";
+  if (status === "failed") return "Pago rechazado";
+  if (status === "review") return "Pago en revisión";
+  if (status === "refunded") return "Reembolsado";
+  if (status === "cancelled") return "Cancelado";
+  return "Pendiente";
 }
