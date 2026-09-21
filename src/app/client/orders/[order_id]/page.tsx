@@ -45,12 +45,12 @@ function normalizeStatusKey(value: string) {
   const v = ascii.toLowerCase().trim().replace(/\s+/g, "_");
 
   if (v === "pending" || v === "pendiente") return "pending";
+  if (v === "authorized" || v === "autorizado" || v === "authorization_pending") return "authorized";
   if (
     v === "paid" ||
     v === "pagado" ||
     v === "approved" ||
     v === "aprobado" ||
-    v === "authorized" ||
     v === "accredited" ||
     v === "pago_verificado" ||
     v === "validado" ||
@@ -126,6 +126,7 @@ function toSpanishStatusLabel(value: string) {
   const map: Record<string, string> = {
     created: "Creado",
     pending: "Pendiente",
+    authorized: "Pago autorizado",
     paid: "Pago recibido",
     preparing: "En preparación",
     in_transit: "En camino",
@@ -211,13 +212,13 @@ type ProgressStep = { key: string; label: string; Icon: typeof Check };
 function getSteps(mode: DeliveryTypeKey): ProgressStep[] {
   return mode === "shipping"
     ? [
-        { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
+        { key: "paid", label: "Pago confirmado", Icon: BadgeCheck },
         { key: "preparing", label: "En preparación", Icon: FileText },
         { key: "in_transit", label: "En camino", Icon: Truck },
         { key: "delivered", label: "Entregado", Icon: PackageCheck },
       ]
     : [
-        { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
+        { key: "paid", label: "Pago confirmado", Icon: BadgeCheck },
         { key: "preparing", label: "En preparación", Icon: FileText },
         { key: "ready_for_pickup", label: "Listo para recoger", Icon: Store },
         { key: "picked", label: "Entregado", Icon: PackageCheck },
@@ -234,13 +235,13 @@ function getProgressRank(mode: DeliveryTypeKey, statusKey: string) {
   if (mode === "shipping") {
     if (k === "in_transit" || k === "shipped" || k === "en_route_to_pickup" || k === "picked_up") return 3;
     if (k === "preparing") return 2;
-    if (k === "paid" || k === "created" || k === "pending") return 1;
+    if (k === "paid" || k === "authorized" || k === "created" || k === "pending") return 1;
     return 1;
   }
 
   if (k === "ready_for_pickup" || k === "shipped" || k === "en_route_to_pickup" || k === "picked_up") return 3;
   if (k === "preparing") return 2;
-  if (k === "paid" || k === "created" || k === "pending") return 1;
+  if (k === "paid" || k === "authorized" || k === "created" || k === "pending") return 1;
   return 1;
 }
 
@@ -442,8 +443,14 @@ export default function ClientOrderDetailPage() {
   const cancelled = normalizeStatusKey(effectiveKey) === "cancelled" || isExpired;
   const rank = getProgressRank(mode, effectiveKey);
   const activeRefund = useMemo(() => pickLatestRefund(refunds), [refunds]);
-  const deliveryCodeStage = mode === "shipping" && !cancelled && isDeliveryCodeStage(effectiveKey);
-  const showDeliveryCodeCard = Boolean(order && !isExpired && deliveryCodeStage);
+  const deliveryCodeStage = !cancelled && isDeliveryCodeStage(effectiveKey);
+  const backendPaymentKey = normalizeStatusKey(String(order?.payment_status || ""));
+  const paymentReadyForDeliveryCode = backendPaymentKey === "authorized" || backendPaymentKey === "paid";
+  const deliveryAlreadyCompleted =
+    normalizeStatusKey(effectiveKey) === "completed" || normalizeStatusKey(effectiveKey) === "verified";
+  const showDeliveryCodeCard = Boolean(
+    order && !isExpired && !cancelled && paymentReadyForDeliveryCode && !deliveryAlreadyCompleted
+  );
 
   const address = useMemo(() => {
     if (!order) return "";
@@ -594,9 +601,9 @@ export default function ClientOrderDetailPage() {
                   <div>
                     <div className="font-bold font-[family-name:var(--font-varela-round)]">
                       {mercadoPagoReturnStatus === "success"
-                        ? "Mercado Pago reportó un pago exitoso"
+                        ? "Mercado Pago recibió la autorización"
                         : mercadoPagoReturnStatus === "pending"
-                          ? "Mercado Pago reportó un pago pendiente"
+                          ? "Mercado Pago reportó una autorización pendiente"
                           : "Mercado Pago reportó un pago rechazado"}
                     </div>
                     <p className="mt-1 text-sm leading-relaxed">
@@ -713,7 +720,7 @@ export default function ClientOrderDetailPage() {
                                 </div>
                               ) : (
                                 <div className="text-sm font-semibold text-gray-500">
-                                  {deliveryCodeError || "El código estará disponible cuando el repartidor esté en camino."}
+                                  {deliveryCodeError || "El código estará disponible cuando el pago quede autorizado."}
                                 </div>
                               )}
                             </div>
