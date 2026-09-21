@@ -27,6 +27,7 @@ import { DirectoryRatingsSection } from "@/components/supplier/DirectoryRatingsS
 import { DirectoryContactButton } from "@/components/supplier/DirectoryContactButton";
 import { DirectoryTopNav } from "@/components/supplier/DirectoryTopNav";
 import { DirectoryGallerySection } from "@/components/supplier/DirectoryGallerySection";
+import { SupplierModuleNavigation } from "@/components/supplier/SupplierModuleNavigation";
 import { AgendaBookingButton } from "@/components/agenda/AgendaBookingButton";
 import { PublicSupplierMenu } from "@/components/supplier/menu/PublicSupplierMenu";
 import { menuService } from "@/services/menuService";
@@ -1238,37 +1239,14 @@ const contactHref = supplier?.phone
          ) : null}
       </section>
 
-      {/* --- TABS NAVIGATION (solo tienda; directorio usa DirectoryTopNav propio) --- */}
-      {!isDirectory || publicMenus.length > 0 ? (
-       <div ref={tabsRef} className="sticky top-[0px] md:top-[0px] z-40 bg-white border-b border-gray-100 shadow-sm backdrop-blur-md bg-white/90">
-        <div className="container mx-auto px-4 md:px-8">
-           <div className="flex gap-8 overflow-x-auto no-scrollbar">
-              <button
-                onClick={() => setActiveTab('main')}
-                className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'main' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
-              >
-                Página Principal
-              </button>
-              {publicMenus.length > 0 ? (
-              <button
-                onClick={() => setActiveTab('menu')}
-                className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'menu' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
-              >
-                Menú
-              </button>
-              ) : null}
-              {!isDirectory ? (
-              <button
-                onClick={() => setActiveTab('products')}
-                className={`py-4 px-2 border-b-2 font-bold transition-colors whitespace-nowrap ${activeTab === 'products' ? 'border-[#168e00] text-[#004e28]' : 'border-transparent text-gray-500 hover:text-[#004e28]'}`}
-              >
-                Productos
-              </button>
-              ) : null}
-           </div>
-        </div>
-      </div>
-      ) : null}
+      <SupplierModuleNavigation
+        supplierId={supplier.id}
+        menus={publicMenus}
+        isDirectory={isDirectory}
+        activeTab={activeTab}
+        onChangeTab={setActiveTab}
+        tabsRef={tabsRef}
+      />
 
       {activeTab === "menu" && publicMenus.length > 0 ? (
         <PublicSupplierMenu menus={publicMenus} />
@@ -1306,7 +1284,7 @@ const contactHref = supplier?.phone
         </section>
       ) : null}
 
-      {isDirectory && activeTab === "main" ? (
+      {isDirectory && activeTab === "main" && (servicesLoading || services.length > 0) ? (
         <section
           id="servicios"
           className="relative scroll-mt-20 overflow-hidden bg-[#f2f3f4] py-20"
