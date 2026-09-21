@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
       "base-uri 'self'",
       "object-src 'none'",
       "frame-ancestors 'self'",
-      "img-src 'self' data: blob: https://drooopy.com https://www.drooopy.com https://drooopy-storage.s3.us-east-1.amazonaws.com",
+      "img-src 'self' data: blob: https://drooopy.com https://www.drooopy.com https://drooopy-storage.s3.us-east-1.amazonaws.com https://tile.openstreetmap.org",
       "font-src 'self' data: https://fonts.gstatic.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://www.googletagmanager.com",
