@@ -137,6 +137,10 @@ function defaultPublicSettings(menuId: number): MenuOrderSettings {
     allows_pickup: true,
     allows_delivery: false,
     allow_guest_orders: true,
+    allows_cash: true,
+    allows_online_payment: false,
+    mercadopago_linked: false,
+    online_payment_available: false,
   };
 }
 
@@ -186,6 +190,10 @@ export const menuOrderService = {
       allows_pickup: settings.allows_pickup !== false,
       allows_delivery: settings.allows_delivery === true,
       allow_guest_orders: settings.allow_guest_orders !== false,
+      allows_cash: settings.allows_cash !== false,
+      allows_online_payment: settings.allows_online_payment === true,
+      mercadopago_linked: settings.mercadopago_linked === true,
+      online_payment_available: settings.online_payment_available === true,
     };
   },
 
