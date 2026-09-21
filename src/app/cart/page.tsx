@@ -48,6 +48,37 @@ type ToastState = null | { type: "success" | "error" | "info"; message: string }
 
 type DeliveryType = "pickup" | "shipping";
 
+type CardAuthorizationCheckout = {
+  supplierId: number;
+  payload: Record<string, unknown>;
+  amount: number;
+};
+
+type MercadoPagoCardFormData = {
+  token?: string;
+  paymentMethodId?: string;
+  issuerId?: string;
+  installments?: string | number;
+  cardholderEmail?: string;
+  identificationType?: string;
+  identificationNumber?: string;
+};
+
+type MercadoPagoCardFormController = {
+  getCardFormData: () => MercadoPagoCardFormData;
+  unmount?: () => void;
+};
+
+type MercadoPagoInstance = {
+  cardForm: (options: Record<string, unknown>) => MercadoPagoCardFormController;
+};
+
+declare global {
+  interface Window {
+    MercadoPago?: new (publicKey: string, options?: { locale?: string }) => MercadoPagoInstance;
+  }
+}
+
 type AddressForm = {
   address: string;
   exterior_number: string;
@@ -119,6 +150,36 @@ async function tryFetch(urls: string[], options?: AuthFetchOptions) {
     break;
   }
   return res;
+}
+
+let mercadoPagoSdkPromise: Promise<void> | null = null;
+
+function loadMercadoPagoSdk() {
+  if (typeof window === "undefined") return Promise.reject(new Error("Mercado Pago solo está disponible en el navegador."));
+  if (window.MercadoPago) return Promise.resolve();
+  if (mercadoPagoSdkPromise) return mercadoPagoSdkPromise;
+
+  mercadoPagoSdkPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-drooopy-mercadopago="true"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("No se pudo cargar Mercado Pago.")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://sdk.mercadopago.com/js/v2";
+    script.async = true;
+    script.dataset.drooopyMercadopago = "true";
+    script.onload = () => resolve();
+    script.onerror = () => {
+      mercadoPagoSdkPromise = null;
+      reject(new Error("No se pudo cargar el formulario seguro de Mercado Pago."));
+    };
+    document.head.appendChild(script);
+  });
+
+  return mercadoPagoSdkPromise;
 }
 
 function parseSupplierCarts(data: unknown): SupplierCart[] {
@@ -294,6 +355,11 @@ export default function CartPage() {
   const [addressLocked, setAddressLocked] = useState(false);
   const lastSavedAddressHashRef = useRef("");
   const [paymentModal, setPaymentModal] = useState<null | { init_point: string; order_id: number | null }>(null);
+  const [cardCheckout, setCardCheckout] = useState<CardAuthorizationCheckout | null>(null);
+  const [cardFormReady, setCardFormReady] = useState(false);
+  const [cardFormError, setCardFormError] = useState<string | null>(null);
+  const [cardSubmitting, setCardSubmitting] = useState(false);
+  const mpCardFormRef = useRef<MercadoPagoCardFormController | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [addressModalSaving, setAddressModalSaving] = useState(false);
 
@@ -812,10 +878,21 @@ export default function CartPage() {
     const selectedDeliveryType = deliveryOverride ?? deliveryType;
     const selectedSupplier = carts.find((c) => c.supplier_id === supplierId) || null;
     const requiresShippingQuote =
-      selectedDeliveryType === "shipping" && Boolean(selectedSupplier?.accepts_delivery) && selectedSupplier?.accepts_courier !== false;
+      selectedDeliveryType === "shipping" &&
+      Boolean(selectedSupplier?.accepts_delivery) &&
+      selectedSupplier?.accepts_courier !== false;
+
     setMutating(true);
     try {
-      if (selectedSupplier?.supplier_user_id && meUserId && Number(selectedSupplier.supplier_user_id) === Number(meUserId)) {
+      if (!selectedSupplier) {
+        setToast({ type: "error", message: "No se encontró la tienda seleccionada." });
+        return;
+      }
+      if (
+        selectedSupplier.supplier_user_id &&
+        meUserId &&
+        Number(selectedSupplier.supplier_user_id) === Number(meUserId)
+      ) {
         setToast({ type: "error", message: "No puedes comprar productos de tu propia cuenta." });
         return;
       }
@@ -829,34 +906,99 @@ export default function CartPage() {
           return;
         }
       }
+
       const saved = await saveAddress();
       if (!saved) return;
-      const items = (selectedSupplier?.items || [])
-        .map((it) => ({ product_id: String(it.product_id || "").trim(), quantity: Number(it.quantity) || 0 }))
+
+      const items = selectedSupplier.items
+        .map((it) => ({
+          product_id: String(it.product_id || "").trim(),
+          quantity: Number(it.quantity) || 0,
+        }))
         .filter((it) => it.product_id && it.quantity > 0);
+
       if (!items.length) {
         setToast({ type: "error", message: "No hay productos válidos para iniciar el checkout." });
         return;
       }
+
+      const subtotal = selectedSupplier.items.reduce((sum, item) => {
+        const raw = item.product?.price ?? 0;
+        const price =
+          typeof raw === "number"
+            ? raw
+            : Number(String(raw).replace(/[^\d.-]/g, "")) || 0;
+        return sum + price * (Number(item.quantity) || 0);
+      }, 0);
+      const totalAmount =
+        subtotal + (requiresShippingQuote && shippingCost != null ? shippingCost : 0);
+
+      if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+        setToast({ type: "error", message: "El total de la compra no es válido." });
+        return;
+      }
+
       const payload: Record<string, unknown> = {
         items,
         delivery_type: selectedDeliveryType,
         payment_method: "card",
         distance_km: 0,
-        courier_user_id: 0,
       };
       if (requiresShippingQuote && Number.isFinite(distanceKm || 0)) {
         payload.distance_km = distanceKm;
       }
+
+      setCardFormError(null);
+      setCardFormReady(false);
+      setCardCheckout({
+        supplierId,
+        payload,
+        amount: totalAmount,
+      });
+    } catch {
+      setToast({ type: "error", message: "Error de conexión al preparar el pago." });
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const submitCardAuthorization = async (cardData: MercadoPagoCardFormData) => {
+    if (!cardCheckout || cardSubmitting) return;
+
+    const token = String(cardData.token || "").trim();
+    const paymentMethodId = String(cardData.paymentMethodId || "").trim();
+    const issuerId = String(cardData.issuerId || "").trim();
+
+    if (!token || !paymentMethodId) {
+      setCardFormError("Mercado Pago no pudo tokenizar la tarjeta. Revisa los datos e inténtalo de nuevo.");
+      return;
+    }
+
+    setCardSubmitting(true);
+    setCardFormError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        ...cardCheckout.payload,
+        card_token: token,
+        payment_method_id: paymentMethodId,
+        installments: 1,
+      };
+      if (issuerId) payload.issuer_id = issuerId;
+
       const res = await tryFetch(
         [
-          `/api/orders/checkout`,
-          `/api/orders/checkout/`,
+          "/api/orders/checkout/card/authorize",
+          "/api/orders/checkout/card/authorize/",
         ],
-        { method: "POST", body: JSON.stringify(payload), headers: { Accept: "application/json" } },
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+          headers: { Accept: "application/json" },
+        },
       );
+
       if (!res || !res.ok) {
-        const raw = await res?.text().catch(() => "");
+        const raw = await res?.text().catch(() => "") ?? "";
         let record: Record<string, unknown> = {};
         if (raw) {
           try {
@@ -864,62 +1006,178 @@ export default function CartPage() {
             if (parsed && typeof parsed === "object") record = parsed as Record<string, unknown>;
           } catch {}
         }
-        const rawText = raw ? raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() : "";
+        const rawText = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
         const msg =
           getSpanishErrorMessage(record, "") ||
-          (rawText ? rawText.slice(0, 180) : "") ||
-          `No se pudo iniciar el checkout (HTTP ${res?.status ?? "?"}).`;
-        setToast({ type: "error", message: translateStockErrorMessage(msg) });
+          (rawText ? rawText.slice(0, 220) : "") ||
+          `No se pudo autorizar la tarjeta (HTTP ${res?.status ?? "?"}).`;
+        setCardFormError(translateStockErrorMessage(msg));
         return;
       }
+
       const data: unknown = await res.json().catch(() => ({}));
       const record = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
-      const orderObj = record.order && typeof record.order === "object" ? (record.order as Record<string, unknown>) : null;
-      const nestedId = orderObj ? orderObj.id : null;
-      const orderId = Number(record.order_id ?? record.id ?? record.orderId ?? nestedId ?? 0);
-      try {
-        if (orderId) {
-          const key = `drooopy:checkout:${orderId}`;
-          sessionStorage.setItem(key, JSON.stringify(data));
-        }
-      } catch {}
-      const initPoint = extractInitPoint(data);
-      const safeInitPoint = getSafeMercadoPagoUrl(initPoint);
-      if (safeInitPoint) {
-        isRedirectingRef.current = true;
-        setCheckoutSupplierId(null);
-        window.dispatchEvent(new CustomEvent("cart:changed"));
-        window.location.href = safeInitPoint;
+      const orderId = Number(record.order_id ?? record.orderId ?? 0);
+      const paymentStatus = String(record.payment_status || "").trim().toLowerCase();
+
+      if (!orderId) {
+        const detail =
+          typeof record.status_detail === "string" && record.status_detail.trim()
+            ? ` (${record.status_detail.trim()})`
+            : "";
+        setCardFormError(
+          paymentStatus === "pending"
+            ? `La autorización quedó pendiente en Mercado Pago${detail}. No se creó la orden todavía.`
+            : "Mercado Pago respondió, pero no se recibió la orden autorizada.",
+        );
         return;
       }
 
-      if (orderId) {
-        const orderRes = await tryFetch(
-          [`/api/orders/${orderId}`, `/api/orders/${orderId}/`],
-          { headers: { Accept: "application/json" } },
-        );
-        if (orderRes && orderRes.ok) {
-          const orderData: unknown = await orderRes.json().catch(() => null);
-          const fetchedInitPoint = extractInitPoint(orderData);
-          const safeFetchedInitPoint = getSafeMercadoPagoUrl(fetchedInitPoint);
-          if (safeFetchedInitPoint) {
-            isRedirectingRef.current = true;
-            setCheckoutSupplierId(null);
-            window.dispatchEvent(new CustomEvent("cart:changed"));
-            window.location.href = safeFetchedInitPoint;
-            return;
-          }
-        }
+      if (paymentStatus !== "authorized" && paymentStatus !== "paid") {
+        setCardFormError("La tarjeta no quedó autorizada. Revisa el estado del pago e inténtalo nuevamente.");
+        return;
       }
 
+      try {
+        sessionStorage.setItem(
+          `drooopy:checkout:${orderId}`,
+          JSON.stringify(data),
+        );
+      } catch {}
+
+      setToast({
+        type: "success",
+        message:
+          paymentStatus === "authorized"
+            ? "Tarjeta autorizada. El cobro se realizará cuando se confirme la entrega."
+            : "Pago confirmado.",
+      });
+      setCardCheckout(null);
+      setCheckoutSupplierId(null);
       window.dispatchEvent(new CustomEvent("cart:changed"));
-      setToast({ type: "error", message: "No se recibió el link de pago (init_point) para Mercado Pago." });
+      isRedirectingRef.current = true;
+      window.location.href = `/client/orders/${orderId}?focus=delivery-code`;
     } catch {
-      setToast({ type: "error", message: "Error de conexión al iniciar el checkout." });
+      setCardFormError("Error de conexión al autorizar la tarjeta.");
     } finally {
-      setMutating(false);
+      if (!isRedirectingRef.current) setCardSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (!cardCheckout) {
+      mpCardFormRef.current?.unmount?.();
+      mpCardFormRef.current = null;
+      setCardFormReady(false);
+      return;
+    }
+
+    let disposed = false;
+    let localController: MercadoPagoCardFormController | null = null;
+
+    const mountCardForm = async () => {
+      const publicKey = String(process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY || "").trim();
+      if (!publicKey) {
+        setCardFormError(
+          "Falta configurar NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY para mostrar el formulario seguro de Mercado Pago.",
+        );
+        return;
+      }
+
+      try {
+        await loadMercadoPagoSdk();
+        if (disposed) return;
+
+        const MercadoPagoConstructor = window.MercadoPago;
+        if (!MercadoPagoConstructor) {
+          throw new Error("Mercado Pago no quedó disponible en el navegador.");
+        }
+
+        const mp = new MercadoPagoConstructor(publicKey, { locale: "es-MX" });
+        let controller: MercadoPagoCardFormController | null = null;
+
+        controller = mp.cardForm({
+          amount: cardCheckout.amount.toFixed(2),
+          iframe: true,
+          form: {
+            id: "form-checkout",
+            cardNumber: {
+              id: "form-checkout__cardNumber",
+              placeholder: "Número de tarjeta",
+            },
+            expirationDate: {
+              id: "form-checkout__expirationDate",
+              placeholder: "MM/AA",
+            },
+            securityCode: {
+              id: "form-checkout__securityCode",
+              placeholder: "CVV",
+            },
+            cardholderName: {
+              id: "form-checkout__cardholderName",
+              placeholder: "Nombre como aparece en la tarjeta",
+            },
+            issuer: {
+              id: "form-checkout__issuer",
+              placeholder: "Banco emisor",
+            },
+            installments: {
+              id: "form-checkout__installments",
+              placeholder: "1 pago",
+            },
+            identificationType: {
+              id: "form-checkout__identificationType",
+              placeholder: "Tipo de identificación",
+            },
+            identificationNumber: {
+              id: "form-checkout__identificationNumber",
+              placeholder: "Número de identificación",
+            },
+            cardholderEmail: {
+              id: "form-checkout__cardholderEmail",
+              placeholder: "Correo electrónico",
+            },
+          },
+          callbacks: {
+            onFormMounted: (error: unknown) => {
+              if (disposed) return;
+              if (error) {
+                setCardFormError("No se pudo iniciar el formulario seguro de Mercado Pago.");
+                return;
+              }
+              setCardFormReady(true);
+            },
+            onSubmit: (event: Event) => {
+              event.preventDefault();
+              const data = controller?.getCardFormData();
+              if (data) void submitCardAuthorization(data);
+            },
+            onFetching: () => undefined,
+          },
+        });
+
+        localController = controller;
+        mpCardFormRef.current = controller;
+      } catch (error) {
+        if (!disposed) {
+          setCardFormError(
+            error instanceof Error ? error.message : "No se pudo cargar Mercado Pago.",
+          );
+        }
+      }
+    };
+
+    void mountCardForm();
+
+    return () => {
+      disposed = true;
+      localController?.unmount?.();
+      if (mpCardFormRef.current === localController) {
+        mpCardFormRef.current = null;
+      }
+    };
+  }, [cardCheckout]);
+
 
   const isEmpty = !loading && carts.length === 0;
 
@@ -1121,8 +1379,11 @@ export default function CartPage() {
                         <p className="text-sm font-semibold text-gray-800 mb-2">Método de pago</p>
                         <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800">
                           <ShieldCheck className="w-4 h-4 text-primary" />
-                          Pago con tarjeta
+                          Pago seguro con tarjeta
                         </div>
+                        <p className="mt-2 text-xs leading-relaxed text-gray-500">
+                          La tarjeta se autoriza ahora. El cobro se captura únicamente cuando el proveedor o repartidor valida tu código de entrega.
+                        </p>
                       </div>
                     </div>
 
@@ -1442,6 +1703,158 @@ export default function CartPage() {
                 >
                   {addressModalSaving || savingAddress ? "Guardando..." : "Guardar"}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {cardCheckout ? (
+        <div className="fixed inset-0 z-[95]">
+          <div
+            className="absolute inset-0 bg-black/55"
+            onClick={() => {
+              if (!cardSubmitting) setCardCheckout(null);
+            }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl max-h-[92vh] overflow-auto rounded-2xl border border-gray-200 bg-white shadow-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-gray-100 bg-white px-5 py-4">
+                <div>
+                  <p className="text-xs font-semibold text-gray-500">Pago seguro</p>
+                  <p className="font-bold text-gray-900">Autorizar tarjeta con Mercado Pago</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={cardSubmitting}
+                  onClick={() => setCardCheckout(null)}
+                  className="rounded-lg p-2 text-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50"
+                  aria-label="Cerrar"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-5">
+                <div className="mb-5 rounded-xl border border-[#004e28]/15 bg-[#f2f3f4] px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500">Total a autorizar</p>
+                      <p className="mt-1 text-xl font-black text-[#004e28]">{money(cardCheckout.amount)}</p>
+                    </div>
+                    <ShieldCheck className="h-6 w-6 text-[#004e28]" />
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed text-gray-600">
+                    Esta operación autoriza el monto en tu tarjeta. Drooopy solicitará la captura cuando entreguen tu pedido y se valide tu código de 6 dígitos.
+                  </p>
+                </div>
+
+                <form id="form-checkout" className="space-y-4">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-gray-600">Número de tarjeta</label>
+                    <div
+                      id="form-checkout__cardNumber"
+                      className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-gray-600">Vencimiento</label>
+                      <div
+                        id="form-checkout__expirationDate"
+                        className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-gray-600">Código de seguridad</label>
+                      <div
+                        id="form-checkout__securityCode"
+                        className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="form-checkout__cardholderName" className="mb-1.5 block text-xs font-semibold text-gray-600">
+                      Titular de la tarjeta
+                    </label>
+                    <input
+                      id="form-checkout__cardholderName"
+                      type="text"
+                      className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#004e28]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="form-checkout__issuer" className="mb-1.5 block text-xs font-semibold text-gray-600">
+                        Banco emisor
+                      </label>
+                      <select
+                        id="form-checkout__issuer"
+                        className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#004e28]"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="form-checkout__installments" className="mb-1.5 block text-xs font-semibold text-gray-600">
+                        Pago
+                      </label>
+                      <select
+                        id="form-checkout__installments"
+                        className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#004e28]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                      <label htmlFor="form-checkout__identificationType" className="mb-1.5 block text-xs font-semibold text-gray-600">
+                        Identificación
+                      </label>
+                      <select
+                        id="form-checkout__identificationType"
+                        className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#004e28]"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label htmlFor="form-checkout__identificationNumber" className="mb-1.5 block text-xs font-semibold text-gray-600">
+                        Número
+                      </label>
+                      <input
+                        id="form-checkout__identificationNumber"
+                        type="text"
+                        className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#004e28]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="form-checkout__cardholderEmail" className="mb-1.5 block text-xs font-semibold text-gray-600">
+                      Correo del titular
+                    </label>
+                    <input
+                      id="form-checkout__cardholderEmail"
+                      type="email"
+                      className="h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-[#004e28]"
+                    />
+                  </div>
+
+                  {cardFormError ? (
+                    <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                      {cardFormError}
+                    </div>
+                  ) : null}
+
+                  <button
+                    type="submit"
+                    disabled={!cardFormReady || cardSubmitting || Boolean(cardFormError && !cardFormReady)}
+                    className="inline-flex w-full items-center justify-center rounded-xl bg-[#168e00] px-5 py-3 text-sm font-bold text-white hover:bg-[#137500] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    {cardSubmitting ? "Autorizando..." : cardFormReady ? "Autorizar compra" : "Cargando Mercado Pago..."}
+                  </button>
+                </form>
               </div>
             </div>
           </div>
