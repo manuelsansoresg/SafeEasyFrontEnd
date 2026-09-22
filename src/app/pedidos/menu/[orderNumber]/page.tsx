@@ -143,24 +143,28 @@ export default function PublicMenuOrderTrackingPage() {
 
   if (loading && !order) {
     return (
-      <div className="mx-auto flex min-h-[55vh] max-w-4xl items-center justify-center px-4 py-10">
-        <Loader2 size={34} className="animate-spin text-[#168e00]" />
+      <div className="min-h-screen bg-[#f7f9f8] px-4 pb-20 pt-28 md:pt-32">
+        <div className="mx-auto flex min-h-[55vh] max-w-4xl items-center justify-center">
+          <Loader2 size={34} className="animate-spin text-[#168e00]" />
+        </div>
       </div>
     );
   }
 
   if (error || !order) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
-        <div className="rounded-3xl border border-red-100 bg-white p-7 text-center shadow-sm">
-          <XCircle size={34} className="mx-auto text-red-500" />
-          <h1 className="mt-3 text-xl font-black text-gray-900">No pudimos mostrar el pedido</h1>
-          <p className="mt-2 text-sm leading-6 text-gray-600">{error || "Pedido no encontrado."}</p>
-          {isAuthenticated ? (
-            <Link href="/client/menu-orders" className="mt-5 inline-flex rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-bold text-white">
-              Ver mis pedidos
-            </Link>
-          ) : null}
+      <div className="min-h-screen bg-[#f7f9f8] px-4 pb-20 pt-28 md:pt-32">
+        <div className="mx-auto max-w-3xl">
+          <div className="rounded-3xl border border-red-100 bg-white p-7 text-center shadow-sm">
+            <XCircle size={34} className="mx-auto text-red-500" />
+            <h1 className="mt-3 text-xl font-black text-gray-900">No pudimos mostrar el pedido</h1>
+            <p className="mt-2 text-sm leading-6 text-gray-600">{error || "Pedido no encontrado."}</p>
+            {isAuthenticated ? (
+              <Link href="/client/menu-orders" className="mt-5 inline-flex rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-bold text-white">
+                Ver mis pedidos
+              </Link>
+            ) : null}
+          </div>
         </div>
       </div>
     );
@@ -170,10 +174,11 @@ export default function PublicMenuOrderTrackingPage() {
   const safeCheckout = getSafeMercadoPagoUrl(order.payment_checkout_url);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 md:px-6">
-      {paymentReturn ? (
+    <div className="min-h-screen bg-[#f7f9f8] pb-24 pt-28 md:pt-32">
+      <div className="mx-auto max-w-6xl space-y-7 px-4 sm:px-6 lg:px-8">
+        {paymentReturn ? (
         <div
-          className={`rounded-2xl border p-4 text-sm ${
+          className={`rounded-2xl border p-4 text-sm shadow-sm ${
             paymentReturn === "success"
               ? "border-[#168e00]/30 bg-[#168e00]/5 text-[#004e28]"
               : paymentReturn === "pending"
@@ -189,15 +194,15 @@ export default function PublicMenuOrderTrackingPage() {
               ? "El pago sigue pendiente de confirmación. Esta pantalla se actualizará automáticamente."
               : "El pago no se completó. Puedes volver a intentarlo si la liga sigue disponible."}
         </div>
-      ) : null}
+        ) : null}
 
-      <section className="overflow-hidden rounded-3xl border border-[#004e28]/10 bg-white shadow-sm">
-        <div className="bg-[#004e28] p-6 text-white sm:p-7">
+        <section className="overflow-hidden rounded-3xl border border-[#004e28]/10 bg-white shadow-[0_18px_50px_-32px_rgba(0,78,40,0.5)]">
+        <div className="bg-[#004e28] px-5 py-7 text-white sm:px-8 sm:py-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/70">Pedido de menú</p>
-              <h1 className="mt-1 font-[family-name:var(--font-varela-round)] text-2xl font-black">{order.order_number}</h1>
-              <p className="mt-1 text-sm text-white/75">{order.menu_name} · {productCount} productos</p>
+              <h1 className="mt-2 break-words font-[family-name:var(--font-varela-round)] text-2xl font-black leading-tight sm:text-3xl">{order.order_number}</h1>
+              <p className="mt-2 text-sm text-white/75">{order.menu_name} · {productCount} productos</p>
             </div>
             <div className="flex items-center gap-2">
               <span className={`rounded-full border px-3 py-1.5 text-sm font-bold ${MENU_ORDER_STATUS_CLASSES[order.status]}`}>
@@ -216,22 +221,44 @@ export default function PublicMenuOrderTrackingPage() {
           </div>
         </div>
 
-        <div className="p-5 sm:p-7">
+        <div className="p-5 sm:p-8">
           {order.status !== "cancelled" ? (
-            <div className="grid gap-2 sm:grid-cols-5">
-              {MENU_ORDER_STATUS_FLOW.map((status, index) => {
-                const complete = index <= progress;
-                return (
-                  <div key={status} className={`rounded-2xl border p-3 ${complete ? "border-[#168e00]/20 bg-[#168e00]/5" : "border-gray-100 bg-gray-50"}`}>
-                    <span className={`flex h-7 w-7 items-center justify-center rounded-full ${complete ? "bg-[#168e00] text-white" : "bg-gray-200 text-gray-500"}`}>
-                      {complete ? <CheckCircle2 size={16} /> : index + 1}
-                    </span>
-                    <p className={`mt-2 text-xs font-bold ${complete ? "text-[#004e28]" : "text-gray-400"}`}>
-                      {MENU_ORDER_STATUS_LABELS[status]}
-                    </p>
-                  </div>
-                );
-              })}
+            <div>
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-[family-name:var(--font-varela-round)] text-base font-bold text-[#004e28]">Progreso del pedido</p>
+                  <p className="mt-0.5 text-xs text-gray-500">Te mostraremos cada avance en esta misma pantalla.</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-[#f2f3f4] px-3 py-1 text-xs font-bold text-[#004e28]">
+                  Paso {Math.max(progress + 1, 1)} de {MENU_ORDER_STATUS_FLOW.length}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                {MENU_ORDER_STATUS_FLOW.map((status, index) => {
+                  const complete = index <= progress;
+                  const current = index === progress;
+                  return (
+                    <div
+                      key={status}
+                      className={`relative min-h-28 rounded-2xl border p-4 transition-colors ${
+                        current
+                          ? "border-[#168e00]/35 bg-[#168e00]/10 shadow-sm"
+                          : complete
+                            ? "border-[#168e00]/20 bg-[#168e00]/5"
+                            : "border-gray-100 bg-gray-50"
+                      } ${index === MENU_ORDER_STATUS_FLOW.length - 1 ? "col-span-2 sm:col-span-1" : ""}`}
+                    >
+                      <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-black ${complete ? "bg-[#168e00] text-white" : "bg-gray-200 text-gray-500"}`}>
+                        {complete ? <CheckCircle2 size={17} /> : index + 1}
+                      </span>
+                      <p className={`mt-3 text-xs font-bold leading-5 ${complete ? "text-[#004e28]" : "text-gray-400"}`}>
+                        {MENU_ORDER_STATUS_LABELS[status]}
+                      </p>
+                      {current ? <span className="mt-1 block text-[10px] font-bold uppercase tracking-wide text-[#168e00]">Estado actual</span> : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
@@ -239,10 +266,10 @@ export default function PublicMenuOrderTrackingPage() {
             </div>
           )}
         </div>
-      </section>
+        </section>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-        <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-7">
           <h2 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[#004e28]">Productos</h2>
           <div className="mt-4 divide-y divide-gray-100">
             {order.items.map((item) => (
@@ -267,7 +294,7 @@ export default function PublicMenuOrderTrackingPage() {
           </div>
         </section>
 
-        <aside className="space-y-4">
+        <aside className="space-y-4 lg:sticky lg:top-32">
           <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
             <p className="text-xs font-black uppercase tracking-[0.14em] text-gray-400">Pago</p>
             <div className="mt-3 flex items-start gap-3">
@@ -304,6 +331,7 @@ export default function PublicMenuOrderTrackingPage() {
             <p className="mt-3 flex items-center gap-2 text-sm text-gray-600"><Clock3 size={16} className="text-[#168e00]" /> {formatMenuOrderDate(order.updated_at)}</p>
           </section>
         </aside>
+        </div>
       </div>
     </div>
   );
