@@ -4,18 +4,15 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
-  Bell,
+  ArrowLeft,
+  ArrowRight,
   CalendarClock,
   CalendarDays,
-  CalendarOff,
   Check,
   ChevronDown,
-  Clock3,
   Loader2,
   Pencil,
   Plus,
-  Save,
-  Settings2,
   Trash2,
 } from "lucide-react";
 import { PageHero } from "@/components/ui/PageHero";
@@ -188,11 +185,11 @@ export default function AdminAgendaPage() {
 
   const tabs = useMemo(
     () => [
-      { id: "general" as const, label: "General", icon: Settings2 },
-      { id: "hours" as const, label: "Horarios", icon: Clock3 },
-      { id: "services" as const, label: "Servicios", icon: CalendarClock },
-      { id: "exceptions" as const, label: "Excepciones", icon: CalendarOff },
-      { id: "notifications" as const, label: "Notificaciones", icon: Bell },
+      { id: "general" as const, label: "General" },
+      { id: "hours" as const, label: "Horarios" },
+      { id: "services" as const, label: "Servicios" },
+      { id: "exceptions" as const, label: "Excepciones" },
+      { id: "notifications" as const, label: "Notificaciones" },
     ],
     [],
   );
@@ -231,7 +228,7 @@ export default function AdminAgendaPage() {
   }
 
   const saveSettings = async (successMessage = "Configuración guardada.") => {
-    if (!settings) return;
+    if (!settings) return false;
 
     setSaving(true);
     try {
@@ -240,11 +237,13 @@ export default function AdminAgendaPage() {
       );
       setSettings(updated);
       setToast({ type: "success", message: successMessage });
+      return true;
     } catch (error) {
       setToast({
         type: "error",
         message: message(error, "No se pudo guardar."),
       });
+      return false;
     } finally {
       setSaving(false);
     }
@@ -262,7 +261,7 @@ export default function AdminAgendaPage() {
           message:
             "Revisa las horas: la hora final debe ser posterior a la inicial.",
         });
-        return;
+        return false;
       }
     }
 
@@ -277,11 +276,13 @@ export default function AdminAgendaPage() {
         })),
       );
       setToast({ type: "success", message: "Horarios guardados." });
+      return true;
     } catch (error) {
       setToast({
         type: "error",
         message: message(error, "No se pudieron guardar los horarios."),
       });
+      return false;
     } finally {
       setSaving(false);
     }
@@ -313,14 +314,49 @@ export default function AdminAgendaPage() {
       current.filter((_, itemIndex) => itemIndex !== index),
     );
 
+  const currentStepIndex = tabs.findIndex((tab) => tab.id === section);
+  const isLastStep = currentStepIndex === tabs.length - 1;
+  const isConfigured = Boolean(
+    settings?.is_active ||
+      schedules.length ||
+      services.length ||
+      exceptions.length,
+  );
+
+  const goBack = () => {
+    const previous = tabs[currentStepIndex - 1];
+    if (previous) setSection(previous.id);
+  };
+
+  const continueWizard = async () => {
+    let canContinue = true;
+
+    if (section === "general") {
+      canContinue = await saveSettings("Datos generales guardados.");
+    } else if (section === "hours") {
+      canContinue = await saveSchedules();
+    } else if (section === "notifications") {
+      canContinue = await saveSettings("Configuración de Agenda terminada.");
+    }
+
+    if (!canContinue || isLastStep) return;
+
+    const next = tabs[currentStepIndex + 1];
+    if (next) setSection(next.id);
+  };
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <PageHero
-            eyebrow="Módulo"
-            title="Agenda"
-            subtitle="Define tus horarios, servicios y fechas especiales."
+            eyebrow="Configuración guiada"
+            title={isConfigured ? "Edita tu agenda" : "Configura tu agenda"}
+            subtitle={
+              isConfigured
+                ? "Recorre los pasos y cambia sólo lo que necesites."
+                : "Sigue los pasos para preparar horarios, servicios y avisos."
+            }
           />
         </div>
 
@@ -333,22 +369,48 @@ export default function AdminAgendaPage() {
         </Link>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setSection(tab.id)}
-            className={
-              section === tab.id
-                ? "inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#004e28] px-4 py-2.5 font-semibold text-white"
-                : "inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-gray-500 hover:bg-gray-50 hover:text-[#004e28]"
-            }
-          >
-            <tab.icon size={18} />
-            {tab.label}
-          </button>
-        ))}
+      <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white p-3 shadow-sm">
+        <div className="flex min-w-[720px] items-center">
+          {tabs.map((tab, index) => {
+            const isCurrent = section === tab.id;
+            const isDone = index < currentStepIndex;
+
+            return (
+              <div key={tab.id} className="flex flex-1 items-center">
+                <div
+                  className="flex items-center gap-2 p-1"
+                  aria-current={isCurrent ? "step" : undefined}
+                >
+                  <span
+                    className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-black transition-colors ${
+                      isCurrent
+                        ? "bg-[#168e00] text-white"
+                        : isDone
+                          ? "bg-[#004e28] text-white"
+                          : "bg-gray-100 text-gray-400"
+                    }`}
+                  >
+                    {isDone ? <Check size={15} /> : index + 1}
+                  </span>
+                  <span
+                    className={`text-sm font-bold ${
+                      isCurrent ? "text-[#004e28]" : "text-gray-400"
+                    }`}
+                  >
+                    {tab.label}
+                  </span>
+                </div>
+                {index < tabs.length - 1 ? (
+                  <div
+                    className={`mx-3 h-px flex-1 ${
+                      index < currentStepIndex ? "bg-[#168e00]/40" : "bg-gray-200"
+                    }`}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {section === "general" && settings ? (
@@ -563,10 +625,6 @@ export default function AdminAgendaPage() {
             </div>
           </div>
 
-          <SaveButton
-            saving={saving}
-            onClick={() => void saveSettings("Configuración guardada.")}
-          />
         </section>
       ) : null}
 
@@ -652,11 +710,6 @@ export default function AdminAgendaPage() {
             );
           })}
 
-          <SaveButton
-            saving={saving}
-            onClick={() => void saveSchedules()}
-            label="Guardar horarios"
-          />
         </section>
       ) : null}
 
@@ -1010,15 +1063,34 @@ export default function AdminAgendaPage() {
             </div>
           </div>
 
-          <SaveButton
-            saving={saving}
-            onClick={() =>
-              void saveSettings("Configuración de notificaciones guardada.")
-            }
-            label="Guardar notificaciones"
-          />
         </section>
       ) : null}
+
+      <div className="sticky bottom-4 z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-white/95 p-4 shadow-[0_18px_50px_-24px_rgba(0,78,40,0.45)] backdrop-blur-md">
+        <button
+          type="button"
+          onClick={goBack}
+          disabled={currentStepIndex === 0 || saving}
+          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-5 py-3 font-semibold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <ArrowLeft size={17} /> Atrás
+        </button>
+
+        <div className="text-center text-xs font-semibold text-gray-400">
+          Paso {currentStepIndex + 1} de {tabs.length}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void continueWizard()}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-5 py-3 font-bold text-white transition hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? <Loader2 size={18} className="animate-spin" /> : null}
+          {isLastStep ? "Terminar configuración" : "Guardar y continuar"}
+          {!isLastStep ? <ArrowRight size={17} /> : <Check size={17} />}
+        </button>
+      </div>
 
       <ServiceModal
         open={serviceModal}
@@ -1185,34 +1257,6 @@ function Toggle({
         <small className="text-gray-500">{description}</small>
       </span>
     </label>
-  );
-}
-
-function SaveButton({
-  saving,
-  onClick,
-  label = "Guardar configuración",
-}: {
-  saving: boolean;
-  onClick: () => void;
-  label?: string;
-}) {
-  return (
-    <div className="mt-6 flex justify-end">
-      <button
-        type="button"
-        disabled={saving}
-        onClick={onClick}
-        className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-5 py-3 font-semibold text-white hover:bg-[#117500] disabled:opacity-50"
-      >
-        {saving ? (
-          <Loader2 size={18} className="animate-spin" />
-        ) : (
-          <Save size={18} />
-        )}
-        {label}
-      </button>
-    </div>
   );
 }
 

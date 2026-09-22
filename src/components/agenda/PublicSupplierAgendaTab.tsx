@@ -119,7 +119,27 @@ export function PublicSupplierAgendaTab({
   }
 
   if (!services.length) {
-    return null;
+    return (
+      <section className="bg-[#f7f9f8] py-14 md:py-18">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
+          <div className="rounded-[2rem] border border-[#004e28]/10 bg-white px-6 py-12 text-center shadow-[0_16px_40px_-32px_rgba(0,78,40,0.6)] sm:px-10">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#168e00]/10 text-[#168e00]">
+              <CalendarDays size={28} />
+            </span>
+            <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-[#168e00]">
+              Agenda
+            </p>
+            <h2 className="mt-1 font-[family-name:var(--font-varela-round)] text-2xl font-black text-[#004e28] sm:text-3xl">
+              Próximamente podrás reservar aquí
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-gray-500">
+              Este negocio ya tiene disponible su Agenda y está preparando los
+              servicios y horarios para recibir citas.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (

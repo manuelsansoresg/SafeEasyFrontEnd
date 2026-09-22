@@ -48,17 +48,17 @@ export function SupplierModuleNavigation({
       setAgendaLoading(true);
 
       try {
-        const services =
-          await agendaBookingService.listPublicServices(
-            supplierId,
-            controller.signal,
-          );
+        await agendaBookingService.listPublicServices(
+          supplierId,
+          controller.signal,
+        );
 
         if (controller.signal.aborted) return;
 
-        setAgendaAvailable(
-          services.some((service) => service.is_active),
-        );
+        // Una respuesta correcta significa que el negocio tiene Agenda
+        // publicada. La pestaña no debe desaparecer sólo porque el proveedor
+        // todavía no ha creado su primer servicio.
+        setAgendaAvailable(true);
       } catch (error) {
         if (
           error instanceof DOMException &&

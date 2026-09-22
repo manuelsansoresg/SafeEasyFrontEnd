@@ -15,7 +15,11 @@ import type {
   AgendaStatusPayload,
 } from "@/types/agendaBooking";
 
-const gateway = "/api/agenda-gateway";
+// `/api/*` apunta al backend FastAPI en producción, por lo que una ruta de
+// Next bajo `/api/agenda-gateway` no llega a ejecutarse allí. El proxy público
+// del frontend sí está disponible y conserva las rutas reales de Agenda.
+const agendaGateway = "/proxy/agenda";
+const publicAgendaGateway = "/proxy/public/agenda";
 
 function extractError(value: unknown): string | undefined {
   if (typeof value === "string") return value;
@@ -180,7 +184,7 @@ export const agendaBookingService = {
     signal?: AbortSignal,
   ): Promise<AgendaService[]> {
     return request<AgendaService[]>(
-      `${gateway}/public/${supplierId}/services`,
+      `${publicAgendaGateway}/${supplierId}/services`,
       { signal, retryOnAuthFailure: false },
     );
   },
@@ -199,7 +203,7 @@ export const agendaBookingService = {
     });
 
     return request<AgendaAvailability>(
-      `${gateway}/public/${supplierId}/availability${query}`,
+      `${publicAgendaGateway}/${supplierId}/availability${query}`,
       { signal, retryOnAuthFailure: false },
     );
   },
@@ -209,7 +213,7 @@ export const agendaBookingService = {
     payload: AgendaBookingPayload,
   ): Promise<AgendaBookingCreated> {
     return request<AgendaBookingCreated>(
-      `${gateway}/public/${supplierId}/bookings`,
+      `${publicAgendaGateway}/${supplierId}/bookings`,
       {
         method: "POST",
         body: JSON.stringify(payload),
@@ -228,7 +232,7 @@ export const agendaBookingService = {
     });
 
     return request<AgendaBooking>(
-      `${gateway}/public/bookings/${bookingId}${query}`,
+      `${publicAgendaGateway}/bookings/${bookingId}${query}`,
       { signal, retryOnAuthFailure: false },
     );
   },
@@ -243,7 +247,7 @@ export const agendaBookingService = {
     });
 
     return request<AgendaBooking[]>(
-      `${gateway}/bookings/mine${query}`,
+      `${agendaGateway}/bookings/mine${query}`,
       { signal },
     );
   },
@@ -253,7 +257,7 @@ export const agendaBookingService = {
     payload: AgendaCancelPayload,
   ): Promise<AgendaBooking> {
     return request<AgendaBooking>(
-      `${gateway}/bookings/${bookingId}/cancel`,
+      `${agendaGateway}/bookings/${bookingId}/cancel`,
       {
         method: "POST",
         body: JSON.stringify(payload),
@@ -267,7 +271,7 @@ export const agendaBookingService = {
     payload: AgendaReschedulePayload,
   ): Promise<AgendaRescheduleRequest> {
     return request<AgendaRescheduleRequest>(
-      `${gateway}/bookings/${bookingId}/reschedule-requests`,
+      `${agendaGateway}/bookings/${bookingId}/reschedule-requests`,
       {
         method: "POST",
         body: JSON.stringify(payload),
@@ -286,7 +290,7 @@ export const agendaBookingService = {
     });
 
     return request<AgendaProviderBooking[]>(
-      `${gateway}/appointments${query}`,
+      `${agendaGateway}/appointments${query}`,
       { signal },
     );
   },
@@ -295,7 +299,7 @@ export const agendaBookingService = {
     payload: AgendaProviderBookingPayload,
   ): Promise<AgendaBookingCreated> {
     return request<AgendaBookingCreated>(
-      `${gateway}/appointments`,
+      `${agendaGateway}/appointments`,
       {
         method: "POST",
         body: JSON.stringify(payload),
@@ -308,7 +312,7 @@ export const agendaBookingService = {
     signal?: AbortSignal,
   ): Promise<AgendaProviderBooking> {
     return request<AgendaProviderBooking>(
-      `${gateway}/appointments/${bookingId}`,
+      `${agendaGateway}/appointments/${bookingId}`,
       { signal },
     );
   },
@@ -318,7 +322,7 @@ export const agendaBookingService = {
     startAt: string,
   ): Promise<AgendaProviderBooking> {
     return request<AgendaProviderBooking>(
-      `${gateway}/appointments/${bookingId}/reschedule`,
+      `${agendaGateway}/appointments/${bookingId}/reschedule`,
       {
         method: "POST",
         body: JSON.stringify({
@@ -333,7 +337,7 @@ export const agendaBookingService = {
     payload: AgendaStatusPayload,
   ): Promise<AgendaProviderBooking> {
     return request<AgendaProviderBooking>(
-      `${gateway}/appointments/${bookingId}/status`,
+      `${agendaGateway}/appointments/${bookingId}/status`,
       {
         method: "PATCH",
         body: JSON.stringify(payload),
@@ -346,7 +350,7 @@ export const agendaBookingService = {
     signal?: AbortSignal,
   ): Promise<AgendaRescheduleRequest[]> {
     return request<AgendaRescheduleRequest[]>(
-      `${gateway}/appointments/${bookingId}/reschedule-requests`,
+      `${agendaGateway}/appointments/${bookingId}/reschedule-requests`,
       { signal },
     );
   },
@@ -357,7 +361,7 @@ export const agendaBookingService = {
     payload: AgendaRescheduleDecisionPayload,
   ): Promise<AgendaRescheduleRequest> {
     return request<AgendaRescheduleRequest>(
-      `${gateway}/appointments/${bookingId}/reschedule-requests/${requestId}/decision`,
+      `${agendaGateway}/appointments/${bookingId}/reschedule-requests/${requestId}/decision`,
       {
         method: "POST",
         body: JSON.stringify(payload),
