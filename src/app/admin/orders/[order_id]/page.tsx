@@ -47,7 +47,8 @@ function normalizeStatusKey(value: unknown) {
   const ascii = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const v = ascii.toLowerCase().replace(/\s+/g, "_");
 
-  if (["paid", "pagado", "approved", "aprobado", "authorized", "accredited", "pago_verificado", "validado", "validated"].includes(v)) return "paid";
+  if (["authorized", "autorizado"].includes(v)) return "authorized";
+  if (["paid", "pagado", "approved", "aprobado", "accredited", "pago_verificado", "validado", "validated"].includes(v)) return "paid";
   if (["completed", "completado", "delivered", "entregado", "verified", "verificado"].includes(v)) return "completed";
   if (["ready_for_pickup", "ready_pickup", "listo_para_recoger", "listo_para_recojer"].includes(v)) return "ready_for_pickup";
   if (["preparing", "start_preparing", "started_preparing", "in_preparation", "en_preparacion"].includes(v)) return "preparing";
@@ -69,7 +70,8 @@ function statusLabel(value: unknown) {
   const map: Record<string, string> = {
     pending: "Pendiente",
     created: "Creado",
-    paid: "Pago recibido",
+    authorized: "Tarjeta autorizada",
+    paid: "Pago capturado",
     preparing: "En preparación",
     ready_for_pickup: "Listo para recoger",
     en_route_to_pickup: "En camino a recoger",
@@ -260,13 +262,13 @@ export default function AdminOrderDetailPage() {
 
   const mode = useMemo(() => (order ? getDeliveryType(order) : "pickup"), [order]);
   const paymentKey = normalizeStatusKey(order?.payment_status || order?.status || "");
-  const isPaymentPaid = paymentKey === "paid";
+  const isPaymentReady = paymentKey === "paid" || paymentKey === "authorized";
   const fulfillmentKey = normalizeStatusKey(order?.fulfillment_status || order?.visual_status || "");
   const historyKey = latestHistoryKey(history);
   const effectiveKey =
     ["completed", "cancelled", "refund_refunded"].includes(fulfillmentKey)
       ? fulfillmentKey
-      : fulfillmentKey && !["pending", "created", "paid"].includes(fulfillmentKey)
+      : fulfillmentKey && !["pending", "created", "authorized", "paid"].includes(fulfillmentKey)
         ? fulfillmentKey
         : historyKey || paymentKey || "pending";
 
@@ -274,7 +276,7 @@ export default function AdminOrderDetailPage() {
   const finalState = ["completed", "cancelled", "refund_refunded"].includes(effectiveKey);
   const ownDelivery = mode === "shipping" && !acceptsCourier;
   const codeEntryVisible =
-    isPaymentPaid &&
+    isPaymentReady &&
     !finalState &&
     deliveryCodeAllowed(mode, effectiveKey) &&
     (mode === "pickup" || ownDelivery);
@@ -292,7 +294,7 @@ export default function AdminOrderDetailPage() {
   }, [buyerAddress, mode, order, supplierAddress]);
 
   const markReady = async () => {
-    if (!orderId || !isPaymentPaid) return;
+    if (!orderId || !isPaymentReady) return;
     setActionLoading("ready");
     try {
       if (mode === "shipping" && acceptsCourier) {
@@ -320,7 +322,7 @@ export default function AdminOrderDetailPage() {
   };
 
   const startOwnDelivery = async () => {
-    if (!orderId || !ownDelivery || !isPaymentPaid) return;
+    if (!orderId || !ownDelivery || !isPaymentReady) return;
     setActionLoading("out-for-delivery");
     try {
       await orderService.markSupplierOrderOutForDelivery(orderId);
@@ -588,7 +590,7 @@ export default function AdminOrderDetailPage() {
                 </div>
 
                 <div className="mt-4 space-y-3">
-                  {!finalState && isPaymentPaid && (
+                  {!finalState && isPaymentReady && (
                     <button
                       type="button"
                       onClick={markReady}
@@ -603,7 +605,7 @@ export default function AdminOrderDetailPage() {
                     </button>
                   )}
 
-                  {ownDelivery && isPaymentPaid && ["preparing", "ready_for_pickup"].includes(effectiveKey) ? (
+                  {ownDelivery && isPaymentReady && ["preparing", "ready_for_pickup"].includes(effectiveKey) ? (
                     <button
                       type="button"
                       onClick={startOwnDelivery}
@@ -696,7 +698,7 @@ export default function AdminOrderDetailPage() {
                 </div>
                 <div className="mt-4 rounded-xl bg-gray-50 p-4">
                   <div className="text-xs font-semibold text-gray-500">Pago</div>
-                  <div className="mt-1 font-bold">{isPaymentPaid ? "Pago recibido" : statusLabel(paymentKey)}</div>
+                  <div className="mt-1 font-bold">{statusLabel(paymentKey)}</div>
                 </div>
                 <div className="mt-3 rounded-xl bg-gray-50 p-4">
                   <div className="text-xs font-semibold text-gray-500">Entrega</div>

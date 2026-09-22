@@ -45,12 +45,12 @@ function normalizeStatusKey(value: string) {
   const v = ascii.toLowerCase().trim().replace(/\s+/g, "_");
 
   if (v === "pending" || v === "pendiente") return "pending";
+  if (v === "authorized" || v === "autorizado") return "authorized";
   if (
     v === "paid" ||
     v === "pagado" ||
     v === "approved" ||
     v === "aprobado" ||
-    v === "authorized" ||
     v === "accredited" ||
     v === "pago_verificado" ||
     v === "validado" ||
@@ -126,7 +126,8 @@ function toSpanishStatusLabel(value: string) {
   const map: Record<string, string> = {
     created: "Creado",
     pending: "Pendiente",
-    paid: "Pago recibido",
+    authorized: "Tarjeta autorizada",
+    paid: "Pago capturado",
     preparing: "En preparación",
     in_transit: "En camino",
     ready_for_pickup: "Listo para recoger",
@@ -211,16 +212,17 @@ function formatEtaLabel(order: Order, mode: DeliveryTypeKey) {
 
 type ProgressStep = { key: string; label: string; Icon: typeof Check };
 
-function getSteps(mode: DeliveryTypeKey): ProgressStep[] {
+function getSteps(mode: DeliveryTypeKey, paymentStatus: string): ProgressStep[] {
+  const paymentLabel = normalizeStatusKey(paymentStatus) === "paid" ? "Pago capturado" : "Tarjeta autorizada";
   return mode === "shipping"
     ? [
-        { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
+        { key: "payment", label: paymentLabel, Icon: BadgeCheck },
         { key: "preparing", label: "En preparación", Icon: FileText },
         { key: "in_transit", label: "En camino", Icon: Truck },
         { key: "delivered", label: "Entregado", Icon: PackageCheck },
       ]
     : [
-        { key: "paid", label: "Pago recibido", Icon: BadgeCheck },
+        { key: "payment", label: paymentLabel, Icon: BadgeCheck },
         { key: "preparing", label: "En preparación", Icon: FileText },
         { key: "ready_for_pickup", label: "Listo para recoger", Icon: Store },
         { key: "picked", label: "Entregado", Icon: PackageCheck },
@@ -237,13 +239,13 @@ function getProgressRank(mode: DeliveryTypeKey, statusKey: string) {
   if (mode === "shipping") {
     if (k === "in_transit" || k === "shipped" || k === "en_route_to_pickup" || k === "picked_up") return 3;
     if (k === "preparing") return 2;
-    if (k === "paid" || k === "created" || k === "pending") return 1;
+    if (k === "authorized" || k === "paid" || k === "created" || k === "pending") return 1;
     return 1;
   }
 
   if (k === "ready_for_pickup" || k === "shipped" || k === "en_route_to_pickup" || k === "picked_up") return 3;
   if (k === "preparing") return 2;
-  if (k === "paid" || k === "created" || k === "pending") return 1;
+  if (k === "authorized" || k === "paid" || k === "created" || k === "pending") return 1;
   return 1;
 }
 
@@ -326,11 +328,11 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-type MercadoPagoReturnStatus = "success" | "failure" | "pending";
+type MercadoPagoReturnStatus = "authorized" | "success" | "failure" | "pending";
 
 function getMercadoPagoReturnStatus(value: string | null): MercadoPagoReturnStatus | null {
   const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "success" || normalized === "failure" || normalized === "pending") {
+  if (normalized === "authorized" || normalized === "success" || normalized === "failure" || normalized === "pending") {
     return normalized;
   }
   return null;
@@ -373,7 +375,7 @@ export default function ClientOrderDetailPage() {
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 ? n : null;
   }, [params?.order_id]);
-  const mercadoPagoReturnStatus = getMercadoPagoReturnStatus(searchParams.get("status"));
+  const mercadoPagoReturnStatus = getMercadoPagoReturnStatus(searchParams.get("payment") || searchParams.get("status"));
   const focusDeliveryCode = searchParams.get("focus") === "delivery-code";
 
   const closeToast = () => setToast(null);
@@ -431,7 +433,8 @@ export default function ClientOrderDetailPage() {
   const latestHistoryKey = useMemo(() => pickLatestHistoryKey(history), [history]);
   const paymentMethod = useMemo(() => getPaymentMethodKey(order), [order]);
   const mode = useMemo(() => (order ? getDeliveryTypeKey(order) : "pickup"), [order]);
-  const steps = useMemo(() => getSteps(mode), [mode]);
+  const paymentStatusKey = normalizeStatusKey(String(order?.payment_status || order?.status || ""));
+  const steps = useMemo(() => getSteps(mode, paymentStatusKey), [mode, paymentStatusKey]);
   const isExpired = isExpiredCheckout(order);
   const statusRaw = order
     ? isExpired
@@ -579,7 +582,7 @@ export default function ClientOrderDetailPage() {
               <div
                 role="status"
                 className={
-                  mercadoPagoReturnStatus === "success"
+                  mercadoPagoReturnStatus === "success" || mercadoPagoReturnStatus === "authorized"
                     ? "rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-950"
                     : mercadoPagoReturnStatus === "pending"
                       ? "rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950"
@@ -587,7 +590,7 @@ export default function ClientOrderDetailPage() {
                 }
               >
                 <div className="flex items-start gap-3">
-                  {mercadoPagoReturnStatus === "success" ? (
+                  {mercadoPagoReturnStatus === "success" || mercadoPagoReturnStatus === "authorized" ? (
                     <BadgeCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
                   ) : mercadoPagoReturnStatus === "pending" ? (
                     <Clock className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
@@ -596,14 +599,16 @@ export default function ClientOrderDetailPage() {
                   )}
                   <div>
                     <div className="font-bold font-[family-name:var(--font-varela-round)]">
-                      {mercadoPagoReturnStatus === "success"
-                        ? "Mercado Pago reportó un pago exitoso"
+                      {mercadoPagoReturnStatus === "success" || mercadoPagoReturnStatus === "authorized"
+                        ? "Tarjeta autorizada"
                         : mercadoPagoReturnStatus === "pending"
                           ? "Mercado Pago reportó un pago pendiente"
                           : "Mercado Pago reportó un pago rechazado"}
                     </div>
                     <p className="mt-1 text-sm leading-relaxed">
-                      El resultado de regreso es informativo. Estado confirmado por Drooopy:{" "}
+                      {mercadoPagoReturnStatus === "authorized"
+                        ? "Mercado Pago reservó el monto. El cobro se completará al confirmar la entrega. Estado actual: "
+                        : "El resultado de regreso es informativo. Estado confirmado por Drooopy: "}
                       <strong>{getBackendPaymentStatus(order)}</strong>.
                     </p>
                   </div>
@@ -838,6 +843,13 @@ export default function ClientOrderDetailPage() {
                     <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                       <div className="text-xs font-semibold text-gray-500">Estado</div>
                       <div className="mt-1 text-sm font-semibold text-gray-900">{toSpanishStatusLabel(effectiveKey)}</div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                      <div className="text-xs font-semibold text-gray-500">Pago</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900">
+                        {toSpanishStatusLabel(String(order.payment_status || order.status || "pending"))}
+                      </div>
                     </div>
 
                     <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">

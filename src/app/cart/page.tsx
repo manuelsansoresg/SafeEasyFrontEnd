@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
+import { MercadoPagoCardModal } from "@/components/payments/MercadoPagoCardModal";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
-import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
+import type { CardAuthorizationDraft } from "@/types/cardCheckout";
 import { Minus, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 
 type ProductLite = {
@@ -47,6 +48,12 @@ type SupplierCart = {
 type ToastState = null | { type: "success" | "error" | "info"; message: string };
 
 type DeliveryType = "pickup" | "shipping";
+
+type CardCheckoutModalState = {
+  supplierName: string;
+  estimatedTotal: number;
+  checkout: CardAuthorizationDraft;
+};
 
 type AddressForm = {
   address: string;
@@ -293,7 +300,8 @@ export default function CartPage() {
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [addressLocked, setAddressLocked] = useState(false);
   const lastSavedAddressHashRef = useRef("");
-  const [paymentModal, setPaymentModal] = useState<null | { init_point: string; order_id: number | null }>(null);
+  const checkoutOpeningRef = useRef(false);
+  const [cardCheckout, setCardCheckout] = useState<CardCheckoutModalState | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [addressModalSaving, setAddressModalSaving] = useState(false);
 
@@ -720,13 +728,6 @@ export default function CartPage() {
   const computeShippingQuote = async (supplierId: number, force?: boolean) => {
     setQuoteError(null);
     if (!force && deliveryType !== "shipping") return;
-    const supplierBeforeFetch = carts.find((c) => c.supplier_id === supplierId) ?? null;
-    let supplierAcceptsCourier = supplierBeforeFetch?.accepts_courier ?? null;
-    if (supplierAcceptsCourier == null) {
-      const details = await fetchSupplierDetails(supplierId);
-      supplierAcceptsCourier = details?.accepts_courier ?? supplierAcceptsCourier;
-    }
-    if (supplierAcceptsCourier === false) return;
     if (!userMapLocation || addressDirtyRef.current) {
       setCheckoutSupplierId(supplierId);
       setAddressModalOpen(true);
@@ -789,34 +790,29 @@ export default function CartPage() {
     }
   };
 
-  const extractInitPoint = (payload: unknown) => {
-    const asRec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
-    const pick = (rec: Record<string, unknown>, keys: string[]) => {
-      for (const k of keys) {
-        const v = rec[k];
-        if (typeof v === "string" && v.trim()) return v.trim();
-      }
-      return null;
-    };
-    const raw = asRec(payload);
-    const preference = raw.preference && typeof raw.preference === "object" ? (raw.preference as Record<string, unknown>) : {};
-    const payment = raw.payment && typeof raw.payment === "object" ? (raw.payment as Record<string, unknown>) : {};
-    return (
-      pick(raw, ["init_point", "mp_init_point", "mercadopago_init_point", "payment_url", "checkout_url"]) ||
-      pick(preference, ["init_point"]) ||
-      pick(payment, ["init_point", "mp_init_point", "mercadopago_init_point", "payment_url", "checkout_url"])
-    );
-  };
-
   const confirmCheckout = async (supplierId: number, deliveryOverride?: DeliveryType) => {
+    if (checkoutOpeningRef.current || cardCheckout) return;
+    checkoutOpeningRef.current = true;
     const selectedDeliveryType = deliveryOverride ?? deliveryType;
     const selectedSupplier = carts.find((c) => c.supplier_id === supplierId) || null;
     const requiresShippingQuote =
-      selectedDeliveryType === "shipping" && Boolean(selectedSupplier?.accepts_delivery) && selectedSupplier?.accepts_courier !== false;
+      selectedDeliveryType === "shipping" && Boolean(selectedSupplier?.accepts_delivery);
     setMutating(true);
     try {
+      if (!selectedSupplier) {
+        setToast({ type: "error", message: "No se encontró el proveedor de este carrito." });
+        return;
+      }
       if (selectedSupplier?.supplier_user_id && meUserId && Number(selectedSupplier.supplier_user_id) === Number(meUserId)) {
         setToast({ type: "error", message: "No puedes comprar productos de tu propia cuenta." });
+        return;
+      }
+      if (selectedDeliveryType === "pickup" && !selectedSupplier.accepts_pickup) {
+        setToast({ type: "error", message: "Este proveedor no ofrece recolección en tienda." });
+        return;
+      }
+      if (selectedDeliveryType === "shipping" && !selectedSupplier.accepts_delivery) {
+        setToast({ type: "error", message: "Este proveedor no ofrece envío a domicilio." });
         return;
       }
       if (requiresShippingQuote) {
@@ -838,85 +834,31 @@ export default function CartPage() {
         setToast({ type: "error", message: "No hay productos válidos para iniciar el checkout." });
         return;
       }
-      const payload: Record<string, unknown> = {
-        items,
-        delivery_type: selectedDeliveryType,
-        payment_method: "card",
-        distance_km: 0,
-        courier_user_id: 0,
-      };
-      if (requiresShippingQuote && Number.isFinite(distanceKm || 0)) {
-        payload.distance_km = distanceKm;
-      }
-      const res = await tryFetch(
-        [
-          `/api/orders/checkout`,
-          `/api/orders/checkout/`,
-        ],
-        { method: "POST", body: JSON.stringify(payload), headers: { Accept: "application/json" } },
-      );
-      if (!res || !res.ok) {
-        const raw = await res?.text().catch(() => "");
-        let record: Record<string, unknown> = {};
-        if (raw) {
-          try {
-            const parsed: unknown = JSON.parse(raw);
-            if (parsed && typeof parsed === "object") record = parsed as Record<string, unknown>;
-          } catch {}
-        }
-        const rawText = raw ? raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() : "";
-        const msg =
-          getSpanishErrorMessage(record, "") ||
-          (rawText ? rawText.slice(0, 180) : "") ||
-          `No se pudo iniciar el checkout (HTTP ${res?.status ?? "?"}).`;
-        setToast({ type: "error", message: translateStockErrorMessage(msg) });
-        return;
-      }
-      const data: unknown = await res.json().catch(() => ({}));
-      const record = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
-      const orderObj = record.order && typeof record.order === "object" ? (record.order as Record<string, unknown>) : null;
-      const nestedId = orderObj ? orderObj.id : null;
-      const orderId = Number(record.order_id ?? record.id ?? record.orderId ?? nestedId ?? 0);
-      try {
-        if (orderId) {
-          const key = `drooopy:checkout:${orderId}`;
-          sessionStorage.setItem(key, JSON.stringify(data));
-        }
-      } catch {}
-      const initPoint = extractInitPoint(data);
-      const safeInitPoint = getSafeMercadoPagoUrl(initPoint);
-      if (safeInitPoint) {
-        isRedirectingRef.current = true;
-        setCheckoutSupplierId(null);
-        window.dispatchEvent(new CustomEvent("cart:changed"));
-        window.location.href = safeInitPoint;
+      const subtotal = selectedSupplier.items.reduce((sum, item) => {
+        const rawPrice = item.product?.price ?? 0;
+        const price = typeof rawPrice === "number" ? rawPrice : Number(String(rawPrice).replace(/[^\d.-]/g, "")) || 0;
+        return sum + price * item.quantity;
+      }, 0);
+      const estimatedTotal = subtotal + (requiresShippingQuote ? Number(shippingCost || 0) : 0);
+      if (!Number.isFinite(estimatedTotal) || estimatedTotal <= 0) {
+        setToast({ type: "error", message: "El total estimado del carrito no es válido." });
         return;
       }
 
-      if (orderId) {
-        const orderRes = await tryFetch(
-          [`/api/orders/${orderId}`, `/api/orders/${orderId}/`],
-          { headers: { Accept: "application/json" } },
-        );
-        if (orderRes && orderRes.ok) {
-          const orderData: unknown = await orderRes.json().catch(() => null);
-          const fetchedInitPoint = extractInitPoint(orderData);
-          const safeFetchedInitPoint = getSafeMercadoPagoUrl(fetchedInitPoint);
-          if (safeFetchedInitPoint) {
-            isRedirectingRef.current = true;
-            setCheckoutSupplierId(null);
-            window.dispatchEvent(new CustomEvent("cart:changed"));
-            window.location.href = safeFetchedInitPoint;
-            return;
-          }
-        }
-      }
-
-      window.dispatchEvent(new CustomEvent("cart:changed"));
-      setToast({ type: "error", message: "No se recibió el link de pago (init_point) para Mercado Pago." });
+      setCardCheckout({
+        supplierName: selectedSupplier.supplier_name,
+        estimatedTotal,
+        checkout: {
+          items,
+          delivery_type: selectedDeliveryType,
+          payment_method: "card",
+          distance_km: selectedDeliveryType === "shipping" ? distanceKm : null,
+        },
+      });
     } catch {
-      setToast({ type: "error", message: "Error de conexión al iniciar el checkout." });
+      setToast({ type: "error", message: "No se pudo preparar el pago con tarjeta." });
     } finally {
+      checkoutOpeningRef.current = false;
       setMutating(false);
     }
   };
@@ -974,7 +916,7 @@ export default function CartPage() {
               }, 0);
               const isActiveCheckout = checkoutSupplierId === c.supplier_id;
               const visibleDeliveryType = isActiveCheckout ? deliveryType : getDefaultDeliveryType(c);
-              const visibleShippingNeedsQuote = visibleDeliveryType === "shipping" && c.accepts_delivery && c.accepts_courier !== false;
+              const visibleShippingNeedsQuote = visibleDeliveryType === "shipping" && c.accepts_delivery;
               const isOwnSupplierCart = Boolean(c.supplier_user_id && meUserId && Number(c.supplier_user_id) === Number(meUserId));
               const supplierTotal =
                 supplierSubtotal +
@@ -1033,9 +975,7 @@ export default function CartPage() {
                                 setCheckoutSupplierId(c.supplier_id);
                                 setDeliveryType("shipping");
                                 invalidateQuote();
-                                const details = c.accepts_courier == null ? await fetchSupplierDetails(c.supplier_id) : null;
-                                const acceptsCourier = details?.accepts_courier ?? c.accepts_courier;
-                                if (acceptsCourier !== false) computeShippingQuote(c.supplier_id, true).catch(() => {});
+                                computeShippingQuote(c.supplier_id, true).catch(() => {});
                               }}
                               className={cn(
                                 "px-3 py-2 rounded-lg border",
@@ -1448,45 +1388,26 @@ export default function CartPage() {
         </div>
       ) : null}
 
-      {paymentModal ? (
-        <div className="fixed inset-0 z-[80]">
-          <div className="absolute inset-0 bg-black/50" />
-          <div className="absolute inset-0 p-4 flex items-center justify-center">
-            <div className="w-full max-w-4xl h-[85vh] bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-500">Pago</p>
-                  <p className="font-bold text-gray-900 truncate">
-                    Mercado Pago{paymentModal.order_id ? ` · Orden #${paymentModal.order_id}` : ""}
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setPaymentModal(null);
-                    window.dispatchEvent(new CustomEvent("cart:changed"));
-                  }}
-                  className="p-2 text-gray-400 hover:text-gray-700"
-                  aria-label="Cerrar"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="flex-1 bg-white">
-                <iframe title="Mercado Pago" src={getSafeMercadoPagoUrl(paymentModal.init_point)} className="w-full h-full" />
-              </div>
-              <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-end">
-                <a
-                  href={getSafeMercadoPagoUrl(paymentModal.init_point)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-semibold text-gray-700 hover:underline"
-                >
-                  Abrir en otra pestaña
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
+      {cardCheckout ? (
+        <MercadoPagoCardModal
+          supplierName={cardCheckout.supplierName}
+          estimatedTotal={cardCheckout.estimatedTotal}
+          checkout={cardCheckout.checkout}
+          onClose={() => setCardCheckout(null)}
+          onOrderCreated={() => {
+            window.dispatchEvent(new CustomEvent("cart:changed"));
+          }}
+          onPending={(response) => {
+            isRedirectingRef.current = true;
+            window.location.assign(
+              `/checkout/result?checkout_id=${encodeURIComponent(response.checkout_id)}&status=pending`,
+            );
+          }}
+          onViewOrder={(orderId) => {
+            isRedirectingRef.current = true;
+            window.location.assign(`/client/orders/${orderId}?focus=delivery-code&payment=authorized`);
+          }}
+        />
       ) : null}
 
       {toast ? <Toast type={toast.type} message={toast.message} onClose={closeToast} /> : null}

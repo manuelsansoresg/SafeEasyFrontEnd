@@ -14,53 +14,20 @@ import {
   XCircle,
 } from "lucide-react";
 
-import { fetchWithAuth } from "@/lib/api";
-
-type CheckoutSessionStatus = {
-  checkout_id: string;
-  status: string;
-  order_id: number | null;
-  mp_payment_id?: string | null;
-  expires_at?: string | null;
-  remaining_seconds?: number;
-  can_continue_payment?: boolean;
-};
+import { cardCheckoutService } from "@/services/cardCheckoutService";
+import type { CheckoutSessionStatus } from "@/types/cardCheckout";
 
 type ViewState =
   | "loading"
-  | "success"
+  | "authorized"
+  | "captured"
   | "pending"
+  | "cancelled"
+  | "rejected"
   | "failure"
   | "expired"
   | "refunded"
   | "error";
-
-const TERMINAL_FAILURE_STATUSES = new Set([
-  "rejected",
-  "cancelled",
-  "canceled",
-  "failure",
-  "failed",
-]);
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function readErrorMessage(payload: unknown, fallback: string) {
-  const data = asRecord(payload);
-
-  const detail =
-    typeof data.detail === "string" ? data.detail.trim() : "";
-  const message =
-    typeof data.message === "string" ? data.message.trim() : "";
-  const error =
-    typeof data.error === "string" ? data.error.trim() : "";
-
-  return detail || message || error || fallback;
-}
 
 function formatRemaining(seconds?: number) {
   const safe = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -97,7 +64,10 @@ function CheckoutResultContent() {
 
   const isTerminal = useMemo(
     () =>
-      viewState === "success" ||
+      viewState === "authorized" ||
+      viewState === "captured" ||
+      viewState === "cancelled" ||
+      viewState === "rejected" ||
       viewState === "failure" ||
       viewState === "expired" ||
       viewState === "refunded" ||
@@ -111,10 +81,16 @@ function CheckoutResultContent() {
 
       const status = String(data.status || "").toLowerCase();
 
-      // Si ya existe una Order, el webhook terminó correctamente.
       if (data.order_id) {
-        setViewState("success");
-        setMessage("Tu pago fue confirmado y tu pedido ya fue creado.");
+        if (["paid", "approved", "captured"].includes(status)) {
+          setViewState("captured");
+          setMessage("El pago fue capturado y tu pedido ya fue creado.");
+        } else {
+          setViewState("authorized");
+          setMessage(
+            "Mercado Pago reservó el monto en tu tarjeta. El cobro se completará cuando recibas tu pedido y se confirme tu código de entrega.",
+          );
+        }
         return;
       }
 
@@ -134,7 +110,19 @@ function CheckoutResultContent() {
         return;
       }
 
-      if (TERMINAL_FAILURE_STATUSES.has(status)) {
+      if (status === "cancelled" || status === "canceled") {
+        setViewState("cancelled");
+        setMessage("La autorización fue cancelada. No se creó ningún pedido.");
+        return;
+      }
+
+      if (status === "rejected") {
+        setViewState("rejected");
+        setMessage("La tarjeta fue rechazada. Tu carrito permanece sin cambios.");
+        return;
+      }
+
+      if (status === "failure" || status === "failed") {
         setViewState("failure");
         setMessage(
           "El pago no fue aprobado. Tu carrito permanece sin cambios.",
@@ -153,20 +141,9 @@ function CheckoutResultContent() {
       }
 
       setViewState("pending");
-
-      if (returnStatus === "success") {
-        setMessage(
-          "Mercado Pago recibió el pago. Estamos esperando la confirmación final para crear tu pedido.",
-        );
-      } else if (returnStatus === "pending") {
-        setMessage(
-          "Tu pago sigue pendiente de confirmación por Mercado Pago.",
-        );
-      } else {
-        setMessage(
-          "Estamos esperando la confirmación final de Mercado Pago.",
-        );
-      }
+      setMessage(
+        "Estamos esperando la confirmación de Mercado Pago. No vuelvas a pagar mientras esta operación esté pendiente.",
+      );
     },
     [returnStatus],
   );
@@ -184,35 +161,14 @@ function CheckoutResultContent() {
       }
 
       try {
-        const response = await fetchWithAuth(
-          `/api/orders/checkout-sessions/${encodeURIComponent(
-            checkoutId,
-          )}/status`,
-          {
-            headers: {
-              Accept: "application/json",
-            },
-          },
-        );
-
-        const payload: unknown = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          setViewState("error");
-          setMessage(
-            readErrorMessage(
-              payload,
-              "No se pudo consultar el estado de la compra.",
-            ),
-          );
-          return;
-        }
-
-        applyStatus(payload as CheckoutSessionStatus);
-      } catch {
+        const sessionStatus = await cardCheckoutService.getSessionStatus(checkoutId);
+        applyStatus(sessionStatus);
+      } catch (statusError) {
         setViewState("error");
         setMessage(
-          "Hubo un problema de conexión al consultar el estado de la compra.",
+          statusError instanceof Error && statusError.message.trim()
+            ? statusError.message
+            : "Hubo un problema de conexión al consultar el estado de la compra.",
         );
       } finally {
         if (manual) {
@@ -252,11 +208,11 @@ function CheckoutResultContent() {
   ]);
 
   const icon = (() => {
-    if (viewState === "success") {
+    if (viewState === "authorized" || viewState === "captured") {
       return <CheckCircle2 className="h-12 w-12 text-green-600" />;
     }
 
-    if (viewState === "failure" || viewState === "error") {
+    if (["cancelled", "rejected", "failure", "error"].includes(viewState)) {
       return <XCircle className="h-12 w-12 text-red-600" />;
     }
 
@@ -269,18 +225,24 @@ function CheckoutResultContent() {
 
   const title = (() => {
     switch (viewState) {
-      case "success":
-        return "¡Pago confirmado!";
+      case "authorized":
+        return "Tarjeta autorizada";
+      case "captured":
+        return "Pago capturado";
       case "failure":
-        return "Pago no completado";
+        return "Autorización no completada";
+      case "cancelled":
+        return "Autorización cancelada";
+      case "rejected":
+        return "Tarjeta rechazada";
       case "expired":
-        return "Checkout vencido";
+        return "Autorización vencida";
       case "refunded":
         return "Pago reembolsado";
       case "error":
         return "No pudimos consultar la compra";
       case "pending":
-        return "Confirmando tu pago";
+        return "Autorización pendiente";
       default:
         return "Procesando compra";
     }
@@ -318,8 +280,10 @@ function CheckoutResultContent() {
                   <span className="text-gray-500">Estado</span>
                   <span className="font-semibold text-gray-900">
                     {session.order_id
-                      ? "Aprobado"
-                      : session.status || "Pendiente"}
+                      ? ["paid", "approved", "captured"].includes(String(session.status).toLowerCase())
+                        ? "Pago capturado"
+                        : "Tarjeta autorizada"
+                      : "Autorización pendiente"}
                   </span>
                 </div>
 
@@ -371,11 +335,11 @@ function CheckoutResultContent() {
             ) : null}
 
             <div className="flex flex-col gap-3 pt-2 sm:flex-row">
-              {viewState === "success" && session?.order_id ? (
+              {(viewState === "authorized" || viewState === "captured") && session?.order_id ? (
                 <button
                   type="button"
                   onClick={() =>
-                    router.push(`/client/orders/${session.order_id}`)
+                    router.push(`/client/orders/${session.order_id}?focus=delivery-code&payment=authorized`)
                   }
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#004e28] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#168e00]"
                 >
@@ -407,7 +371,7 @@ function CheckoutResultContent() {
               </button>
             </div>
 
-            {viewState === "success" ? (
+            {viewState === "authorized" || viewState === "captured" ? (
               <div className="pt-1 text-center">
                 <Link
                   href="/client/orders"
