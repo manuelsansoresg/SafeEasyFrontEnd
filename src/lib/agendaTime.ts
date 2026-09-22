@@ -144,6 +144,37 @@ export function addDaysToDateInput(
   return local.toISOString().slice(0, 10);
 }
 
+export function dateInputInTimeZone(
+  value: string | Date,
+  timeZone: string,
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime()) || !timeZone) {
+    return "";
+  }
+
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const values = Object.fromEntries(
+      parts.map((part) => [part.type, part.value]),
+    );
+
+    if (!values.year || !values.month || !values.day) {
+      return "";
+    }
+
+    return `${values.year}-${values.month}-${values.day}`;
+  } catch {
+    return "";
+  }
+}
+
 export function cancellationDeadline(
   startAt: string,
   cancellationNoticeHours: number,

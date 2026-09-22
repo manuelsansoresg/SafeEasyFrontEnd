@@ -15,9 +15,11 @@ import {
   ShieldAlert,
   UserRound,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import AgendaMonthlyCalendar from "@/components/agenda/AgendaMonthlyCalendar";
 import {
   addDaysToDateInput,
+  dateInputInTimeZone,
   humanizeDays,
   humanizeMinutes,
 } from "@/lib/agendaTime";
@@ -44,6 +46,23 @@ function todayInput() {
   return local.toISOString().slice(0, 10);
 }
 
+function startOfMonthInput(dateInput: string) {
+  return `${dateInput.slice(0, 7)}-01`;
+}
+
+function endOfMonthInput(monthInput: string) {
+  const [year, month] = monthInput.split("-").map(Number);
+  return new Date(Date.UTC(year, month, 0, 12))
+    .toISOString()
+    .slice(0, 10);
+}
+
+function addMonthsToInput(monthInput: string, months: number) {
+  const [year, month] = monthInput.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1 + months, 1, 12));
+  return date.toISOString().slice(0, 10);
+}
+
 function formatMoney(value: number | null) {
   if (value == null) return "Consultar precio";
 
@@ -67,18 +86,13 @@ function formatSlot(
 
 function formatDate(
   dateValue: string,
-  timezone?: string,
 ) {
-  const options: Intl.DateTimeFormatOptions = {
+  const [year, month, day] = dateValue.split("-").map(Number);
+
+  return new Intl.DateTimeFormat("es-MX", {
     dateStyle: "full",
-  };
-
-  if (timezone) options.timeZone = timezone;
-
-  return new Intl.DateTimeFormat(
-    "es-MX",
-    options,
-  ).format(new Date(`${dateValue}T12:00:00`));
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
 export default function PublicAgendaBookingPage() {
@@ -96,7 +110,12 @@ export default function PublicAgendaBookingPage() {
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(
     null,
   );
-  const [selectedDate, setSelectedDate] = useState(todayInput());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [visibleMonth, setVisibleMonth] = useState(() =>
+    startOfMonthInput(todayInput()),
+  );
+  const [calendarMinDate, setCalendarMinDate] = useState(todayInput);
+  const [calendarMaxDate, setCalendarMaxDate] = useState<string | null>(null);
   const [availability, setAvailability] =
     useState<AgendaAvailability | null>(null);
   const [selectedSlot, setSelectedSlot] =
@@ -111,6 +130,12 @@ export default function PublicAgendaBookingPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [availabilityRefresh, setAvailabilityRefresh] = useState(0);
+  const timezoneAligned = useRef(false);
+  const calendarBounds = useRef<{ min: string; max: string | null }>({
+    min: todayInput(),
+    max: null,
+  });
 
   useEffect(() => {
     setLoginReturnTo(getBrowserPathWithSearchAndHash());
@@ -132,12 +157,34 @@ export default function PublicAgendaBookingPage() {
     !auth.isAuthenticated &&
     (availability?.require_guest_email ?? true);
 
-  const maxDate = availability
-    ? addDaysToDateInput(
-        todayInput(),
-        availability.maximum_booking_days,
-      )
-    : undefined;
+  const slotsByDate = useMemo(() => {
+    const grouped = new Map<string, AgendaAvailabilitySlot[]>();
+
+    if (!availability) return grouped;
+
+    availability.slots.forEach((slot) => {
+      const date = dateInputInTimeZone(
+        slot.start_at,
+        availability.timezone,
+      );
+      if (!date) return;
+
+      const current = grouped.get(date);
+      if (current) current.push(slot);
+      else grouped.set(date, [slot]);
+    });
+
+    return grouped;
+  }, [availability]);
+
+  const availableDates = useMemo(
+    () => new Set(slotsByDate.keys()),
+    [slotsByDate],
+  );
+
+  const selectedDateSlots = selectedDate
+    ? slotsByDate.get(selectedDate) ?? []
+    : [];
 
   useEffect(() => {
     if (!Number.isFinite(supplierId) || supplierId <= 0) {
@@ -189,8 +236,19 @@ export default function PublicAgendaBookingPage() {
   }, [hydrated, auth.user]);
 
   useEffect(() => {
-    if (!selectedServiceId || !selectedDate) {
+    const monthEnd = endOfMonthInput(visibleMonth);
+    const dateFrom =
+      visibleMonth < calendarBounds.current.min
+        ? calendarBounds.current.min
+        : visibleMonth;
+    const dateTo =
+      calendarBounds.current.max && calendarBounds.current.max < monthEnd
+        ? calendarBounds.current.max
+        : monthEnd;
+
+    if (!selectedServiceId || dateTo < dateFrom) {
       setAvailability(null);
+      setSelectedDate(null);
       setSelectedSlot(null);
       return;
     }
@@ -202,34 +260,83 @@ export default function PublicAgendaBookingPage() {
       setSelectedSlot(null);
 
       try {
-        setError(null);
-
         const data =
           await agendaBookingService.availability(
             supplierId,
             selectedServiceId,
-            selectedDate,
-            selectedDate,
+            dateFrom,
+            dateTo,
             controller.signal,
           );
 
+        const providerToday =
+          dateInputInTimeZone(new Date(), data.timezone) || todayInput();
+        const providerMaxDate = addDaysToDateInput(
+          providerToday,
+          data.maximum_booking_days,
+        );
+
+        calendarBounds.current = {
+          min: providerToday,
+          max: providerMaxDate,
+        };
+        setCalendarMinDate((current) =>
+          current === providerToday ? current : providerToday,
+        );
+        setCalendarMaxDate((current) =>
+          current === providerMaxDate ? current : providerMaxDate,
+        );
         setAvailability(data);
+
+        if (!timezoneAligned.current) {
+          timezoneAligned.current = true;
+          const providerMonth = startOfMonthInput(providerToday);
+          if (providerMonth !== visibleMonth) {
+            setVisibleMonth(providerMonth);
+            setSelectedDate(null);
+            return;
+          }
+        }
+
+        const grouped = new Map<string, AgendaAvailabilitySlot[]>();
+        data.slots.forEach((slot) => {
+          const date = dateInputInTimeZone(slot.start_at, data.timezone);
+          if (!date) return;
+          const current = grouped.get(date);
+          if (current) current.push(slot);
+          else grouped.set(date, [slot]);
+        });
+
+        setSelectedDate((current) => {
+          if (current && grouped.has(current)) return current;
+          if (grouped.has(providerToday)) return providerToday;
+          return grouped.keys().next().value ?? null;
+        });
       } catch (err) {
+        if (controller.signal.aborted) return;
         setAvailability(null);
+        setSelectedDate(null);
         setError(
           err instanceof Error
             ? err.message
             : "No se pudieron consultar los horarios.",
         );
       } finally {
-        setLoadingSlots(false);
+        if (!controller.signal.aborted) {
+          setLoadingSlots(false);
+        }
       }
     };
 
     void run();
 
     return () => controller.abort();
-  }, [supplierId, selectedServiceId, selectedDate]);
+  }, [
+    availabilityRefresh,
+    supplierId,
+    selectedServiceId,
+    visibleMonth,
+  ]);
 
   const submit = async () => {
     if (!selectedService || !selectedSlot) {
@@ -290,11 +397,20 @@ export default function PublicAgendaBookingPage() {
         `/agenda/bookings/${booking.id}${query}`,
       );
     } catch (err) {
-      setError(
+      const message =
         err instanceof Error
           ? err.message
-          : "No se pudo crear la cita.",
-      );
+          : "No se pudo crear la cita.";
+
+      setError(message);
+
+      if (
+        message ===
+        "Ese horario acaba de dejar de estar disponible. Elige otro."
+      ) {
+        setSelectedSlot(null);
+        setAvailabilityRefresh((current) => current + 1);
+      }
     } finally {
       setSaving(false);
     }
@@ -365,7 +481,10 @@ export default function PublicAgendaBookingPage() {
       </section>
 
       {error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+        <div
+          className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+          role="alert"
+        >
           {error}
         </div>
       ) : null}
@@ -484,9 +603,11 @@ export default function PublicAgendaBookingPage() {
                 key={service.id}
                 type="button"
                 onClick={() => {
+                  setError(null);
                   setSelectedServiceId(service.id);
                   setSelectedSlot(null);
                 }}
+                aria-pressed={selected}
                 className={
                   selected
                     ? "rounded-2xl border-2 border-[#168e00] bg-[#168e00]/5 p-4 text-left"
@@ -532,98 +653,119 @@ export default function PublicAgendaBookingPage() {
           2. Elige fecha y horario
         </h2>
 
-        <div className="mt-4 max-w-sm">
-          <label>
-            <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-              Fecha
-            </span>
-            <input
-              type="date"
-              min={todayInput()}
-              max={maxDate}
-              className={inputClass}
-              value={selectedDate}
-              onChange={(event) =>
-                setSelectedDate(event.target.value)
-              }
-            />
+        <div className="mt-5 grid items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
+          <AgendaMonthlyCalendar
+            month={visibleMonth}
+            availableDates={availableDates}
+            selectedDate={selectedDate}
+            minDate={calendarMinDate}
+            maxDate={calendarMaxDate}
+            loading={loadingSlots}
+            onSelectDate={(date) => {
+              setError(null);
+              setSelectedDate(date);
+              setSelectedSlot(null);
+            }}
+            onPreviousMonth={() => {
+              setError(null);
+              setVisibleMonth((current) => addMonthsToInput(current, -1));
+              setSelectedDate(null);
+              setSelectedSlot(null);
+            }}
+            onNextMonth={() => {
+              setError(null);
+              setVisibleMonth((current) => addMonthsToInput(current, 1));
+              setSelectedDate(null);
+              setSelectedSlot(null);
+            }}
+          />
 
-            {availability ? (
-              <small className="mt-1.5 block text-gray-500">
-                Puedes elegir una fecha dentro de los próximos{" "}
-                {humanizeDays(
-                  availability.maximum_booking_days,
-                )}.
-              </small>
-            ) : null}
-          </label>
-        </div>
-
-        <div className="mt-5">
-          <p className="mb-3 text-sm font-semibold text-gray-700">
-            {formatDate(
-              selectedDate,
-              availability?.timezone,
-            )}
-          </p>
-
-          {loadingSlots ? (
-            <div className="flex items-center gap-2 py-6 text-gray-500">
-              <Loader2
-                size={20}
-                className="animate-spin"
-              />
-              Consultando horarios...
-            </div>
-          ) : availability?.slots.length ? (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-5">
-              {availability.slots.map((slot) => {
-                const selected =
-                  selectedSlot?.start_at === slot.start_at;
-
-                return (
-                  <button
-                    key={slot.start_at}
-                    type="button"
-                    onClick={() => setSelectedSlot(slot)}
-                    className={
-                      selected
-                        ? "inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-3 py-3 font-semibold text-white"
-                        : "inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-3 font-semibold text-gray-700 hover:border-[#168e00] hover:text-[#168e00]"
-                    }
-                  >
-                    <Clock3 size={16} />
-                    {formatSlot(
-                      slot.start_at,
-                      availability.timezone,
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ) : availability ? (
-            <div className="rounded-2xl bg-gray-50 p-5 text-sm text-gray-600">
-              <p className="font-semibold text-gray-800">
-                No hay horarios disponibles para esta fecha.
-              </p>
-
-              {availability.minimum_notice_minutes > 0 ? (
-                <p className="mt-1">
-                  Recuerda que este negocio exige reservar con al menos{" "}
-                  <strong>
-                    {humanizeMinutes(
-                      availability.minimum_notice_minutes,
-                    )}
-                  </strong>{" "}
-                  de anticipación.
+          <div className="min-w-0 rounded-2xl bg-[#f2f3f4] p-4 sm:p-5">
+            {selectedDate && availability ? (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#168e00]">
+                  Fecha seleccionada
                 </p>
-              ) : null}
-            </div>
-          ) : (
-            <div className="rounded-2xl bg-gray-50 p-5 text-sm text-gray-500">
-              Selecciona un servicio y una fecha.
-            </div>
-          )}
+                <p className="mt-1 font-[family-name:var(--font-varela-round)] text-lg font-bold text-[#004e28]">
+                  {formatDate(selectedDate)}
+                </p>
+              </div>
+            ) : (
+              <p className="font-semibold text-gray-700">
+                Selecciona un día disponible
+              </p>
+            )}
+
+            <h3 className="mt-5 text-sm font-bold text-gray-800">
+              Horarios disponibles
+            </h3>
+
+            {loadingSlots ? (
+              <div className="flex min-h-28 items-center gap-2 py-6 text-sm text-gray-500" role="status">
+                <Loader2 size={20} className="animate-spin" aria-hidden="true" />
+                Consultando horarios...
+              </div>
+            ) : selectedDateSlots.length && availability ? (
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
+                {selectedDateSlots.map((slot) => {
+                  const selected =
+                    selectedSlot?.start_at === slot.start_at;
+
+                  return (
+                    <button
+                      key={slot.start_at}
+                      type="button"
+                      onClick={() => {
+                        setError(null);
+                        setSelectedSlot(slot);
+                      }}
+                      aria-pressed={selected}
+                      aria-label={`Elegir horario ${formatSlot(slot.start_at, availability.timezone)}`}
+                      className={
+                        selected
+                          ? "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#168e00] px-3 py-3 text-sm font-semibold text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004e28]"
+                          : "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm font-semibold text-gray-700 transition hover:border-[#168e00] hover:text-[#168e00] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00]"
+                      }
+                    >
+                      <Clock3 size={16} aria-hidden="true" />
+                      {formatSlot(
+                        slot.start_at,
+                        availability.timezone,
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : availability ? (
+              <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
+                <p className="font-semibold text-gray-800">
+                  No hay horarios disponibles en este periodo.
+                </p>
+
+                {calendarMaxDate &&
+                addMonthsToInput(visibleMonth, 1) <= calendarMaxDate ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setVisibleMonth((current) =>
+                        addMonthsToInput(current, 1),
+                      );
+                      setSelectedDate(null);
+                      setSelectedSlot(null);
+                    }}
+                    className="mt-3 font-bold text-[#168e00] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00]"
+                  >
+                    Ver siguiente periodo
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500">
+                Selecciona un servicio para consultar horarios.
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
@@ -640,6 +782,8 @@ export default function PublicAgendaBookingPage() {
             </span>
             <input
               className={inputClass}
+              required
+              autoComplete="name"
               maxLength={255}
               value={name}
               disabled={guestBlocked}
@@ -659,6 +803,8 @@ export default function PublicAgendaBookingPage() {
             <input
               type="email"
               className={inputClass}
+              required={guestEmailRequired}
+              autoComplete="email"
               maxLength={255}
               value={email}
               disabled={guestBlocked}
@@ -677,6 +823,7 @@ export default function PublicAgendaBookingPage() {
             <input
               type="tel"
               className={inputClass}
+              autoComplete="tel"
               maxLength={30}
               value={phone}
               disabled={guestBlocked}
@@ -716,10 +863,7 @@ export default function PublicAgendaBookingPage() {
             </p>
             {selectedSlot && availability ? (
               <p className="mt-1 text-sm text-gray-500">
-                {formatDate(
-                  selectedDate,
-                  availability.timezone,
-                )}{" "}
+                {selectedDate ? formatDate(selectedDate) : ""}{" "}
                 ·{" "}
                 {formatSlot(
                   selectedSlot.start_at,
@@ -736,6 +880,8 @@ export default function PublicAgendaBookingPage() {
               saving ||
               !selectedService ||
               !selectedSlot ||
+              !name.trim() ||
+              (guestEmailRequired && !email.trim()) ||
               guestBlocked
             }
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-6 py-3.5 font-bold text-white transition hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50"
