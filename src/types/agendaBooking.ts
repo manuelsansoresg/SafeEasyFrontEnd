@@ -1,4 +1,8 @@
-import type { AgendaService } from "@/types/agenda";
+import type {
+  AgendaPaymentMethod,
+  AgendaPaymentStatus,
+  AgendaService,
+} from "@/types/agenda";
 
 export type AgendaBookingStatus =
   | "pending"
@@ -32,6 +36,12 @@ export interface AgendaAvailability {
   allow_customer_cancellation: boolean;
   allow_reschedule_requests: boolean;
 
+  accepts_payments: boolean;
+  allows_cash_payment: boolean;
+  allows_online_payment: boolean;
+  mercadopago_linked: boolean;
+  online_payment_available: boolean;
+
   slots: AgendaAvailabilitySlot[];
 }
 
@@ -42,9 +52,11 @@ export interface AgendaBookingPayload {
   customer_email?: string | null;
   customer_phone?: string | null;
   notes?: string | null;
+  payment_method: AgendaPaymentMethod;
 }
 
-export interface AgendaProviderBookingPayload extends AgendaBookingPayload {
+export interface AgendaProviderBookingPayload
+  extends Omit<AgendaBookingPayload, "payment_method"> {
   customer_user_id?: number | null;
   status?: "pending" | "confirmed" | null;
 }
@@ -73,6 +85,29 @@ export interface AgendaProviderBooking extends AgendaBooking {
 
 export interface AgendaBookingCreated extends AgendaBooking {
   management_token: string;
+  payment_method: AgendaPaymentMethod;
+  payment_status: AgendaPaymentStatus;
+  payment_amount: number;
+  payment_checkout_url: string | null;
+  payment_expires_at: string | null;
+  paid_at: string | null;
+}
+
+export interface AgendaProviderBookingCreated extends AgendaBooking {
+  management_token: string;
+}
+
+export interface AgendaBookingPayment {
+  booking_id: number;
+  supplier_id: number;
+  payment_method: AgendaPaymentMethod;
+  payment_status: AgendaPaymentStatus;
+  amount: number;
+  mp_preference_id: string | null;
+  mp_payment_id: string | null;
+  payment_checkout_url: string | null;
+  payment_expires_at: string | null;
+  paid_at: string | null;
 }
 
 export interface AgendaRescheduleRequest {

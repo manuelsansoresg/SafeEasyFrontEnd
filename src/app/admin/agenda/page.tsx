@@ -19,6 +19,7 @@ import {
   Trash2,
 } from "lucide-react";
 import AgendaModalShell from "@/components/agenda/AgendaModalShell";
+import AgendaPaymentSettingsSection from "@/components/agenda/AgendaPaymentSettings";
 import AgendaServiceConfigModal from "@/components/agenda/AgendaServiceConfigModal";
 import AgendaServiceSelectorModal from "@/components/agenda/AgendaServiceSelectorModal";
 import AgendaStoreServiceModal, {
@@ -31,6 +32,7 @@ import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
 import { useSupplierModules } from "@/hooks/useSupplierModules";
 import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import { resolveCurrentSupplier } from "@/lib/currentSupplier";
+import { startMercadoPagoConnect } from "@/lib/mercadoPagoConnect";
 import { agendaService } from "@/services/agendaService";
 import { servicesService } from "@/services/servicesService";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -40,6 +42,7 @@ import type {
   AgendaException,
   AgendaExceptionPayload,
   AgendaExceptionType,
+  AgendaPaymentSettings,
   AgendaSchedulePayload,
   AgendaService,
   AgendaSettings,
@@ -51,6 +54,7 @@ type Section =
   | "general"
   | "hours"
   | "services"
+  | "payments"
   | "exceptions"
   | "notifications";
 
@@ -130,6 +134,8 @@ export default function AdminAgendaPage() {
   const [settings, setSettings] = useState<AgendaSettings | null>(null);
   const [schedules, setSchedules] = useState<AgendaSchedulePayload[]>([]);
   const [services, setServices] = useState<AgendaService[]>([]);
+  const [paymentSettings, setPaymentSettings] =
+    useState<AgendaPaymentSettings | null>(null);
   const [catalog, setCatalog] = useState<AgendaCatalogService[]>([]);
   const [supplierId, setSupplierId] = useState<number | null>(null);
   const [exceptions, setExceptions] = useState<AgendaException[]>([]);
@@ -143,6 +149,7 @@ export default function AdminAgendaPage() {
   const [editingCatalogService, setEditingCatalogService] =
     useState<AgendaCatalogService | null>(null);
   const [serviceActionSaving, setServiceActionSaving] = useState(false);
+  const [linkingMercadoPago, setLinkingMercadoPago] = useState(false);
 
   const [exceptionModal, setExceptionModal] = useState(false);
   const [editingException, setEditingException] =
@@ -157,12 +164,21 @@ export default function AdminAgendaPage() {
     setLoading(true);
 
     try {
-      const [settingsData, scheduleData, serviceData, catalogData, exceptionData, supplier] =
+      const [
+        settingsData,
+        scheduleData,
+        serviceData,
+        catalogData,
+        paymentSettingsData,
+        exceptionData,
+        supplier,
+      ] =
         await Promise.all([
           agendaService.getSettings(signal),
           agendaService.listSchedules(signal),
           agendaService.listServices(signal),
           agendaService.listServiceCatalog(signal),
+          agendaService.getPaymentSettings(signal),
           agendaService.listExceptions(signal),
           user
             ? resolveCurrentSupplier(user, { signal })
@@ -180,6 +196,7 @@ export default function AdminAgendaPage() {
       );
       setServices(serviceData);
       setCatalog(catalogData);
+      setPaymentSettings(paymentSettingsData);
       setSupplierId(supplier?.id ?? null);
       setExceptions(exceptionData);
     } catch (error) {
@@ -212,6 +229,7 @@ export default function AdminAgendaPage() {
       { id: "general" as const, label: "General" },
       { id: "hours" as const, label: "Horarios" },
       { id: "services" as const, label: "Servicios" },
+      { id: "payments" as const, label: "Pagos" },
       { id: "exceptions" as const, label: "Excepciones" },
       { id: "notifications" as const, label: "Notificaciones" },
     ],
@@ -309,6 +327,54 @@ export default function AdminAgendaPage() {
       return false;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const savePaymentSettings = async () => {
+    if (!paymentSettings) return false;
+    if (
+      paymentSettings.accepts_payments &&
+      !paymentSettings.allows_cash_payment &&
+      !paymentSettings.allows_online_payment
+    ) {
+      setToast({
+        type: "error",
+        message: "Selecciona al menos una forma de pago.",
+      });
+      return false;
+    }
+
+    setSaving(true);
+    try {
+      const updated = await agendaService.updatePaymentSettings({
+        accepts_payments: paymentSettings.accepts_payments,
+        allows_cash_payment: paymentSettings.allows_cash_payment,
+        allows_online_payment: paymentSettings.allows_online_payment,
+      });
+      setPaymentSettings(updated);
+      setToast({ type: "success", message: "Configuración de pagos guardada." });
+      return true;
+    } catch (error) {
+      setToast({
+        type: "error",
+        message: message(error, "No se pudo guardar la configuración de pagos."),
+      });
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const linkMercadoPago = async () => {
+    setLinkingMercadoPago(true);
+    try {
+      await startMercadoPagoConnect("supplier");
+    } catch (error) {
+      setToast({
+        type: "error",
+        message: message(error, "No se pudo iniciar la vinculación con Mercado Pago."),
+      });
+      setLinkingMercadoPago(false);
     }
   };
 
@@ -549,6 +615,7 @@ export default function AdminAgendaPage() {
     settings?.is_active ||
       schedules.length ||
       services.length ||
+      paymentSettings?.accepts_payments ||
       exceptions.length,
   );
 
@@ -564,6 +631,8 @@ export default function AdminAgendaPage() {
       canContinue = await saveSettings("Datos generales guardados.");
     } else if (section === "hours") {
       canContinue = await saveSchedules();
+    } else if (section === "payments") {
+      canContinue = await savePaymentSettings();
     } else if (section === "notifications") {
       canContinue = await saveSettings("Configuración de Agenda terminada.");
     }
@@ -599,7 +668,7 @@ export default function AdminAgendaPage() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white p-3 shadow-sm">
-        <div className="flex min-w-[720px] items-center">
+        <div className="flex min-w-[900px] items-center">
           {tabs.map((tab, index) => {
             const isCurrent = section === tab.id;
             const isDone = index < currentStepIndex;
@@ -1128,6 +1197,21 @@ export default function AdminAgendaPage() {
             </div>
           )}
         </section>
+      ) : null}
+
+      {section === "payments" && paymentSettings ? (
+        <AgendaPaymentSettingsSection
+          value={paymentSettings}
+          linking={linkingMercadoPago}
+          onChange={setPaymentSettings}
+          onLinkMercadoPago={() => void linkMercadoPago()}
+          onRequireMercadoPago={() =>
+            setToast({
+              type: "info",
+              message: "Vincula primero tu cuenta de Mercado Pago.",
+            })
+          }
+        />
       ) : null}
 
       {section === "exceptions" ? (

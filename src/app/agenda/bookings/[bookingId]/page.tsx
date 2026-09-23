@@ -13,6 +13,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import AgendaPaymentStatus from "@/components/agenda/AgendaPaymentStatus";
 import {
   canStillCancel,
   humanizeHours,
@@ -29,6 +30,7 @@ import type {
   AgendaAvailability,
   AgendaAvailabilitySlot,
   AgendaBooking,
+  AgendaBookingPayment,
 } from "@/types/agendaBooking";
 
 const inputClass =
@@ -125,6 +127,7 @@ export default function AgendaBookingManagementPage() {
   const bookingId = Number(params.bookingId);
   const tokenFromUrl =
     searchParams.get("management_token") || "";
+  const paymentReturn = searchParams.get("payment");
 
   const [managementToken, setManagementToken] =
     useState(tokenFromUrl);
@@ -137,6 +140,9 @@ export default function AgendaBookingManagementPage() {
     useState<AgendaAvailability | null>(null);
   const [timezone, setTimezone] =
     useState<string | undefined>();
+  const [payment, setPayment] =
+    useState<AgendaBookingPayment | null | undefined>(undefined);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -292,6 +298,23 @@ export default function AgendaBookingManagementPage() {
             // no pueda recuperarse temporalmente.
           }
         }
+
+        try {
+          const paymentData = await agendaBookingService.getBookingPayment(
+            bookingId,
+            managementToken || null,
+            controller.signal,
+          );
+          setPayment(paymentData);
+          setPaymentError(null);
+        } catch (paymentRequestError) {
+          setPayment(null);
+          setPaymentError(
+            paymentRequestError instanceof Error
+              ? paymentRequestError.message
+              : "No se pudo consultar el estado del pago.",
+          );
+        }
       } catch (err) {
         setError(
           err instanceof Error
@@ -312,6 +335,44 @@ export default function AgendaBookingManagementPage() {
     hydrated,
     managementToken,
   ]);
+
+  useEffect(() => {
+    if (
+      !booking ||
+      payment?.payment_method !== "online" ||
+      payment.payment_status !== "pending"
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const updated = await agendaBookingService.getBookingPayment(
+          booking.id,
+          managementToken || null,
+        );
+        if (!cancelled && updated) {
+          setPayment(updated);
+          setPaymentError(null);
+        }
+      } catch (paymentRequestError) {
+        if (!cancelled) {
+          setPaymentError(
+            paymentRequestError instanceof Error
+              ? paymentRequestError.message
+              : "No se pudo actualizar el estado del pago.",
+          );
+        }
+      }
+    };
+
+    const intervalId = window.setInterval(() => void refresh(), 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [booking, managementToken, payment?.payment_method, payment?.payment_status]);
 
   useEffect(() => {
     if (
@@ -539,6 +600,29 @@ export default function AgendaBookingManagementPage() {
         </div>
       </section>
 
+      {paymentReturn ? (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
+            paymentReturn === "success"
+              ? payment?.payment_status === "paid"
+                ? "border-green-200 bg-green-50 text-green-700"
+                : "border-amber-200 bg-amber-50 text-amber-900"
+              : paymentReturn === "pending"
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-red-200 bg-red-50 text-red-700"
+          }`}
+          role="status"
+        >
+          {paymentReturn === "success"
+            ? payment?.payment_status === "paid"
+              ? "Pago confirmado correctamente."
+              : "Estamos confirmando tu pago. Esta pantalla se actualizará automáticamente."
+            : paymentReturn === "pending"
+              ? "Tu pago sigue pendiente de confirmación."
+              : "El pago no se completó. Puedes intentarlo nuevamente si la liga sigue disponible."}
+        </div>
+      ) : null}
+
       {error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {error}
@@ -647,6 +731,18 @@ export default function AgendaBookingManagementPage() {
             </p>
           </div>
         ) : null}
+      </section>
+
+      <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
+        <h2 className="text-xl font-bold text-gray-900">Pago</h2>
+        {paymentError ? (
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            {paymentError}
+          </p>
+        ) : null}
+        <div className="mt-4">
+          <AgendaPaymentStatus payment={payment} />
+        </div>
       </section>
 
       {isActive ? (

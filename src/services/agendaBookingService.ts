@@ -4,10 +4,12 @@ import type {
   AgendaAvailability,
   AgendaBooking,
   AgendaBookingCreated,
+  AgendaBookingPayment,
   AgendaBookingPayload,
   AgendaBookingStatus,
   AgendaCancelPayload,
   AgendaProviderBooking,
+  AgendaProviderBookingCreated,
   AgendaProviderBookingPayload,
   AgendaRescheduleDecisionPayload,
   AgendaReschedulePayload,
@@ -20,6 +22,16 @@ import type {
 // del frontend sí está disponible y conserva las rutas reales de Agenda.
 const agendaGateway = "/proxy/agenda";
 const publicAgendaGateway = "/proxy/public/agenda";
+
+class AgendaBookingRequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "AgendaBookingRequestError";
+    this.status = status;
+  }
+}
 
 function extractError(value: unknown): string | undefined {
   if (typeof value === "string") return value;
@@ -90,6 +102,12 @@ function friendlyAgendaError(detail: string | undefined) {
       "La fecha y hora seleccionadas no tienen una zona horaria válida.",
     "requested_start_at must include a timezone":
       "La nueva fecha y hora no tienen una zona horaria válida.",
+    "Booking payment not found":
+      "No hay un registro de pago para esta cita.",
+    "If Agenda payments are enabled, at least one payment method must be allowed":
+      "Selecciona al menos una forma de pago.",
+    "Sólo los pagos en efectivo pueden marcarse manualmente como pagados.":
+      "Sólo los pagos directos pueden marcarse manualmente como pagados.",
   };
 
   return translations[detail] || detail;
@@ -119,44 +137,51 @@ async function request<T>(
   const detail = friendlyAgendaError(extractError(body));
 
   if (response.status === 429) {
-    throw new Error(
+    throw new AgendaBookingRequestError(
       "Has realizado demasiados intentos. Espera un momento y vuelve a intentar.",
+      response.status,
     );
   }
 
   if (response.status === 401) {
-    throw new Error(
+    throw new AgendaBookingRequestError(
       "Tu sesión expiró. Inicia sesión nuevamente.",
+      response.status,
     );
   }
 
   if (response.status === 403) {
-    throw new Error(
+    throw new AgendaBookingRequestError(
       detail || "No tienes permiso para realizar esta acción.",
+      response.status,
     );
   }
 
   if (response.status === 404) {
-    throw new Error(
+    throw new AgendaBookingRequestError(
       detail || "El recurso solicitado no existe.",
+      response.status,
     );
   }
 
   if (response.status === 409) {
-    throw new Error(
+    throw new AgendaBookingRequestError(
       detail || "Existe un conflicto con esta cita.",
+      response.status,
     );
   }
 
   if (response.status === 422) {
-    throw new Error(
+    throw new AgendaBookingRequestError(
       detail || "Revisa los datos capturados.",
+      response.status,
     );
   }
 
-  throw new Error(
+  throw new AgendaBookingRequestError(
     detail ||
       `No se pudo completar la solicitud (${response.status}).`,
+    response.status,
   );
 }
 
@@ -237,6 +262,27 @@ export const agendaBookingService = {
     );
   },
 
+  async getBookingPayment(
+    bookingId: number,
+    managementToken?: string | null,
+    signal?: AbortSignal,
+  ): Promise<AgendaBookingPayment | null> {
+    const query = queryString({
+      management_token: managementToken,
+    });
+    try {
+      return await request<AgendaBookingPayment>(
+        `${publicAgendaGateway}/bookings/${bookingId}/payment${query}`,
+        { signal, retryOnAuthFailure: false },
+      );
+    } catch (error) {
+      if (error instanceof AgendaBookingRequestError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
   async myBookings(
     status?: AgendaBookingStatus,
     signal?: AbortSignal,
@@ -297,13 +343,39 @@ export const agendaBookingService = {
 
   async createProviderAppointment(
     payload: AgendaProviderBookingPayload,
-  ): Promise<AgendaBookingCreated> {
-    return request<AgendaBookingCreated>(
+  ): Promise<AgendaProviderBookingCreated> {
+    return request<AgendaProviderBookingCreated>(
       `${agendaGateway}/appointments`,
       {
         method: "POST",
         body: JSON.stringify(payload),
       },
+    );
+  },
+
+  async providerBookingPayment(
+    bookingId: number,
+    signal?: AbortSignal,
+  ): Promise<AgendaBookingPayment | null> {
+    try {
+      return await request<AgendaBookingPayment>(
+        `${agendaGateway}/appointments/${bookingId}/payment`,
+        { signal },
+      );
+    } catch (error) {
+      if (error instanceof AgendaBookingRequestError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  async markBookingPaymentPaid(
+    bookingId: number,
+  ): Promise<AgendaBookingPayment> {
+    return request<AgendaBookingPayment>(
+      `${agendaGateway}/appointments/${bookingId}/payment/mark-paid`,
+      { method: "POST" },
     );
   },
 

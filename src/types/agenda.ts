@@ -3,6 +3,28 @@ export type SlotInterval = 15 | 20 | 30 | 60;
 export type ServiceDuration = 15 | 20 | 30 | 45 | 60 | 90 | 120;
 export type BufferDuration = 0 | 5 | 10 | 15 | 20 | 30 | 45 | 60;
 export type AgendaExceptionType = "closed" | "special_hours" | "blocked";
+export type AgendaPaymentMethod = "none" | "cash" | "online";
+export type AgendaPaymentStatus =
+  | "not_required"
+  | "pending"
+  | "paid"
+  | "failed"
+  | "expired";
+
+export interface AgendaPaymentSettings {
+  supplier_id: number;
+  accepts_payments: boolean;
+  allows_cash_payment: boolean;
+  allows_online_payment: boolean;
+  mercadopago_linked: boolean;
+  online_payment_available: boolean;
+}
+
+export interface AgendaPaymentSettingsPayload {
+  accepts_payments: boolean;
+  allows_cash_payment: boolean;
+  allows_online_payment: boolean;
+}
 
 export interface AgendaSettings {
   id: number;

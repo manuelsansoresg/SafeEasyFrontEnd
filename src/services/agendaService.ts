@@ -3,6 +3,8 @@ import type {
   AgendaException,
   AgendaExceptionPayload,
   AgendaCatalogService,
+  AgendaPaymentSettings,
+  AgendaPaymentSettingsPayload,
   AgendaSchedule,
   AgendaSchedulePayload,
   AgendaService,
@@ -48,6 +50,9 @@ async function request(
       "Necesitas una suscripción activa para administrar servicios.",
     "Active subscription required":
       "Necesitas una suscripción activa para administrar servicios.",
+    "If Agenda payments are enabled, at least one payment method must be allowed":
+      "Selecciona al menos una forma de pago.",
+    "Supplier not found": "No encontramos el negocio asociado a tu cuenta.",
   };
   const detail = rawDetail ? translations[rawDetail] ?? rawDetail : undefined;
   if (response.status === 401) throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
@@ -66,6 +71,21 @@ export const agendaService = {
 
   async updateSettings(payload: AgendaSettingsPayload): Promise<AgendaSettings> {
     const response = await request(`${base}/settings`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    return response.json();
+  },
+
+  async getPaymentSettings(signal?: AbortSignal): Promise<AgendaPaymentSettings> {
+    const response = await request(`${base}/payment-settings`, { signal });
+    return response.json();
+  },
+
+  async updatePaymentSettings(
+    payload: AgendaPaymentSettingsPayload,
+  ): Promise<AgendaPaymentSettings> {
+    const response = await request(`${base}/payment-settings`, {
       method: "PUT",
       body: JSON.stringify(payload),
     });

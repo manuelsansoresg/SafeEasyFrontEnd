@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import AgendaMonthlyCalendar from "@/components/agenda/AgendaMonthlyCalendar";
+import AgendaPaymentMethodSelector from "@/components/agenda/AgendaPaymentMethodSelector";
 import {
   addDaysToDateInput,
   dateInputInTimeZone,
@@ -24,12 +25,13 @@ import {
   humanizeMinutes,
 } from "@/lib/agendaTime";
 import { agendaBookingService } from "@/services/agendaBookingService";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
 import {
   getBrowserPathWithSearchAndHash,
   getLoginUrl,
 } from "@/lib/authRedirect";
-import type { AgendaService } from "@/types/agenda";
+import type { AgendaPaymentMethod, AgendaService } from "@/types/agenda";
 import type {
   AgendaAvailability,
   AgendaAvailabilitySlot,
@@ -95,6 +97,20 @@ function formatDate(
   }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
+function nextPaymentMethod(
+  data: AgendaAvailability,
+  current: AgendaPaymentMethod,
+): AgendaPaymentMethod {
+  if (!data.accepts_payments) return "none";
+  const cashAvailable = data.allows_cash_payment;
+  const onlineAvailable = data.online_payment_available;
+  if (current === "cash" && cashAvailable) return current;
+  if (current === "online" && onlineAvailable) return current;
+  if (cashAvailable && !onlineAvailable) return "cash";
+  if (onlineAvailable && !cashAvailable) return "online";
+  return "none";
+}
+
 export default function PublicAgendaBookingPage() {
   const params = useParams<{ supplierId: string }>();
   const router = useRouter();
@@ -125,6 +141,8 @@ export default function PublicAgendaBookingPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [paymentMethod, setPaymentMethod] =
+    useState<AgendaPaymentMethod>("none");
 
   const [loadingServices, setLoadingServices] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -287,6 +305,7 @@ export default function PublicAgendaBookingPage() {
           current === providerMaxDate ? current : providerMaxDate,
         );
         setAvailability(data);
+        setPaymentMethod((current) => nextPaymentMethod(data, current));
 
         if (!timezoneAligned.current) {
           timezoneAligned.current = true;
@@ -363,6 +382,11 @@ export default function PublicAgendaBookingPage() {
       return;
     }
 
+    if (availability?.accepts_payments && paymentMethod === "none") {
+      setError("Selecciona una forma de pago para reservar.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -377,6 +401,9 @@ export default function PublicAgendaBookingPage() {
             customer_email: email.trim() || null,
             customer_phone: phone.trim() || null,
             notes: notes.trim() || null,
+            payment_method: availability?.accepts_payments
+              ? paymentMethod
+              : "none",
           },
         );
 
@@ -387,11 +414,19 @@ export default function PublicAgendaBookingPage() {
         );
       }
 
+      if (booking.payment_method === "online") {
+        const checkoutUrl = getSafeMercadoPagoUrl(booking.payment_checkout_url);
+        if (!checkoutUrl) {
+          setError("No se pudo iniciar el pago. Intenta nuevamente.");
+          return;
+        }
+        window.location.assign(checkoutUrl);
+        return;
+      }
+
       const query = auth.isAuthenticated
         ? ""
-        : `?management_token=${encodeURIComponent(
-            booking.management_token,
-          )}`;
+        : `?management_token=${encodeURIComponent(booking.management_token)}`;
 
       router.push(
         `/agenda/bookings/${booking.id}${query}`,
@@ -606,6 +641,7 @@ export default function PublicAgendaBookingPage() {
                   setError(null);
                   setSelectedServiceId(service.id);
                   setSelectedSlot(null);
+                  setPaymentMethod("none");
                 }}
                 aria-pressed={selected}
                 className={
@@ -852,6 +888,18 @@ export default function PublicAgendaBookingPage() {
         </div>
       </section>
 
+      {availability?.accepts_payments ? (
+        <AgendaPaymentMethodSelector
+          allowsCash={availability.allows_cash_payment}
+          onlineAvailable={availability.online_payment_available}
+          value={paymentMethod}
+          onChange={(method) => {
+            setError(null);
+            setPaymentMethod(method);
+          }}
+        />
+      ) : null}
+
       <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
@@ -882,7 +930,8 @@ export default function PublicAgendaBookingPage() {
               !selectedSlot ||
               !name.trim() ||
               (guestEmailRequired && !email.trim()) ||
-              guestBlocked
+              guestBlocked ||
+              (availability?.accepts_payments === true && paymentMethod === "none")
             }
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-6 py-3.5 font-bold text-white transition hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -894,7 +943,7 @@ export default function PublicAgendaBookingPage() {
             ) : (
               <CalendarDays size={19} />
             )}
-            Confirmar reservación
+            {paymentMethod === "online" ? "Continuar al pago" : "Confirmar reservación"}
           </button>
         </div>
       </section>

@@ -10,12 +10,12 @@ import {
   Loader2,
   Plus,
   RefreshCw,
-  UserRound,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
+import AgendaPaymentStatus from "@/components/agenda/AgendaPaymentStatus";
 import { useSupplierModules } from "@/hooks/useSupplierModules";
 import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import { agendaService } from "@/services/agendaService";
@@ -24,6 +24,7 @@ import type { AgendaService } from "@/types/agenda";
 import type {
   AgendaAvailability,
   AgendaAvailabilitySlot,
+  AgendaBookingPayment,
   AgendaBookingStatus,
   AgendaProviderBooking,
   AgendaRescheduleRequest,
@@ -91,6 +92,10 @@ export default function ProviderAgendaAppointmentsPage() {
     useState<"all" | AgendaBookingStatus>("all");
   const [loading, setLoading] = useState(true);
   const [workingId, setWorkingId] = useState<number | null>(null);
+  const [paymentWorkingId, setPaymentWorkingId] = useState<number | null>(null);
+  const [payments, setPayments] = useState<
+    Record<number, AgendaBookingPayment | null | undefined>
+  >({});
   const [toast, setToast] = useState<ToastState>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -99,13 +104,12 @@ export default function ProviderAgendaAppointmentsPage() {
   const [requestsBooking, setRequestsBooking] =
     useState<AgendaProviderBooking | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     if (!hasAccess) {
       setLoading(false);
       return;
     }
 
-    const controller = new AbortController();
     setLoading(true);
 
     try {
@@ -113,14 +117,26 @@ export default function ProviderAgendaAppointmentsPage() {
         await Promise.all([
           agendaBookingService.providerAppointments(
             undefined,
-            controller.signal,
+            signal,
           ),
-          agendaService.listServices(controller.signal),
+          agendaService.listServices(signal),
         ]);
 
       setAppointments(appointmentsData);
       setServices(servicesData);
+      setLoading(false);
+
+      const paymentEntries = await Promise.all(
+        appointmentsData.map(async (booking) => [
+          booking.id,
+          await agendaBookingService.providerBookingPayment(booking.id, signal),
+        ] as const),
+      );
+      if (!signal?.aborted) {
+        setPayments(Object.fromEntries(paymentEntries));
+      }
     } catch (error) {
+      if (signal?.aborted) return;
       setToast({
         type: "error",
         message:
@@ -129,16 +145,15 @@ export default function ProviderAgendaAppointmentsPage() {
             : "No se pudieron cargar las citas.",
       });
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-
-    return () => controller.abort();
   }, [hasAccess]);
 
   useEffect(() => {
-    if (!accessLoading) {
-      void load();
-    }
+    if (accessLoading) return;
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [accessLoading, load]);
 
   useEffect(() => {
@@ -204,6 +219,29 @@ export default function ProviderAgendaAppointmentsPage() {
       });
     } finally {
       setWorkingId(null);
+    }
+  };
+
+  const markCashPaymentPaid = async (bookingId: number) => {
+    if (!window.confirm("¿Confirmas que recibiste el pago de esta cita?")) {
+      return;
+    }
+
+    setPaymentWorkingId(bookingId);
+    try {
+      const updated = await agendaBookingService.markBookingPaymentPaid(bookingId);
+      setPayments((current) => ({ ...current, [bookingId]: updated }));
+      setToast({ type: "success", message: "Pago registrado correctamente." });
+    } catch (error) {
+      setToast({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo registrar el pago.",
+      });
+    } finally {
+      setPaymentWorkingId(null);
     }
   };
 
@@ -360,6 +398,15 @@ export default function ProviderAgendaAppointmentsPage() {
                   </div>
                 ) : null}
 
+                <div className="mt-4">
+                  <AgendaPaymentStatus
+                    compact
+                    payment={payments[booking.id]}
+                    markingPaid={paymentWorkingId === booking.id}
+                    onMarkPaid={() => void markCashPaymentPaid(booking.id)}
+                  />
+                </div>
+
                 <div className="mt-5 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
                   {booking.status === "pending" ? (
                     <>
@@ -440,6 +487,7 @@ export default function ProviderAgendaAppointmentsPage() {
             created,
             ...current,
           ]);
+          setPayments((current) => ({ ...current, [created.id]: null }));
           setCreateOpen(false);
           setToast({
             type: "success",
