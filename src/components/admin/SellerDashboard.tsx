@@ -281,7 +281,7 @@ export default function SellerDashboard() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("mp") !== "callback" || params.get("mp_account_type") !== "seller") return;
+    if (params.get("mp") !== "linked" || params.get("account_type") !== "seller") return;
 
     setMpMessage("Regresaste de Mercado Pago. Estamos validando la vinculación.");
     let attempts = 0;
@@ -298,7 +298,7 @@ export default function SellerDashboard() {
   useEffect(() => {
     if (!mpAccount.connected) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("mp") === "callback") setMpMessage("Cuenta de Mercado Pago vinculada correctamente.");
+    if (params.get("mp") === "linked") setMpMessage("Cuenta de Mercado Pago vinculada correctamente.");
   }, [mpAccount.connected]);
 
   const history = useMemo(() => {

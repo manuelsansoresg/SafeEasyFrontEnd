@@ -114,8 +114,8 @@ export default function AdminMenuOrderSettingsPage() {
   }, [load]);
 
   useEffect(() => {
-    if (searchParams.get("mp") !== "callback") return;
-    if (searchParams.get("mp_account_type") !== "supplier") return;
+    if (searchParams.get("mp") !== "linked") return;
+    if (searchParams.get("account_type") !== "supplier") return;
     setToast({
       type: "info",
       message: "Regresaste de Mercado Pago. Estamos validando la vinculación.",

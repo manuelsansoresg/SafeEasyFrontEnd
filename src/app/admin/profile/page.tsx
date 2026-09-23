@@ -239,7 +239,7 @@ export default function ProfilePage() {
     if (!isSeller || !token || typeof window === "undefined") return;
 
     const params = new URLSearchParams(window.location.search);
-    if (params.get("mp") !== "callback" || params.get("mp_account_type") !== "seller") return;
+    if (params.get("mp") !== "linked" || params.get("account_type") !== "seller") return;
 
     setSuccessMessage("Regresaste de Mercado Pago. Estamos validando la vinculación.");
     let attempts = 0;
@@ -256,7 +256,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!mpAccount.connected || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("mp") !== "callback") return;
+    if (params.get("mp") !== "linked") return;
     setSuccessMessage("Cuenta de Mercado Pago vinculada correctamente.");
   }, [mpAccount.connected]);
 
