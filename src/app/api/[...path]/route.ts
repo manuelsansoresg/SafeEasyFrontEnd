@@ -296,6 +296,7 @@ function normalizeBackendPath(pathname: string) {
     "deleted",
     "supplier-categories",
     "mine",
+    "available",
   ]);
 
   const hasResourceId = segments.some(
@@ -318,13 +319,20 @@ function normalizeBackendPath(pathname: string) {
     segments[0] === "menu-orders" ||
     (segments[0] === "public" && segments[1] === "menu-orders");
 
+  // Agenda está registrada completamente sin slash final. La regla es
+  // específica para no alterar `/services/`, cuya colección sí usa slash.
+  const isAgendaEndpoint =
+    segments[0] === "agenda" ||
+    (segments[0] === "public" && segments[1] === "agenda");
+
   if (
     resourceEndpoints.has(lastSegment) ||
     hasResourceId ||
     isAdminEndpoint ||
     isChatEndpoint ||
     isSupplierCategorySubcategories ||
-    isMenuOrderEndpoint
+    isMenuOrderEndpoint ||
+    isAgendaEndpoint
   ) {
     return relativePath.replace(/\/+$/, "");
   }

@@ -10,28 +10,40 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  Clock3,
+  ExternalLink,
   Loader2,
   Pencil,
   Plus,
+  Settings2,
   Trash2,
 } from "lucide-react";
+import AgendaModalShell from "@/components/agenda/AgendaModalShell";
+import AgendaServiceConfigModal from "@/components/agenda/AgendaServiceConfigModal";
+import AgendaServiceSelectorModal from "@/components/agenda/AgendaServiceSelectorModal";
+import AgendaStoreServiceModal, {
+  type AgendaStoreServiceCreateValues,
+  type AgendaStoreServiceUpdateValues,
+} from "@/components/agenda/AgendaStoreServiceModal";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
+import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
 import { useSupplierModules } from "@/hooks/useSupplierModules";
 import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
+import { resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { agendaService } from "@/services/agendaService";
+import { servicesService } from "@/services/servicesService";
+import { useAuthStore } from "@/store/useAuthStore";
 import type {
+  AgendaCatalogService,
   AgendaDay,
   AgendaException,
   AgendaExceptionPayload,
   AgendaExceptionType,
   AgendaSchedulePayload,
   AgendaService,
-  AgendaServicePayload,
   AgendaSettings,
   AgendaSettingsPayload,
-  BufferDuration,
-  ServiceDuration,
   SlotInterval,
 } from "@/types/agenda";
 
@@ -57,8 +69,6 @@ const DAYS: { value: AgendaDay; label: string; short: string }[] = [
 ];
 
 const SLOT_INTERVALS: SlotInterval[] = [15, 20, 30, 60];
-const DURATIONS: ServiceDuration[] = [15, 20, 30, 45, 60, 90, 120];
-const BUFFERS: BufferDuration[] = [0, 5, 10, 15, 20, 30, 45, 60];
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400";
@@ -109,43 +119,54 @@ function settingsPayload(settings: AgendaSettings): AgendaSettingsPayload {
 }
 
 export default function AdminAgendaPage() {
+  const user = useAuthStore((state) => state.user);
   const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
   const hasAccess = hasModule("agenda");
+  const { isDirectory, loading: directoryLoading } =
+    useMyDirectorySubscription(Boolean(user));
 
   const [section, setSection] = useState<Section>("general");
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<AgendaSettings | null>(null);
   const [schedules, setSchedules] = useState<AgendaSchedulePayload[]>([]);
   const [services, setServices] = useState<AgendaService[]>([]);
+  const [catalog, setCatalog] = useState<AgendaCatalogService[]>([]);
+  const [supplierId, setSupplierId] = useState<number | null>(null);
   const [exceptions, setExceptions] = useState<AgendaException[]>([]);
   const [toast, setToast] = useState<ToastState>(null);
   const [saving, setSaving] = useState(false);
 
-  const [serviceModal, setServiceModal] = useState(false);
-  const [editingService, setEditingService] = useState<AgendaService | null>(
-    null,
-  );
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const [configuringService, setConfiguringService] =
+    useState<AgendaService | null>(null);
+  const [storeServiceModalOpen, setStoreServiceModalOpen] = useState(false);
+  const [editingCatalogService, setEditingCatalogService] =
+    useState<AgendaCatalogService | null>(null);
+  const [serviceActionSaving, setServiceActionSaving] = useState(false);
 
   const [exceptionModal, setExceptionModal] = useState(false);
   const [editingException, setEditingException] =
     useState<AgendaException | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     if (!hasAccess) {
       setLoading(false);
       return;
     }
 
-    const controller = new AbortController();
     setLoading(true);
 
     try {
-      const [settingsData, scheduleData, serviceData, exceptionData] =
+      const [settingsData, scheduleData, serviceData, catalogData, exceptionData, supplier] =
         await Promise.all([
-          agendaService.getSettings(controller.signal),
-          agendaService.listSchedules(controller.signal),
-          agendaService.listServices(controller.signal),
-          agendaService.listExceptions(controller.signal),
+          agendaService.getSettings(signal),
+          agendaService.listSchedules(signal),
+          agendaService.listServices(signal),
+          agendaService.listServiceCatalog(signal),
+          agendaService.listExceptions(signal),
+          user
+            ? resolveCurrentSupplier(user, { signal })
+            : Promise.resolve(null),
         ]);
 
       setSettings(settingsData);
@@ -158,6 +179,8 @@ export default function AdminAgendaPage() {
         })),
       );
       setServices(serviceData);
+      setCatalog(catalogData);
+      setSupplierId(supplier?.id ?? null);
       setExceptions(exceptionData);
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
@@ -167,14 +190,15 @@ export default function AdminAgendaPage() {
         });
       }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-
-    return () => controller.abort();
-  }, [hasAccess]);
+  }, [hasAccess, user]);
 
   useEffect(() => {
-    if (!accessLoading) void load();
+    if (accessLoading) return;
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [accessLoading, load]);
 
   useEffect(() => {
@@ -194,7 +218,7 @@ export default function AdminAgendaPage() {
     [],
   );
 
-  if (accessLoading || (hasAccess && loading)) {
+  if (accessLoading || directoryLoading || (hasAccess && loading)) {
     return (
       <div className="flex min-h-[55vh] items-center justify-center">
         <Loader2 className="animate-spin text-[#168e00]" size={34} />
@@ -313,6 +337,211 @@ export default function AdminAgendaPage() {
     setSchedules((current) =>
       current.filter((_, itemIndex) => itemIndex !== index),
     );
+
+  const refreshServiceData = async () => {
+    const [nextServices, nextCatalog] = await Promise.all([
+      agendaService.listServices(),
+      agendaService.listServiceCatalog(),
+    ]);
+    setServices(nextServices);
+    setCatalog(nextCatalog);
+  };
+
+  const addCatalogServices = async (serviceIds: string[]) => {
+    const selected = catalog.filter((item) =>
+      serviceIds.includes(item.service_id),
+    );
+    if (selected.length === 0) return;
+
+    setServiceActionSaving(true);
+    try {
+      const firstDisplayOrder =
+        services.reduce(
+          (highest, item) => Math.max(highest, item.display_order),
+          -1,
+        ) + 1;
+      const results = await Promise.allSettled(
+        selected.map((item, index) =>
+          item.agenda_service_id !== null
+            ? agendaService.updateService(item.agenda_service_id, {
+                is_active: true,
+              })
+            : agendaService.createService({
+                catalog_service_id: item.service_id,
+                duration_minutes: 30,
+                buffer_minutes: 0,
+                is_active: true,
+                display_order: firstDisplayOrder + index,
+              }),
+        ),
+      );
+      await refreshServiceData();
+
+      const added = results.filter((result) => result.status === "fulfilled").length;
+      const failed = results.length - added;
+      const firstFailure = results.find(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected",
+      );
+      if (added > 0) setSelectorOpen(false);
+      setToast(
+        failed === 0
+          ? {
+              type: "success",
+              message:
+                added === 1
+                  ? "Servicio agregado a Agenda."
+                  : `${added} servicios agregados a Agenda.`,
+            }
+          : {
+              type: added > 0 ? "info" : "error",
+              message:
+                added > 0
+                  ? `Se agregaron ${added} servicios. ${failed} no ${failed === 1 ? "pudo" : "pudieron"} configurarse.`
+                  : message(
+                      firstFailure?.reason,
+                      "No se pudieron agregar los servicios.",
+                    ),
+            },
+      );
+    } catch (error) {
+      setToast({
+        type: "error",
+        message: message(error, "No se pudieron agregar los servicios."),
+      });
+    } finally {
+      setServiceActionSaving(false);
+    }
+  };
+
+  const saveAgendaConfiguration = async (
+    payload: Parameters<typeof agendaService.updateService>[1],
+  ) => {
+    if (!configuringService) return;
+    setServiceActionSaving(true);
+    try {
+      await agendaService.updateService(configuringService.id, payload);
+      await refreshServiceData();
+      setConfiguringService(null);
+      setToast({ type: "success", message: "Configuración de cita actualizada." });
+    } catch (error) {
+      setToast({
+        type: "error",
+        message: message(error, "No se pudo actualizar la configuración."),
+      });
+    } finally {
+      setServiceActionSaving(false);
+    }
+  };
+
+  const deactivateAgendaService = async () => {
+    if (!configuringService) return;
+    setServiceActionSaving(true);
+    try {
+      await agendaService.updateService(configuringService.id, {
+        is_active: false,
+      });
+      await refreshServiceData();
+      setConfiguringService(null);
+      setToast({
+        type: "success",
+        message: "El servicio dejó de aceptar nuevas reservaciones.",
+      });
+    } catch (error) {
+      setToast({
+        type: "error",
+        message: message(error, "No se pudo desactivar el servicio."),
+      });
+    } finally {
+      setServiceActionSaving(false);
+    }
+  };
+
+  const createStoreService = async (
+    values: AgendaStoreServiceCreateValues,
+  ) => {
+    if (!supplierId) {
+      setToast({
+        type: "error",
+        message: "No pudimos identificar tu negocio. Actualiza la página e inténtalo de nuevo.",
+      });
+      return;
+    }
+
+    setServiceActionSaving(true);
+    try {
+      const created = await servicesService.create({
+        supplierId,
+        title: values.title,
+        description: values.description,
+        price: values.price,
+        isActive: values.isActive,
+        coverIndex: values.image ? 0 : undefined,
+        images: values.image ? [values.image] : [],
+      });
+
+      try {
+        const displayOrder =
+          services.reduce(
+            (highest, item) => Math.max(highest, item.display_order),
+            -1,
+          ) + 1;
+        await agendaService.createService({
+          catalog_service_id: created.id,
+          duration_minutes: values.durationMinutes,
+          buffer_minutes: values.bufferMinutes,
+          is_active: true,
+          display_order: displayOrder,
+        });
+        await refreshServiceData();
+        setStoreServiceModalOpen(false);
+        setToast({ type: "success", message: "Servicio creado y agregado a Agenda." });
+      } catch (agendaError) {
+        await refreshServiceData();
+        setStoreServiceModalOpen(false);
+        setToast({
+          type: "error",
+          message: `El servicio fue creado, pero no se pudo activar en Agenda. Puedes seleccionarlo nuevamente para completar la configuración. ${message(
+            agendaError,
+            "",
+          )}`.trim(),
+        });
+      }
+    } catch (error) {
+      setToast({
+        type: "error",
+        message: message(error, "No se pudo crear el servicio."),
+      });
+    } finally {
+      setServiceActionSaving(false);
+    }
+  };
+
+  const updateStoreService = async (
+    values: AgendaStoreServiceUpdateValues,
+  ) => {
+    if (!editingCatalogService) return;
+    setServiceActionSaving(true);
+    try {
+      await servicesService.update(editingCatalogService.service_id, {
+        title: values.title,
+        description: values.description,
+        price: values.price,
+        is_active: values.isActive,
+      });
+      await refreshServiceData();
+      setStoreServiceModalOpen(false);
+      setEditingCatalogService(null);
+      setToast({ type: "success", message: "Servicio actualizado." });
+    } catch (error) {
+      setToast({
+        type: "error",
+        message: message(error, "No se pudo actualizar el servicio."),
+      });
+    } finally {
+      setServiceActionSaving(false);
+    }
+  };
 
   const currentStepIndex = tabs.findIndex((tab) => tab.id === section);
   const isLastStep = currentStepIndex === tabs.length - 1;
@@ -715,116 +944,187 @@ export default function AdminAgendaPage() {
 
       {section === "services" ? (
         <section className="space-y-4">
-          <div className="rounded-3xl border border-[#168e00]/20 bg-[#168e00]/5 p-5 sm:p-6">
-            <div className="flex items-start gap-3">
-              <div className="rounded-2xl bg-white p-2.5 text-[#168e00] shadow-sm">
-                <CalendarClock size={22} />
+          <div className={`${panelClass} overflow-hidden`}>
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl">
+                <div className="mb-2 flex items-center gap-3">
+                  <span className="rounded-2xl bg-[#168e00]/10 p-2.5 text-[#168e00]">
+                    <CalendarClock aria-hidden="true" size={22} />
+                  </span>
+                  <h2 className="font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28]">
+                    Servicios para reservar
+                  </h2>
+                </div>
+                <p className="text-sm leading-6 text-gray-600">
+                  Selecciona qué servicios podrán reservar tus clientes y configura cuánto dura cada cita.
+                </p>
               </div>
-              <div>
-                <h2 className="text-lg font-bold text-[#004e28]">
-                  ¿Qué es un servicio de Agenda?
-                </h2>
-                <p className="mt-1 text-sm leading-6 text-gray-700">
-                  Es el tipo de cita que tus clientes podrán elegir cuando quieran reservar contigo.
-                  Por ejemplo: <strong>Consulta inicial</strong>, <strong>Corte de cabello</strong>,
-                  <strong> Masaje de 60 minutos</strong>, <strong>Asesoría</strong> o
-                  <strong> Sesión de fisioterapia</strong>.
-                </p>
-                <p className="mt-2 text-sm font-medium text-[#004e28]">
-                  Necesitas al menos un servicio activo para que aparezca el botón
-                  “Reservar cita” en tu página pública.
-                </p>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {!isDirectory ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCatalogService(null);
+                      setStoreServiceModalOpen(true);
+                    }}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#003b1f]"
+                  >
+                    <Plus aria-hidden="true" size={18} />
+                    Nuevo servicio
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setSelectorOpen(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#117500]"
+                >
+                  <Plus aria-hidden="true" size={18} />
+                  Agregar servicios
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => {
-                setEditingService(null);
-                setServiceModal(true);
-              }}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 font-semibold text-white hover:bg-[#117500]"
-            >
-              <Plus size={18} />
-              Agregar servicio para reservar
-            </button>
-          </div>
-
           {services.length === 0 ? (
-            <EmptyState
-              title="Aún no tienes servicios para reservar"
-              text="Crea por lo menos uno para que tus clientes puedan elegir qué cita desean agendar."
-            />
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {services.map((item) => (
-                <article key={item.id} className={panelClass}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-bold text-gray-900">
-                          {item.name}
-                        </h3>
-                        <Status active={item.is_active} />
-                      </div>
-
-                      {item.description ? (
-                        <p className="mt-2 text-sm text-gray-500">
-                          {item.description}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingService(item);
-                        setServiceModal(true);
-                      }}
-                      className="rounded-xl border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
-                      aria-label="Editar"
-                    >
-                      <Pencil size={17} />
-                    </button>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2 text-sm">
-                    <Chip text={`Duración: ${item.duration_minutes} min`} />
-                    <Chip text={`Tiempo posterior: ${item.buffer_minutes} min`} />
-                    <Chip text={money(item.price)} />
-                  </div>
-
+            <div className="rounded-3xl border border-dashed border-gray-200 bg-white px-6 py-12 text-center">
+              <CalendarClock className="mx-auto text-[#168e00]" size={36} />
+              <h3 className="mt-3 text-xl font-bold text-gray-900">
+                {catalog.length === 0
+                  ? isDirectory
+                    ? "No tienes servicios creados todavía"
+                    : "Crea tu primer servicio para comenzar"
+                  : "Todavía no has agregado servicios a tu Agenda"}
+              </h3>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-600">
+                {catalog.length === 0
+                  ? isDirectory
+                    ? "Crea primero tus servicios y después podrás elegir cuáles aceptar con cita."
+                    : "Crea tu primer servicio para comenzar a recibir reservaciones."
+                  : "Selecciona uno o varios servicios para que tus clientes puedan reservarlos."}
+              </p>
+              <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
+                {catalog.length === 0 && isDirectory ? (
+                  <Link
+                    href="/admin/services/create"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white"
+                  >
+                    Crear mi primer servicio
+                    <ExternalLink aria-hidden="true" size={16} />
+                  </Link>
+                ) : !isDirectory && catalog.length === 0 ? (
                   <button
                     type="button"
-                    onClick={async () => {
-                      try {
-                        const updated = await agendaService.updateService(
-                          item.id,
-                          { is_active: !item.is_active },
-                        );
-                        setServices((current) =>
-                          current.map((row) =>
-                            row.id === updated.id ? updated : row,
-                          ),
-                        );
-                      } catch (error) {
-                        setToast({
-                          type: "error",
-                          message: message(
-                            error,
-                            "No se pudo cambiar el estado.",
-                          ),
-                        });
-                      }
+                    onClick={() => {
+                      setEditingCatalogService(null);
+                      setStoreServiceModalOpen(true);
                     }}
-                    className="mt-4 text-sm font-semibold text-[#168e00]"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white"
                   >
-                    {item.is_active ? "Desactivar" : "Activar"}
+                    <Plus aria-hidden="true" size={17} />
+                    Crear primer servicio
                   </button>
-                </article>
-              ))}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setSelectorOpen(true)}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 text-sm font-bold text-white"
+                  >
+                    <Plus aria-hidden="true" size={17} />
+                    Seleccionar servicios
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {services.map((item) => {
+                const catalogService = catalog.find(
+                  (entry) => entry.service_id === item.catalog_service_id,
+                );
+                const catalogIsInactive = catalogService?.is_active === false;
+                return (
+                  <article key={item.id} className={`${panelClass} flex flex-col`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-bold text-gray-900">
+                            {item.name}
+                          </h3>
+                          <span
+                            className={
+                              item.is_active && !catalogIsInactive
+                                ? "rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700"
+                                : "rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600"
+                            }
+                          >
+                            {catalogIsInactive
+                              ? "Servicio inactivo"
+                              : item.is_active
+                                ? "Disponible para reservar"
+                                : "Reservaciones desactivadas"}
+                          </span>
+                        </div>
+                        {item.description ? (
+                          <p className="mt-2 line-clamp-2 text-sm leading-6 text-gray-600">
+                            {item.description}
+                          </p>
+                        ) : null}
+                      </div>
+                      <p className="shrink-0 font-bold text-[#004e28]">
+                        {money(item.price)}
+                      </p>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-2 gap-2 text-sm">
+                      <div className="rounded-2xl bg-[#f2f3f4] p-3 text-gray-700">
+                        <Clock3 aria-hidden="true" className="mb-1 text-[#168e00]" size={18} />
+                        <strong className="block">{item.duration_minutes} min</strong>
+                        <span className="text-xs">Duración</span>
+                      </div>
+                      <div className="rounded-2xl bg-[#f2f3f4] p-3 text-gray-700">
+                        <Clock3 aria-hidden="true" className="mb-1 text-[#168e00]" size={18} />
+                        <strong className="block">{item.buffer_minutes} min</strong>
+                        <span className="text-xs">Tiempo posterior</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-auto flex flex-col gap-2 pt-5 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => setConfiguringService(item)}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#117500]"
+                      >
+                        <Settings2 aria-hidden="true" size={17} />
+                        Configurar cita
+                      </button>
+                      {isDirectory ? (
+                        <Link
+                          href={`/admin/services/${item.catalog_service_id}`}
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
+                        >
+                          <Pencil aria-hidden="true" size={16} />
+                          Editar servicio
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={!catalogService}
+                          onClick={() => {
+                            if (!catalogService) return;
+                            setEditingCatalogService(catalogService);
+                            setStoreServiceModalOpen(true);
+                          }}
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Pencil aria-hidden="true" size={16} />
+                          Editar servicio
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
@@ -1092,88 +1392,88 @@ export default function AdminAgendaPage() {
         </button>
       </div>
 
-      <ServiceModal
-        open={serviceModal}
-        value={editingService}
-        saving={saving}
-        onClose={() => setServiceModal(false)}
-        onSave={async (payload) => {
-          setSaving(true);
-          try {
-            const saved = editingService
-              ? await agendaService.updateService(editingService.id, payload)
-              : await agendaService.createService(payload);
+      {selectorOpen ? (
+        <AgendaServiceSelectorModal
+          open
+          catalog={catalog}
+          isDirectory={isDirectory}
+          saving={serviceActionSaving}
+          onClose={() => setSelectorOpen(false)}
+          onAdd={addCatalogServices}
+        />
+      ) : null}
 
-            setServices((current) =>
-              editingService
-                ? current.map((item) =>
-                    item.id === saved.id ? saved : item,
+      {configuringService ? (
+        <AgendaServiceConfigModal
+          open
+          service={configuringService}
+          saving={serviceActionSaving}
+          onClose={() => setConfiguringService(null)}
+          onSave={saveAgendaConfiguration}
+          onDeactivate={deactivateAgendaService}
+        />
+      ) : null}
+
+      {!isDirectory && storeServiceModalOpen ? (
+        <AgendaStoreServiceModal
+          open
+          service={editingCatalogService}
+          saving={serviceActionSaving}
+          onClose={() => {
+            setStoreServiceModalOpen(false);
+            setEditingCatalogService(null);
+          }}
+          onCreate={createStoreService}
+          onUpdate={updateStoreService}
+        />
+      ) : null}
+
+      {exceptionModal ? (
+        <ExceptionModal
+          open
+          value={editingException}
+          saving={saving}
+          onClose={() => setExceptionModal(false)}
+          onSave={async (payload) => {
+            setSaving(true);
+            try {
+              const saved = editingException
+                ? await agendaService.updateException(
+                    editingException.id,
+                    payload,
                   )
-                : [...current, saved],
-            );
+                : await agendaService.createException(payload);
 
-            setServiceModal(false);
-            setToast({
-              type: "success",
-              message: editingService
-                ? "Servicio actualizado."
-                : "Servicio creado.",
-            });
-          } catch (error) {
-            setToast({
-              type: "error",
-              message: message(error, "No se pudo guardar el servicio."),
-            });
-          } finally {
-            setSaving(false);
-          }
-        }}
-      />
+              setExceptions((current) =>
+                (
+                  editingException
+                    ? current.map((item) =>
+                        item.id === saved.id ? saved : item,
+                      )
+                    : [...current, saved]
+                ).sort((a, b) =>
+                  a.exception_date.localeCompare(b.exception_date),
+                ),
+              );
 
-      <ExceptionModal
-        open={exceptionModal}
-        value={editingException}
-        saving={saving}
-        onClose={() => setExceptionModal(false)}
-        onSave={async (payload) => {
-          setSaving(true);
-          try {
-            const saved = editingException
-              ? await agendaService.updateException(
-                  editingException.id,
-                  payload,
-                )
-              : await agendaService.createException(payload);
-
-            setExceptions((current) =>
-              (
-                editingException
-                  ? current.map((item) =>
-                      item.id === saved.id ? saved : item,
-                    )
-                  : [...current, saved]
-              ).sort((a, b) =>
-                a.exception_date.localeCompare(b.exception_date),
-              ),
-            );
-
-            setExceptionModal(false);
-            setToast({
-              type: "success",
-              message: editingException
-                ? "Excepción actualizada."
-                : "Excepción creada.",
-            });
-          } catch (error) {
-            setToast({
-              type: "error",
-              message: message(error, "No se pudo guardar la excepción."),
-            });
-          } finally {
-            setSaving(false);
-          }
-        }}
-      />
+              setExceptionModal(false);
+              setToast({
+                type: "success",
+                message: editingException
+                  ? "Excepción actualizada."
+                  : "Excepción creada.",
+              });
+            } catch (error) {
+              setToast({
+                type: "error",
+                message: message(error, "No se pudo guardar la excepción."),
+              });
+            } finally {
+              setSaving(false);
+            }
+          }}
+        />
+      ) : null}
 
       {toast ? (
         <Toast
@@ -1260,20 +1560,6 @@ function Toggle({
   );
 }
 
-function Status({ active }: { active: boolean }) {
-  return (
-    <span
-      className={
-        active
-          ? "rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700"
-          : "rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500"
-      }
-    >
-      {active ? "Activo" : "Inactivo"}
-    </span>
-  );
-}
-
 function Chip({ text }: { text: string }) {
   return (
     <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-600">
@@ -1300,283 +1586,6 @@ function exceptionLabel(value: AgendaExceptionType) {
       : "Bloqueo";
 }
 
-function ModalShell({
-  title,
-  saving,
-  onClose,
-  onSubmit,
-  children,
-}: {
-  title: string;
-  saving: boolean;
-  onClose: () => void;
-  onSubmit: (event: React.FormEvent) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 z-[20000] overflow-y-auto bg-black/40 p-4">
-      <div className="mx-auto my-8 max-w-2xl rounded-3xl bg-white shadow-2xl">
-        <div className="border-b border-gray-100 px-6 py-5">
-          <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
-        </div>
-
-        <form onSubmit={onSubmit} className="space-y-5 p-6">
-          {children}
-
-          <div className="flex justify-end gap-3 border-t border-gray-100 pt-5">
-            <button
-              type="button"
-              disabled={saving}
-              onClick={onClose}
-              className="rounded-xl border border-gray-200 px-5 py-3 font-semibold text-gray-600"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-5 py-3 font-semibold text-white disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Check size={18} />
-              )}
-              Guardar
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function ServiceModal({
-  open,
-  value,
-  saving,
-  onClose,
-  onSave,
-}: {
-  open: boolean;
-  value: AgendaService | null;
-  saving: boolean;
-  onClose: () => void;
-  onSave: (payload: AgendaServicePayload) => Promise<void>;
-}) {
-  const [form, setForm] = useState<AgendaServicePayload>({
-    name: "",
-    description: null,
-    duration_minutes: 30,
-    buffer_minutes: 0,
-    price: null,
-    is_active: true,
-    display_order: 0,
-  });
-
-  useEffect(() => {
-    if (!open) return;
-
-    setForm(
-      value
-        ? {
-            name: value.name,
-            description: value.description,
-            duration_minutes: value.duration_minutes,
-            buffer_minutes: value.buffer_minutes,
-            price: value.price,
-            is_active: value.is_active,
-            display_order: value.display_order,
-          }
-        : {
-            name: "",
-            description: null,
-            duration_minutes: 30,
-            buffer_minutes: 0,
-            price: null,
-            is_active: true,
-            display_order: 0,
-          },
-    );
-  }, [open, value]);
-
-  if (!open) return null;
-
-  return (
-    <ModalShell
-      title={value ? "Editar servicio de Agenda" : "Nuevo servicio para reservar"}
-      saving={saving}
-      onClose={onClose}
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (form.name.trim().length >= 2) {
-          void onSave({
-            ...form,
-            name: form.name.trim(),
-            description: form.description?.trim() || null,
-          });
-        }
-      }}
-    >
-      <div className="rounded-2xl border border-[#168e00]/20 bg-[#168e00]/5 p-4">
-        <p className="font-bold text-[#004e28]">
-          Este servicio será una opción que el cliente podrá reservar.
-        </p>
-        <p className="mt-1 text-sm leading-5 text-gray-600">
-          Crea un servicio por cada tipo de cita que ofreces. Por ejemplo:
-          “Consulta inicial”, “Corte de cabello”, “Masaje” o “Asesoría”.
-        </p>
-      </div>
-
-      <label>
-        <span className="mb-1 block text-sm font-semibold">Nombre del servicio *</span>
-        <input
-          required
-          minLength={2}
-          maxLength={150}
-          className={inputClass}
-          value={form.name}
-          placeholder="Ej. Consulta inicial"
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
-        <small className="mt-1.5 block text-gray-500">
-          Es el nombre que verá tu cliente al momento de elegir qué quiere reservar.
-        </small>
-      </label>
-
-      <label>
-        <span className="mb-1 block text-sm font-semibold">Descripción</span>
-        <textarea
-          rows={3}
-          maxLength={5000}
-          className={inputClass}
-          value={form.description ?? ""}
-          placeholder="Ej. Valoración inicial para conocer tus necesidades y recomendarte el tratamiento adecuado."
-          onChange={(e) =>
-            setForm({
-              ...form,
-              description: e.target.value || null,
-            })
-          }
-        />
-        <small className="mt-1.5 block text-gray-500">
-          Opcional. Explica brevemente qué incluye la cita o para qué sirve.
-        </small>
-      </label>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label>
-          <span className="mb-1 block text-sm font-semibold">Duración de la cita</span>
-          <div className="relative">
-            <select
-              className={selectClass}
-              value={form.duration_minutes}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  duration_minutes: Number(
-                    e.target.value,
-                  ) as ServiceDuration,
-                })
-              }
-            >
-              {DURATIONS.map((item) => (
-                <option key={item} value={item}>
-                  {item} minutos
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              aria-hidden="true"
-              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-          </div>
-          <small className="mt-1.5 block text-gray-500">
-            Tiempo que ocupará esta cita en tu agenda.
-          </small>
-        </label>
-
-        <label>
-          <span className="mb-1 block text-sm font-semibold">
-            Tiempo libre después de la cita
-          </span>
-          <div className="relative">
-            <select
-              className={selectClass}
-              value={form.buffer_minutes}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  buffer_minutes: Number(e.target.value) as BufferDuration,
-                })
-              }
-            >
-              {BUFFERS.map((item) => (
-                <option key={item} value={item}>
-                  {item === 0 ? "Sin tiempo adicional" : `${item} minutos`}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              aria-hidden="true"
-              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-          </div>
-          <small className="mt-1.5 block text-gray-500">
-            Bloquea unos minutos después para limpiar, preparar el espacio o descansar.
-            Este tiempo no se muestra como parte de la duración de la cita.
-          </small>
-        </label>
-
-        <label>
-          <span className="mb-1 block text-sm font-semibold">Precio</span>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className={inputClass}
-            value={form.price ?? ""}
-            placeholder="Ej. 350"
-            onChange={(e) =>
-              setForm({
-                ...form,
-                price:
-                  e.target.value === ""
-                    ? null
-                    : Number(e.target.value),
-              })
-            }
-          />
-          <small className="mt-1.5 block text-gray-500">
-            Opcional. Si lo dejas vacío, el cliente verá “Consultar precio”.
-          </small>
-        </label>
-
-        <NumberField
-          label="Orden de aparición"
-          value={form.display_order}
-          min={0}
-          max={9999}
-          description="Define en qué posición aparecerá. Usa 0 para mostrarlo primero, 1 para el siguiente, y así sucesivamente."
-          onChange={(display_order) =>
-            setForm({ ...form, display_order })
-          }
-        />
-      </div>
-
-      <Toggle
-        label="Mostrar este servicio para reservar"
-        description="Cuando está activo, aparecerá como opción en tu página pública. Necesitas al menos un servicio activo para que se muestre el botón “Reservar cita”."
-        checked={form.is_active}
-        onChange={(is_active) => setForm({ ...form, is_active })}
-      />
-    </ModalShell>
-  );
-}
-
 function ExceptionModal({
   open,
   value,
@@ -1590,42 +1599,31 @@ function ExceptionModal({
   onClose: () => void;
   onSave: (payload: AgendaExceptionPayload) => Promise<void>;
 }) {
-  const [form, setForm] = useState<AgendaExceptionPayload>({
-    exception_date: "",
-    exception_type: "closed",
-    start_time: null,
-    end_time: null,
-    reason: null,
-  });
-
-  useEffect(() => {
-    if (!open) return;
-
-    setForm(
-      value
-        ? {
-            exception_date: value.exception_date,
-            exception_type: value.exception_type,
-            start_time: timeInput(value.start_time) || null,
-            end_time: timeInput(value.end_time) || null,
-            reason: value.reason,
-          }
-        : {
-            exception_date: "",
-            exception_type: "closed",
-            start_time: null,
-            end_time: null,
-            reason: null,
-          },
-    );
-  }, [open, value]);
+  const [form, setForm] = useState<AgendaExceptionPayload>(
+    value
+      ? {
+          exception_date: value.exception_date,
+          exception_type: value.exception_type,
+          start_time: timeInput(value.start_time) || null,
+          end_time: timeInput(value.end_time) || null,
+          reason: value.reason,
+        }
+      : {
+          exception_date: "",
+          exception_type: "closed",
+          start_time: null,
+          end_time: null,
+          reason: null,
+        },
+  );
 
   if (!open) return null;
 
   const timed = form.exception_type !== "closed";
 
   return (
-    <ModalShell
+    <AgendaModalShell
+      open={open}
       title={value ? "Editar excepción" : "Nueva excepción"}
       saving={saving}
       onClose={onClose}
@@ -1743,6 +1741,6 @@ function ExceptionModal({
           placeholder="Opcional"
         />
       </label>
-    </ModalShell>
+    </AgendaModalShell>
   );
 }

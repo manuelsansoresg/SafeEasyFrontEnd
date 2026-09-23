@@ -2,10 +2,12 @@ import { fetchWithAuth } from "@/lib/api";
 import type {
   AgendaException,
   AgendaExceptionPayload,
+  AgendaCatalogService,
   AgendaSchedule,
   AgendaSchedulePayload,
   AgendaService,
-  AgendaServicePayload,
+  AgendaServiceCreatePayload,
+  AgendaServiceUpdatePayload,
   AgendaSettings,
   AgendaSettingsPayload,
 } from "@/types/agenda";
@@ -33,7 +35,21 @@ async function request(
   if (response.ok) return response;
 
   const body: unknown = await response.json().catch(() => null);
-  const detail = extractError(body);
+  const rawDetail = extractError(body);
+  const translations: Record<string, string> = {
+    "Este servicio ya está configurado en Agenda.":
+      "Este servicio ya forma parte de tu Agenda.",
+    "Service not found": "El servicio ya no está disponible.",
+    "The catalog service is not available":
+      "Activa primero el servicio para poder ofrecer reservaciones.",
+    "Active Agenda access is required to manage store services":
+      "Necesitas tener activo el módulo Agenda para administrar estos servicios.",
+    "An active subscription is required to manage services":
+      "Necesitas una suscripción activa para administrar servicios.",
+    "Active subscription required":
+      "Necesitas una suscripción activa para administrar servicios.",
+  };
+  const detail = rawDetail ? translations[rawDetail] ?? rawDetail : undefined;
   if (response.status === 401) throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
   if (response.status === 403) throw new Error(detail || "No tienes acceso al módulo Agenda.");
   if (response.status === 404) throw new Error(detail || "El recurso solicitado no existe.");
@@ -74,7 +90,12 @@ export const agendaService = {
     return response.json();
   },
 
-  async createService(payload: AgendaServicePayload): Promise<AgendaService> {
+  async listServiceCatalog(signal?: AbortSignal): Promise<AgendaCatalogService[]> {
+    const response = await request(`${base}/services/catalog`, { signal });
+    return response.json();
+  },
+
+  async createService(payload: AgendaServiceCreatePayload): Promise<AgendaService> {
     const response = await request(`${base}/services`, {
       method: "POST",
       body: JSON.stringify(payload),
@@ -82,7 +103,7 @@ export const agendaService = {
     return response.json();
   },
 
-  async updateService(id: number, payload: Partial<AgendaServicePayload>): Promise<AgendaService> {
+  async updateService(id: number, payload: AgendaServiceUpdatePayload): Promise<AgendaService> {
     const response = await request(`${base}/services/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),

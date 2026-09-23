@@ -16,6 +16,7 @@ export interface SupplierService {
   description: string;
   price: number;
   is_active: boolean;
+  is_agenda_only: boolean;
   images: ServiceImage[];
   created_at: string;
   updated_at: string;

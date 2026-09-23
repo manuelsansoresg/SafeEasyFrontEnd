@@ -55,6 +55,7 @@ export interface AgendaSchedulePayload {
 export interface AgendaService {
   id: number;
   supplier_id: number;
+  catalog_service_id: string;
   name: string;
   description: string | null;
   duration_minutes: ServiceDuration;
@@ -66,14 +67,33 @@ export interface AgendaService {
   updated_at: string;
 }
 
-export interface AgendaServicePayload {
-  name: string;
-  description: string | null;
+export interface AgendaServiceCreatePayload {
+  catalog_service_id: string;
   duration_minutes: ServiceDuration;
   buffer_minutes: BufferDuration;
-  price: number | null;
   is_active: boolean;
   display_order: number;
+}
+
+export interface AgendaServiceUpdatePayload {
+  duration_minutes?: ServiceDuration;
+  buffer_minutes?: BufferDuration;
+  is_active?: boolean;
+  display_order?: number;
+}
+
+export interface AgendaCatalogService {
+  service_id: string;
+  title: string;
+  description: string;
+  price: number;
+  is_active: boolean;
+  is_agenda_only: boolean;
+  agenda_service_id: number | null;
+  agenda_enabled: boolean;
+  duration_minutes: ServiceDuration | null;
+  buffer_minutes: BufferDuration | null;
+  display_order: number | null;
 }
 
 export interface AgendaException {

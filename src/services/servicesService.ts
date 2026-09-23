@@ -42,10 +42,22 @@ async function readError(response: Response, fallback: string) {
       ) {
         return "Se requiere una suscripción de directorio activa para administrar servicios.";
       }
+      if (
+        detail ===
+        "An active subscription is required to manage services"
+      ) {
+        return "Necesitas una suscripción activa para administrar servicios.";
+      }
+      if (
+        detail ===
+        "Active Agenda access is required to manage store services"
+      ) {
+        return "Necesitas tener activo el módulo Agenda para crear servicios en tu tienda.";
+      }
       if (detail === "A service must keep at least one image") {
         return "El servicio debe conservar al menos una imagen.";
       }
-      if (detail === "Service not found") return "Servicio no encontrado.";
+      if (detail === "Service not found") return "El servicio ya no está disponible.";
       return detail;
     }
     if (Array.isArray(detail)) {
