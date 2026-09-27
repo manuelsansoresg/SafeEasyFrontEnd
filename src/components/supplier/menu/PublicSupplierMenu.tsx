@@ -1445,21 +1445,17 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
 
               {fulfillmentType === "delivery" ? (
                 <div className="space-y-4">
-                  <label className="block text-sm font-bold text-gray-700">
-                    Dirección de entrega
-                    <textarea value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} required maxLength={1500} placeholder="Calle, número, colonia, referencias..." className="mt-1.5 min-h-24 w-full resize-none rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
-                  </label>
-
                   <div>
                     <p className="text-sm font-bold text-gray-700">
-                      Ubicación para calcular el envío
+                      Dirección de entrega
                     </p>
                     <p className="mb-2 mt-1 text-xs leading-5 text-gray-500">
-                      Busca tu dirección o marca el punto exacto en el mapa.
+                      Busca y selecciona tu dirección. También puedes ajustar el punto exacto en el mapa.
                     </p>
                     <GoogleMapPicker
                       location={deliveryLocation}
                       onChange={setDeliveryLocation}
+                      onAddressChange={setDeliveryAddress}
                       addressLabel={deliveryAddress}
                       height="240px"
                       className="max-w-full"

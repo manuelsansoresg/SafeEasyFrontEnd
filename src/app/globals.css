@@ -55,6 +55,12 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Google Places monta las sugerencias fuera del árbol del modal. */
+.pac-container {
+  z-index: 23050 !important;
+  font-family: var(--font-poppins);
+}
+
 .ql-editor {
   white-space: pre-wrap;
   word-break: break-word;

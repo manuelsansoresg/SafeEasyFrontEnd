@@ -8,6 +8,7 @@ import { Loader2, Search, X } from "lucide-react";
 type Props = {
   location?: LatLngLiteral | null;
   onChange?: (location: LatLngLiteral) => void;
+  onAddressChange?: (address: string) => void;
   readOnly?: boolean;
   height?: string;
   zoom?: number;
@@ -46,6 +47,7 @@ type GoogleMapsApi = {
 export default function GoogleMapPicker({
   location,
   onChange,
+  onAddressChange,
   readOnly,
   height = "300px",
   zoom = 15,
@@ -60,9 +62,11 @@ export default function GoogleMapPicker({
   const dragListenerRef = useRef<RemovableListener | null>(null);
   const placeListenerRef = useRef<RemovableListener | null>(null);
   const onChangeRef = useRef<Props["onChange"]>(onChange);
+  const onAddressChangeRef = useRef<Props["onAddressChange"]>(onAddressChange);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState(() => addressLabel?.trim() || "");
+  const displayedQuery = addressLabel === undefined ? query : addressLabel;
 
   const defaultCenter = useMemo<LatLngLiteral>(() => {
     return { lat: 20.96737, lng: -89.592585 };
@@ -73,8 +77,8 @@ export default function GoogleMapPicker({
   }, [onChange]);
 
   useEffect(() => {
-    setQuery(addressLabel?.trim() || "");
-  }, [addressLabel]);
+    onAddressChangeRef.current = onAddressChange;
+  }, [onAddressChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,7 +119,9 @@ export default function GoogleMapPicker({
             const lat = Number(loc.lat?.());
             const lng = Number(loc.lng?.());
             if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-            setQuery(place.formatted_address || input.value || "");
+            const address = place.formatted_address || input.value || "";
+            setQuery(address);
+            onAddressChangeRef.current?.(address);
             onChangeRef.current?.({ lat, lng });
           });
         }
@@ -134,6 +140,8 @@ export default function GoogleMapPicker({
       try { dragListenerRef.current?.remove?.(); } catch {}
       try { placeListenerRef.current?.remove?.(); } catch {}
     };
+    // El mapa se crea una sola vez; los cambios posteriores se sincronizan abajo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -194,17 +202,21 @@ export default function GoogleMapPicker({
             <input
               ref={inputRef}
               type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              value={displayedQuery}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                onAddressChangeRef.current?.(event.target.value);
+              }}
               placeholder="Buscar dirección"
               className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-10 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
               disabled={!ready || readOnly}
             />
-            {query && !readOnly ? (
+            {displayedQuery && !readOnly ? (
               <button
                 type="button"
                 onClick={() => {
                   setQuery("");
+                  onAddressChangeRef.current?.("");
                   inputRef.current?.focus();
                 }}
                 className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/40"
