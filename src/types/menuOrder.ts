@@ -39,6 +39,20 @@ export interface MenuOrderItemCreate {
   notes?: string | null;
 }
 
+export interface MenuOrderShippingQuoteRequest {
+  menu_id: number;
+  distance_km: number;
+}
+
+export interface MenuOrderShippingQuoteResponse {
+  menu_id: number;
+  supplier_id: number;
+  distance_km: number;
+  min_distance_km: number;
+  extra_cost_per_km: number;
+  delivery_fee: number;
+}
+
 export interface MenuOrderCreatePayload {
   menu_id: number;
   customer_name: string;
@@ -47,6 +61,7 @@ export interface MenuOrderCreatePayload {
   fulfillment_type: MenuOrderFulfillmentType;
   payment_method: MenuOrderPaymentMethod;
   delivery_address?: string | null;
+  distance_km?: number | null;
   notes?: string | null;
   client_request_id?: string | null;
   items: MenuOrderItemCreate[];

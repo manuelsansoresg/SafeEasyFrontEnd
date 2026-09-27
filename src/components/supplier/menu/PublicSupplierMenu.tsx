@@ -6,7 +6,6 @@ import {
   Banknote,
   CalendarDays,
   Check,
-  Clock3,
   CreditCard,
   Loader2,
   LogIn,
@@ -24,6 +23,7 @@ import {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -32,6 +32,14 @@ import {
   getLoginUrl,
 } from "@/lib/authRedirect";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
+import { fetchWithAuth } from "@/lib/api";
+import {
+  distanceKmDriving,
+  parseMapLocation,
+  type LatLngLiteral,
+} from "@/lib/googleMaps";
+import { extractCoordinates, fetchSupplierLocation } from "@/lib/orderLocation";
 import { menuOrderService } from "@/services/menuOrderService";
 import { useAuthStore } from "@/store/useAuthStore";
 import type {
@@ -44,6 +52,7 @@ import type {
   MenuOrderFulfillmentType,
   MenuOrderPaymentMethod,
   MenuOrderSettings,
+  MenuOrderShippingQuoteResponse,
 } from "@/types/menuOrder";
 
 const currencyFormatter = new Intl.NumberFormat("es-MX", {
@@ -88,6 +97,43 @@ function formatTime(value: string) {
   if (!Number.isFinite(hours)) return value;
   const period = hours >= 12 ? "p.m." : "a.m.";
   return `${hours % 12 || 12}:${minutesValue.padStart(2, "0")} ${period}`;
+}
+
+function profileAddress(value: unknown) {
+  if (!value || typeof value !== "object") return "";
+  const record = value as Record<string, unknown>;
+  const nested =
+    (record.user && typeof record.user === "object"
+      ? (record.user as Record<string, unknown>)
+      : null) ||
+    (record.data && typeof record.data === "object"
+      ? (record.data as Record<string, unknown>)
+      : null) ||
+    record;
+  const text = (key: string) =>
+    typeof nested[key] === "string" ? nested[key].trim() : "";
+  return [
+    text("address") || text("street"),
+    text("exterior_number") || text("outdoor_number"),
+    text("interior_number") ? `Int. ${text("interior_number")}` : "",
+    text("neighborhood") || text("colonia"),
+    text("cp") || text("zip_code") || text("postal_code"),
+    text("city"),
+    text("state"),
+    text("country"),
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function profileCoordinates(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const nested =
+    (record.user && typeof record.user === "object" ? record.user : null) ||
+    (record.data && typeof record.data === "object" ? record.data : null) ||
+    record;
+  return extractCoordinates(nested) || parseMapLocation(nested);
 }
 
 function menuSchedule(menu: Menu) {
@@ -572,6 +618,17 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
   const [paymentMethod, setPaymentMethod] =
     useState<MenuOrderPaymentMethod>("cash");
   const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryLocation, setDeliveryLocation] =
+    useState<LatLngLiteral | null>(null);
+  const [supplierLocation, setSupplierLocation] =
+    useState<LatLngLiteral | null>(null);
+  const [supplierLocationLoading, setSupplierLocationLoading] = useState(false);
+  const [deliveryDistanceKm, setDeliveryDistanceKm] = useState<number | null>(null);
+  const [shippingQuote, setShippingQuote] =
+    useState<MenuOrderShippingQuoteResponse | null>(null);
+  const [shippingQuoteLoading, setShippingQuoteLoading] = useState(false);
+  const [shippingQuoteError, setShippingQuoteError] = useState<string | null>(null);
+  const quoteRequestRef = useRef(0);
   const [generalNotes, setGeneralNotes] = useState("");
 
   const selectedMenu =
@@ -602,6 +659,30 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
     setCustomerName((current) => current || user.name || "");
     setCustomerEmail((current) => current || user.email || "");
   }, [user]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const controller = new AbortController();
+    fetchWithAuth("/api/users/me", {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<unknown>;
+      })
+      .then((profile) => {
+        if (!profile || controller.signal.aborted) return;
+        const coordinates = profileCoordinates(profile);
+        if (coordinates) setDeliveryLocation((current) => current || coordinates);
+        const address = profileAddress(profile);
+        if (address) setDeliveryAddress((current) => current || address);
+      })
+      .catch(() => undefined);
+
+    return () => controller.abort();
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!supplierSlug || menus.length === 0) return;
@@ -656,7 +737,86 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
     setCart({});
     setCartOpen(false);
     setCheckoutOpen(false);
+    setDeliveryLocation(null);
+    setSupplierLocation(null);
+    setDeliveryDistanceKm(null);
+    setShippingQuote(null);
+    setShippingQuoteError(null);
+    setShippingQuoteLoading(false);
+    quoteRequestRef.current += 1;
   }, [selectedMenu?.id]);
+
+  useEffect(() => {
+    if (!selectedMenu || fulfillmentType !== "delivery") return;
+
+    const controller = new AbortController();
+    setSupplierLocationLoading(true);
+    setSupplierLocation(null);
+    fetchSupplierLocation(selectedMenu.supplier_id)
+      .then((location) => {
+        if (!controller.signal.aborted) setSupplierLocation(location.coordinates);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setSupplierLocation(null);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSupplierLocationLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [fulfillmentType, selectedMenu]);
+
+  useEffect(() => {
+    const requestId = ++quoteRequestRef.current;
+    setShippingQuote(null);
+    setDeliveryDistanceKm(null);
+    setShippingQuoteError(null);
+
+    if (
+      fulfillmentType !== "delivery" ||
+      !deliveryLocation ||
+      !supplierLocation ||
+      !supplierSlug ||
+      !selectedMenu
+    ) {
+      setShippingQuoteLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setShippingQuoteLoading(true);
+
+    distanceKmDriving(deliveryLocation, supplierLocation)
+      .then(async (distanceKm) => {
+        if (!Number.isFinite(distanceKm) || distanceKm < 0) {
+          throw new Error("No se pudo calcular la distancia.");
+        }
+        if (controller.signal.aborted || quoteRequestRef.current !== requestId) return;
+        setDeliveryDistanceKm(distanceKm);
+        const quote = await menuOrderService.shippingQuote(
+          supplierSlug,
+          { menu_id: selectedMenu.id, distance_km: distanceKm },
+          controller.signal,
+        );
+        if (controller.signal.aborted || quoteRequestRef.current !== requestId) return;
+        setShippingQuote(quote);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted || quoteRequestRef.current !== requestId) return;
+        setShippingQuoteError(
+          error instanceof Error && error.message
+            ? error.message
+            : "No se pudo calcular el costo de envío. Inténtalo nuevamente.",
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted && quoteRequestRef.current === requestId) {
+          setShippingQuoteLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [deliveryLocation, fulfillmentType, selectedMenu, supplierLocation, supplierSlug]);
 
   useEffect(() => {
     if (!orderSettings) return;
@@ -684,6 +844,22 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
       ),
     [cartItems],
   );
+  const deliveryFee =
+    fulfillmentType === "delivery" ? shippingQuote?.delivery_fee ?? 0 : 0;
+  const checkoutTotal = cartSubtotal + deliveryFee;
+  const deliveryReady =
+    fulfillmentType !== "delivery" ||
+    (Boolean(deliveryAddress.trim()) &&
+      Boolean(deliveryLocation) &&
+      Boolean(supplierLocation) &&
+      typeof deliveryDistanceKm === "number" &&
+      Number.isFinite(deliveryDistanceKm) &&
+      deliveryDistanceKm >= 0 &&
+      typeof shippingQuote?.delivery_fee === "number" &&
+      Number.isFinite(shippingQuote.delivery_fee) &&
+      shippingQuote.delivery_fee >= 0 &&
+      !shippingQuoteLoading &&
+      !shippingQuoteError);
 
   if (!selectedMenu) return null;
 
@@ -815,6 +991,21 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
       return;
     }
 
+    if (fulfillmentType === "delivery" && !deliveryLocation) {
+      setCheckoutError("Selecciona tu ubicación en el mapa para calcular el envío.");
+      return;
+    }
+
+    if (fulfillmentType === "delivery" && !supplierLocation) {
+      setCheckoutError("Este negocio aún no tiene una ubicación configurada y no es posible calcular el envío.");
+      return;
+    }
+
+    if (fulfillmentType === "delivery" && !deliveryReady) {
+      setCheckoutError("No se pudo calcular el costo de envío. Inténtalo nuevamente.");
+      return;
+    }
+
     if (paymentMethod === "cash" && !orderSettings.allows_cash) {
       setCheckoutError("El pago en efectivo ya no está disponible.");
       return;
@@ -841,6 +1032,8 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
         payment_method: paymentMethod,
         delivery_address:
           fulfillmentType === "delivery" ? deliveryAddress.trim() : null,
+        distance_km:
+          fulfillmentType === "delivery" ? deliveryDistanceKm : null,
         notes: generalNotes.trim() || null,
         client_request_id: clientRequestId,
         items: cartItems.map((line) => ({
@@ -1251,10 +1444,42 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
               </fieldset>
 
               {fulfillmentType === "delivery" ? (
-                <label className="block text-sm font-bold text-gray-700">
-                  Dirección de entrega
-                  <textarea value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} required maxLength={1500} placeholder="Calle, número, colonia, referencias..." className="mt-1.5 min-h-24 w-full resize-none rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
-                </label>
+                <div className="space-y-4">
+                  <label className="block text-sm font-bold text-gray-700">
+                    Dirección de entrega
+                    <textarea value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} required maxLength={1500} placeholder="Calle, número, colonia, referencias..." className="mt-1.5 min-h-24 w-full resize-none rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
+                  </label>
+
+                  <div>
+                    <p className="text-sm font-bold text-gray-700">
+                      Ubicación para calcular el envío
+                    </p>
+                    <p className="mb-2 mt-1 text-xs leading-5 text-gray-500">
+                      Busca tu dirección o marca el punto exacto en el mapa.
+                    </p>
+                    <GoogleMapPicker
+                      location={deliveryLocation}
+                      onChange={setDeliveryLocation}
+                      addressLabel={deliveryAddress}
+                      height="240px"
+                      className="max-w-full"
+                    />
+                  </div>
+
+                  {!supplierLocationLoading && !supplierLocation ? (
+                    <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-800">
+                      Este negocio aún no tiene una ubicación configurada y no es posible calcular el envío.
+                    </p>
+                  ) : shippingQuoteLoading ? (
+                    <p className="flex items-center gap-2 rounded-xl bg-[#f2f3f4] p-3 text-sm font-semibold text-[#004e28]">
+                      <Loader2 size={16} className="animate-spin" /> Calculando envío...
+                    </p>
+                  ) : shippingQuoteError ? (
+                    <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      No se pudo calcular el costo de envío. Inténtalo nuevamente.
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
 
               <fieldset>
@@ -1290,12 +1515,31 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
               </label>
 
               <div className="rounded-2xl bg-[#f2f3f4] p-4">
-                <div className="flex items-center justify-between text-sm"><span className="text-gray-500">Productos</span><strong>{cartQuantity}</strong></div>
-                <div className="mt-2 flex items-center justify-between"><span className="font-bold text-[#004e28]">Total estimado</span><strong className="text-xl text-[#168e00]">{currencyFormatter.format(cartSubtotal)}</strong></div>
+                <div className="flex items-center justify-between text-sm"><span className="text-gray-500">Subtotal productos</span><strong>{currencyFormatter.format(cartSubtotal)}</strong></div>
+                {fulfillmentType === "delivery" ? (
+                  <>
+                    {deliveryDistanceKm != null && shippingQuote ? (
+                      <div className="mt-2 flex items-center justify-between text-sm"><span className="text-gray-500">Distancia aproximada</span><strong>{deliveryDistanceKm.toFixed(1)} km</strong></div>
+                    ) : null}
+                    <div className="mt-2 flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Envío</span>
+                      <strong className="text-right text-[#004e28]">
+                        {shippingQuote
+                          ? currencyFormatter.format(shippingQuote.delivery_fee)
+                          : shippingQuoteLoading
+                            ? "Calculando..."
+                            : deliveryLocation
+                              ? "Pendiente de cotización"
+                              : "Selecciona tu ubicación"}
+                      </strong>
+                    </div>
+                  </>
+                ) : null}
+                <div className="mt-3 flex items-center justify-between border-t border-[#004e28]/10 pt-3"><span className="font-bold text-[#004e28]">Total</span><strong className="text-xl text-[#168e00]">{currencyFormatter.format(checkoutTotal)}</strong></div>
                 {paymentMethod === "online" ? <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"><CreditCard size={13} /> Después de confirmar serás enviado a Mercado Pago.</p> : null}
               </div>
 
-              <button type="submit" disabled={submitting} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:opacity-50">
+              <button type="submit" disabled={submitting || !deliveryReady} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50">
                 {submitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                 {submitting ? "Creando pedido..." : paymentMethod === "online" ? "Continuar a Mercado Pago" : "Confirmar pedido"}
               </button>

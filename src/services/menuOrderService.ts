@@ -5,6 +5,8 @@ import type {
   MenuOrderCreated,
   MenuOrderSettings,
   MenuOrderSettingsUpdate,
+  MenuOrderShippingQuoteRequest,
+  MenuOrderShippingQuoteResponse,
   MenuOrderStatus,
   MenuOrderStatusUpdate,
 } from "@/types/menuOrder";
@@ -145,6 +147,27 @@ function normalizeSettings(
 }
 
 export const menuOrderService = {
+  async shippingQuote(
+    supplierSlug: string,
+    payload: MenuOrderShippingQuoteRequest,
+    signal?: AbortSignal,
+  ): Promise<MenuOrderShippingQuoteResponse> {
+    const response = await publicRequest(
+      `${publicBase}/shipping-quote/${encodeURIComponent(supplierSlug)}`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal,
+      },
+    );
+
+    return response.json();
+  },
+
   async publicSettings(
     supplierSlug: string,
     menuId: number,
