@@ -524,53 +524,54 @@ export default function PublicAgendaBookingPage() {
         </div>
       ) : null}
 
-      {availability ? (
-        <section className="rounded-3xl border border-[#168e00]/15 bg-[#168e00]/5 p-5">
-          <div className="flex items-start gap-3">
-            <Info
-              className="mt-0.5 shrink-0 text-[#168e00]"
-              size={20}
-            />
-            <div>
-              <h2 className="font-bold text-[#004e28]">
-                Reglas de reservación
-              </h2>
+    {availability ? (
+  <section className="rounded-3xl border border-[#168e00]/15 bg-[#168e00]/5 p-5">
+    <div className="flex items-start gap-3">
+      <Info
+        className="mt-0.5 shrink-0 text-[#168e00]"
+        size={20}
+      />
 
-              <div className="mt-2 space-y-1 text-sm text-gray-700">
-                <p>
-                  Reserva con al menos{" "}
-                  <strong>
-                    {humanizeMinutes(
-                      availability.minimum_notice_minutes,
-                    )}
-                  </strong>{" "}
-                  de anticipación.
-                </p>
+      <div>
+        <h2 className="font-bold text-[#004e28]">
+          Reglas de reservación
+        </h2>
 
-                <p>
-                  Puedes reservar hasta{" "}
-                  <strong>
-                    {humanizeDays(
-                      availability.maximum_booking_days,
-                    )}
-                  </strong>{" "}
-                  hacia adelante.
-                </p>
+        <div className="mt-2 space-y-1 text-sm text-gray-700">
+          <p>
+            Reserva con al menos{" "}
+            <strong>
+              {humanizeMinutes(
+                availability.minimum_notice_minutes,
+              )}
+            </strong>{" "}
+            de anticipación.
+          </p>
 
-                {!auth.isAuthenticated ? (
-                  <p>
-                    {availability.allow_guest_bookings
-                      ? availability.require_guest_email
-                        ? "Se permiten reservaciones como invitado y el correo es obligatorio."
-                        : "Se permiten reservaciones como invitado."
-                      : "Para reservar debes iniciar sesión con una cuenta de cliente."}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
+          <p>
+            Puedes reservar hasta{" "}
+            <strong>
+              {humanizeDays(
+                availability.maximum_booking_days,
+              )}
+            </strong>{" "}
+            hacia adelante.
+          </p>
+
+          {!auth.isAuthenticated ? (
+            <p>
+              {availability.allow_guest_bookings
+                ? availability.require_guest_email
+                  ? "Se permiten reservaciones como invitado y el correo es obligatorio."
+                  : "Se permiten reservaciones como invitado."
+                : "Para reservar debes iniciar sesión."}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  </section>
+) : null}
 
       {guestBlocked ? (
         <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5">

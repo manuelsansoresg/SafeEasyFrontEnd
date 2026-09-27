@@ -64,48 +64,67 @@ function friendlyAgendaError(detail: string | undefined) {
   const translations: Record<string, string> = {
     "Agenda not found":
       "Este negocio no tiene la Agenda disponible.",
+
     "Agenda service not found":
       "El servicio seleccionado ya no está disponible.",
+
     "Guest bookings are disabled":
-      "Este negocio requiere que inicies sesión para reservar.",
-    "Only customers can book":
-      "Sólo una cuenta de cliente puede realizar esta reservación.",
+      "Este negocio no permite reservaciones como invitado. Inicia sesión para continuar.",
+
     "customer_name is required":
       "Escribe el nombre de la persona que asistirá a la cita.",
+
     "customer_email is required":
       "El correo electrónico es obligatorio para esta reservación.",
+
     "The requested time is not available":
       "Ese horario acaba de dejar de estar disponible. Elige otro.",
+
     "Booking not found":
       "No encontramos esta cita.",
+
     "Booking access denied":
       "No tienes permiso para administrar esta cita.",
+
     "Customer cancellations are disabled":
-      "Este negocio no permite que el cliente cancele la cita.",
+      "Este negocio no permite que el usuario cancele la cita.",
+
     "Booking cannot be cancelled":
       "Esta cita ya no se puede cancelar.",
+
     "Cancellation deadline has passed":
       "Ya pasó el tiempo límite permitido para cancelar esta cita.",
+
     "Reschedule requests are disabled":
       "Este negocio no permite solicitar cambios de horario.",
+
     "Booking cannot be rescheduled":
       "Esta cita ya no se puede reprogramar.",
+
     "A reschedule request is already pending":
       "Ya existe una solicitud de cambio pendiente para esta cita.",
+
     "Reschedule request already decided":
       "Esta solicitud de cambio ya fue respondida.",
+
     "Invalid booking status transition":
       "Ese cambio de estado no está permitido.",
+
     "Invalid availability date range":
       "La fecha seleccionada está fuera del periodo permitido para reservar.",
+
     "start_at must include a timezone":
       "La fecha y hora seleccionadas no tienen una zona horaria válida.",
+
     "requested_start_at must include a timezone":
       "La nueva fecha y hora no tienen una zona horaria válida.",
+
     "Booking payment not found":
       "No hay un registro de pago para esta cita.",
+
     "If Agenda payments are enabled, at least one payment method must be allowed":
       "Selecciona al menos una forma de pago.",
+
     "Sólo los pagos en efectivo pueden marcarse manualmente como pagados.":
       "Sólo los pagos directos pueden marcarse manualmente como pagados.",
   };
