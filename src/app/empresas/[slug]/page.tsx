@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState, useRef } from "react";
-import { useParams, useRouter, notFound } from "next/navigation";
+import { useCallback, useEffect, useState, useRef, type CSSProperties } from "react";
+import { useParams, useRouter, useSearchParams, notFound } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
@@ -32,6 +32,11 @@ import { PublicSupplierMenu } from "@/components/supplier/menu/PublicSupplierMen
 import { PublicSupplierAgendaTab } from "@/components/agenda/PublicSupplierAgendaTab";
 import { menuService } from "@/services/menuService";
 import type { Menu } from "@/types/menu";
+import {
+  SITE_BUILDER_READY,
+  SITE_BUILDER_UPDATE,
+  type SiteBuilderSection,
+} from "@/lib/siteBuilder";
 
 
 const SupplierLocationMap = dynamic(() => import("@/components/supplier/SupplierLocationMap"), {
@@ -424,13 +429,18 @@ import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCa
 export default function SupplierPage() {
   const { slug, tab } = useParams<{ slug: string; tab?: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isBuilderPreview = searchParams.get("builderPreview") === "1";
+  const [builderSection, setBuilderSection] = useState<SiteBuilderSection | null>(null);
+  const lastBuilderScrollRef = useRef<SiteBuilderSection | null>(null);
   const activeTab = tab === "menu" ? "menu" : tab === "agenda" ? "agenda" : tab === "productos" ? "products" : "main";
   const supplierBasePath = `/empresas/${encodeURIComponent(String(slug))}/`;
   const navigateTab = useCallback((nextTab: 'main' | 'menu' | 'agenda' | 'products', replace = false) => {
-    const path = nextTab === 'main' ? supplierBasePath : `${supplierBasePath}${nextTab === 'products' ? 'productos' : nextTab}/`;
+    const basePath = nextTab === 'main' ? supplierBasePath : `${supplierBasePath}${nextTab === 'products' ? 'productos' : nextTab}/`;
+    const path = isBuilderPreview ? `${basePath}?builderPreview=1` : basePath;
     if (replace) router.replace(path, { scroll: false });
     else router.push(path, { scroll: false });
-  }, [router, supplierBasePath]);
+  }, [isBuilderPreview, router, supplierBasePath]);
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [publicMenus, setPublicMenus] = useState<Menu[]>([]);
   const [publicMenusLoading, setPublicMenusLoading] = useState(true);
@@ -441,6 +451,62 @@ export default function SupplierPage() {
   const [isMuted, setIsMuted] = useState(true);
   const tabsRef = useRef<HTMLDivElement>(null);
   const [shouldScrollToContact, setShouldScrollToContact] = useState(false);
+
+  useEffect(() => {
+    if (!isBuilderPreview) return;
+    const robots = document.createElement("meta");
+    robots.name = "robots";
+    robots.content = "noindex,nofollow,noarchive";
+    document.head.appendChild(robots);
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== window.parent) return;
+      if (event.data?.type !== SITE_BUILDER_UPDATE || !event.data.payload || typeof event.data.payload !== "object") return;
+      setSupplier((current) => current ? { ...current, ...event.data.payload } : current);
+      const nextSection = typeof event.data.activeSection === "string"
+        ? event.data.activeSection as SiteBuilderSection
+        : null;
+      setBuilderSection(nextSection);
+
+      document.querySelectorAll("[data-builder-active='true']").forEach((element) => {
+        element.removeAttribute("data-builder-active");
+      });
+
+      if (nextSection) {
+        const targetSelector: Partial<Record<SiteBuilderSection, string>> = {
+          general: "#inicio",
+          appearance: "#inicio",
+          header: "#inicio",
+          information: "#nosotros",
+          hours: "#contacto",
+          contact: "#contacto",
+          social: "#contacto",
+          sections: "#inicio",
+          footer: "footer",
+        };
+        const target = document.querySelector(targetSelector[nextSection] || "#inicio");
+        target?.setAttribute("data-builder-active", "true");
+        if (lastBuilderScrollRef.current !== nextSection) {
+          lastBuilderScrollRef.current = nextSection;
+          window.requestAnimationFrame(() => {
+            if (nextSection === "footer" && !target) {
+              window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+              return;
+            }
+            target?.scrollIntoView({ behavior: "smooth", block: nextSection === "footer" ? "end" : "start" });
+          });
+        }
+      } else {
+        lastBuilderScrollRef.current = null;
+      }
+    };
+    window.addEventListener("message", onMessage);
+    window.parent.postMessage({ type: SITE_BUILDER_READY }, window.location.origin);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      robots.remove();
+    };
+  }, [isBuilderPreview]);
 
   const handleShowProducts = () => {
     navigateTab('products');
@@ -646,6 +712,7 @@ export default function SupplierPage() {
   }, [supplier?.id, supplier?.slug, slug, token]);
 
   useEffect(() => {
+    if (isBuilderPreview) return;
     const id = supplier?.id;
     if (!id) return;
     const key = String(id);
@@ -672,7 +739,7 @@ export default function SupplierPage() {
         }
       }
     })();
-  }, [supplier?.id]);
+  }, [isBuilderPreview, supplier?.id]);
 
   const fetchSupplier = async (slug: string) => {
     try {
@@ -1099,8 +1166,30 @@ const contactHref = supplier?.phone
     notFound();
   }
 
+  const sectionFocusClass = (sections: SiteBuilderSection[]) =>
+    isBuilderPreview && builderSection && sections.includes(builderSection)
+      ? "ring-1 ring-inset ring-[#168e00]"
+      : "";
+
+  const themeStyle = {
+    "--supplier-page-background": supplier.page_background_color || supplier.background_color || "#ffffff",
+    "--supplier-card-background": supplier.card_background_color || "#ffffff",
+    "--supplier-header-background": supplier.header_background_color || "#ffffff",
+    "--supplier-primary": supplier.primary_color || "#168e00",
+  } as CSSProperties;
+
   return (
-    <div className="min-h-screen bg-[#ffffff] font-sans selection:bg-[#168e00] selection:text-white">
+    <div className="drooopy-supplier-theme min-h-screen bg-[var(--supplier-page-background)] font-sans selection:bg-[#168e00] selection:text-white" style={themeStyle}>
+      <style>{`
+        .drooopy-supplier-theme section [class~="bg-white"] { background-color: var(--supplier-card-background); }
+        .drooopy-supplier-theme section[class*="bg-[#f2f3f4]"],
+        .drooopy-supplier-theme section[class*="bg-white"] { background-color: var(--supplier-page-background); }
+        .drooopy-supplier-theme > nav { background-color: var(--supplier-header-background); }
+        .drooopy-supplier-theme [class*="bg-[#168e00]"] { background-color: var(--supplier-primary); }
+        .drooopy-supplier-theme [class*="text-[#168e00]"] { color: var(--supplier-primary); }
+        .drooopy-supplier-theme #contacto { background-color: #004e28; }
+        [data-builder-active="true"] { outline: 1px solid #168e00; outline-offset: -1px; }
+      `}</style>
 
       {isDirectory ? (
         <DirectoryTopNav
@@ -1119,7 +1208,7 @@ const contactHref = supplier?.phone
       {/* --- HERO SECTION --- */}
       <section
         id="inicio"
-        className={`group relative w-full scroll-mt-20 overflow-hidden bg-black ${
+        className={`group relative w-full scroll-mt-20 overflow-hidden bg-black ${sectionFocusClass(["general", "appearance", "header"])} ${
           isDirectory
             ? "min-h-[calc(100svh-4rem)] xl:min-h-0"
             : "min-h-[100svh] xl:min-h-0 xl:pt-24"
@@ -1519,7 +1608,7 @@ const contactHref = supplier?.phone
       {(!isDirectory || hasAboutContent) ? (
         <section
           id="nosotros"
-          className={`relative scroll-mt-20 overflow-hidden ${
+          className={`relative scroll-mt-20 overflow-hidden ${sectionFocusClass(["information"])} ${
             useDirectoryPresentation ? "bg-[#f2f3f4] py-16 md:py-24" : "bg-white py-24"
           }`}
         >
@@ -1825,7 +1914,7 @@ const contactHref = supplier?.phone
       {/* --- CONTACT & MAP (Dark Mode / Expert UI) --- */}
       <section
         id="contacto"
-        className={`relative overflow-hidden ${
+        className={`relative overflow-hidden ${sectionFocusClass(["hours", "contact", "social"])} ${
           useDirectoryPresentation ? "bg-[#f2f3f4] py-16 text-[#000000] md:py-20" : "bg-[#004e28] py-24 text-white"
         }`}
       >

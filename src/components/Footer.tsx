@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Check,
   Facebook,
@@ -11,6 +12,10 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { FaXTwitter } from "react-icons/fa6";
+import {
+  SITE_BUILDER_UPDATE,
+  type SiteBuilderSection,
+} from "@/lib/siteBuilder";
 
 const mainLinks = [
   { label: "Inicio", href: "/" },
@@ -70,6 +75,9 @@ const copyToClipboard = async (value: string) => {
 };
 
 export function Footer() {
+  const searchParams = useSearchParams();
+  const isBuilderPreview = searchParams.get("builderPreview") === "1";
+  const [builderSection, setBuilderSection] = useState<SiteBuilderSection | null>(null);
   const currentUrl = useSyncExternalStore(subscribeToUrlChanges, getCurrentUrl, () => defaultShareUrl);
   const [copied, setCopied] = useState(false);
 
@@ -98,6 +106,16 @@ export function Footer() {
     },
   ];
 
+  useEffect(() => {
+    if (!isBuilderPreview) return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== window.parent || event.data?.type !== SITE_BUILDER_UPDATE) return;
+      setBuilderSection(typeof event.data.activeSection === "string" ? event.data.activeSection as SiteBuilderSection : null);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [isBuilderPreview]);
+
   const copyCurrentUrl = async () => {
     try {
       await copyToClipboard(currentUrl);
@@ -109,7 +127,7 @@ export function Footer() {
   };
 
   return (
-    <footer className="bg-white border-t border-gray-100 pt-16 pb-24 md:pb-8">
+    <footer className={`relative border-t border-gray-100 bg-white pb-24 pt-16 md:pb-8 ${isBuilderPreview && builderSection === "footer" ? "ring-1 ring-inset ring-[#168e00]" : ""}`}>
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-5 md:gap-8 mb-12">
           <div className="space-y-4 md:col-span-1">

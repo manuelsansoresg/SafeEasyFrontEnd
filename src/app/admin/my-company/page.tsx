@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Award, Clock3, ExternalLink, Home, Image as ImageIcon, Info, Loader2, MessageCircle, Package, PanelTop, QrCode } from "lucide-react";
+import { Award, Clock3, ExternalLink, Home, Image as ImageIcon, Info, Loader2, MessageCircle, Package, Paintbrush, PanelTop, QrCode } from "lucide-react";
 import SupplierForm from "@/components/admin/SupplierForm";
 import StepCarousel from "@/components/sell/wizard/StepCarousel";
 import StepCertificates from "@/components/sell/wizard/StepCertificates";
@@ -96,7 +96,10 @@ function MyCompanyContent() {
             <h1 className="mt-1 truncate font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28] sm:text-[1.7rem]">{supplier.name}</h1>
             <div className="mt-2 flex items-center gap-2 text-xs text-gray-500"><div className="h-1.5 w-28 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-[#168e00]" style={{ width: `${completion.percentage}%` }} /></div><span>{completion.percentage}% completo</span></div>
           </div>
-          {profileUrl ? <Link href={profileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#004e28]/20 px-4 py-2.5 text-sm font-semibold text-[#004e28] transition hover:bg-[#004e28] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2">Ver mi negocio <ExternalLink size={16} aria-hidden="true" /></Link> : null}
+          <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+            <Link href="/admin/my-company/customize" className="portal-customizer-cta inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#168e00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2"><Paintbrush size={16} aria-hidden="true" />Personalizar portal</Link>
+            {profileUrl ? <Link href={profileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#004e28]/20 px-4 py-2.5 text-sm font-semibold text-[#004e28] transition hover:bg-[#004e28] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2">Ver mi negocio <ExternalLink size={16} aria-hidden="true" /></Link> : null}
+          </div>
         </div>
       </header>
 

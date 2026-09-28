@@ -10,6 +10,7 @@ interface StepCarouselProps {
   slug?: string;
   token: string;
   onNext: () => void;
+  onSaved?: () => void;
 }
 
 interface CarouselItem {
@@ -40,7 +41,7 @@ const isRecentCarouselSubmission = (key: string) => {
   return carouselSubmissionsInFlight.has(key) || (recentCarouselSubmissions.get(key) ?? 0) > now;
 };
 
-export default function StepCarousel({ supplierId, slug, token, onNext }: StepCarouselProps) {
+export default function StepCarousel({ supplierId, slug, token, onSaved }: StepCarouselProps) {
   const submitInFlightRef = useRef(false);
   const [items, setItems] = useState<CarouselItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -224,6 +225,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
             method: 'PUT',
             body: formData
         });
+        onSaved?.();
     } catch (e) {
         console.warn("Error updating media type preference", e);
     }
@@ -273,6 +275,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
             setHeaderVideo(null); // Clear file input
             // Optionally fetchItems to refresh everything
             await fetchItems();
+            onSaved?.();
         } else {
             const errorData = await res.json().catch(() => ({}));
             console.warn("Video upload error data:", errorData);
@@ -345,6 +348,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
       setSavedVideoUrl(null);
       setHeaderVideo(null);
       await fetchItems();
+      onSaved?.();
     } catch (err: unknown) {
       const message =
         err && typeof err === "object" && "message" in err && typeof (err as Record<string, unknown>).message === "string"
@@ -488,6 +492,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
 
       // Siempre refrescamos desde el backend para tener lo mismo que /suppliers/{id}
       await fetchItems();
+      onSaved?.();
       
       // Reset formulario y salir de edición para permitir seguir editando otros
       handleCancelEdit();
@@ -521,6 +526,7 @@ export default function StepCarousel({ supplierId, slug, token, onNext }: StepCa
       }
 
       await fetchItems();
+      onSaved?.();
       if (editingId === itemId) {
         handleCancelEdit();
       }

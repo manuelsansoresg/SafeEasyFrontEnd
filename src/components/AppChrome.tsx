@@ -28,8 +28,9 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const hideForLegalEmbed = legalPaths.has(normalizedPathname) && isMobileEmbed(searchParams);
   const hideChrome = isDirectoryCampaignPage || hideForLegalEmbed || (isSupplierPage && hideForDirectory);
   const isCancelAccountPage = normalizedPathname === "/cancel-account";
+  const isPortalCustomizer = normalizedPathname === "/admin/my-company/customize";
 
-  if (isDirectoryCampaignPage || isCancelAccountPage) {
+  if (isDirectoryCampaignPage || isCancelAccountPage || isPortalCustomizer) {
     return <>{children}</>;
   }
 

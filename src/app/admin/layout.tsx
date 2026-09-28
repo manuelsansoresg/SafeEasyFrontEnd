@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Loader2, Menu, X } from "lucide-react";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
@@ -17,6 +17,8 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const isPortalCustomizer = pathname.replace(/\/$/, "") === "/admin/my-company/customize";
   const hydrated = useAuthHydrated();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   // Initialize collapsed state based on screen size or preference
@@ -71,8 +73,8 @@ export default function AdminLayout({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="flex min-h-screen bg-gray-50">
-      <button
+      <div className={`flex bg-gray-50 ${isPortalCustomizer ? "h-dvh overflow-hidden" : "min-h-screen"}`}>
+      {!isPortalCustomizer ? <button
         type="button"
         onClick={() => setIsMobileMenuOpen((open) => !open)}
         className="fixed left-4 top-24 z-[60] inline-flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-primary shadow-lg shadow-black/10 transition hover:bg-gray-50 md:hidden"
@@ -80,9 +82,9 @@ export default function AdminLayout({
         aria-expanded={isMobileMenuOpen}
       >
         {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-      </button>
+      </button> : null}
 
-      {isMobileMenuOpen ? (
+      {!isPortalCustomizer && isMobileMenuOpen ? (
         <button
           type="button"
           className="fixed inset-0 z-40 bg-black/35 backdrop-blur-[1px] md:hidden"
@@ -91,15 +93,15 @@ export default function AdminLayout({
         />
       ) : null}
 
-      <AdminSidebar 
+      {!isPortalCustomizer ? <AdminSidebar
         isCollapsed={isSidebarCollapsed} 
         toggleSidebar={toggleSidebar} 
         isMobileOpen={isMobileMenuOpen}
         onMobileClose={() => setIsMobileMenuOpen(false)}
-      />
+      /> : null}
       
-      <main className="flex-1 overflow-x-hidden transition-all duration-300 pt-32 md:pt-28">
-        <div className="p-4 md:p-8 max-w-7xl mx-auto">
+      <main className={`flex-1 transition-all duration-300 ${isPortalCustomizer ? "h-dvh min-w-0 overflow-hidden" : "overflow-x-hidden pt-32 md:pt-28"}`}>
+        <div className={isPortalCustomizer ? "h-full w-full" : "mx-auto max-w-7xl p-4 md:p-8"}>
             {children}
         </div>
       </main>
