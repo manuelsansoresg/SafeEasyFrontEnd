@@ -11,6 +11,7 @@ interface StepCarouselProps {
   token: string;
   onNext: () => void;
   onSaved?: () => void;
+  compact?: boolean;
 }
 
 interface CarouselItem {
@@ -41,7 +42,7 @@ const isRecentCarouselSubmission = (key: string) => {
   return carouselSubmissionsInFlight.has(key) || (recentCarouselSubmissions.get(key) ?? 0) > now;
 };
 
-export default function StepCarousel({ supplierId, slug, token, onSaved }: StepCarouselProps) {
+export default function StepCarousel({ supplierId, slug, token, onSaved, compact = false }: StepCarouselProps) {
   const submitInFlightRef = useRef(false);
   const [items, setItems] = useState<CarouselItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -536,43 +537,43 @@ export default function StepCarousel({ supplierId, slug, token, onSaved }: StepC
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className={compact ? "w-full min-w-0" : "mx-auto max-w-4xl"}>
       <div className="mb-6 text-center">
-        <h2 className="font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28]">Encabezado de la empresa</h2>
+        <h2 className={`font-[family-name:var(--font-varela-round)] text-[#004e28] ${compact ? "text-xl" : "text-2xl"}`}>Encabezado de la empresa</h2>
         <p className="mt-2 text-sm text-gray-500">Selecciona el tipo de contenido que quieres mostrar en la parte superior de tu perfil.</p>
       </div>
       
       {/* Type Toggle */}
-      <div className="flex justify-center mb-8">
-        <div className="bg-gray-100 p-1 rounded-xl inline-flex">
+      <div className="mb-8 flex justify-center">
+        <div className={`rounded-xl bg-gray-100 p-1 ${compact ? "grid w-full grid-cols-2" : "inline-flex"}`}>
             <button
                 onClick={() => handleTabChange('video')}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                className={`flex min-w-0 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all ${compact ? "px-2" : "px-6"} ${
                     activeTab === 'video'
                         ? 'bg-white text-primary shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
                 }`}
             >
                 <Video size={18} />
-                Usar video
+                {compact ? "Video" : "Usar video"}
             </button>
             <button
                 onClick={() => handleTabChange('image')}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                className={`flex min-w-0 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all ${compact ? "px-2" : "px-6"} ${
                     activeTab === 'image'
                         ? 'bg-white text-primary shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
                 }`}
             >
                 <ImageIcon size={18} />
-                Usar imágenes (carrusel)
+                {compact ? "Imágenes" : "Usar imágenes (carrusel)"}
             </button>
         </div>
       </div>
 
       {activeTab === 'video' ? (
         /* Video Section */
-        <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-8 transition-all">
+        <div className={`mb-8 rounded-xl border border-gray-200 bg-gray-50 transition-all ${compact ? "p-4" : "p-6"}`}>
              <h3 className="font-bold text-lg text-primary mb-4">
                 Video de Encabezado
              </h3>
@@ -592,8 +593,8 @@ export default function StepCarousel({ supplierId, slug, token, onSaved }: StepC
                 />
                 
                 {savedVideoUrl && !headerVideo && (
-                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
+                    <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-4">
+                        <div className={`mb-3 flex flex-col gap-3 ${compact ? "" : "sm:flex-row sm:items-center sm:justify-between"}`}>
                           <div>
                             <p className="text-sm text-blue-800 font-medium">Video Actual:</p>
                             <p className="text-xs text-blue-700/70">Procura que sea breve y que el elemento principal se vea claramente.</p>
@@ -625,8 +626,8 @@ export default function StepCarousel({ supplierId, slug, token, onSaved }: StepC
             </p>
 
             {/* Upload Form */}
-            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-8 transition-all">
-                <div className="flex justify-between items-center mb-4">
+            <div className={`mb-8 rounded-xl border border-gray-200 bg-gray-50 transition-all ${compact ? "p-4" : "p-6"}`}>
+                <div className={`mb-4 flex gap-3 ${compact ? "flex-col items-start" : "items-center justify-between"}`}>
                 <h3 className="font-bold text-lg text-primary">
                     {editingId ? 'Editar Imagen' : 'Agregar Nueva Imagen'}
                 </h3>
@@ -680,7 +681,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved }: StepC
                     <p className="text-gray-400">No hay imágenes subidas aún.</p>
                 </div>
                 ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className={`grid grid-cols-1 gap-6 ${compact ? "" : "md:grid-cols-2"}`}>
                     {items.map((item) => (
                     <div 
                         key={item.id} 
@@ -709,7 +710,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved }: StepC
                         )}
                         </div>
                         
-                        <div className="flex gap-2 border-t border-gray-100 px-5 py-3">
+                        <div className={`border-t border-gray-100 px-4 py-3 ${compact ? "grid grid-cols-2 gap-2" : "flex gap-2"}`}>
                         <button 
                             type="button"
                             onClick={() => handleEdit(item)}
@@ -735,12 +736,12 @@ export default function StepCarousel({ supplierId, slug, token, onSaved }: StepC
         </>
       )}
 
-      <div className="flex justify-end pt-4 border-t border-gray-100 gap-3">
+      <div className={`gap-3 border-t border-gray-100 pt-4 ${compact ? "grid grid-cols-1" : "flex justify-end"}`}>
         {activeTab === 'image' && editingId && (
             <button 
                 type="button"
                 onClick={handleCancelEdit}
-                className="px-6 py-2 text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                className={`${compact ? "w-full" : ""} rounded-xl border border-gray-200 bg-white px-6 py-2 text-gray-600 transition-colors hover:bg-gray-50`}
             >
                 Cancelar
             </button>
@@ -750,7 +751,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved }: StepC
           form={activeTab === 'video' ? 'video-form' : 'image-form'}
           aria-busy={activeTab === 'video' ? isVideoLoading : loading}
           disabled={activeTab === 'video' ? (isVideoLoading || !headerVideo) : (loading || (!editingId && items.length >= 3))}
-          className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+          className={`${compact ? "w-full justify-center" : ""} flex items-center gap-2 rounded-lg bg-primary px-8 py-3 font-bold text-white shadow-md transition-all hover:bg-primary/90 disabled:opacity-50`}
         >
           {(activeTab === 'video' ? isVideoLoading : loading) ? (
             <>
