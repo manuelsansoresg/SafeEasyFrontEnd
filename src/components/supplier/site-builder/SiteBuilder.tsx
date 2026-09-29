@@ -102,10 +102,10 @@ const EDITABLE_FIELDS = [
   "header_background_color",
 ] as const;
 
-const DEVICE_WIDTHS: Record<SiteBuilderDevice, string> = {
-  mobile: "390px",
-  tablet: "768px",
-  desktop: "100%",
+const DEVICE_VIEWPORTS: Record<SiteBuilderDevice, { width: number; height: number }> = {
+  mobile: { width: 390, height: 844 },
+  tablet: { width: 768, height: 1024 },
+  desktop: { width: 1440, height: 900 },
 };
 
 const normalizeHours = (hours?: BusinessHour[]) => {
@@ -149,8 +149,10 @@ export default function SiteBuilder() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [previewReady, setPreviewReady] = useState(false);
+  const [previewStageWidth, setPreviewStageWidth] = useState(0);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const previewStageRef = useRef<HTMLDivElement>(null);
   const saveSequenceRef = useRef(0);
   const previewUrlRef = useRef<string | null>(null);
 
@@ -327,6 +329,24 @@ export default function SiteBuilder() {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
   }, []);
 
+  useEffect(() => {
+    if (loading) return;
+    const stage = previewStageRef.current;
+    if (!stage) return;
+
+    const updateWidth = (width: number) => {
+      if (width <= 0) return;
+      setPreviewStageWidth((current) => current === width ? current : width);
+    };
+    updateWidth(stage.getBoundingClientRect().width);
+
+    const observer = new ResizeObserver((entries) => {
+      updateWidth(entries[0]?.contentRect.width || 0);
+    });
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [loading]);
+
   if (loading) return <BuilderLoading />;
   if (loadError || !draftData) return <BuilderError message={loadError || "No se encontró el negocio."} onRetry={loadSupplier} />;
 
@@ -334,7 +354,13 @@ export default function SiteBuilder() {
   const publicUrl = `/empresas/${encodeURIComponent(slug)}`;
   const previewUrl = `${publicUrl}?builderPreview=1`;
   const filteredNav = NAV_ITEMS.filter((item) => `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(query.trim().toLowerCase()));
-  const scale = zoom === "fit" ? 1 : Number(zoom) / 100;
+  const viewport = DEVICE_VIEWPORTS[device];
+  const fitScale = previewStageWidth > 0 ? Math.min(1, previewStageWidth / viewport.width) : 1;
+  const scale = zoom === "fit" ? fitScale : Number(zoom) / 100;
+  const scaledViewport = {
+    width: viewport.width * scale,
+    height: viewport.height * scale,
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#eef0f1]">
@@ -396,11 +422,24 @@ export default function SiteBuilder() {
         <main className={`${mobileView === "edit" ? "hidden" : "flex"} min-w-0 flex-1 flex-col bg-[#eef0f1] lg:flex`}>
           <div className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-2">
             <div className="flex items-center gap-2 text-xs text-gray-500"><span className={`h-2 w-2 rounded-full ${previewReady ? "bg-[#168e00]" : "animate-pulse bg-amber-400"}`} />{previewReady ? "Vista previa interactiva" : "Cargando portal…"}</div>
-            <label className="flex items-center gap-2 text-xs font-medium text-gray-500">Zoom<select value={zoom} onChange={(event) => setZoom(event.target.value)} className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#168e00]"><option value="fit">Ajustar</option><option value="100">100%</option><option value="90">90%</option><option value="80">80%</option><option value="70">70%</option></select></label>
+            <div className="flex items-center gap-3">
+              <span className="hidden text-[11px] font-medium tabular-nums text-gray-400 sm:inline">{viewport.width} × {viewport.height}</span>
+              <label className="flex items-center gap-2 text-xs font-medium text-gray-500">Zoom<select value={zoom} onChange={(event) => setZoom(event.target.value)} className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none focus:border-[#168e00]"><option value="fit">Ajustar</option><option value="100">100%</option><option value="90">90%</option><option value="80">80%</option><option value="70">70%</option></select></label>
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-2.5 sm:p-4">
-            <div className="mx-auto h-full min-h-[520px] origin-top overflow-hidden rounded-[14px] border border-black/10 bg-white shadow-[0_18px_45px_-30px_rgba(0,30,15,0.45)] transition-[width,transform] duration-200" style={{ width: DEVICE_WIDTHS[device], maxWidth: "100%", transform: `scale(${scale})`, height: zoom === "fit" ? "100%" : `${100 / scale}%` }}>
-              <iframe ref={iframeRef} src={previewUrl} title={`Vista previa de ${draftData.name}`} onLoad={() => { setPreviewReady(true); window.setTimeout(sendPreview, 80); }} className="h-full w-full bg-white" />
+            <div ref={previewStageRef} className="min-h-[520px] w-full">
+              <div
+                className="mx-auto transition-[width,height] duration-200"
+                style={{ width: scaledViewport.width, height: scaledViewport.height }}
+              >
+                <div
+                  className="origin-top-left overflow-hidden rounded-[14px] border border-black/10 bg-white shadow-[0_18px_45px_-30px_rgba(0,30,15,0.45)] transition-transform duration-200"
+                  style={{ width: viewport.width, height: viewport.height, transform: `scale(${scale})` }}
+                >
+                  <iframe ref={iframeRef} src={previewUrl} title={`Vista previa de ${draftData.name}`} onLoad={() => { setPreviewReady(true); window.setTimeout(sendPreview, 80); }} className="h-full w-full bg-white" />
+                </div>
+              </div>
             </div>
           </div>
         </main>
