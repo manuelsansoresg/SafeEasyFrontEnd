@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const PROXY_VERSION = "2026-09-20-menu-orders-fix-1";
+const PROXY_VERSION = "2026-09-28-mercadopago-return-path-1";
 const IDEMPOTENCY_TTL_MS = 30_000;
 
 const idempotentMutationResponses = new Map<
@@ -14,6 +14,68 @@ type BackendCandidate = {
   baseUrl: string;
   label: string;
 };
+
+const isMercadoPagoCallbackPath = (pathname: string) =>
+  pathname === "/api/mercadopago/callback" ||
+  pathname.startsWith("/api/mercadopago/callback/");
+
+function isMercadoPagoAuthUrl(value: string, baseUrl: string) {
+  try {
+    const hostname = new URL(value, baseUrl).hostname.toLowerCase();
+    return (
+      hostname === "auth.mercadopago.com" ||
+      hostname.endsWith(".auth.mercadopago.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function getMercadoPagoReturnUrl(request: NextRequest) {
+  const accountType =
+    request.cookies.get("mp_connect_account_type")?.value === "supplier"
+      ? "supplier"
+      : "seller";
+  const fallbackPath =
+    accountType === "supplier" ? "/admin/my-company" : "/admin/profile";
+  const rawPath = request.cookies.get("mp_connect_return_path")?.value || "";
+
+  let decodedPath = rawPath;
+  try {
+    decodedPath = decodeURIComponent(rawPath);
+  } catch {}
+
+  let returnUrl = new URL(fallbackPath, request.nextUrl.origin);
+  try {
+    const candidate = new URL(decodedPath, request.nextUrl.origin);
+    if (
+      decodedPath.startsWith("/admin/") &&
+      candidate.origin === request.nextUrl.origin &&
+      candidate.pathname.startsWith("/admin/")
+    ) {
+      returnUrl = candidate;
+    }
+  } catch {}
+
+  returnUrl.searchParams.set("mp", "linked");
+  returnUrl.searchParams.set("account_type", accountType);
+  return returnUrl;
+}
+
+function clearMercadoPagoReturnCookies(response: NextResponse) {
+  response.cookies.set("mp_connect_return_path", "", {
+    maxAge: 0,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+  response.cookies.set("mp_connect_account_type", "", {
+    maxAge: 0,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+}
 
 function sanitizeBaseUrl(value: string | undefined) {
   return String(value || "")
@@ -416,6 +478,29 @@ async function proxyRequest(request: NextRequest) {
 
       const responseHeaders = copyResponseHeaders(response);
       responseHeaders.set("x-next-proxy-upstream", candidate.baseUrl);
+
+      if (
+        isMercadoPagoCallbackPath(request.nextUrl.pathname) &&
+        response.status >= 300 &&
+        response.status < 400
+      ) {
+        const upstreamLocation = response.headers.get("location");
+        if (
+          upstreamLocation &&
+          !isMercadoPagoAuthUrl(upstreamLocation, target)
+        ) {
+          responseHeaders.set(
+            "location",
+            getMercadoPagoReturnUrl(request).toString(),
+          );
+          const callbackResponse = new NextResponse(null, {
+            status: response.status,
+            headers: responseHeaders,
+          });
+          clearMercadoPagoReturnCookies(callbackResponse);
+          return callbackResponse;
+        }
+      }
 
       return new NextResponse(response.body, {
         status: response.status,

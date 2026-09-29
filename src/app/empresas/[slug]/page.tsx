@@ -128,6 +128,30 @@ const THEME = {
   textInv: "#ffffff"
 };
 
+const normalizeThemeColor = (value: string | null | undefined, fallback: string) =>
+  /^#[0-9a-f]{6}$/i.test(value || "") ? value! : fallback;
+
+const getRelativeLuminance = (hexColor: string) => {
+  const channels = hexColor
+    .slice(1)
+    .match(/.{2}/g)!
+    .map((channel) => parseInt(channel, 16) / 255)
+    .map((channel) =>
+      channel <= 0.04045
+        ? channel / 12.92
+        : ((channel + 0.055) / 1.055) ** 2.4,
+    );
+
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+};
+
+const getReadableTextColor = (backgroundColor: string) => {
+  const luminance = getRelativeLuminance(backgroundColor);
+  const whiteContrast = 1.05 / (luminance + 0.05);
+  const blackContrast = (luminance + 0.05) / 0.05;
+  return whiteContrast >= blackContrast ? "#ffffff" : "#000000";
+};
+
 function InlineVideo({ src, poster }: { src: string; poster?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [showPlayer, setShowPlayer] = useState(false);
@@ -1171,11 +1195,13 @@ const contactHref = supplier?.phone
       ? "ring-1 ring-inset ring-[#168e00]"
       : "";
 
+  const supplierPrimaryColor = normalizeThemeColor(supplier.primary_color, "#168e00");
   const themeStyle = {
     "--supplier-page-background": supplier.page_background_color || supplier.background_color || "#ffffff",
     "--supplier-card-background": supplier.card_background_color || "#ffffff",
     "--supplier-header-background": supplier.header_background_color || "#ffffff",
-    "--supplier-primary": supplier.primary_color || "#168e00",
+    "--supplier-primary": supplierPrimaryColor,
+    "--supplier-on-primary": getReadableTextColor(supplierPrimaryColor),
   } as CSSProperties;
 
   return (
@@ -1185,8 +1211,23 @@ const contactHref = supplier?.phone
         .drooopy-supplier-theme section[class*="bg-[#f2f3f4]"],
         .drooopy-supplier-theme section[class*="bg-white"] { background-color: var(--supplier-page-background); }
         .drooopy-supplier-theme > nav { background-color: var(--supplier-header-background); }
-        .drooopy-supplier-theme [class*="bg-[#168e00]"] { background-color: var(--supplier-primary); }
-        .drooopy-supplier-theme [class*="text-[#168e00]"] { color: var(--supplier-primary); }
+        .drooopy-supplier-theme [class~="bg-[#168e00]"] { background-color: var(--supplier-primary); }
+        .drooopy-supplier-theme [class~="bg-[#168e00]/5"] { background-color: color-mix(in srgb, var(--supplier-primary) 5%, transparent); }
+        .drooopy-supplier-theme [class~="bg-[#168e00]/8"] { background-color: color-mix(in srgb, var(--supplier-primary) 8%, transparent); }
+        .drooopy-supplier-theme [class~="bg-[#168e00]/10"] { background-color: color-mix(in srgb, var(--supplier-primary) 10%, transparent); }
+        .drooopy-supplier-theme [class~="bg-[#168e00]/15"] { background-color: color-mix(in srgb, var(--supplier-primary) 15%, transparent); }
+        .drooopy-supplier-theme [class~="bg-[#168e00]/20"] { background-color: color-mix(in srgb, var(--supplier-primary) 20%, transparent); }
+        .drooopy-supplier-theme [class~="bg-[#168e00]/[0.03]"] { background-color: color-mix(in srgb, var(--supplier-primary) 3%, transparent); }
+        .drooopy-supplier-theme [class~="border-[#168e00]"] { border-color: var(--supplier-primary); }
+        .drooopy-supplier-theme [class~="border-[#168e00]/15"] { border-color: color-mix(in srgb, var(--supplier-primary) 15%, transparent); }
+        .drooopy-supplier-theme [class~="border-[#168e00]/20"] { border-color: color-mix(in srgb, var(--supplier-primary) 20%, transparent); }
+        .drooopy-supplier-theme [class~="border-[#168e00]/30"] { border-color: color-mix(in srgb, var(--supplier-primary) 30%, transparent); }
+        .drooopy-supplier-theme [class~="border-[#168e00]/35"] { border-color: color-mix(in srgb, var(--supplier-primary) 35%, transparent); }
+        .drooopy-supplier-theme [class~="border-[#168e00]/40"] { border-color: color-mix(in srgb, var(--supplier-primary) 40%, transparent); }
+        .drooopy-supplier-theme [class~="border-[#168e00]/50"] { border-color: color-mix(in srgb, var(--supplier-primary) 50%, transparent); }
+        .drooopy-supplier-theme [class~="text-[#168e00]"] { color: var(--supplier-primary); }
+        .drooopy-supplier-theme [class~="accent-[#168e00]"] { accent-color: var(--supplier-primary); }
+        .drooopy-supplier-theme [class~="bg-[#168e00]"][class~="text-white"] { color: var(--supplier-on-primary); }
         .drooopy-supplier-theme #contacto { background-color: #004e28; }
         [data-builder-active="true"] { outline: 1px solid #168e00; outline-offset: -1px; }
       `}</style>
