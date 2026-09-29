@@ -237,13 +237,25 @@ export default function SiteBuilder() {
     setSaveState("saving");
     setSaveError(null);
     try {
+      let confirmedSupplier: Partial<SiteBuilderDraft> | null = null;
       if (formDirty) {
         const body = new FormData();
-        for (const key of EDITABLE_FIELDS) {
-          if ((draftData[key] ?? "") !== (savedData[key] ?? "")) body.append(key, String(draftData[key] ?? ""));
+        const changedFields = EDITABLE_FIELDS.filter(
+          (key) => (draftData[key] ?? "") !== (savedData[key] ?? ""),
+        );
+        for (const key of changedFields) {
+          body.append(key, String(draftData[key] ?? ""));
         }
         const response = await fetchWithAuth(`/api/suppliers/${draftData.id}`, { method: "PUT", body });
         if (!response.ok) throw new Error((await response.text().catch(() => "")) || "No se pudo guardar la configuración.");
+
+        confirmedSupplier = readSupplierPayload(await response.json().catch(() => null));
+        const rejectedFields = changedFields.filter(
+          (key) => String(confirmedSupplier?.[key] ?? "") !== String(draftData[key] ?? ""),
+        );
+        if (rejectedFields.length > 0) {
+          throw new Error("El servidor no confirmó todos los cambios. Intenta nuevamente.");
+        }
       }
       if (hoursDirty) {
         const payload = draftHours.map((hour) => ({
@@ -260,7 +272,7 @@ export default function SiteBuilder() {
         if (!response.ok) throw new Error((await response.text().catch(() => "")) || "No se pudieron guardar los horarios.");
       }
       if (sequence !== saveSequenceRef.current) return;
-      setSavedData(draftData);
+      setSavedData(confirmedSupplier ? { ...draftData, ...confirmedSupplier } as SiteBuilderDraft : draftData);
       setSavedHours(draftHours);
       setSaveState("saved");
     } catch (error) {
