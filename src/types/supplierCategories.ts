@@ -32,6 +32,7 @@ export interface SupplierCategory {
   id: number;
   supplier_id: number;
   name: string;
+  slug?: string;
   category_id: number;
   subcategory_id: number | null;
   is_active: boolean;

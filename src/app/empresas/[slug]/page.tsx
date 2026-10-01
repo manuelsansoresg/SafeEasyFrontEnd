@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useRef, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
 import { useParams, useRouter, useSearchParams, notFound } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -23,6 +23,20 @@ import { useSupplierPageModeStore } from "@/store/useSupplierPageModeStore";
 import { useChromeVisibilityStore } from "@/store/useChromeVisibilityStore";
 import { servicesService } from "@/services/servicesService";
 import type { SupplierService } from "@/types/services";
+import type {
+  DrooopyCategory,
+  DrooopySubcategory,
+  SupplierCategory,
+  SupplierSubcategory,
+} from "@/types/supplierCategories";
+import {
+  buildCatalogFilterOptions,
+  catalogRequestVariants,
+  matchesCatalogFilters,
+  type CatalogFilterOption,
+  type CatalogRequestFilters,
+} from "@/lib/catalogFilters";
+import { SupplierCatalogFilters } from "@/components/supplier/SupplierCatalogFilters";
 import { DirectoryRatingsSection } from "@/components/supplier/DirectoryRatingsSection";
 import { DirectoryContactButton } from "@/components/supplier/DirectoryContactButton";
 import { DirectoryTopNav } from "@/components/supplier/DirectoryTopNav";
@@ -318,21 +332,7 @@ function Carousel({ images }: { images: CarouselImage[] }) {
     );
 }
 
-interface SupplierProductCategory {
-  id: number;
-  name: string;
-  description: string;
-  icon: string | null;
-  is_active: boolean;
-  slug: string;
-}
-
-interface SupplierProductSubcategory {
-  id: number;
-  name: string;
-  category_id: number;
-  is_active: boolean;
-  slug: string;
+interface SupplierProductSubcategory extends DrooopySubcategory {
   image: string | null;
   thumbnail_url: string | null;
 }
@@ -348,11 +348,15 @@ interface SupplierProduct {
   supplier_id: number;
   category_id: number;
   subcategory_id: number;
+  supplier_category_id?: number | null;
+  supplier_subcategory_id?: number | null;
   slug: string;
   average_rating?: number;
   thumbnail_url?: string | null;
-  category?: SupplierProductCategory;
-  subcategory?: SupplierProductSubcategory;
+  category?: DrooopyCategory | null;
+  subcategory?: SupplierProductSubcategory | null;
+  supplier_category?: SupplierCategory | null;
+  supplier_subcategory?: SupplierSubcategory | null;
 }
 
 function DirectoryServiceCard({
@@ -445,6 +449,23 @@ const unwrapSupplierProducts = (data: unknown): SupplierProduct[] => {
   }
   return [];
 };
+
+const appendCatalogParams = (
+  params: URLSearchParams,
+  filters: CatalogRequestFilters,
+) => {
+  if (filters.category) params.set("category", filters.category);
+  if (filters.subcategory) params.set("subcategory", filters.subcategory);
+  if (filters.supplierCategory) {
+    params.set("supplier_category", filters.supplierCategory);
+  }
+  if (filters.supplierSubcategory) {
+    params.set("supplier_subcategory", filters.supplierSubcategory);
+  }
+};
+
+const mergeById = <T extends { id: number | string }>(items: T[]) =>
+  [...new Map(items.map((item) => [String(item.id), item])).values()];
 
 
 
@@ -605,7 +626,9 @@ export default function SupplierPage() {
   }, []);
 
   const [products, setProducts] = useState<SupplierProduct[]>([]);
+  const [productCatalog, setProductCatalog] = useState<SupplierProduct[]>([]);
   const [services, setServices] = useState<SupplierService[]>([]);
+  const [serviceCatalog, setServiceCatalog] = useState<SupplierService[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [servicesError, setServicesError] = useState<string | null>(null);
   const [productsLoading, setProductsLoading] = useState(true);
@@ -613,9 +636,13 @@ export default function SupplierPage() {
   const [page, setPage] = useState(1);
   const limit = 50;
   const [hasMore, setHasMore] = useState(false);
-  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
-  const [selectedSubcategorySlug, setSelectedSubcategorySlug] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProductCategory, setSelectedProductCategory] = useState<CatalogFilterOption | null>(null);
+  const [selectedProductSubcategory, setSelectedProductSubcategory] = useState<CatalogFilterOption | null>(null);
+  const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [debouncedProductSearch, setDebouncedProductSearch] = useState("");
+  const [selectedServiceCategory, setSelectedServiceCategory] = useState<CatalogFilterOption | null>(null);
+  const [selectedServiceSubcategory, setSelectedServiceSubcategory] = useState<CatalogFilterOption | null>(null);
+  const [serviceSearchQuery, setServiceSearchQuery] = useState("");
   const [ratings, setRatings] = useState<SupplierRating[]>([]);
 
   const mapLocation = pickSupplierMapLocation(supplier);
@@ -635,6 +662,42 @@ export default function SupplierPage() {
   const resetChromeVisibility = useChromeVisibilityStore((state) => state.reset);
   
   const observerTarget = useRef<HTMLDivElement | null>(null);
+
+  const productCategories = useMemo(
+    () => buildCatalogFilterOptions(productCatalog.length ? productCatalog : products),
+    [productCatalog, products],
+  );
+  const serviceCategories = useMemo(
+    () => buildCatalogFilterOptions(serviceCatalog),
+    [serviceCatalog],
+  );
+  const resolvedProductCategory = useMemo(
+    () =>
+      selectedProductCategory
+        ? productCategories.find(
+            (category) => category.key === selectedProductCategory.key,
+          ) ?? selectedProductCategory
+        : null,
+    [productCategories, selectedProductCategory],
+  );
+  const resolvedProductSubcategory = useMemo(
+    () =>
+      selectedProductSubcategory
+        ? resolvedProductCategory?.subcategories.find(
+            (subcategory) =>
+              subcategory.key === selectedProductSubcategory.key,
+          ) ?? selectedProductSubcategory
+        : null,
+    [resolvedProductCategory, selectedProductSubcategory],
+  );
+
+  useEffect(() => {
+    const debounceId = window.setTimeout(
+      () => setDebouncedProductSearch(productSearchQuery.trim()),
+      350,
+    );
+    return () => window.clearTimeout(debounceId);
+  }, [productSearchQuery]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -663,8 +726,17 @@ export default function SupplierPage() {
       setSupplier(null);
       fetchSupplier(slug as string);
       setPage(1);
-      setSelectedCategorySlug(null);
-      setSelectedSubcategorySlug(null);
+      setProducts([]);
+      setProductCatalog([]);
+      setServices([]);
+      setServiceCatalog([]);
+      setSelectedProductCategory(null);
+      setSelectedProductSubcategory(null);
+      setProductSearchQuery("");
+      setDebouncedProductSearch("");
+      setSelectedServiceCategory(null);
+      setSelectedServiceSubcategory(null);
+      setServiceSearchQuery("");
     }
   }, [slug]);
 
@@ -709,31 +781,15 @@ export default function SupplierPage() {
         setProducts([]);
         setProductsLoading(false);
         setHasMore(false);
-      } else {
-        fetchProducts(identifier, 1, false);
       }
       fetchRatings(identifier, 0, false);
-      if (supplierHasDirectorySubscription(supplier)) {
-        setServicesLoading(true);
-        setServicesError(null);
-        servicesService
-          .listPublic({ supplierId: supplier.id, skip: 0, limit: 100 })
-          .then(setServices)
-          .catch((requestError) => {
-            setServices([]);
-            setServicesError(
-              requestError instanceof Error
-                ? requestError.message
-                : "No se pudieron cargar los servicios.",
-            );
-          })
-          .finally(() => setServicesLoading(false));
-      } else {
+      if (!supplierHasDirectorySubscription(supplier)) {
         setServices([]);
+        setServiceCatalog([]);
         setServicesError(null);
       }
     }
-  }, [supplier?.id, supplier?.slug, slug, token]);
+  }, [supplier, slug, token]);
 
   useEffect(() => {
     if (isBuilderPreview) return;
@@ -834,21 +890,39 @@ export default function SupplierPage() {
     }
   };
 
-  const fetchProducts = async (supplierSlug: string, currentPage: number, append: boolean = false) => {
+  const fetchProducts = useCallback(async (
+    supplierSlug: string,
+    currentPage: number,
+    append = false,
+    filters: {
+      category: CatalogFilterOption | null;
+      subcategory: CatalogFilterOption | null;
+      search: string;
+    },
+    signal?: AbortSignal,
+  ) => {
     try {
-      if (!append) setProductsLoading(true);
+      setProductsLoading(true);
       setProductsError(null);
 
       const skip = (currentPage - 1) * limit;
-      const params = new URLSearchParams();
-      params.set("skip", String(skip));
-      params.set("limit", String(limit));
+      const variants = catalogRequestVariants(filters.category, filters.subcategory);
+      const responses = await Promise.all(
+        variants.map((variant) => {
+          const params = new URLSearchParams({
+            skip: String(skip),
+            limit: String(limit),
+          });
+          if (filters.search) params.set("search", filters.search);
+          appendCatalogParams(params, variant);
+          return fetch(
+            `/proxy/products/by-supplier/${encodeURIComponent(supplierSlug)}?${params.toString()}`,
+            { cache: "no-store", signal },
+          );
+        }),
+      );
 
-      const res = await fetch(`/proxy/products/by-supplier/${encodeURIComponent(supplierSlug)}?${params.toString()}`, {
-        cache: "no-store",
-      });
-
-      if (!res.ok) {
+      if (responses.some((response) => !response.ok)) {
         const supplierId = Number(supplier?.id);
         if (!Number.isFinite(supplierId)) {
           if (!append) setProducts([]);
@@ -868,6 +942,7 @@ export default function SupplierPage() {
 
         const fallback = await fetch(`/proxy/products/?${fallbackParams.toString()}`, {
           cache: "no-store",
+          signal,
         });
 
         if (!fallback.ok) {
@@ -884,24 +959,58 @@ export default function SupplierPage() {
         const fallbackData = await fallback.json();
         const ownProducts = filterProductsByActiveSupplierSubscription(
           unwrapSupplierProducts(fallbackData).filter((product) => Number(product.supplier_id) === supplierId)
+        ).filter(
+          (product) =>
+            matchesCatalogFilters(product, filters.category, filters.subcategory) &&
+            (!filters.search ||
+              product.title.toLocaleLowerCase("es").includes(
+                filters.search.toLocaleLowerCase("es"),
+              )),
         );
         const pageStart = (currentPage - 1) * limit;
         const pageItems = ownProducts.slice(pageStart, pageStart + limit);
 
         syncFavorites(pageItems);
-        setProducts((prev) => (append ? [...prev, ...pageItems] : pageItems));
+        if (
+          currentPage === 1 &&
+          !filters.category &&
+          !filters.subcategory &&
+          !filters.search
+        ) {
+          setProductCatalog((previous) => mergeById([...previous, ...pageItems]));
+        }
+        setProducts((prev) =>
+          append ? mergeById([...prev, ...pageItems]) : pageItems,
+        );
         setHasMore(ownProducts.length > pageStart + limit);
         return;
       }
 
-      const data = await res.json();
-      const newProducts = filterProductsByActiveSupplierSubscription(unwrapSupplierProducts(data));
+      const pages = await Promise.all(
+        responses.map(async (response) =>
+          filterProductsByActiveSupplierSubscription(
+            unwrapSupplierProducts(await response.json()),
+          ),
+        ),
+      );
+      const newProducts = mergeById(pages.flat());
       
       syncFavorites(newProducts);
+      if (
+        currentPage === 1 &&
+        !filters.category &&
+        !filters.subcategory &&
+        !filters.search
+      ) {
+        setProductCatalog((previous) => mergeById([...previous, ...newProducts]));
+      }
 
-      setProducts(prev => append ? [...prev, ...newProducts] : newProducts);
-      setHasMore(newProducts.length === limit);
+      setProducts((prev) =>
+        append ? mergeById([...prev, ...newProducts]) : newProducts,
+      );
+      setHasMore(pages.some((items) => items.length === limit));
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Error fetching supplier products", error);
       setProductsError(
         supplierHasDirectorySubscription(supplier)
@@ -911,9 +1020,9 @@ export default function SupplierPage() {
       if (!append) setProducts([]);
       setHasMore(false);
     } finally {
-      setProductsLoading(false);
+      if (!signal?.aborted) setProductsLoading(false);
     }
-  };
+  }, [limit, supplier, syncFavorites]);
 
   const fetchRatings = async (supplierSlug: string, skip: number = 0, append: boolean = false) => {
     try {
@@ -938,11 +1047,7 @@ export default function SupplierPage() {
       }
 
       const data = (await res.json()) as SupplierRatingsResponse | { ratings?: SupplierRating[]; total?: number; skip?: number; limit?: number };
-      const ratingsList = Array.isArray((data as SupplierRatingsResponse).ratings)
-        ? (data as SupplierRatingsResponse).ratings
-        : Array.isArray((data as any).ratings)
-        ? (data as any).ratings
-        : [];
+      const ratingsList = Array.isArray(data.ratings) ? data.ratings : [];
 
       const total = typeof (data as SupplierRatingsResponse).total === "number" ? (data as SupplierRatingsResponse).total : ratingsList.length;
 
@@ -961,11 +1066,142 @@ export default function SupplierPage() {
   };
 
   useEffect(() => {
-    if (!slug) return;
-    if (page === 1) return;
-    const identifier = (slug as string) || supplier?.slug || String(supplier?.id);
-    fetchProducts(identifier, page, true);
-  }, [page, slug]);
+    if (!supplier?.id || supplierHasDirectorySubscription(supplier)) return;
+    const controller = new AbortController();
+    const identifier = String(slug || supplier.slug || supplier.id);
+    const params = new URLSearchParams({ skip: "0", limit: "500" });
+
+    fetch(
+      `/proxy/products/by-supplier/${encodeURIComponent(identifier)}?${params.toString()}`,
+      { cache: "no-store", signal: controller.signal },
+    )
+      .then(async (response) => {
+        if (!response.ok) return [];
+        return filterProductsByActiveSupplierSubscription(
+          unwrapSupplierProducts(await response.json()),
+        );
+      })
+      .then((items) => {
+        if (!controller.signal.aborted && items.length) {
+          setProductCatalog((previous) => mergeById([...previous, ...items]));
+        }
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          console.error("Error fetching product filter catalog", error);
+        }
+      });
+
+    return () => controller.abort();
+  }, [slug, supplier]);
+
+  useEffect(() => {
+    if (!supplier?.id || supplierHasDirectorySubscription(supplier)) return;
+    const controller = new AbortController();
+    const identifier = String(slug || supplier.slug || supplier.id);
+    setPage(1);
+    setProducts([]);
+    setHasMore(false);
+    void fetchProducts(
+      identifier,
+      1,
+      false,
+      {
+        category: resolvedProductCategory,
+        subcategory: resolvedProductSubcategory,
+        search: debouncedProductSearch,
+      },
+      controller.signal,
+    );
+    return () => controller.abort();
+  }, [
+    debouncedProductSearch,
+    fetchProducts,
+    resolvedProductCategory,
+    resolvedProductSubcategory,
+    slug,
+    supplier,
+    token,
+  ]);
+
+  useEffect(() => {
+    if (!slug || page === 1) return;
+    const controller = new AbortController();
+    const identifier = String(slug || supplier?.slug || supplier?.id);
+    void fetchProducts(
+      identifier,
+      page,
+      true,
+      {
+        category: resolvedProductCategory,
+        subcategory: resolvedProductSubcategory,
+        search: debouncedProductSearch,
+      },
+      controller.signal,
+    );
+    return () => controller.abort();
+  }, [
+    debouncedProductSearch,
+    fetchProducts,
+    page,
+    resolvedProductCategory,
+    resolvedProductSubcategory,
+    slug,
+    supplier,
+  ]);
+
+  useEffect(() => {
+    if (!supplier?.id || !supplierHasDirectorySubscription(supplier)) return;
+    let active = true;
+    const variants = catalogRequestVariants(
+      selectedServiceCategory,
+      selectedServiceSubcategory,
+    );
+
+    setServicesLoading(true);
+    setServicesError(null);
+    setServices([]);
+
+    Promise.all(
+      variants.map((variant) =>
+        servicesService.listPublic({
+          ...(supplier.slug
+            ? { supplierSlug: supplier.slug }
+            : { supplierId: supplier.id }),
+          ...variant,
+          skip: 0,
+          limit: 100,
+        }),
+      ),
+    )
+      .then((pages) => {
+        if (!active) return;
+        const items = mergeById(pages.flat());
+        setServices(items);
+        if (!selectedServiceCategory) setServiceCatalog(items);
+      })
+      .catch((requestError: unknown) => {
+        if (!active) return;
+        setServices([]);
+        setServicesError(
+          requestError instanceof Error
+            ? requestError.message
+            : "No se pudieron cargar los servicios.",
+        );
+      })
+      .finally(() => {
+        if (active) setServicesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    selectedServiceCategory,
+    selectedServiceSubcategory,
+    slug,
+    supplier,
+  ]);
 
     const [logoError, setLogoError] = useState(false);
     const [aboutError, setAboutError] = useState(false);
@@ -1096,21 +1332,35 @@ export default function SupplierPage() {
   const groupedHours = groupBusinessHours();
   const isDirectory = supplierHasDirectorySubscription(supplier);
 
-  const filteredProducts = products.filter((product) => {
-    const matchesCategory = selectedCategorySlug ? product.category?.slug === selectedCategorySlug : true;
-    const matchesSubcategory = selectedSubcategorySlug ? product.subcategory?.slug === selectedSubcategorySlug : true;
-    const matchesSearch = searchQuery 
-      ? product.title.toLowerCase().includes(searchQuery.toLowerCase()) 
-      : true;
-    return matchesCategory && matchesSubcategory && matchesSearch;
-  });
   const filteredServices = services.filter((service) =>
-    searchQuery
+    serviceSearchQuery
       ? service.title.toLocaleLowerCase("es").includes(
-          searchQuery.toLocaleLowerCase("es"),
+          serviceSearchQuery.toLocaleLowerCase("es"),
         )
       : true,
   );
+  const changeProductCategory = (category: CatalogFilterOption | null) => {
+    setSelectedProductCategory(category);
+    setSelectedProductSubcategory(null);
+    setPage(1);
+    setProducts([]);
+    setHasMore(false);
+  };
+  const changeProductSubcategory = (subcategory: CatalogFilterOption | null) => {
+    setSelectedProductSubcategory(subcategory);
+    setPage(1);
+    setProducts([]);
+    setHasMore(false);
+  };
+  const changeServiceCategory = (category: CatalogFilterOption | null) => {
+    setSelectedServiceCategory(category);
+    setSelectedServiceSubcategory(null);
+    setServices([]);
+  };
+  const changeServiceSubcategory = (subcategory: CatalogFilterOption | null) => {
+    setSelectedServiceSubcategory(subcategory);
+    setServices([]);
+  };
   const normalizeWhatsAppPhone = (phone: string): string => {
   const digits = phone.replace(/[^0-9]/g, "");
   if (digits.startsWith("52") && digits.length >= 12) return digits;
@@ -1430,7 +1680,7 @@ const contactHref = supplier?.phone
         </section>
       ) : null}
 
-      {isDirectory && activeTab === "main" && (servicesLoading || services.length > 0) ? (
+      {isDirectory && activeTab === "main" && (servicesLoading || serviceCatalog.length > 0 || selectedServiceCategory) ? (
         <section
           id="servicios"
           className="relative scroll-mt-20 overflow-hidden bg-[#f2f3f4] py-20"
@@ -1452,7 +1702,7 @@ const contactHref = supplier?.phone
                 </p>
               </div>
 
-              {services.length > 4 ? (
+              {serviceCatalog.length > 4 ? (
                 <label className="relative block w-full md:w-80">
                   <Search
                     className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
@@ -1460,13 +1710,24 @@ const contactHref = supplier?.phone
                   />
                   <span className="sr-only">Buscar servicios</span>
                   <input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
+                    value={serviceSearchQuery}
+                    onChange={(event) => setServiceSearchQuery(event.target.value)}
                     placeholder="Buscar servicios..."
                     className="w-full rounded-2xl border border-gray-200 bg-white py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10"
                   />
                 </label>
               ) : null}
+            </div>
+
+            <div className="mb-10">
+              <SupplierCatalogFilters
+                label="servicios"
+                categories={serviceCategories}
+                selectedCategory={selectedServiceCategory}
+                selectedSubcategory={selectedServiceSubcategory}
+                onCategoryChange={changeServiceCategory}
+                onSubcategoryChange={changeServiceSubcategory}
+              />
             </div>
 
             {servicesLoading ? (
@@ -1485,9 +1746,11 @@ const contactHref = supplier?.phone
             ) : filteredServices.length === 0 ? (
               <div className="rounded-[2rem] bg-white px-6 py-14 text-center shadow-sm">
                 <p className="font-semibold text-gray-500">
-                  {searchQuery
-                    ? "No encontramos servicios con ese nombre."
-                    : "No hay servicios disponibles en este momento."}
+                  {serviceSearchQuery
+                    ? "No encontramos servicios con esos filtros."
+                    : selectedServiceCategory
+                      ? "No hay servicios disponibles en esta categoría."
+                      : "No hay servicios disponibles en este momento."}
                 </p>
               </div>
             ) : (
@@ -1553,7 +1816,7 @@ const contactHref = supplier?.phone
                     </h2>
                 </div>
                 
-                {products.length > 4 ? (
+                {Math.max(productCatalog.length, products.length) > 4 ? (
                 <div className="w-full md:w-auto">
                     <div className="relative w-full md:w-96 group">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -1562,13 +1825,21 @@ const contactHref = supplier?.phone
                         <input
                             type="text"
                             placeholder={isDirectory ? "Buscar servicios..." : "Buscar productos..."}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            value={productSearchQuery}
+                            onChange={(event) => {
+                              setProductSearchQuery(event.target.value);
+                              setPage(1);
+                            }}
                             className="block w-full pl-11 pr-4 py-4 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#168e00]/20 focus:border-[#168e00] transition-all shadow-sm hover:shadow-md"
                         />
-                        {searchQuery && (
+                        {productSearchQuery && (
                             <button
-                                onClick={() => setSearchQuery("")}
+                                type="button"
+                                onClick={() => {
+                                  setProductSearchQuery("");
+                                  setPage(1);
+                                }}
+                                aria-label="Limpiar búsqueda de productos"
                                 className="absolute inset-y-0 right-0 pr-3 flex items-center"
                             >
                                 <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
@@ -1577,6 +1848,17 @@ const contactHref = supplier?.phone
                     </div>
                 </div>
                 ) : null}
+            </div>
+
+            <div className="mb-10 md:mb-12">
+              <SupplierCatalogFilters
+                label="productos"
+                categories={productCategories}
+                selectedCategory={resolvedProductCategory}
+                selectedSubcategory={resolvedProductSubcategory}
+                onCategoryChange={changeProductCategory}
+                onSubcategoryChange={changeProductSubcategory}
+              />
             </div>
 
             {productsLoading && products.length === 0 ? (
@@ -1589,7 +1871,16 @@ const contactHref = supplier?.phone
                 <div className="text-center py-20 bg-white rounded-[3rem] shadow-sm">
                     <p className="text-xl text-red-500 font-bold mb-4">{productsError}</p>
                     <button 
-                        onClick={() => fetchProducts((slug as string) || supplier.slug || String(supplier.id), 1, false)}
+                        onClick={() => void fetchProducts(
+                          String(slug || supplier.slug || supplier.id),
+                          1,
+                          false,
+                          {
+                            category: resolvedProductCategory,
+                            subcategory: resolvedProductSubcategory,
+                            search: debouncedProductSearch,
+                          },
+                        )}
                         className="px-6 py-3 bg-[#004e28] text-white rounded-full hover:bg-[#168e00] transition-colors"
                     >
                         Reintentar Carga
@@ -1598,12 +1889,16 @@ const contactHref = supplier?.phone
             ) : !isDirectory && products.length === 0 ? (
                 <div className="rounded-[3rem] bg-white py-20 text-center shadow-sm">
                     <p className="text-xl font-bold text-gray-400">
-                      No hay productos disponibles en este momento.
+                      {productSearchQuery
+                        ? "No encontramos productos con esos filtros."
+                        : selectedProductCategory
+                          ? "No hay productos disponibles en esta categoría."
+                          : "No hay productos disponibles en este momento."}
                     </p>
                 </div>
             ) : (
                 <div className={`grid gap-8 md:gap-10 ${isDirectory ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"}`}>
-                    {filteredProducts.map((product) => (
+                    {products.map((product) => (
                       <div key={product.id} className="h-full">
                         <ProductCard
                           id={String(product.id)}

@@ -131,11 +131,21 @@ function consistentUpdate(input: UpdateServiceInput): UpdateServiceInput {
 export const servicesService = {
   async listPublic(params: {
     supplierId?: number;
+    supplierSlug?: string;
+    category?: string;
+    subcategory?: string;
+    supplierCategory?: string;
+    supplierSubcategory?: string;
     skip?: number;
     limit?: number;
   } = {}): Promise<SupplierService[]> {
     const query = new URLSearchParams();
     if (params.supplierId) query.set("supplier_id", String(params.supplierId));
+    if (params.supplierSlug) query.set("supplier_slug", params.supplierSlug);
+    if (params.category) query.set("category", params.category);
+    if (params.subcategory) query.set("subcategory", params.subcategory);
+    if (params.supplierCategory) query.set("supplier_category", params.supplierCategory);
+    if (params.supplierSubcategory) query.set("supplier_subcategory", params.supplierSubcategory);
     query.set("skip", String(params.skip ?? 0));
     query.set("limit", String(Math.min(params.limit ?? 20, 100)));
 
