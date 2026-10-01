@@ -12,10 +12,10 @@ type SupplierCatalogFiltersProps = {
 };
 
 const chipClass = (selected: boolean) =>
-  `shrink-0 rounded-full border px-4 py-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#168e00]/20 ${
+  `shrink-0 rounded-full border px-4 py-2 text-sm font-bold transition-[color,background-color,border-color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--supplier-primary)_22%,transparent)] active:scale-[0.98] ${
     selected
-      ? "border-[#004e28] bg-[#004e28] text-white shadow-sm"
-      : "border-[#004e28]/15 bg-white text-[#004e28] hover:border-[#168e00] hover:bg-[#168e00] hover:text-white"
+      ? "border-[var(--supplier-chip-outline)] bg-[var(--supplier-primary)] text-[var(--supplier-on-primary)] shadow-sm"
+      : "border-[color-mix(in_srgb,var(--supplier-chip-outline)_28%,transparent)] bg-[var(--supplier-card-background)] text-[var(--supplier-chip-outline)] hover:border-[var(--supplier-chip-outline)] hover:bg-[var(--supplier-primary)] hover:text-[var(--supplier-on-primary)] hover:shadow-sm"
   }`;
 
 function FilterRow({

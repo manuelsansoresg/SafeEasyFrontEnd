@@ -165,6 +165,18 @@ const getReadableTextColor = (backgroundColor: string) => {
   return whiteContrast >= blackContrast ? "#ffffff" : "#000000";
 };
 
+const getContrastRatio = (firstColor: string, secondColor: string) => {
+  const lighter = Math.max(
+    getRelativeLuminance(firstColor),
+    getRelativeLuminance(secondColor),
+  );
+  const darker = Math.min(
+    getRelativeLuminance(firstColor),
+    getRelativeLuminance(secondColor),
+  );
+  return (lighter + 0.05) / (darker + 0.05);
+};
+
 function InlineVideo({ src, poster }: { src: string; poster?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [showPlayer, setShowPlayer] = useState(false);
@@ -1417,12 +1429,21 @@ const contactHref = supplier?.phone
       : "";
 
   const supplierPrimaryColor = normalizeThemeColor(supplier.primary_color, "#168e00");
+  const supplierCardColor = normalizeThemeColor(
+    supplier.card_background_color,
+    "#ffffff",
+  );
+  const supplierChipOutlineColor =
+    getContrastRatio(supplierPrimaryColor, supplierCardColor) >= 3
+      ? supplierPrimaryColor
+      : getReadableTextColor(supplierCardColor);
   const themeStyle = {
     "--supplier-page-background": supplier.page_background_color || supplier.background_color || "#ffffff",
-    "--supplier-card-background": supplier.card_background_color || "#ffffff",
+    "--supplier-card-background": supplierCardColor,
     "--supplier-header-background": supplier.header_background_color || "#ffffff",
     "--supplier-primary": supplierPrimaryColor,
     "--supplier-on-primary": getReadableTextColor(supplierPrimaryColor),
+    "--supplier-chip-outline": supplierChipOutlineColor,
   } as CSSProperties;
 
   return (
