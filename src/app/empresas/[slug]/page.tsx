@@ -10,7 +10,6 @@ import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Sta
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
-import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { parseMapLocation } from "@/lib/googleMaps";
 import {
@@ -656,41 +655,23 @@ export default function SupplierPage() {
   const [ratingsError, setRatingsError] = useState<string | null>(null);
   const [ratingsHasMore, setRatingsHasMore] = useState(false);
   const { syncFavorites } = useFavoritesStore();
-  const { token } = useAuthStore();
   const setDirectoryMode = useSupplierPageModeStore((state) => state.setDirectoryMode);
   const setHideForDirectory = useChromeVisibilityStore((state) => state.setHideForDirectory);
   const resetChromeVisibility = useChromeVisibilityStore((state) => state.reset);
   
   const observerTarget = useRef<HTMLDivElement | null>(null);
+  const supplierId = supplier?.id ?? null;
+  const supplierSlug = supplier?.slug ?? null;
+  const supplierIsDirectory = supplierHasDirectorySubscription(supplier);
 
   const productCategories = useMemo(
-    () => buildCatalogFilterOptions(productCatalog.length ? productCatalog : products),
-    [productCatalog, products],
+    () => buildCatalogFilterOptions(productCatalog),
+    [productCatalog],
   );
   const serviceCategories = useMemo(
     () => buildCatalogFilterOptions(serviceCatalog),
     [serviceCatalog],
   );
-  const resolvedProductCategory = useMemo(
-    () =>
-      selectedProductCategory
-        ? productCategories.find(
-            (category) => category.key === selectedProductCategory.key,
-          ) ?? selectedProductCategory
-        : null,
-    [productCategories, selectedProductCategory],
-  );
-  const resolvedProductSubcategory = useMemo(
-    () =>
-      selectedProductSubcategory
-        ? resolvedProductCategory?.subcategories.find(
-            (subcategory) =>
-              subcategory.key === selectedProductSubcategory.key,
-          ) ?? selectedProductSubcategory
-        : null,
-    [resolvedProductCategory, selectedProductSubcategory],
-  );
-
   useEffect(() => {
     const debounceId = window.setTimeout(
       () => setDebouncedProductSearch(productSearchQuery.trim()),
@@ -766,30 +747,30 @@ export default function SupplierPage() {
   }, [activeTab, publicMenusLoading, publicMenus.length, navigateTab]);
 
   useEffect(() => {
-    if (activeTab === "products" && supplier && supplierHasDirectorySubscription(supplier)) {
+    if (activeTab === "products" && supplierId && supplierIsDirectory) {
       navigateTab("main", true);
     }
-  }, [activeTab, supplier, navigateTab]);
+  }, [activeTab, navigateTab, supplierId, supplierIsDirectory]);
 
   useEffect(() => {
-    if (supplier?.id) {
+    if (supplierId) {
       // Robust Identifier Logic: Prefer URL slug -> Supplier Slug -> Supplier ID
-      const identifier = (slug as string) || supplier.slug || String(supplier.id);
+      const identifier = (slug as string) || supplierSlug || String(supplierId);
       
       if (process.env.NODE_ENV === "development") console.log("Fetching products for identifier:", identifier);
-      if (supplierHasDirectorySubscription(supplier)) {
+      if (supplierIsDirectory) {
         setProducts([]);
         setProductsLoading(false);
         setHasMore(false);
       }
       fetchRatings(identifier, 0, false);
-      if (!supplierHasDirectorySubscription(supplier)) {
+      if (!supplierIsDirectory) {
         setServices([]);
         setServiceCatalog([]);
         setServicesError(null);
       }
     }
-  }, [supplier, slug, token]);
+  }, [slug, supplierId, supplierIsDirectory, supplierSlug]);
 
   useEffect(() => {
     if (isBuilderPreview) return;
@@ -923,15 +904,10 @@ export default function SupplierPage() {
       );
 
       if (responses.some((response) => !response.ok)) {
-        const supplierId = Number(supplier?.id);
-        if (!Number.isFinite(supplierId)) {
+        if (!supplierId) {
           if (!append) setProducts([]);
           setHasMore(false);
-          setProductsError(
-            supplierHasDirectorySubscription(supplier)
-              ? "No se pudieron cargar los servicios."
-              : "No se pudieron cargar los productos.",
-          );
+          setProductsError("No se pudieron cargar los productos.");
           return;
         }
 
@@ -948,11 +924,7 @@ export default function SupplierPage() {
         if (!fallback.ok) {
           if (!append) setProducts([]);
           setHasMore(false);
-          setProductsError(
-            supplierHasDirectorySubscription(supplier)
-              ? "No se pudieron cargar los servicios."
-              : "No se pudieron cargar los productos.",
-          );
+          setProductsError("No se pudieron cargar los productos.");
           return;
         }
 
@@ -1012,17 +984,13 @@ export default function SupplierPage() {
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Error fetching supplier products", error);
-      setProductsError(
-        supplierHasDirectorySubscription(supplier)
-          ? "No se pudieron cargar los servicios."
-          : "No se pudieron cargar los productos.",
-      );
+      setProductsError("No se pudieron cargar los productos.");
       if (!append) setProducts([]);
       setHasMore(false);
     } finally {
       if (!signal?.aborted) setProductsLoading(false);
     }
-  }, [limit, supplier, syncFavorites]);
+  }, [limit, supplierId, syncFavorites]);
 
   const fetchRatings = async (supplierSlug: string, skip: number = 0, append: boolean = false) => {
     try {
@@ -1066,9 +1034,9 @@ export default function SupplierPage() {
   };
 
   useEffect(() => {
-    if (!supplier?.id || supplierHasDirectorySubscription(supplier)) return;
+    if (!supplierId || supplierIsDirectory) return;
     const controller = new AbortController();
-    const identifier = String(slug || supplier.slug || supplier.id);
+    const identifier = String(slug || supplierSlug || supplierId);
     const params = new URLSearchParams({ skip: "0", limit: "500" });
 
     fetch(
@@ -1093,12 +1061,12 @@ export default function SupplierPage() {
       });
 
     return () => controller.abort();
-  }, [slug, supplier]);
+  }, [slug, supplierId, supplierIsDirectory, supplierSlug]);
 
   useEffect(() => {
-    if (!supplier?.id || supplierHasDirectorySubscription(supplier)) return;
+    if (!supplierId || supplierIsDirectory) return;
     const controller = new AbortController();
-    const identifier = String(slug || supplier.slug || supplier.id);
+    const identifier = String(slug || supplierSlug || supplierId);
     setPage(1);
     setProducts([]);
     setHasMore(false);
@@ -1107,8 +1075,8 @@ export default function SupplierPage() {
       1,
       false,
       {
-        category: resolvedProductCategory,
-        subcategory: resolvedProductSubcategory,
+        category: selectedProductCategory,
+        subcategory: selectedProductSubcategory,
         search: debouncedProductSearch,
       },
       controller.signal,
@@ -1117,24 +1085,25 @@ export default function SupplierPage() {
   }, [
     debouncedProductSearch,
     fetchProducts,
-    resolvedProductCategory,
-    resolvedProductSubcategory,
+    selectedProductCategory,
+    selectedProductSubcategory,
     slug,
-    supplier,
-    token,
+    supplierId,
+    supplierIsDirectory,
+    supplierSlug,
   ]);
 
   useEffect(() => {
-    if (!slug || page === 1) return;
+    if (!slug || !supplierId || supplierIsDirectory || page === 1) return;
     const controller = new AbortController();
-    const identifier = String(slug || supplier?.slug || supplier?.id);
+    const identifier = String(slug || supplierSlug || supplierId);
     void fetchProducts(
       identifier,
       page,
       true,
       {
-        category: resolvedProductCategory,
-        subcategory: resolvedProductSubcategory,
+        category: selectedProductCategory,
+        subcategory: selectedProductSubcategory,
         search: debouncedProductSearch,
       },
       controller.signal,
@@ -1144,14 +1113,16 @@ export default function SupplierPage() {
     debouncedProductSearch,
     fetchProducts,
     page,
-    resolvedProductCategory,
-    resolvedProductSubcategory,
+    selectedProductCategory,
+    selectedProductSubcategory,
     slug,
-    supplier,
+    supplierId,
+    supplierIsDirectory,
+    supplierSlug,
   ]);
 
   useEffect(() => {
-    if (!supplier?.id || !supplierHasDirectorySubscription(supplier)) return;
+    if (!supplierId || !supplierIsDirectory) return;
     let active = true;
     const variants = catalogRequestVariants(
       selectedServiceCategory,
@@ -1165,9 +1136,7 @@ export default function SupplierPage() {
     Promise.all(
       variants.map((variant) =>
         servicesService.listPublic({
-          ...(supplier.slug
-            ? { supplierSlug: supplier.slug }
-            : { supplierId: supplier.id }),
+          ...(supplierSlug ? { supplierSlug } : { supplierId }),
           ...variant,
           skip: 0,
           limit: 100,
@@ -1200,7 +1169,9 @@ export default function SupplierPage() {
     selectedServiceCategory,
     selectedServiceSubcategory,
     slug,
-    supplier,
+    supplierId,
+    supplierIsDirectory,
+    supplierSlug,
   ]);
 
     const [logoError, setLogoError] = useState(false);
@@ -1330,7 +1301,7 @@ export default function SupplierPage() {
 
   const businessStatus = getBusinessStatus();
   const groupedHours = groupBusinessHours();
-  const isDirectory = supplierHasDirectorySubscription(supplier);
+  const isDirectory = supplierIsDirectory;
 
   const filteredServices = services.filter((service) =>
     serviceSearchQuery
@@ -1854,8 +1825,8 @@ const contactHref = supplier?.phone
               <SupplierCatalogFilters
                 label="productos"
                 categories={productCategories}
-                selectedCategory={resolvedProductCategory}
-                selectedSubcategory={resolvedProductSubcategory}
+                selectedCategory={selectedProductCategory}
+                selectedSubcategory={selectedProductSubcategory}
                 onCategoryChange={changeProductCategory}
                 onSubcategoryChange={changeProductSubcategory}
               />
@@ -1876,8 +1847,8 @@ const contactHref = supplier?.phone
                           1,
                           false,
                           {
-                            category: resolvedProductCategory,
-                            subcategory: resolvedProductSubcategory,
+                            category: selectedProductCategory,
+                            subcategory: selectedProductSubcategory,
                             search: debouncedProductSearch,
                           },
                         )}
