@@ -53,9 +53,8 @@ export default function PublicMenuOrderTrackingPage() {
   const params = useParams<{ orderNumber: string }>();
   const searchParams = useSearchParams();
   const hydrated = useAuthHydrated();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
-  const { status: inboxStatus } = useChatInboxWebSocket(hydrated && isAuthenticated);
 
   const orderNumber = String(params?.orderNumber || "").trim();
   const queryToken = String(searchParams.get("management_token") || "").trim();
@@ -64,6 +63,9 @@ export default function PublicMenuOrderTrackingPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const ownsOrder = hydrated && isAuthenticated && user?.id != null && order !== null &&
+    order.customer_user_id === user.id && order.order_number === orderNumber;
+  const { status: inboxStatus } = useChatInboxWebSocket(ownsOrder);
 
   const paymentReturn = searchParams.get("payment");
   const tokenKey = `menu-order-token:${orderNumber}`;
@@ -136,20 +138,20 @@ export default function PublicMenuOrderTrackingPage() {
   const resyncAfterReconnect = useCallback(() => {
     void loadOrder(true);
   }, [loadOrder]);
-  useInboxReconnect(inboxStatus, hydrated && isAuthenticated, resyncAfterReconnect);
+  useInboxReconnect(inboxStatus, ownsOrder, resyncAfterReconnect);
 
   useEffect(() => {
-    if (!hydrated || !isAuthenticated) return;
+    if (!ownsOrder) return;
     const unsubscribe = subscribeToInboxEvents((event) => {
       if (isMenuInboxEvent(event) && event.order_id === order?.id) {
         void loadOrder(true);
       }
     });
     return unsubscribe;
-  }, [hydrated, isAuthenticated, loadOrder, order?.id, subscribeToInboxEvents]);
+  }, [ownsOrder, loadOrder, order?.id, subscribeToInboxEvents]);
 
   useEffect(() => {
-    if (!hydrated || isAuthenticated || !order) return;
+    if (!hydrated || ownsOrder || !order) return;
     const shouldPoll =
       !TERMINAL_STATUSES.has(order.status) ||
       (order.payment_method === "online" && order.payment_status === "pending");
@@ -157,7 +159,7 @@ export default function PublicMenuOrderTrackingPage() {
 
     const id = window.setInterval(() => void loadOrder(true), 5000);
     return () => window.clearInterval(id);
-  }, [hydrated, isAuthenticated, loadOrder, order]);
+  }, [hydrated, ownsOrder, loadOrder, order]);
 
   const productCount = useMemo(
     () => order?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,

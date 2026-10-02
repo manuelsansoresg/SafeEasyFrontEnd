@@ -592,25 +592,6 @@ export default function StepSupplier({ userId, token, onSuccess }: StepSupplierP
                 </label>
                   </div>
 
-                  {formData.accepts_delivery && (
-                    <div className="mt-3">
-                      <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 cursor-pointer hover:bg-gray-50">
-                        <input
-                          type="checkbox"
-                          name="accepts_courier"
-                          checked={formData.accepts_courier}
-                          onChange={handleChange}
-                          className="mt-1 rounded text-primary focus:ring-primary"
-                        />
-                        <span className="min-w-0">
-                          <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                            Aceptar envíos
-                          </span>
-                          <span className="block text-xs text-gray-500 mt-1">Habilitar envíos con dirección, distancia y costo.</span>
-                        </span>
-                      </label>
-                    </div>
-                  )}
                 </>
               )}
             </div>
