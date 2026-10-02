@@ -8,9 +8,12 @@ import {
   Loader2,
   LogIn,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { agendaBookingService } from "@/services/agendaBookingService";
+import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
+import { useChatStore } from "@/store/useChatStore";
+import { isAgendaInboxEvent } from "@/types/chat";
 import type { AgendaService } from "@/types/agenda";
 import type {
   AgendaBooking,
@@ -49,12 +52,20 @@ function formatDateTime(iso: string) {
 export default function ClientAppointmentsPage() {
   const hydrated = useAuthHydrated();
   const auth = useAuthStore();
+  const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
+  useChatInboxWebSocket(hydrated && auth.isAuthenticated);
+  const refreshSequence = useRef(0);
 
   const [bookings, setBookings] = useState<AgendaBooking[]>([]);
   const [services, setServices] = useState<ServiceMap>({});
   const [filter, setFilter] = useState<"all" | AgendaBookingStatus>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const bookingsRef = useRef(bookings);
+  const servicesRef = useRef(services);
+
+  useEffect(() => { bookingsRef.current = bookings; }, [bookings]);
+  useEffect(() => { servicesRef.current = services; }, [services]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -122,6 +133,46 @@ export default function ClientAppointmentsPage() {
 
     return () => controller.abort();
   }, [auth.isAuthenticated, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated || !auth.isAuthenticated) return;
+    const controller = new AbortController();
+    const unsubscribe = subscribeToInboxEvents((event) => {
+      if (!isAgendaInboxEvent(event)) return;
+      if (event.type !== "agenda.booking_created" &&
+          !bookingsRef.current.some((item) => item.id === event.booking_id)) return;
+
+      const sequence = ++refreshSequence.current;
+      void (async () => {
+        try {
+          const data = await agendaBookingService.myBookings(undefined, controller.signal);
+          if (controller.signal.aborted || sequence !== refreshSequence.current) return;
+          setBookings(data);
+
+          const newSuppliers = [...new Set(data.map((item) => item.supplier_id))]
+            .filter((supplierId) => !Object.keys(servicesRef.current).some((key) => key.startsWith(`${supplierId}:`)));
+          const results = await Promise.all(newSuppliers.map(async (supplierId) => ({
+            supplierId,
+            list: await agendaBookingService.listPublicServices(supplierId, controller.signal),
+          })));
+          if (controller.signal.aborted || sequence !== refreshSequence.current) return;
+          setServices((current) => {
+            const next = { ...current };
+            for (const { supplierId, list } of results) {
+              for (const service of list) next[`${supplierId}:${service.id}`] = service;
+            }
+            return next;
+          });
+        } catch {
+          // Mantener el contenido visible; otro evento puede actualizarlo.
+        }
+      })();
+    });
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [auth.isAuthenticated, hydrated, subscribeToInboxEvents]);
 
   const filtered = useMemo(() => {
     if (filter === "all") return bookings;

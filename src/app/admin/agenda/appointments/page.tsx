@@ -12,14 +12,18 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
 import AgendaPaymentStatus from "@/components/agenda/AgendaPaymentStatus";
 import { useSupplierModules } from "@/hooks/useSupplierModules";
+import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import { agendaService } from "@/services/agendaService";
 import { agendaBookingService } from "@/services/agendaBookingService";
+import { useChatStore } from "@/store/useChatStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { isAgendaInboxEvent } from "@/types/chat";
 import type { AgendaService } from "@/types/agenda";
 import type {
   AgendaAvailability,
@@ -83,6 +87,9 @@ function formatSlot(iso: string, timezone: string) {
 export default function ProviderAgendaAppointmentsPage() {
   const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
   const hasAccess = hasModule("agenda");
+  const token = useAuthStore((state) => state.token);
+  const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
+  useChatInboxWebSocket(Boolean(token) && hasAccess);
 
   const [appointments, setAppointments] = useState<
     AgendaProviderBooking[]
@@ -103,6 +110,29 @@ export default function ProviderAgendaAppointmentsPage() {
     useState<AgendaProviderBooking | null>(null);
   const [requestsBooking, setRequestsBooking] =
     useState<AgendaProviderBooking | null>(null);
+  const [requestsRefreshKey, setRequestsRefreshKey] = useState(0);
+
+  const refreshAppointment = useCallback(async (
+    bookingId: number,
+    includePayment = false,
+    signal?: AbortSignal,
+  ) => {
+    const [updated, payment] = await Promise.all([
+      agendaBookingService.providerAppointment(bookingId, signal),
+      includePayment
+        ? agendaBookingService.providerBookingPayment(bookingId, signal)
+        : Promise.resolve(undefined),
+    ]);
+    if (signal?.aborted) return;
+    setAppointments((current) => {
+      const index = current.findIndex((item) => item.id === bookingId);
+      if (index === -1) return [updated, ...current];
+      return current.map((item) => item.id === bookingId ? updated : item);
+    });
+    if (includePayment) {
+      setPayments((current) => ({ ...current, [bookingId]: payment }));
+    }
+  }, []);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     if (!hasAccess) {
@@ -157,6 +187,27 @@ export default function ProviderAgendaAppointmentsPage() {
   }, [accessLoading, load]);
 
   useEffect(() => {
+    if (!token || !hasAccess || accessLoading) return;
+    const controller = new AbortController();
+    const unsubscribe = subscribeToInboxEvents((event) => {
+      if (!isAgendaInboxEvent(event)) return;
+      const includePayment = event.type === "agenda.booking_created" ||
+        event.type === "agenda.payment_received";
+      void refreshAppointment(event.booking_id, includePayment, controller.signal)
+        .catch(() => { /* Una actualización posterior puede recuperar esta cita. */ });
+      if (requestsBooking?.id === event.booking_id &&
+          (event.type === "agenda.reschedule_requested" ||
+           event.type === "agenda.reschedule_decided")) {
+        setRequestsRefreshKey((current) => current + 1);
+      }
+    });
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [accessLoading, hasAccess, refreshAppointment, requestsBooking?.id, subscribeToInboxEvents, token]);
+
+  useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(null), 3500);
     return () => window.clearTimeout(id);
@@ -180,6 +231,10 @@ export default function ProviderAgendaAppointmentsPage() {
       ),
     );
   };
+
+  const showRequestsError = useCallback((message: string) => {
+    setToast({ type: "error", message });
+  }, []);
 
   const changeStatus = async (
     booking: AgendaProviderBooking,
@@ -483,11 +538,12 @@ export default function ProviderAgendaAppointmentsPage() {
         services={services.filter((item) => item.is_active)}
         onClose={() => setCreateOpen(false)}
         onCreated={(created) => {
-          setAppointments((current) => [
-            created,
-            ...current,
-          ]);
-          setPayments((current) => ({ ...current, [created.id]: null }));
+          setAppointments((current) => current.some((item) => item.id === created.id)
+            ? current.map((item) => item.id === created.id ? created : item)
+            : [created, ...current]);
+          setPayments((current) => current[created.id] !== undefined
+            ? current
+            : { ...current, [created.id]: null });
           setCreateOpen(false);
           setToast({
             type: "success",
@@ -520,13 +576,13 @@ export default function ProviderAgendaAppointmentsPage() {
 
       <RequestsModal
         booking={requestsBooking}
+        refreshKey={requestsRefreshKey}
         onClose={() => setRequestsBooking(null)}
         onDecision={() => {
-          void load();
+          if (requestsBooking) void refreshAppointment(requestsBooking.id)
+            .catch(() => { /* El siguiente evento puede actualizar la cita. */ });
         }}
-        onError={(message) =>
-          setToast({ type: "error", message })
-        }
+        onError={showRequestsError}
       />
 
       {toast ? (
@@ -1090,11 +1146,13 @@ function ProviderRescheduleModal({
 
 function RequestsModal({
   booking,
+  refreshKey,
   onClose,
   onDecision,
   onError,
 }: {
   booking: AgendaProviderBooking | null;
+  refreshKey: number;
   onClose: () => void;
   onDecision: () => void;
   onError: (message: string) => void;
@@ -1102,37 +1160,40 @@ function RequestsModal({
   const [requests, setRequests] = useState<AgendaRescheduleRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [workingId, setWorkingId] = useState<number | null>(null);
+  const loadedBookingId = useRef<number | null>(null);
+  const bookingId = booking?.id;
 
   useEffect(() => {
-    if (!booking) return;
+    if (!bookingId) return;
 
     const controller = new AbortController();
 
     const run = async () => {
-      setLoading(true);
+      if (loadedBookingId.current !== bookingId) setLoading(true);
 
       try {
         const data =
           await agendaBookingService.rescheduleRequests(
-            booking.id,
+            bookingId,
             controller.signal,
           );
-        setRequests(data);
+        if (!controller.signal.aborted) {
+          loadedBookingId.current = bookingId;
+          setRequests(data);
+        }
       } catch (error) {
-        onError(
-          error instanceof Error
-            ? error.message
-            : "No se pudieron cargar las solicitudes.",
-        );
+        if (!controller.signal.aborted && loadedBookingId.current !== bookingId) {
+          onError(error instanceof Error ? error.message : "No se pudieron cargar las solicitudes.");
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
     void run();
 
     return () => controller.abort();
-  }, [booking, onError]);
+  }, [bookingId, onError, refreshKey]);
 
   if (!booking) return null;
 

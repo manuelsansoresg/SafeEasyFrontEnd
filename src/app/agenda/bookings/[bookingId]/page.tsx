@@ -24,7 +24,10 @@ import {
   getLoginUrl,
 } from "@/lib/authRedirect";
 import { agendaBookingService } from "@/services/agendaBookingService";
+import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
+import { useChatStore } from "@/store/useChatStore";
+import { isAgendaInboxEvent } from "@/types/chat";
 import type { AgendaService } from "@/types/agenda";
 import type {
   AgendaAvailability,
@@ -131,6 +134,9 @@ export default function AgendaBookingManagementPage() {
 
   const [managementToken, setManagementToken] =
     useState(tokenFromUrl);
+  const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
+  const registeredClient = hydrated && auth.isAuthenticated && !managementToken;
+  useChatInboxWebSocket(registeredClient);
 
   const [booking, setBooking] =
     useState<AgendaBooking | null>(null);
@@ -337,7 +343,35 @@ export default function AgendaBookingManagementPage() {
   ]);
 
   useEffect(() => {
+    if (!registeredClient || !Number.isFinite(bookingId)) return;
+    const controller = new AbortController();
+    const unsubscribe = subscribeToInboxEvents((event) => {
+      if (!isAgendaInboxEvent(event) || event.booking_id !== bookingId) return;
+      void (async () => {
+        try {
+          const [mine, paymentData] = await Promise.all([
+            agendaBookingService.myBookings(undefined, controller.signal),
+            agendaBookingService.getBookingPayment(bookingId, null, controller.signal),
+          ]);
+          if (controller.signal.aborted) return;
+          const updated = mine.find((item) => item.id === bookingId);
+          if (updated) setBooking(updated);
+          setPayment(paymentData);
+          setPaymentError(null);
+        } catch {
+          // Una actualización automática fallida no interrumpe la gestión de la cita.
+        }
+      })();
+    });
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [bookingId, registeredClient, subscribeToInboxEvents]);
+
+  useEffect(() => {
     if (
+      registeredClient ||
       !booking ||
       payment?.payment_method !== "online" ||
       payment.payment_status !== "pending"
@@ -372,7 +406,7 @@ export default function AgendaBookingManagementPage() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [booking, managementToken, payment?.payment_method, payment?.payment_status]);
+  }, [booking, managementToken, payment?.payment_method, payment?.payment_status, registeredClient]);
 
   useEffect(() => {
     if (

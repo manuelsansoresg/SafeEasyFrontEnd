@@ -82,15 +82,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   connectInboxSocket: () => {
-    const { inboxSocket, isInboxConnecting, isInboxConnected } = get();
+    const { inboxSocket, isInboxConnecting } = get();
 
     if (
       inboxSocket &&
       (inboxSocket.readyState === WebSocket.OPEN ||
         inboxSocket.readyState === WebSocket.CONNECTING)
-    ) {
-      if (isInboxConnected) return;
-    }
+    ) return;
 
     if (isInboxConnecting) return;
 

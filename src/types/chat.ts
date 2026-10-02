@@ -78,6 +78,43 @@ export interface SendMessageParams {
   message_type?: 'text' | 'image' | 'file';
 }
 
+export type AgendaInboxEventType =
+  | "agenda.booking_created"
+  | "agenda.booking_cancelled"
+  | "agenda.booking_rescheduled"
+  | "agenda.reschedule_requested"
+  | "agenda.reschedule_decided"
+  | "agenda.booking_status_changed"
+  | "agenda.payment_received";
+
+export type AgendaInboxEvent = {
+  type: AgendaInboxEventType;
+  booking_id: number;
+  supplier_id: number;
+  status?: string;
+  reschedule_status?: string;
+};
+
+const agendaInboxEventTypes = new Set<AgendaInboxEventType>([
+  "agenda.booking_created",
+  "agenda.booking_cancelled",
+  "agenda.booking_rescheduled",
+  "agenda.reschedule_requested",
+  "agenda.reschedule_decided",
+  "agenda.booking_status_changed",
+  "agenda.payment_received",
+]);
+
+export function isAgendaInboxEvent(event: ChatInboxEvent): event is AgendaInboxEvent {
+  const record = event as Record<string, unknown>;
+  return (
+    agendaInboxEventTypes.has(record.type as AgendaInboxEventType) &&
+    typeof record.booking_id === "number" &&
+    Number.isFinite(record.booking_id) &&
+    typeof record.supplier_id === "number"
+  );
+}
+
 export type ChatInboxEvent =
   | { type: "presence_ack"; status: "online" | "away" | "offline" | string }
   | { type: "unread_aggregate"; total_unread: number }
@@ -96,4 +133,5 @@ export type ChatInboxEvent =
       content_preview?: string;
       created_at?: string;
     }
+  | AgendaInboxEvent
   | Record<string, unknown>;
