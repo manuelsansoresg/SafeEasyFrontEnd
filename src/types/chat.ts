@@ -115,6 +115,27 @@ export function isAgendaInboxEvent(event: ChatInboxEvent): event is AgendaInboxE
   );
 }
 
+export type MenuInboxEvent = {
+  type: "menu.order_created" | "menu.order_status_changed" | "menu.order_payment_changed";
+  order_id: number;
+  supplier_id: number;
+  status: string;
+  payment_status: string;
+};
+
+export function isMenuInboxEvent(event: ChatInboxEvent): event is MenuInboxEvent {
+  const record = event as Record<string, unknown>;
+  return (
+    (record.type === "menu.order_created" ||
+      record.type === "menu.order_status_changed" ||
+      record.type === "menu.order_payment_changed") &&
+    typeof record.order_id === "number" &&
+    Number.isInteger(record.order_id) &&
+    typeof record.supplier_id === "number" &&
+    Number.isInteger(record.supplier_id)
+  );
+}
+
 export type ChatInboxEvent =
   | { type: "presence_ack"; status: "online" | "away" | "offline" | string }
   | { type: "unread_aggregate"; total_unread: number }
@@ -135,4 +156,5 @@ export type ChatInboxEvent =
       created_at?: string;
     }
   | AgendaInboxEvent
+  | MenuInboxEvent
   | Record<string, unknown>;

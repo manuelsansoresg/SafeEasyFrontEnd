@@ -23,6 +23,11 @@ import {
   fulfillmentLabel,
 } from "@/lib/menuOrders";
 import { menuOrderService } from "@/services/menuOrderService";
+import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
+import { useInboxReconnect } from "@/hooks/useInboxReconnect";
+import { useChatStore } from "@/store/useChatStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { isMenuInboxEvent } from "@/types/chat";
 import type {
   MenuOrder,
   MenuOrderPaymentStatus,
@@ -54,37 +59,69 @@ function paymentStatusClass(status: MenuOrderPaymentStatus) {
 export default function AdminMenuOrdersPage() {
   const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
   const hasAccess = hasModule("menu");
+  const token = useAuthStore((state) => state.token);
+  const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
+  const { status: inboxStatus } = useChatInboxWebSocket(Boolean(token) && hasAccess);
   const [orders, setOrders] = useState<MenuOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | MenuOrderStatus>("all");
   const [search, setSearch] = useState("");
 
-  const loadOrders = useCallback(async () => {
+  const loadOrders = useCallback(async (signal?: AbortSignal, silent = false) => {
     if (!hasAccess) {
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-
-    try {
-      setOrders(await menuOrderService.providerOrders(null, controller.signal));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron cargar los pedidos.");
-    } finally {
-      setLoading(false);
+    if (!silent) {
+      setLoading(true);
+      setError(null);
     }
 
-    return () => controller.abort();
+    try {
+      const data = await menuOrderService.providerOrders(null, signal);
+      if (!signal?.aborted) setOrders(data);
+    } catch (err) {
+      if (!silent && !signal?.aborted) setError(err instanceof Error ? err.message : "No se pudieron cargar los pedidos.");
+    } finally {
+      if (!silent && !signal?.aborted) setLoading(false);
+    }
   }, [hasAccess]);
 
   useEffect(() => {
     if (accessLoading) return;
-    void loadOrders();
+    const controller = new AbortController();
+    void loadOrders(controller.signal);
+    return () => controller.abort();
   }, [accessLoading, loadOrders]);
+
+  const resyncAfterReconnect = useCallback(() => {
+    void loadOrders(undefined, true);
+  }, [loadOrders]);
+  useInboxReconnect(inboxStatus, Boolean(token) && hasAccess, resyncAfterReconnect);
+
+  useEffect(() => {
+    if (!token || !hasAccess || accessLoading) return;
+    const controller = new AbortController();
+    const unsubscribe = subscribeToInboxEvents((event) => {
+      if (!isMenuInboxEvent(event)) return;
+      void menuOrderService.providerOrder(event.order_id, controller.signal)
+        .then((updated) => {
+          if (controller.signal.aborted) return;
+          setOrders((current) => {
+            const index = current.findIndex((item) => item.id === updated.id);
+            if (index === -1) return [updated, ...current];
+            return current.map((item) => item.id === updated.id ? updated : item);
+          });
+        })
+        .catch(() => { /* La reconexión resincroniza los pedidos. */ });
+    });
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [accessLoading, hasAccess, subscribeToInboxEvents, token]);
 
   const counts = useMemo(() => {
     const result: Record<MenuOrderStatus, number> = {

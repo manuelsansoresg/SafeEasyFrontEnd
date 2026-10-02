@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Banknote,
@@ -22,6 +22,10 @@ import {
 } from "@/lib/menuOrders";
 import { menuOrderService } from "@/services/menuOrderService";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
+import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
+import { useInboxReconnect } from "@/hooks/useInboxReconnect";
+import { useChatStore } from "@/store/useChatStore";
+import { isMenuInboxEvent } from "@/types/chat";
 import type {
   MenuOrder,
   MenuOrderPaymentStatus,
@@ -54,10 +58,38 @@ export default function ClientMenuOrdersPage() {
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const { isAuthenticated } = useAuthStore();
+  const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
+  const { status: inboxStatus } = useChatInboxWebSocket(hydrated && isAuthenticated);
   const [orders, setOrders] = useState<MenuOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | MenuOrderStatus>("all");
+
+  const refreshOrders = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const data = await menuOrderService.mine(null, signal);
+      if (!signal?.aborted) setOrders(data);
+    } catch {
+      // Mantener los pedidos visibles; una reconexión podrá recuperarlos.
+    }
+  }, []);
+
+  const resyncAfterReconnect = useCallback(() => {
+    void refreshOrders();
+  }, [refreshOrders]);
+  useInboxReconnect(inboxStatus, hydrated && isAuthenticated, resyncAfterReconnect);
+
+  useEffect(() => {
+    if (!hydrated || !isAuthenticated) return;
+    const controller = new AbortController();
+    const unsubscribe = subscribeToInboxEvents((event) => {
+      if (isMenuInboxEvent(event)) void refreshOrders(controller.signal);
+    });
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [hydrated, isAuthenticated, refreshOrders, subscribeToInboxEvents]);
 
   useEffect(() => {
     if (!hydrated) return;

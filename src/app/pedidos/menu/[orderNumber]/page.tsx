@@ -25,7 +25,11 @@ import {
 } from "@/lib/menuOrders";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { menuOrderService } from "@/services/menuOrderService";
-import { useAuthStore } from "@/store/useAuthStore";
+import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
+import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
+import { useInboxReconnect } from "@/hooks/useInboxReconnect";
+import { useChatStore } from "@/store/useChatStore";
+import { isMenuInboxEvent } from "@/types/chat";
 import type { MenuOrder } from "@/types/menuOrder";
 
 const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
@@ -48,7 +52,10 @@ function paymentStatusLabel(order: MenuOrder) {
 export default function PublicMenuOrderTrackingPage() {
   const params = useParams<{ orderNumber: string }>();
   const searchParams = useSearchParams();
+  const hydrated = useAuthHydrated();
   const { isAuthenticated } = useAuthStore();
+  const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
+  const { status: inboxStatus } = useChatInboxWebSocket(hydrated && isAuthenticated);
 
   const orderNumber = String(params?.orderNumber || "").trim();
   const queryToken = String(searchParams.get("management_token") || "").trim();
@@ -82,11 +89,11 @@ export default function PublicMenuOrderTrackingPage() {
   }, [orderNumber, queryToken, tokenKey]);
 
   const loadOrder = useCallback(
-    async (silent = false) => {
+    async (silent = false, showRefreshing = false) => {
       if (!orderNumber) return;
-      if (silent) setRefreshing(true);
-      else setLoading(true);
-      setError(null);
+      if (showRefreshing) setRefreshing(true);
+      if (!silent) setLoading(true);
+      if (!silent) setError(null);
 
       try {
         let data: MenuOrder | null = null;
@@ -107,26 +114,42 @@ export default function PublicMenuOrderTrackingPage() {
 
         setOrder(data);
       } catch (err) {
-        setError(
+        if (!silent) setError(
           err instanceof Error ? err.message : "No se pudo cargar el pedido.",
         );
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (!silent) setLoading(false);
+        if (showRefreshing) setRefreshing(false);
       }
     }, [isAuthenticated, orderNumber, queryToken, storedToken],
   );
 
   useEffect(() => {
+    if (!hydrated) return;
     if (!queryToken && !storedToken && !isAuthenticated) {
       setLoading(false);
       return;
     }
     void loadOrder();
-  }, [isAuthenticated, loadOrder, queryToken, storedToken]);
+  }, [hydrated, isAuthenticated, loadOrder, queryToken, storedToken]);
+
+  const resyncAfterReconnect = useCallback(() => {
+    void loadOrder(true);
+  }, [loadOrder]);
+  useInboxReconnect(inboxStatus, hydrated && isAuthenticated, resyncAfterReconnect);
 
   useEffect(() => {
-    if (!order) return;
+    if (!hydrated || !isAuthenticated) return;
+    const unsubscribe = subscribeToInboxEvents((event) => {
+      if (isMenuInboxEvent(event) && event.order_id === order?.id) {
+        void loadOrder(true);
+      }
+    });
+    return unsubscribe;
+  }, [hydrated, isAuthenticated, loadOrder, order?.id, subscribeToInboxEvents]);
+
+  useEffect(() => {
+    if (!hydrated || isAuthenticated || !order) return;
     const shouldPoll =
       !TERMINAL_STATUSES.has(order.status) ||
       (order.payment_method === "online" && order.payment_status === "pending");
@@ -134,7 +157,7 @@ export default function PublicMenuOrderTrackingPage() {
 
     const id = window.setInterval(() => void loadOrder(true), 5000);
     return () => window.clearInterval(id);
-  }, [loadOrder, order]);
+  }, [hydrated, isAuthenticated, loadOrder, order]);
 
   const productCount = useMemo(
     () => order?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
@@ -211,7 +234,7 @@ export default function PublicMenuOrderTrackingPage() {
               <button
                 type="button"
                 disabled={refreshing}
-                onClick={() => void loadOrder(true)}
+                onClick={() => void loadOrder(true, true)}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 text-white hover:bg-white/10 disabled:opacity-50"
                 aria-label="Actualizar pedido"
               >

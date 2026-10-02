@@ -30,6 +30,11 @@ import {
   nextPrimaryStatusLabel,
 } from "@/lib/menuOrders";
 import { menuOrderService } from "@/services/menuOrderService";
+import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
+import { useInboxReconnect } from "@/hooks/useInboxReconnect";
+import { useChatStore } from "@/store/useChatStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { isMenuInboxEvent } from "@/types/chat";
 import type { MenuOrder } from "@/types/menuOrder";
 
 function paymentLabel(order: MenuOrder) {
@@ -50,6 +55,9 @@ function paymentStatusLabel(order: MenuOrder) {
 export default function AdminMenuOrderDetailPage() {
   const params = useParams<{ orderId: string }>();
   const orderId = Number(params.orderId);
+  const token = useAuthStore((state) => state.token);
+  const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
+  const { status: inboxStatus } = useChatInboxWebSocket(Boolean(token));
   const [order, setOrder] = useState<MenuOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -61,32 +69,53 @@ export default function AdminMenuOrderDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
 
-  const loadOrder = useCallback(async () => {
+  const loadOrder = useCallback(async (signal?: AbortSignal, silent = false) => {
     if (!Number.isFinite(orderId) || orderId <= 0) {
       setError("orderId inválido.");
       setLoading(false);
       return;
     }
 
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
-
-    try {
-      setOrder(await menuOrderService.providerOrder(orderId, controller.signal));
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "No se pudo cargar el pedido.");
-    } finally {
-      setLoading(false);
+    if (!silent) {
+      setLoading(true);
+      setError(null);
     }
 
-    return () => controller.abort();
+    try {
+      const updated = await menuOrderService.providerOrder(orderId, signal);
+      if (!signal?.aborted) setOrder(updated);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (!silent && !signal?.aborted) setError(err instanceof Error ? err.message : "No se pudo cargar el pedido.");
+    } finally {
+      if (!silent && !signal?.aborted) setLoading(false);
+    }
   }, [orderId]);
 
   useEffect(() => {
-    void loadOrder();
+    const controller = new AbortController();
+    void loadOrder(controller.signal);
+    return () => controller.abort();
   }, [loadOrder]);
+
+  const resyncAfterReconnect = useCallback(() => {
+    void loadOrder(undefined, true);
+  }, [loadOrder]);
+  useInboxReconnect(inboxStatus, Boolean(token), resyncAfterReconnect);
+
+  useEffect(() => {
+    if (!token || !Number.isInteger(orderId) || orderId <= 0) return;
+    const controller = new AbortController();
+    const unsubscribe = subscribeToInboxEvents((event) => {
+      if (isMenuInboxEvent(event) && event.order_id === orderId) {
+        void loadOrder(controller.signal, true);
+      }
+    });
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [loadOrder, orderId, subscribeToInboxEvents, token]);
 
   const productCount = useMemo(
     () => order?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
