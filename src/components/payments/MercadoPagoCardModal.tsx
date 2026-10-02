@@ -211,7 +211,7 @@ export function MercadoPagoCardModal({
   const closeDisabled = phase === "submitting";
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="card-payment-title">
+    <div className="fixed inset-0 z-[10050] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="card-payment-title">
       <Script
         src="https://sdk.mercadopago.com/js/v2"
         strategy="afterInteractive"
@@ -223,8 +223,8 @@ export function MercadoPagoCardModal({
       />
       <button type="button" aria-label="Cerrar pago" className="absolute inset-0 cursor-default" disabled={closeDisabled} onClick={onClose} />
 
-      <div className="relative flex max-h-[96dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-3xl">
-        <div className="border-b border-gray-100 bg-[#004e28] px-5 py-5 text-white sm:px-7">
+      <div className="relative flex max-h-[96dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl">
+        <div className="shrink-0 border-b border-gray-100 bg-[#004e28] px-5 py-5 text-white sm:px-7">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-xs font-semibold text-white/70">
@@ -241,7 +241,7 @@ export function MercadoPagoCardModal({
           </div>
         </div>
 
-        <div className="overflow-y-auto px-5 py-5 sm:px-7 sm:py-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 pb-7 sm:px-7 sm:py-6 sm:pb-8">
           {phase === "authorized" && authorizedOrderId ? (
             <div className="py-5 text-center sm:py-8">
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#168e00]/10">
@@ -301,7 +301,7 @@ export function MercadoPagoCardModal({
         </div>
 
         {phase !== "authorized" ? (
-          <div className="flex items-center gap-2 border-t border-gray-100 px-5 py-3 text-xs text-gray-500 sm:px-7">
+          <div className="flex shrink-0 items-center gap-2 border-t border-gray-100 px-5 py-3 text-xs text-gray-500 sm:px-7">
             <CreditCard className="h-4 w-4 text-[#004e28]" /> Una sola exhibición. No se crearán cargos duplicados.
           </div>
         ) : null}
