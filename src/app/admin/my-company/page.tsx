@@ -88,36 +88,36 @@ function MyCompanyContent() {
   const completion = getCompanyProfileCompletion(supplier, { isDirectory });
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-5">
       <header className="rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm sm:px-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#168e00]">Mi negocio</p><span className="rounded-full bg-[#f2f3f4] px-2 py-0.5 text-[11px] font-medium text-gray-600">{isDirectory ? "Directorio" : "Tienda"}</span></div>
-            <h1 className="mt-1 truncate font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28] sm:text-[1.7rem]">{supplier.name}</h1>
+            <h1 className="mt-1 break-words font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28] sm:text-[1.7rem]">{supplier.name}</h1>
             <div className="mt-2 flex items-center gap-2 text-xs text-gray-500"><div className="h-1.5 w-28 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-[#168e00]" style={{ width: `${completion.percentage}%` }} /></div><span>{completion.percentage}% completo</span></div>
           </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
+          <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:w-auto xl:gap-6">
             <Link href="/admin/my-company/customize" className="portal-customizer-cta inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#168e00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2"><Paintbrush size={16} aria-hidden="true" />Personalizar portal</Link>
             {profileUrl ? <Link href={profileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#004e28]/20 px-4 py-2.5 text-sm font-semibold text-[#004e28] transition hover:bg-[#004e28] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2">Ver mi negocio <ExternalLink size={16} aria-hidden="true" /></Link> : null}
           </div>
         </div>
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-[13.5rem_minmax(0,1fr)]">
-        <aside className="lg:sticky lg:top-28 lg:self-start">
-          <nav aria-label="Secciones de mi negocio" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2 lg:mx-0 lg:block lg:space-y-1 lg:overflow-visible lg:px-0">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[13.5rem_minmax(0,1fr)]">
+        <aside className="min-w-0 xl:sticky xl:top-28 xl:self-start">
+          <nav aria-label="Secciones de mi negocio" className="flex w-full min-w-0 gap-2 overflow-x-auto pb-2 xl:block xl:space-y-1 xl:overflow-visible">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = activeTab === item.id;
-              return <button key={item.id} type="button" onClick={() => navigate(item.id)} aria-current={active ? "page" : undefined} className={`inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium transition lg:w-full ${active ? "bg-[#004e28] text-white shadow-sm" : "bg-white text-gray-600 hover:bg-[#004e28]/[0.06] hover:text-[#004e28] lg:bg-transparent"}`}><Icon size={18} aria-hidden="true" />{item.label}</button>;
+              return <button key={item.id} type="button" onClick={() => navigate(item.id)} aria-current={active ? "page" : undefined} className={`inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium transition xl:w-full ${active ? "bg-[#004e28] text-white shadow-sm" : "bg-white text-gray-600 hover:bg-[#004e28]/[0.06] hover:text-[#004e28] xl:bg-transparent"}`}><Icon size={18} aria-hidden="true" />{item.label}</button>;
             })}
-            <div className="hidden border-t border-gray-200 pt-3 lg:mt-3 lg:block"><Link href={isDirectory ? "/admin/services" : "/admin/products"} className="flex min-h-11 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28]"><Package size={18} aria-hidden="true" />{isDirectory ? "Mis servicios" : "Mis productos"}</Link></div>
+            <div className="hidden border-t border-gray-200 pt-3 xl:mt-3 xl:block"><Link href={isDirectory ? "/admin/services" : "/admin/products"} className="flex min-h-11 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28]"><Package size={18} aria-hidden="true" />{isDirectory ? "Mis servicios" : "Mis productos"}</Link></div>
             {enabledModules.length > 0 ? (
-              <div className="flex shrink-0 items-center gap-2 border-l border-gray-200 pl-3 lg:mt-3 lg:block lg:space-y-1 lg:border-l-0 lg:border-t lg:pl-0 lg:pt-3">
-                <span className="px-2 text-xs font-semibold uppercase tracking-wide text-[#004e28] lg:block">Módulos</span>
+              <div className="flex shrink-0 items-center gap-2 border-l border-gray-200 pl-3 xl:mt-3 xl:block xl:space-y-1 xl:border-l-0 xl:border-t xl:pl-0 xl:pt-3">
+                <span className="px-2 text-xs font-semibold uppercase tracking-wide text-[#004e28] xl:block">Módulos</span>
                 {enabledModules.map((module) => {
                   const Icon = module.icon;
-                  return <Link key={module.code} href={module.path} className="inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl bg-white px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28] lg:flex lg:w-full lg:bg-transparent"><Icon size={18} aria-hidden="true" />{module.title}</Link>;
+                  return <Link key={module.code} href={module.path} className="inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl bg-white px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28] xl:flex xl:w-full xl:bg-transparent"><Icon size={18} aria-hidden="true" />{module.title}</Link>;
                 })}
               </div>
             ) : null}
@@ -140,7 +140,7 @@ function MyCompanyContent() {
 }
 
 function SectionCard({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  return <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6"><div className="mb-6 border-b border-gray-100 pb-4"><h2 className="font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28]">{title}</h2><p className="mt-1 text-sm leading-6 text-gray-500">{description}</p></div>{children}</section>;
+  return <section className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6"><div className="mb-6 border-b border-gray-100 pb-4"><h2 className="font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28]">{title}</h2><p className="mt-1 text-sm leading-6 text-gray-500">{description}</p></div>{children}</section>;
 }
 
 export default function MyCompanyPage() {

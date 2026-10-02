@@ -386,22 +386,22 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
             const config = hours.find((hour) => Number(hour.day_of_week) === day.id);
             const closed = config?.is_closed ?? true;
             return (
-              <div key={day.id} className="rounded-xl border border-gray-200 bg-white p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
+              <div key={day.id} className="rounded-xl border border-gray-200 bg-white p-4 lg:flex lg:items-center lg:justify-between lg:gap-5">
                 <div className="flex items-center gap-3">
                   <input type="checkbox" checked={!closed} onChange={() => day.weekdays ? updateWeekdays({ is_closed: !closed }) : toggleClosed(day.id)} aria-label={`${day.label} abierto`} className="h-4 w-4 rounded border-gray-300 text-[#168e00] focus:ring-[#168e00]" />
                   <span className="font-medium text-gray-900">{day.label}</span>
                 </div>
-                {closed ? <span className="mt-3 block text-sm text-gray-400 sm:mt-0">Cerrado</span> : (
-                  <div className="mt-3 flex items-center gap-2 sm:mt-0">
-                    <input type="time" value={config?.open_time || "09:00"} onChange={(event) => day.weekdays ? updateWeekdays({ open_time: event.target.value }) : handleTimeChange(day.id, "open_time", event.target.value)} aria-label={`Hora de apertura de ${day.label}`} className="min-h-11 rounded-xl border border-gray-300 px-3 text-sm focus:border-[#168e00] focus:outline-none focus:ring-2 focus:ring-[#168e00]/20" />
+                {closed ? <span className="mt-3 block text-sm text-gray-400 lg:mt-0">Cerrado</span> : (
+                  <div className="mt-3 grid min-w-0 grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:mt-0">
+                    <input type="time" value={config?.open_time || "09:00"} onChange={(event) => day.weekdays ? updateWeekdays({ open_time: event.target.value }) : handleTimeChange(day.id, "open_time", event.target.value)} aria-label={`Hora de apertura de ${day.label}`} className="min-h-11 min-w-0 w-full rounded-xl border border-gray-300 px-3 text-sm focus:border-[#168e00] focus:outline-none focus:ring-2 focus:ring-[#168e00]/20" />
                     <span className="text-gray-400">a</span>
-                    <input type="time" value={config?.close_time || "18:00"} onChange={(event) => day.weekdays ? updateWeekdays({ close_time: event.target.value }) : handleTimeChange(day.id, "close_time", event.target.value)} aria-label={`Hora de cierre de ${day.label}`} className="min-h-11 rounded-xl border border-gray-300 px-3 text-sm focus:border-[#168e00] focus:outline-none focus:ring-2 focus:ring-[#168e00]/20" />
+                    <input type="time" value={config?.close_time || "18:00"} onChange={(event) => day.weekdays ? updateWeekdays({ close_time: event.target.value }) : handleTimeChange(day.id, "close_time", event.target.value)} aria-label={`Hora de cierre de ${day.label}`} className="min-h-11 min-w-0 w-full rounded-xl border border-gray-300 px-3 text-sm focus:border-[#168e00] focus:outline-none focus:ring-2 focus:ring-[#168e00]/20" />
                   </div>
                 )}
               </div>
             );
           })}
-          <button type="button" onClick={() => setIndividualMode(true)} className="text-sm font-semibold text-[#004e28] hover:text-[#168e00]">Configurar cada día por separado</button>
+          <button type="button" onClick={() => setIndividualMode(true)} className="min-h-11 text-sm font-semibold text-[#004e28] hover:text-[#168e00]">Configurar cada día por separado</button>
         </div>
       ) : (
       <div className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
@@ -413,8 +413,8 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
             const closeTime = dayConfig?.close_time || "18:00";
 
             return (
-              <div key={day.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white transition-colors">
-                <div className="flex items-center gap-4 min-w-[150px]">
+              <div key={day.id} className="flex flex-col justify-between gap-4 p-4 transition-colors hover:bg-white lg:flex-row lg:items-center">
+                <div className="flex min-w-0 items-center gap-4">
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
                       type="checkbox"
@@ -429,25 +429,25 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 sm:gap-4 flex-1 justify-end">
+                <div className="min-w-0 flex-1 lg:flex lg:justify-end">
                   {isClosed ? (
                     <span className="text-gray-400 text-sm italic py-2 px-4 bg-gray-100 rounded-md w-full sm:w-auto text-center">
                       Cerrado
                     </span>
                   ) : (
-                    <div className="flex items-center gap-2">
+                    <div className="grid min-w-0 w-full grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:w-auto">
                       <input
                         type="time"
                         value={openTime}
                         onChange={(e) => handleTimeChange(day.id, "open_time", e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                        className="min-h-11 min-w-0 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                       />
                       <span className="text-gray-400">-</span>
                       <input
                         type="time"
                         value={closeTime}
                         onChange={(e) => handleTimeChange(day.id, "close_time", e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                        className="min-h-11 min-w-0 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                       />
                     </div>
                   )}
@@ -463,7 +463,7 @@ export default function BusinessHoursEditor({ supplierId, token }: Props) {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 font-bold text-white shadow-md transition-all hover:bg-primary/90 disabled:opacity-50 sm:w-auto"
         >
           {saving ? (
             <>

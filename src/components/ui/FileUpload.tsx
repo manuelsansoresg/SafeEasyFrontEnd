@@ -191,7 +191,7 @@ export default function FileUpload({
   const effectiveFileName = value?.name || (effectiveCurrentUrl ? getFileNameFromUrl(effectiveCurrentUrl) : null);
 
   return (
-    <div className={`w-full ${className}`}>
+    <div className={`w-full min-w-0 ${className}`}>
       {label && <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>}
       
       <div
@@ -200,7 +200,7 @@ export default function FileUpload({
             ? 'border-primary bg-primary/5 scale-[1.01]' 
             : 'border-gray-300 hover:border-primary/50 hover:bg-gray-50'
           }
-          ${displayImage ? 'p-4' : 'p-8'}
+          ${displayImage ? 'p-3 sm:p-4' : 'p-4 sm:p-8'}
           ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
           flex flex-col items-center justify-center min-h-[160px] group
         `}
@@ -236,14 +236,14 @@ export default function FileUpload({
                 ) : isVideo ? (
                   <video
                     src={displayImage || undefined}
-                    className="max-h-48 rounded-lg shadow-sm object-contain"
+                    className="max-h-48 max-w-full rounded-lg shadow-sm object-contain"
                     controls
                   />
                 ) : (
                   <img
                     src={displayImage || undefined}
                     alt="Preview"
-                    className="max-h-48 rounded-lg shadow-sm object-contain"
+                    className="max-h-48 max-w-full rounded-lg shadow-sm object-contain"
                   />
                 )}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
@@ -256,7 +256,7 @@ export default function FileUpload({
                   <div className="relative w-full flex items-center justify-center">
                     <video
                       src={effectiveCurrentUrl}
-                      className="max-h-48 rounded-lg shadow-sm object-contain"
+                      className="max-h-48 max-w-full rounded-lg shadow-sm object-contain"
                       controls
                       onError={() => setInlineError(true)}
                       crossOrigin="anonymous"
@@ -267,7 +267,7 @@ export default function FileUpload({
                     <img
                       src={effectiveCurrentUrl}
                       alt="Vista previa del archivo actual"
-                      className="max-h-48 rounded-lg object-contain shadow-sm"
+                      className="max-h-48 max-w-full rounded-lg object-contain shadow-sm"
                       onError={() => setInlineError(true)}
                     />
                     <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40 opacity-0 transition-opacity group-hover/image:opacity-100">
@@ -286,7 +286,7 @@ export default function FileUpload({
                     <div className="text-xs text-gray-600">
                       <div className="font-medium">Archivo actual</div>
                       {effectiveFileName && (
-                        <div className="max-w-[260px] mx-auto truncate" title={effectiveFileName}>
+                        <div className="mx-auto max-w-full truncate" title={effectiveFileName}>
                           {effectiveFileName}
                         </div>
                       )}
@@ -345,7 +345,7 @@ export default function FileUpload({
           ) : (
             <ImageIcon size={14} className="text-primary" />
           )}
-          <span className="truncate max-w-[200px]" title={effectiveFileName}>
+          <span className="min-w-0 max-w-full truncate" title={effectiveFileName}>
             {effectiveFileName}
           </span>
           {value && (

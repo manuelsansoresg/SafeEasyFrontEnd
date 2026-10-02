@@ -171,7 +171,7 @@ export default function QRPanel() {
   const needsToken = !qrInfo?.token && !qrImageUrl;
 
   return (
-    <div className='max-w-2xl mx-auto'>
+    <div className='mx-auto w-full min-w-0 max-w-2xl'>
       <div className='mb-6'>
         <h3 className='text-xl font-bold text-gray-900 mb-2'>Comparte tu negocio</h3>
         <p className='text-sm text-gray-600'>
@@ -210,7 +210,7 @@ export default function QRPanel() {
           </div>
         </div>
       ) : needsToken ? (
-        <div className='bg-amber-50 border border-amber-200 rounded-xl p-8 text-center'>
+        <div className='rounded-xl border border-amber-200 bg-amber-50 p-4 text-center sm:p-8'>
           <Key className='mx-auto mb-4 text-amber-600' size={48} />
           <h4 className='text-lg font-semibold text-amber-900 mb-2'>
             Tu empresa aún no tiene un código QR
@@ -230,22 +230,22 @@ export default function QRPanel() {
         </div>
       ) : (
         <>
-          <div className='bg-gray-50 rounded-xl p-8 border border-gray-200'>
+          <div className='rounded-xl border border-gray-200 bg-gray-50 p-3 sm:p-8'>
             <div className='flex flex-col items-center'>
               {loading ? (
-                <div className='w-64 h-64 flex items-center justify-center bg-white rounded-lg shadow-sm'>
+                <div className='flex aspect-square w-full max-w-64 items-center justify-center rounded-lg bg-white shadow-sm'>
                   <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-primary'></div>
                 </div>
               ) : qrImageUrl ? (
-                <div className='bg-white p-6 rounded-lg shadow-sm'>
+                <div className='w-full max-w-76 rounded-lg bg-white p-3 shadow-sm sm:p-6'>
                   <img
                     src={qrImageUrl}
                     alt='Código QR de la empresa'
-                    className='w-64 h-64'
+                    className='aspect-square h-auto w-full max-w-64'
                   />
                 </div>
               ) : (
-                <div className='w-64 h-64 flex items-center justify-center bg-white rounded-lg shadow-sm text-gray-400'>
+                <div className='flex aspect-square w-full max-w-64 items-center justify-center rounded-lg bg-white text-gray-400 shadow-sm'>
                   <QrCode size={64} />
                 </div>
               )}
@@ -254,13 +254,13 @@ export default function QRPanel() {
                 <div className='mt-6 w-full max-w-md'>
                   <div className='bg-white rounded-lg p-4 border border-gray-200'>
                     <p className='text-xs font-medium text-gray-500 mb-2'>Enlace directo:</p>
-                    <div className='flex items-center gap-2'>
-                      <code className='flex-1 text-sm text-gray-700 truncate bg-gray-50 px-3 py-2 rounded'>
+                    <div className='flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center'>
+                      <code className='min-w-0 flex-1 truncate rounded bg-gray-50 px-3 py-2 text-sm text-gray-700'>
                         {qrUrl}
                       </code>
                       <button
                         onClick={copyToClipboard}
-                        className='shrink-0 px-3 py-2 text-sm font-medium text-primary bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors'
+                        className='min-h-11 shrink-0 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/20'
                       >
                         Copiar
                       </button>

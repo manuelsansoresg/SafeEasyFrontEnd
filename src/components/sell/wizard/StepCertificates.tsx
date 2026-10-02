@@ -238,15 +238,15 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="mx-auto w-full min-w-0 max-w-4xl">
       <h2 className="text-2xl font-bold text-center mb-6">{certificatesTitle}</h2>
       <p className="text-gray-600 text-center mb-8">
         Aumente la confianza de los compradores mostrando sus certificaciones.
       </p>
 
       {/* Upload Form */}
-      <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-8 transition-all">
-        <div className="flex justify-between items-center mb-4">
+      <div className="mb-8 rounded-xl border border-gray-200 bg-gray-50 p-4 transition-all sm:p-6">
+        <div className="mb-4 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
             <h3 className="font-bold text-lg text-primary">
                 {editingId ? 'Editar Certificado' : 'Agregar Certificado'}
             </h3>
@@ -371,7 +371,7 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
             <p className="text-gray-400">No hay certificados subidos.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {items.map((item) => (
               <div 
                 key={item.id} 
@@ -379,7 +379,7 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
                     editingId === item.id ? 'ring-2 ring-primary border-primary' : 'border-gray-200'
                 }`}
               >
-                <div className="flex items-start gap-4">
+                <div className="flex min-w-0 items-start gap-4">
                     <div className="w-16 h-16 bg-primary/5 rounded-lg flex-shrink-0 flex items-center justify-center text-primary">
                         {(() => {
                             const imgUrl = getImageUrl(item.image_url || item.url || item.path || item.image || null);
@@ -401,7 +401,7 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
                             return <Award size={32} />;
                         })()}
                     </div>
-                    <div className="flex-grow">
+                    <div className="min-w-0 flex-grow break-words sm:pr-16">
                         <h4 className="font-bold text-gray-800 line-clamp-2">{item.name || item.description}</h4>
                         <div className="flex items-center text-sm text-gray-500 mt-1">
                             <MapPin size={14} className="mr-1" />
@@ -423,11 +423,11 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
                     </div>
                 </div>
 
-                <div className="absolute top-3 right-3 flex gap-2 opacity-100 transition-opacity">
+                <div className="flex justify-end gap-2 opacity-100 transition-opacity sm:absolute sm:right-3 sm:top-3">
                    <button 
                     type="button"
                     onClick={() => handleEdit(item)}
-                    className="p-2 bg-white text-blue-600 rounded-full shadow-sm hover:bg-blue-50 transition-colors border border-gray-100"
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-100 bg-white text-blue-600 shadow-sm transition-colors hover:bg-blue-50"
                     title="Editar"
                   >
                     <Edit2 size={16} />
@@ -435,7 +435,7 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
                   <button 
                     type="button"
                     onClick={() => handleDelete(item.id)}
-                    className="p-2 bg-white text-red-600 rounded-full shadow-sm hover:bg-red-50 transition-colors border border-gray-100"
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-100 bg-white text-red-600 shadow-sm transition-colors hover:bg-red-50"
                     title="Eliminar"
                   >
                     <Trash2 size={16} />
@@ -447,12 +447,12 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
         )}
       </div>
 
-      <div className="flex justify-end pt-4 border-t border-gray-100 gap-3">
+      <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:justify-end">
         {editingId && (
           <button 
             type="button"
             onClick={handleCancelEdit}
-            className="px-6 py-2 text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+            className="min-h-11 w-full rounded-xl border border-gray-200 bg-white px-6 py-2 text-gray-600 transition-colors hover:bg-gray-50 sm:w-auto"
           >
             Cancelar
           </button>
@@ -461,7 +461,7 @@ export default function StepCertificates({ supplierId, token, onNext }: StepCert
           type="submit"
           form="certificate-form"
           disabled={loading}
-          className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 font-bold text-white shadow-md transition-all hover:bg-primary/90 disabled:opacity-50 sm:w-auto"
         >
           {loading ? (
             <>

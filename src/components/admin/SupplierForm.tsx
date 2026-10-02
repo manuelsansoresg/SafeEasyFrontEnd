@@ -1755,7 +1755,7 @@ export default function SupplierForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-5xl">
+    <form onSubmit={handleSubmit} className="w-full min-w-0 max-w-5xl space-y-6">
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       
       {success && (
@@ -1795,7 +1795,7 @@ export default function SupplierForm({
                   onChange={e => setAccessUser({ name: e.target.value })}
                   readOnly={isRecoveringExistingUser}
                   required
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 read-only:cursor-not-allowed read-only:bg-blue-50/60"
+                  className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 read-only:cursor-not-allowed read-only:bg-blue-50/60"
                   placeholder="Nombre del usuario vinculado"
                 />
               </div>
@@ -1809,7 +1809,7 @@ export default function SupplierForm({
                   onChange={e => setAccessUser({ email: e.target.value })}
                   readOnly={isRecoveringExistingUser}
                   required
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 read-only:cursor-not-allowed read-only:bg-blue-50/60"
+                  className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 read-only:cursor-not-allowed read-only:bg-blue-50/60"
                   placeholder="usuario@ejemplo.com"
                 />
               </div>
@@ -1825,7 +1825,7 @@ export default function SupplierForm({
                   value={accessUser.password}
                   onChange={e => setAccessUser({ password: e.target.value })}
                   required={!isEditMode}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder={isEditMode ? "Dejar en blanco para no cambiarla" : "Contraseña segura"}
                 />
               </div>
@@ -1834,7 +1834,7 @@ export default function SupplierForm({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Left Column: Basic Info */}
         <div className={view === "all" || view === "information" ? "space-y-4" : "hidden"}>
           <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Datos Generales</h3>
@@ -1846,12 +1846,12 @@ export default function SupplierForm({
               name="name"
               value={formData.name}
               onChange={handleInputChange}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               required
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">RFC</label>
               <input
@@ -1859,7 +1859,7 @@ export default function SupplierForm({
                 name="rfc"
                 value={formData.rfc}
                 onChange={handleInputChange}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
             <div>
@@ -1869,13 +1869,13 @@ export default function SupplierForm({
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
           </div>
 
           {isDirectory && !directoryLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
                 <select
@@ -1945,7 +1945,7 @@ export default function SupplierForm({
                   {mpConnectLoading ? "Redirigiendo…" : "Conectar con Mercado Pago"}
                 </button>
               ) : (
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 flex items-center justify-between gap-3">
+                <div className="flex flex-col items-stretch gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-2 min-w-0">
                     <CheckCircle size={18} className="text-[#168E00] mt-0.5" />
                     <div className="min-w-0">
@@ -1962,7 +1962,7 @@ export default function SupplierForm({
                     type="button"
                     onClick={handleMercadoPagoDisconnect}
                     disabled={mpDisconnectLoading || mpStatusLoading}
-                    className="shrink-0 inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 text-gray-700 hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {mpDisconnectLoading ? <Loader2 size={14} className="animate-spin" /> : null}
                     Desconectar
@@ -2103,7 +2103,7 @@ export default function SupplierForm({
             </p>
           ) : null}
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">País</label>
               <select
@@ -2136,7 +2136,7 @@ export default function SupplierForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
               <SearchableSelect
@@ -2157,7 +2157,7 @@ export default function SupplierForm({
                 name="neighborhood"
                 value={formData.neighborhood}
                 onChange={handleInputChange}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
           </div>
@@ -2169,39 +2169,39 @@ export default function SupplierForm({
               name="address"
               value={formData.address}
               onChange={handleInputChange}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-1">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="min-w-0">
               <label className="block text-sm font-medium text-gray-700 mb-1">No. Exterior</label>
               <input
                 type="text"
                 name="exterior_number"
                 value={formData.exterior_number}
                 onChange={handleInputChange}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
-            <div className="col-span-1">
+            <div className="min-w-0">
               <label className="block text-sm font-medium text-gray-700 mb-1">No. Interior</label>
               <input
                 type="text"
                 name="interior_number"
                 value={formData.interior_number}
                 onChange={handleInputChange}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
-            <div className="col-span-1">
+            <div className="min-w-0">
               <label className="block text-sm font-medium text-gray-700 mb-1">C.P.</label>
               <input
                 type="text"
                 name="cp"
                 value={formData.cp}
                 onChange={handleInputChange}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
           </div>
@@ -2214,7 +2214,7 @@ export default function SupplierForm({
                 name="cross_street_1"
                 value={formData.cross_street_1}
                 onChange={handleInputChange}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                 placeholder="Ej. Calle 35"
               />
             </div>
@@ -2225,7 +2225,7 @@ export default function SupplierForm({
                 name="cross_street_2"
                 value={formData.cross_street_2}
                 onChange={handleInputChange}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                 placeholder="Ej. Calle 37"
               />
             </div>
@@ -2265,7 +2265,7 @@ export default function SupplierForm({
               value={formData.short_description}
               onChange={handleInputChange}
               maxLength={160}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               placeholder="Ej. Soluciones profesionales para cuidar de ti"
             />
             <p className="mt-1.5 text-xs leading-5 text-gray-500">
@@ -2282,7 +2282,7 @@ export default function SupplierForm({
               value={formData.description}
               onChange={handleInputChange}
               rows={6}
-              className="w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 leading-6 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="min-w-0 w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 leading-6 focus:outline-none focus:ring-2 focus:ring-primary/50"
               placeholder="Cuenta qué hace especial a tu empresa, su propuesta de valor y la experiencia que ofrece."
             />
             <p className="mt-1.5 text-xs leading-5 text-gray-500">
@@ -2304,7 +2304,7 @@ export default function SupplierForm({
                     name="title_about"
                     value={formData.title_about}
                     onChange={handleInputChange}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     placeholder="Ej. Más que un proveedor"
                   />
                 </div>
@@ -2315,7 +2315,7 @@ export default function SupplierForm({
                     name="subtitle_about"
                     value={formData.subtitle_about}
                     onChange={handleInputChange}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     placeholder="Ej. Tu aliado estratégico"
                   />
                 </div>
@@ -2397,7 +2397,7 @@ export default function SupplierForm({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
               <span className="inline-flex items-center gap-1.5">
@@ -2410,7 +2410,7 @@ export default function SupplierForm({
               name="facebook_url"
               value={formData.facebook_url}
               onChange={handleInputChange}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               placeholder="https://facebook.com/miempresa"
               autoComplete="off"
             />
@@ -2427,7 +2427,7 @@ export default function SupplierForm({
               name="instagram_url"
               value={formData.instagram_url}
               onChange={handleInputChange}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               placeholder="https://instagram.com/miempresa"
               autoComplete="off"
             />
@@ -2444,7 +2444,7 @@ export default function SupplierForm({
               name="x_url"
               value={formData.x_url}
               onChange={handleInputChange}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
               placeholder="https://x.com/miempresa"
               autoComplete="off"
             />
@@ -2474,7 +2474,7 @@ export default function SupplierForm({
               onChange={handleInputChange}
               maxLength={120}
               placeholder="Ej. Tu aliado estratégico en meditación y bienestar"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
@@ -2489,7 +2489,7 @@ export default function SupplierForm({
               rows={4}
               maxLength={600}
               placeholder="Cuenta brevemente quién eres, qué ofreces y por qué te deberían elegir."
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
             <p className="mt-1 text-xs text-gray-500">
               {formData.intro_description.length}/600 caracteres
@@ -2518,7 +2518,7 @@ export default function SupplierForm({
             directoryLoading ||
             (isRecoveringExistingUser && loadingLinkedUser)
           }
-          className="bg-primary text-white font-bold py-3 px-8 rounded-lg hover:bg-primary/90 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 font-bold text-white shadow-md transition-all hover:bg-primary/90 disabled:opacity-50 sm:w-auto"
         >
           {isSubmitting ? (
             <>

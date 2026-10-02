@@ -289,7 +289,7 @@ export function SupplierModulesPanel() {
           </span>
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div className="mt-5 grid min-w-0 gap-4 lg:grid-cols-2">
           {modules.map((module) => {
             const screen = moduleScreen(module.code);
             const Icon = screen?.icon ?? Blocks;
@@ -304,7 +304,7 @@ export function SupplierModulesPanel() {
             return (
               <article
                 key={module.id}
-                className={`rounded-2xl border p-5 transition ${
+                className={`min-w-0 rounded-2xl border p-4 transition sm:p-5 ${
                   module.has_access
                     ? "border-[#168e00]/30 bg-[#168e00]/[0.04]"
                     : "border-gray-200 bg-white"
@@ -317,7 +317,7 @@ export function SupplierModulesPanel() {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="font-[family-name:var(--font-varela-round)] text-lg font-black text-[#004e28]">{module.name}</h4>
+                      <h4 className="break-words font-[family-name:var(--font-varela-round)] text-lg font-black text-[#004e28]">{module.name}</h4>
                       {module.has_access ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-[#168e00]/10 px-2 py-1 text-[11px] font-bold text-[#0b6d00]">
                           <CheckCircle2 size={12} /> Activo
@@ -342,13 +342,13 @@ export function SupplierModulesPanel() {
                   </div>
                 </div>
 
-                <div className="mt-5 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
+                <div className="mt-5 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap">
                   {module.has_access ? (
                     <>
                       {screen ? (
                         <Link
                           href={screen.path}
-                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#117500]"
+                          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#117500]"
                         >
                           <Settings2 size={16} /> Configurar
                         </Link>
@@ -357,7 +357,7 @@ export function SupplierModulesPanel() {
                         type="button"
                         disabled={disabled}
                         onClick={() => void mutate(module, "disable")}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                       >
                         {isBusy ? <Loader2 size={16} className="animate-spin" /> : <Power size={16} />}
                         Desactivar

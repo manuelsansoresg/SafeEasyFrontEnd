@@ -5,7 +5,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { Search, LogOut, Menu, X, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
@@ -41,15 +40,15 @@ function SearchBar() {
   };
 
   return (
-    <form onSubmit={handleSearch} className="relative w-[280px] md:w-[400px] flex items-center">
+    <form onSubmit={handleSearch} className="relative flex w-full min-w-0 items-center xl:w-80 2xl:w-[400px]">
       <input
         type="text"
         placeholder="Buscar"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="w-full h-10 pl-5 pr-10 rounded-full border-2 border-white bg-transparent text-white placeholder:text-white/80 focus:outline-none focus:ring-1 focus:ring-white transition-all text-sm font-medium"
+        className="h-11 w-full rounded-full border-2 border-white bg-transparent pl-5 pr-11 text-sm font-medium text-white placeholder:text-white/80 transition-all focus:outline-none focus:ring-1 focus:ring-white"
       />
-      <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-white hover:text-[#7ed957] transition-colors">
+      <button type="submit" aria-label="Buscar" className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-white transition-colors hover:text-[#7ed957]">
         <Search size={20} strokeWidth={2.5} />
       </button>
     </form>
@@ -88,13 +87,13 @@ export function Header() {
     <header className="fixed top-0 left-0 right-0 z-[10040] flex flex-col font-sans">
       {/* Main Header */}
       <div className="bg-primary text-white shadow-md transition-all duration-300">
-        <div className="container mx-auto px-4 h-20 md:h-24 flex items-center justify-between">
+        <div className="container mx-auto flex h-20 min-w-0 items-center justify-between gap-3 px-4 xl:h-24">
           
           {/* Left Side: Logo + Nav */}
-          <div className="flex items-center gap-8 md:gap-16">
+          <div className="flex min-w-0 items-center gap-8 2xl:gap-16">
             {/* Logo */}
-            <Link href="/" aria-label="Drooopy - Inicio" className="flex items-center gap-2 group">
-               <div className="relative w-56 h-14 md:w-[200px] md:h-20">
+            <Link href="/" aria-label="Drooopy - Inicio" className="group flex shrink-0 items-center gap-2">
+               <div className="relative h-14 w-40 sm:w-48 xl:h-20 xl:w-[200px]">
                  <Image 
                    src="/logo-drooopy.svg" 
                    alt="Drooopy" 
@@ -106,7 +105,7 @@ export function Header() {
             </Link>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-8 text-base font-medium font-[family-name:var(--font-varela-round)]">
+            <nav className="hidden items-center gap-6 text-base font-medium font-[family-name:var(--font-varela-round)] xl:flex 2xl:gap-8">
               <Link href="/" className="hover:text-[#7ed957] transition-colors text-white">
                 Inicio
               </Link>
@@ -123,23 +122,23 @@ export function Header() {
           </div>
 
           {/* Right Side: Search + Actions */}
-          <div className="flex items-center gap-4 md:gap-6">
+          <div className="flex min-w-0 shrink-0 items-center gap-4 xl:gap-6">
             {/* Search Bar (Desktop) */}
-            <div className="hidden md:block">
+            <div className="hidden xl:block">
               <Suspense fallback={<div className="w-64 h-10 bg-primary/50 border border-white/30 rounded-full" />}>
                 <SearchBar />
               </Suspense>
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-1 md:gap-4">
+            <div className="flex items-center gap-1 xl:gap-4">
               {isAuthenticated && (
-                <div className="hidden md:flex items-center gap-4">
+                <div className="hidden items-center gap-4 xl:flex">
                   <MessagesDropdown />
                 </div>
               )}
               {isAuthenticated && <NotificationsBadge />}
-              <div className="hidden md:flex items-center gap-4">
+              <div className="hidden items-center gap-4 xl:flex">
                 {isAuthenticated && <CartBadge />}
 
                 <div
@@ -220,9 +219,13 @@ export function Header() {
               </div>
 
               {/* Mobile Actions */}
-              <div className="md:hidden flex items-center gap-1">
+              <div className="flex items-center gap-1 xl:hidden">
                 <button
-                  className="text-white hover:text-secondary transition-colors"
+                  type="button"
+                  aria-label={isMobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+                  aria-expanded={isMobileMenuOpen}
+                  aria-controls="header-mobile-menu"
+                  className="flex h-11 w-11 items-center justify-center text-white transition-colors hover:text-[#7ed957]"
                   onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 >
                   {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
@@ -239,15 +242,16 @@ export function Header() {
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="md:hidden bg-primary border-t border-white/10 overflow-hidden"
+                    id="header-mobile-menu"
+                    className="overflow-hidden border-t border-white/10 bg-primary xl:hidden"
                 >
-                    <div className="p-4 flex flex-col gap-4">
+                    <div className="flex max-h-[calc(100dvh-5rem)] flex-col gap-4 overflow-y-auto p-4">
                         <div className="pb-4 border-b border-white/10">
                             <Suspense fallback={<div className="w-full h-10 bg-primary/50 rounded-full" />}>
                                 <SearchBar />
                             </Suspense>
                         </div>
-                        <nav className="flex flex-col gap-2">
+                        <nav className="flex flex-col gap-2 [&_a]:min-h-11 [&_a]:content-center">
                             <Link href="/" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Inicio</Link>
                             <Link href="/nosotros" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Nosotros</Link>
                             <Link href="/contacto" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors">Contacto</Link>
@@ -266,6 +270,9 @@ export function Header() {
                                 )}
                                 <Link href="/client/favorites" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-3">
                                   <span>❤️</span> Favoritos
+                                </Link>
+                                <Link href="/admin/messages" className="py-2 px-4 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-3">
+                                  <span>✉️</span> Mensajes
                                 </Link>
                                 {(user?.role === "client" || user?.role === "admin") && (
                                   <>

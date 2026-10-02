@@ -296,8 +296,9 @@ export function BusinessTypePickerModal({
         fixed
         inset-0
         m-auto
-        w-[calc(100%-2rem)]
+        w-[calc(100%-1.5rem)]
         max-w-2xl
+        max-h-[90dvh]
         overflow-hidden
         rounded-2xl
         border
@@ -308,9 +309,9 @@ export function BusinessTypePickerModal({
         backdrop:bg-black/40
       "
     >
-      <div className="flex max-h-[90dvh] flex-col">
+      <div className="flex max-h-[90dvh] min-w-0 flex-col">
         {/* HEADER */}
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 p-5 sm:p-6">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 p-4 sm:p-6">
           <div>
             <h2
               id="business-type-picker-title"
@@ -331,8 +332,12 @@ export function BusinessTypePickerModal({
             aria-label="Cerrar"
             className="
               shrink-0
+              inline-flex
+              h-11
+              w-11
+              items-center
+              justify-center
               rounded-lg
-              p-2
               text-gray-500
               transition
               hover:bg-gray-100
@@ -344,7 +349,7 @@ export function BusinessTypePickerModal({
         </div>
 
         {/* CONTENIDO */}
-        <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
           {loading ? (
             <p
               role="status"
@@ -371,7 +376,7 @@ export function BusinessTypePickerModal({
           ) : (
             <>
               {/* BUSINESS TYPES */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {options.map((option) => {
                   const selected =
                     selectedId === option.id;
@@ -551,7 +556,7 @@ export function BusinessTypePickerModal({
                 </>
               )}
 
-              <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end [&>button]:min-h-11 [&>button]:w-full sm:[&>button]:w-auto">
                 <button
                   type="button"
                   disabled={saving}
@@ -617,7 +622,7 @@ export function BusinessTypePickerModal({
         {!loading &&
         options.length > 0 &&
         !confirming ? (
-          <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-gray-100 p-5 sm:flex-row sm:justify-end sm:px-6">
+          <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-gray-100 p-4 sm:flex-row sm:justify-end sm:px-6 [&>button]:min-h-11 [&>button]:w-full sm:[&>button]:w-auto">
             <button
               type="button"
               disabled={saving}

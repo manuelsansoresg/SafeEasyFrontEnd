@@ -537,7 +537,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
   };
 
   return (
-    <div className={compact ? "w-full min-w-0" : "mx-auto max-w-4xl"}>
+    <div className={compact ? "w-full min-w-0" : "mx-auto w-full min-w-0 max-w-4xl"}>
       <div className="mb-6 text-center">
         <h2 className={`font-[family-name:var(--font-varela-round)] text-[#004e28] ${compact ? "text-xl" : "text-2xl"}`}>Encabezado de la empresa</h2>
         <p className="mt-2 text-sm text-gray-500">Selecciona el tipo de contenido que quieres mostrar en la parte superior de tu perfil.</p>
@@ -545,10 +545,10 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
       
       {/* Type Toggle */}
       <div className="mb-8 flex justify-center">
-        <div className={`rounded-xl bg-gray-100 p-1 ${compact ? "grid w-full grid-cols-2" : "inline-flex"}`}>
+        <div className={`rounded-xl bg-gray-100 p-1 ${compact ? "grid w-full grid-cols-2" : "grid w-full grid-cols-2 sm:inline-flex sm:w-auto"}`}>
             <button
                 onClick={() => handleTabChange('video')}
-                className={`flex min-w-0 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all ${compact ? "px-2" : "px-6"} ${
+                className={`flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all ${compact ? "px-2" : "px-2 sm:px-6"} ${
                     activeTab === 'video'
                         ? 'bg-white text-primary shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
@@ -559,7 +559,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
             </button>
             <button
                 onClick={() => handleTabChange('image')}
-                className={`flex min-w-0 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all ${compact ? "px-2" : "px-6"} ${
+                className={`flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-all ${compact ? "px-2" : "px-2 sm:px-6"} ${
                     activeTab === 'image'
                         ? 'bg-white text-primary shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
@@ -603,7 +603,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
                             type="button"
                             onClick={handleDeleteHeaderVideo}
                             disabled={isDeletingVideo}
-                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
                           >
                             {isDeletingVideo ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                             Eliminar video
@@ -627,7 +627,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
 
             {/* Upload Form */}
             <div className={`mb-8 rounded-xl border border-gray-200 bg-gray-50 transition-all ${compact ? "p-4" : "p-6"}`}>
-                <div className={`mb-4 flex gap-3 ${compact ? "flex-col items-start" : "items-center justify-between"}`}>
+                <div className={`mb-4 flex gap-3 ${compact ? "flex-col items-start" : "flex-col items-start sm:flex-row sm:items-center sm:justify-between"}`}>
                 <h3 className="font-bold text-lg text-primary">
                     {editingId ? 'Editar Imagen' : 'Agregar Nueva Imagen'}
                 </h3>
@@ -681,7 +681,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
                     <p className="text-gray-400">No hay imágenes subidas aún.</p>
                 </div>
                 ) : (
-                <div className={`grid grid-cols-1 gap-6 ${compact ? "" : "md:grid-cols-2"}`}>
+                <div className={`grid grid-cols-1 gap-6 ${compact ? "" : "lg:grid-cols-2"}`}>
                     {items.map((item) => (
                     <div 
                         key={item.id} 
@@ -710,11 +710,11 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
                         )}
                         </div>
                         
-                        <div className={`border-t border-gray-100 px-4 py-3 ${compact ? "grid grid-cols-2 gap-2" : "flex gap-2"}`}>
+                        <div className="grid grid-cols-2 gap-2 border-t border-gray-100 px-4 py-3">
                         <button 
                             type="button"
                             onClick={() => handleEdit(item)}
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-[#004e28] transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2"
+                            className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-[#004e28] transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2"
                         >
                             <Edit2 size={16} aria-hidden="true" />
                             Editar
@@ -722,7 +722,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
                         <button 
                             type="button"
                             onClick={() => handleDelete(item.id)}
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                            className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
                         >
                             <Trash2 size={16} aria-hidden="true" />
                             Eliminar
@@ -736,12 +736,12 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
         </>
       )}
 
-      <div className={`gap-3 border-t border-gray-100 pt-4 ${compact ? "grid grid-cols-1" : "flex justify-end"}`}>
+      <div className={`gap-3 border-t border-gray-100 pt-4 ${compact ? "grid grid-cols-1" : "flex flex-col sm:flex-row sm:justify-end"}`}>
         {activeTab === 'image' && editingId && (
             <button 
                 type="button"
                 onClick={handleCancelEdit}
-                className={`${compact ? "w-full" : ""} rounded-xl border border-gray-200 bg-white px-6 py-2 text-gray-600 transition-colors hover:bg-gray-50`}
+                className={`${compact ? "w-full" : "w-full sm:w-auto"} min-h-11 rounded-xl border border-gray-200 bg-white px-6 py-2 text-gray-600 transition-colors hover:bg-gray-50`}
             >
                 Cancelar
             </button>
@@ -751,7 +751,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
           form={activeTab === 'video' ? 'video-form' : 'image-form'}
           aria-busy={activeTab === 'video' ? isVideoLoading : loading}
           disabled={activeTab === 'video' ? (isVideoLoading || !headerVideo) : (loading || (!editingId && items.length >= 3))}
-          className={`${compact ? "w-full justify-center" : ""} flex items-center gap-2 rounded-lg bg-primary px-8 py-3 font-bold text-white shadow-md transition-all hover:bg-primary/90 disabled:opacity-50`}
+          className={`${compact ? "w-full justify-center" : "w-full justify-center sm:w-auto"} flex min-h-11 items-center gap-2 rounded-lg bg-primary px-8 py-3 font-bold text-white shadow-md transition-all hover:bg-primary/90 disabled:opacity-50`}
         >
           {(activeTab === 'video' ? isVideoLoading : loading) ? (
             <>

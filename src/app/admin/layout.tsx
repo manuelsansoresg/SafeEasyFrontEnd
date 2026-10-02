@@ -73,7 +73,7 @@ export default function AdminLayout({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className={`flex bg-gray-50 ${isPortalCustomizer ? "h-dvh overflow-hidden" : "min-h-screen"}`}>
+      <div className={`flex min-w-0 bg-gray-50 ${isPortalCustomizer ? "h-dvh overflow-hidden" : "min-h-screen"}`}>
       {!isPortalCustomizer ? <button
         type="button"
         onClick={() => setIsMobileMenuOpen((open) => !open)}
@@ -100,8 +100,8 @@ export default function AdminLayout({
         onMobileClose={() => setIsMobileMenuOpen(false)}
       /> : null}
       
-      <main className={`flex-1 transition-all duration-300 ${isPortalCustomizer ? "h-dvh min-w-0 overflow-hidden" : "overflow-x-hidden pt-32 md:pt-28"}`}>
-        <div className={isPortalCustomizer ? "h-full w-full" : "mx-auto max-w-7xl p-4 md:p-8"}>
+      <main className={`min-w-0 flex-1 transition-all duration-300 ${isPortalCustomizer ? "h-dvh overflow-hidden" : "overflow-x-hidden pt-32 md:pt-28"}`}>
+        <div className={isPortalCustomizer ? "h-full w-full" : "mx-auto w-full min-w-0 max-w-7xl p-4 md:p-8"}>
             {children}
         </div>
       </main>

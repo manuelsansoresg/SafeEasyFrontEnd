@@ -101,7 +101,7 @@ export function CompanyOverview({
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-2xl border border-[#004e28]/10 bg-white shadow-[0_16px_50px_rgba(0,78,40,0.07)]">
-        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_19rem] lg:items-center">
+        <div className="grid min-w-0 gap-6 p-4 sm:p-7 xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-center">
           <div className="flex min-w-0 items-start gap-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f2f3f4] text-[#004e28] ring-1 ring-black/5">
               {logo ? (
@@ -120,7 +120,7 @@ export function CompanyOverview({
                 <span className="h-1.5 w-1.5 rounded-full bg-[#168e00]" />
                 Perfil publicado
               </span>
-              <h2 className="mt-3 truncate font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28]">
+              <h2 className="mt-3 break-words font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28]">
                 {supplier.name || "Mi negocio"}
               </h2>
               <p className="mt-1 text-sm leading-6 text-gray-600">
@@ -157,7 +157,7 @@ export function CompanyOverview({
           </div>
         </div>
 
-        <div className="border-t border-gray-100 bg-[#fbfcfb] px-5 py-4 sm:px-7">
+        <div className="border-t border-gray-100 bg-[#fbfcfb] px-4 py-4 sm:px-7">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-x-4 gap-y-2">
               {completion.sections.map((section) => (
@@ -177,7 +177,7 @@ export function CompanyOverview({
               <button
                 type="button"
                 onClick={() => onNavigate(nextIncomplete.id === "logo" ? "appearance" : nextIncomplete.id)}
-                className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-[#004e28] hover:text-[#168e00]"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 text-sm font-semibold text-[#004e28] hover:text-[#168e00] sm:w-auto"
               >
                 Seguir completando <ArrowRight size={16} aria-hidden="true" />
               </button>
@@ -206,7 +206,7 @@ export function CompanyOverview({
             <button
               type="button"
               onClick={() => setTypePickerOpen(true)}
-              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-[#168e00]/30 px-4 py-2.5 text-sm font-semibold text-[#0b6d00] transition hover:border-[#168e00] hover:bg-[#168e00]/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-[#168e00]/30 px-4 py-2.5 text-sm font-semibold text-[#0b6d00] transition hover:border-[#168e00] hover:bg-[#168e00]/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2 sm:w-auto"
             >
               Cambiar tipo
             </button>
@@ -225,7 +225,7 @@ export function CompanyOverview({
             <button
               type="button"
               onClick={() => setTypePickerOpen(true)}
-              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#004e28] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#004e28] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2 sm:w-auto"
             >
               Elegir tipo de negocio
             </button>
@@ -245,7 +245,7 @@ export function CompanyOverview({
             <p className="mt-1 text-sm text-gray-500">Elige solamente lo que quieres actualizar.</p>
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-2">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
@@ -293,7 +293,7 @@ export function CompanyOverview({
         </div>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         <button
           type="button"
           onClick={() => onNavigate("sharing")}
