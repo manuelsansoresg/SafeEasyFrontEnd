@@ -13,6 +13,7 @@ interface ChatState {
   isConnecting: boolean;
   activeSocketConversationId?: string | number; // Added
   inboxSocket: WebSocket | null;
+  inboxAuthKey: string | null;
   isInboxConnected: boolean;
   isInboxConnecting: boolean;
   messageSubscribers: Set<MessageCallback>;
@@ -57,6 +58,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isConnected: false,
   isConnecting: false,
   inboxSocket: null,
+  inboxAuthKey: null,
   isInboxConnected: false,
   isInboxConnecting: false,
   messageSubscribers: new Set<MessageCallback>(),
@@ -82,28 +84,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   connectInboxSocket: () => {
-    const { inboxSocket, isInboxConnecting } = get();
+    const auth = useAuthStore.getState();
+    const cleanedWsToken = String(auth.token || "")
+      .trim()
+      .replace(/^bearer\s+/i, "")
+      .trim();
+    if (!auth.isAuthenticated || !auth.user?.id || !cleanedWsToken) return;
+    const authKey = `${auth.user.id}:${cleanedWsToken}`;
+    const isCurrentAuth = () => {
+      const current = useAuthStore.getState();
+      return current.isAuthenticated && current.user?.id === auth.user?.id &&
+        String(current.token || "").trim().replace(/^bearer\s+/i, "").trim() === cleanedWsToken;
+    };
+    const { inboxSocket, isInboxConnecting, inboxAuthKey } = get();
 
     if (
+      inboxAuthKey === authKey &&
       inboxSocket &&
       (inboxSocket.readyState === WebSocket.OPEN ||
         inboxSocket.readyState === WebSocket.CONNECTING)
     ) return;
 
-    if (isInboxConnecting) return;
+    if (isInboxConnecting && inboxAuthKey === authKey) return;
 
     if (inboxSocket) {
-      inboxSocket.close();
+      get().disconnectInboxSocket();
     }
 
-    const token = useAuthStore.getState().token;
-    const cleanedWsToken = String(token || "")
-      .trim()
-      .replace(/^bearer\s+/i, "")
-      .trim();
-    if (!cleanedWsToken) return;
-
-    set({ isInboxConnecting: true });
+    set({ isInboxConnecting: true, inboxAuthKey: authKey });
 
     const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
     const explicitWsUrl = process.env.NEXT_PUBLIC_WS_URL;
@@ -140,8 +148,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       const newSocket = new WebSocket(wsUrl);
+      set({ inboxSocket: newSocket });
 
       newSocket.onopen = () => {
+        if (get().inboxSocket !== newSocket || !isCurrentAuth()) {
+          newSocket.close(1000);
+          return;
+        }
         set({
           isInboxConnected: true,
           isInboxConnecting: false,
@@ -150,6 +163,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
 
       newSocket.onmessage = (event) => {
+        if (get().inboxSocket !== newSocket || !isCurrentAuth()) return;
         let parsed: unknown = null;
         try {
           parsed = JSON.parse(event.data);
@@ -223,31 +237,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
 
       newSocket.onclose = (closeEvent) => {
+        if (get().inboxSocket !== newSocket) return;
         if (process.env.NODE_ENV === "development") console.log('[ChatStore] Inbox WS cerrado:', closeEvent.code, closeEvent.reason);
-        set({ isInboxConnected: false, inboxSocket: null, isInboxConnecting: false });
+        set({ isInboxConnected: false, inboxSocket: null, isInboxConnecting: false, inboxAuthKey: null });
 
         const noRetryCodes = new Set([1000, 1008, 4000, 4001, 4003, 4004]);
-        if (!noRetryCodes.has(closeEvent.code)) {
+        if (!noRetryCodes.has(closeEvent.code) && isCurrentAuth()) {
           setTimeout(() => {
-            get().connectInboxSocket();
+            if (isCurrentAuth()) get().connectInboxSocket();
           }, 5000);
         }
       };
 
       newSocket.onerror = (error) => {
+        if (get().inboxSocket !== newSocket) return;
         logChatConnectionWarning('[ChatStore] No se pudo conectar Inbox WS.', error);
         set({ isInboxConnecting: false });
       };
     } catch {
-      set({ isInboxConnecting: false });
+      set({ isInboxConnecting: false, inboxAuthKey: null });
     }
   },
 
   disconnectInboxSocket: () => {
     const { inboxSocket } = get();
+    set({ inboxSocket: null, isInboxConnected: false, isInboxConnecting: false, inboxAuthKey: null });
     if (inboxSocket) {
-      inboxSocket.close();
-      set({ inboxSocket: null, isInboxConnected: false });
+      inboxSocket.close(1000);
     }
   },
 

@@ -132,11 +132,15 @@ export function Header() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 md:gap-4">
+              {isAuthenticated && (
+                <div className="hidden md:flex items-center gap-4">
+                  <MessagesDropdown />
+                </div>
+              )}
+              {isAuthenticated && <NotificationsBadge />}
               <div className="hidden md:flex items-center gap-4">
-                {isAuthenticated && <MessagesDropdown />}
-                  {isAuthenticated && <NotificationsBadge />}
-                  {isAuthenticated && <CartBadge />}
+                {isAuthenticated && <CartBadge />}
 
                 <div
                   className="relative"
@@ -217,7 +221,6 @@ export function Header() {
 
               {/* Mobile Actions */}
               <div className="md:hidden flex items-center gap-1">
-                {isAuthenticated && <NotificationsBadge />}
                 <button
                   className="text-white hover:text-secondary transition-colors"
                   onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
