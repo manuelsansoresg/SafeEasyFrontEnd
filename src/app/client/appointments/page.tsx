@@ -8,9 +8,10 @@ import {
   Loader2,
   LogIn,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agendaBookingService } from "@/services/agendaBookingService";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
+import { useInboxReconnect } from "@/hooks/useInboxReconnect";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
 import { isAgendaInboxEvent } from "@/types/chat";
@@ -53,7 +54,7 @@ export default function ClientAppointmentsPage() {
   const hydrated = useAuthHydrated();
   const auth = useAuthStore();
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
-  useChatInboxWebSocket(hydrated && auth.isAuthenticated);
+  const { status: inboxStatus } = useChatInboxWebSocket(hydrated && auth.isAuthenticated);
   const refreshSequence = useRef(0);
 
   const [bookings, setBookings] = useState<AgendaBooking[]>([]);
@@ -66,6 +67,37 @@ export default function ClientAppointmentsPage() {
 
   useEffect(() => { bookingsRef.current = bookings; }, [bookings]);
   useEffect(() => { servicesRef.current = services; }, [services]);
+
+  const refreshBookings = useCallback(async (signal?: AbortSignal) => {
+    const sequence = ++refreshSequence.current;
+    try {
+      const data = await agendaBookingService.myBookings(undefined, signal);
+      if (signal?.aborted || sequence !== refreshSequence.current) return;
+      setBookings(data);
+
+      const newSuppliers = [...new Set(data.map((item) => item.supplier_id))]
+        .filter((supplierId) => !Object.keys(servicesRef.current).some((key) => key.startsWith(`${supplierId}:`)));
+      const results = await Promise.all(newSuppliers.map(async (supplierId) => ({
+        supplierId,
+        list: await agendaBookingService.listPublicServices(supplierId, signal),
+      })));
+      if (signal?.aborted || sequence !== refreshSequence.current) return;
+      setServices((current) => {
+        const next = { ...current };
+        for (const { supplierId, list } of results) {
+          for (const service of list) next[`${supplierId}:${service.id}`] = service;
+        }
+        return next;
+      });
+    } catch {
+      // Mantener el contenido visible; otro evento puede actualizarlo.
+    }
+  }, []);
+
+  const resyncAfterReconnect = useCallback(() => {
+    void refreshBookings();
+  }, [refreshBookings]);
+  useInboxReconnect(inboxStatus, hydrated && auth.isAuthenticated, resyncAfterReconnect);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -142,37 +174,13 @@ export default function ClientAppointmentsPage() {
       if (event.type !== "agenda.booking_created" &&
           !bookingsRef.current.some((item) => item.id === event.booking_id)) return;
 
-      const sequence = ++refreshSequence.current;
-      void (async () => {
-        try {
-          const data = await agendaBookingService.myBookings(undefined, controller.signal);
-          if (controller.signal.aborted || sequence !== refreshSequence.current) return;
-          setBookings(data);
-
-          const newSuppliers = [...new Set(data.map((item) => item.supplier_id))]
-            .filter((supplierId) => !Object.keys(servicesRef.current).some((key) => key.startsWith(`${supplierId}:`)));
-          const results = await Promise.all(newSuppliers.map(async (supplierId) => ({
-            supplierId,
-            list: await agendaBookingService.listPublicServices(supplierId, controller.signal),
-          })));
-          if (controller.signal.aborted || sequence !== refreshSequence.current) return;
-          setServices((current) => {
-            const next = { ...current };
-            for (const { supplierId, list } of results) {
-              for (const service of list) next[`${supplierId}:${service.id}`] = service;
-            }
-            return next;
-          });
-        } catch {
-          // Mantener el contenido visible; otro evento puede actualizarlo.
-        }
-      })();
+      void refreshBookings(controller.signal);
     });
     return () => {
       controller.abort();
       unsubscribe();
     };
-  }, [auth.isAuthenticated, hydrated, subscribeToInboxEvents]);
+  }, [auth.isAuthenticated, hydrated, refreshBookings, subscribeToInboxEvents]);
 
   const filtered = useMemo(() => {
     if (filter === "all") return bookings;

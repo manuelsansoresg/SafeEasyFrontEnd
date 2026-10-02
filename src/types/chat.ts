@@ -118,6 +118,7 @@ export function isAgendaInboxEvent(event: ChatInboxEvent): event is AgendaInboxE
 export type ChatInboxEvent =
   | { type: "presence_ack"; status: "online" | "away" | "offline" | string }
   | { type: "unread_aggregate"; total_unread: number }
+  | { type: "notification.created" }
   | {
       type: "conversation_updated";
       conversation_id: string | number;

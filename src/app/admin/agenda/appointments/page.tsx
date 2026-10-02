@@ -18,6 +18,7 @@ import { Toast } from "@/components/ui/Toast";
 import AgendaPaymentStatus from "@/components/agenda/AgendaPaymentStatus";
 import { useSupplierModules } from "@/hooks/useSupplierModules";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
+import { useInboxReconnect } from "@/hooks/useInboxReconnect";
 import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import { agendaService } from "@/services/agendaService";
 import { agendaBookingService } from "@/services/agendaBookingService";
@@ -89,7 +90,7 @@ export default function ProviderAgendaAppointmentsPage() {
   const hasAccess = hasModule("agenda");
   const token = useAuthStore((state) => state.token);
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
-  useChatInboxWebSocket(Boolean(token) && hasAccess);
+  const { status: inboxStatus } = useChatInboxWebSocket(Boolean(token) && hasAccess);
 
   const [appointments, setAppointments] = useState<
     AgendaProviderBooking[]
@@ -134,13 +135,13 @@ export default function ProviderAgendaAppointmentsPage() {
     }
   }, []);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (signal?: AbortSignal, silent = false) => {
     if (!hasAccess) {
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (!silent) setLoading(true);
 
     try {
       const [appointmentsData, servicesData] =
@@ -149,25 +150,30 @@ export default function ProviderAgendaAppointmentsPage() {
             undefined,
             signal,
           ),
-          agendaService.listServices(signal),
+          silent ? Promise.resolve(null) : agendaService.listServices(signal),
         ]);
 
       setAppointments(appointmentsData);
-      setServices(servicesData);
-      setLoading(false);
+      if (servicesData) setServices(servicesData);
+      if (!silent) setLoading(false);
 
-      const paymentEntries = await Promise.all(
+      const paymentResults = await Promise.allSettled(
         appointmentsData.map(async (booking) => [
           booking.id,
           await agendaBookingService.providerBookingPayment(booking.id, signal),
         ] as const),
       );
       if (!signal?.aborted) {
-        setPayments(Object.fromEntries(paymentEntries));
+        const paymentEntries = paymentResults
+          .filter((result): result is PromiseFulfilledResult<readonly [number, AgendaBookingPayment | null]> => result.status === "fulfilled")
+          .map((result) => result.value);
+        setPayments((current) => silent
+          ? { ...current, ...Object.fromEntries(paymentEntries) }
+          : Object.fromEntries(paymentEntries));
       }
     } catch (error) {
       if (signal?.aborted) return;
-      setToast({
+      if (!silent) setToast({
         type: "error",
         message:
           error instanceof Error
@@ -175,9 +181,14 @@ export default function ProviderAgendaAppointmentsPage() {
             : "No se pudieron cargar las citas.",
       });
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (!signal?.aborted && !silent) setLoading(false);
     }
   }, [hasAccess]);
+
+  const resyncAfterReconnect = useCallback(() => {
+    void load(undefined, true);
+  }, [load]);
+  useInboxReconnect(inboxStatus, Boolean(token) && hasAccess, resyncAfterReconnect);
 
   useEffect(() => {
     if (accessLoading) return;
@@ -192,6 +203,7 @@ export default function ProviderAgendaAppointmentsPage() {
     const unsubscribe = subscribeToInboxEvents((event) => {
       if (!isAgendaInboxEvent(event)) return;
       const includePayment = event.type === "agenda.booking_created" ||
+        event.type === "agenda.booking_cancelled" ||
         event.type === "agenda.payment_received";
       void refreshAppointment(event.booking_id, includePayment, controller.signal)
         .catch(() => { /* Una actualización posterior puede recuperar esta cita. */ });

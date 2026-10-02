@@ -12,7 +12,7 @@ import {
   ShieldAlert,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AgendaPaymentStatus from "@/components/agenda/AgendaPaymentStatus";
 import {
   canStillCancel,
@@ -25,6 +25,7 @@ import {
 } from "@/lib/authRedirect";
 import { agendaBookingService } from "@/services/agendaBookingService";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
+import { useInboxReconnect } from "@/hooks/useInboxReconnect";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
 import { isAgendaInboxEvent } from "@/types/chat";
@@ -136,7 +137,7 @@ export default function AgendaBookingManagementPage() {
     useState(tokenFromUrl);
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
   const registeredClient = hydrated && auth.isAuthenticated && !managementToken;
-  useChatInboxWebSocket(registeredClient);
+  const { status: inboxStatus } = useChatInboxWebSocket(registeredClient);
 
   const [booking, setBooking] =
     useState<AgendaBooking | null>(null);
@@ -342,32 +343,39 @@ export default function AgendaBookingManagementPage() {
     managementToken,
   ]);
 
+  const refreshRegisteredBooking = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const [mine, paymentData] = await Promise.all([
+        agendaBookingService.myBookings(undefined, signal),
+        agendaBookingService.getBookingPayment(bookingId, null, signal),
+      ]);
+      if (signal?.aborted) return;
+      const updated = mine.find((item) => item.id === bookingId);
+      if (updated) setBooking(updated);
+      setPayment(paymentData);
+      setPaymentError(null);
+    } catch {
+      // Una actualización automática fallida no interrumpe la gestión de la cita.
+    }
+  }, [bookingId]);
+
+  const resyncAfterReconnect = useCallback(() => {
+    void refreshRegisteredBooking();
+  }, [refreshRegisteredBooking]);
+  useInboxReconnect(inboxStatus, registeredClient, resyncAfterReconnect);
+
   useEffect(() => {
     if (!registeredClient || !Number.isFinite(bookingId)) return;
     const controller = new AbortController();
     const unsubscribe = subscribeToInboxEvents((event) => {
       if (!isAgendaInboxEvent(event) || event.booking_id !== bookingId) return;
-      void (async () => {
-        try {
-          const [mine, paymentData] = await Promise.all([
-            agendaBookingService.myBookings(undefined, controller.signal),
-            agendaBookingService.getBookingPayment(bookingId, null, controller.signal),
-          ]);
-          if (controller.signal.aborted) return;
-          const updated = mine.find((item) => item.id === bookingId);
-          if (updated) setBooking(updated);
-          setPayment(paymentData);
-          setPaymentError(null);
-        } catch {
-          // Una actualización automática fallida no interrumpe la gestión de la cita.
-        }
-      })();
+      void refreshRegisteredBooking(controller.signal);
     });
     return () => {
       controller.abort();
       unsubscribe();
     };
-  }, [bookingId, registeredClient, subscribeToInboxEvents]);
+  }, [bookingId, refreshRegisteredBooking, registeredClient, subscribeToInboxEvents]);
 
   useEffect(() => {
     if (
