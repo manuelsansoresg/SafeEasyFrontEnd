@@ -219,6 +219,31 @@ export const menuOrderService = {
     return response.json();
   },
 
+  async authorizeCard(
+    orderNumber: string,
+    managementToken: string,
+    card: { card_token: string; payment_method_id: string; issuer_id: string | null },
+  ): Promise<MenuOrder> {
+    const params = new URLSearchParams({ management_token: managementToken });
+    const response = await publicRequest(
+      `${publicBase}/${encodeURIComponent(orderNumber)}/card/authorize?${params.toString()}`,
+      {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(card),
+      },
+    );
+    return response.json();
+  },
+
+  async confirmDelivery(orderId: number, code: string): Promise<MenuOrder> {
+    const response = await authRequest(`${privateBase}/${orderId}/confirm-delivery`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
+    return response.json();
+  },
+
   async publicOrder(
     orderNumber: string,
     managementToken: string,

@@ -6,6 +6,7 @@ export interface Order {
   product_id: string;
   conversation_id: string;
   buyer_id: number;
+  courier_id?: number | null;
   delivery_type?: "pickup" | "shipping" | string;
   payment_method?: "card" | "transfer" | string;
   shipping_cost?: number | string | null;

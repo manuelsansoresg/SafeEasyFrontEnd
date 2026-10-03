@@ -45,6 +45,10 @@ function formatMoney(value: string | number | undefined) {
 
 function getOrderStatusRaw(order: Order) {
   if (isExpiredCheckout(order)) return "expired";
+  if (normalizeStatusKey(String(order.payment_status || "")) === "authorized" &&
+      ["", "pending", "created"].includes(normalizeStatusKey(String(order.fulfillment_status || order.visual_status || "")))) {
+    return "authorized";
+  }
   return (order.fulfillment_status || order.visual_status || order.payment_status || order.status || "pending")
     .toString()
     .trim();
@@ -71,6 +75,7 @@ function normalizeStatusKey(value: string) {
   const v = ascii.toLowerCase().trim().replace(/\s+/g, "_");
 
   if (v === "pending" || v === "pendiente") return "pending";
+  if (v === "authorized" || v === "autorizado") return "authorized";
   if (v === "paid" || v === "pagado" || v === "pago_verificado" || v === "validado" || v === "validated")
     return "paid";
   if (v === "verified" || v === "verificado") return "verified";
@@ -121,6 +126,7 @@ function toSpanishStatusLabel(value: string) {
   const key = normalizeStatusKey(raw);
   const map: Record<string, string> = {
     pending: "Pendiente",
+    authorized: "Pago autorizado",
     paid: "Pago verificado",
     verified: "Verificado",
     completed: "Completado",
@@ -431,6 +437,7 @@ function StatusBadge({ value }: { value: string }) {
   const normalized = normalizeStatusKey(value);
   const map: Record<string, { bg: string; fg: string; label: string }> = {
     pending: { bg: "#f2f3f4", fg: "#111827", label: "Pendiente" },
+    authorized: { bg: "#e0f2fe", fg: "#075985", label: "Pago autorizado" },
     pendiente: { bg: "#f2f3f4", fg: "#111827", label: "Pendiente" },
     receipt_uploaded: { bg: "#3b82f6", fg: "#ffffff", label: "Comprobante subido" },
     comprobante_subido: { bg: "#3b82f6", fg: "#ffffff", label: "Comprobante subido" },

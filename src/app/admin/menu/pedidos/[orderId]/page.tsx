@@ -48,7 +48,9 @@ function paymentStatusLabel(order: MenuOrder) {
     return order.status === "completed" ? "Pedido completado" : "Cobro al entregar / recoger";
   }
   if (order.payment_status === "paid") return "Pago confirmado";
+  if (order.payment_status === "authorized") return "Pago autorizado; pendiente de entrega";
   if (order.payment_status === "failed") return "Pago fallido";
+  if (order.payment_status === "cancelled") return "Pago cancelado";
   return "Pendiente de pago";
 }
 
@@ -68,6 +70,7 @@ export default function AdminMenuOrderDetailPage() {
   } | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [confirmationCode, setConfirmationCode] = useState("");
 
   const loadOrder = useCallback(async (signal?: AbortSignal, silent = false) => {
     if (!Number.isFinite(orderId) || orderId <= 0) {
@@ -107,7 +110,7 @@ export default function AdminMenuOrderDetailPage() {
     if (!token || !Number.isInteger(orderId) || orderId <= 0) return;
     const controller = new AbortController();
     const unsubscribe = subscribeToInboxEvents((event) => {
-      if (isMenuInboxEvent(event) && event.order_id === orderId) {
+      if (event.type === "notification.created" || (isMenuInboxEvent(event) && event.order_id === orderId)) {
         void loadOrder(controller.signal, true);
       }
     });
@@ -127,11 +130,15 @@ export default function AdminMenuOrderDetailPage() {
     const next = nextPrimaryStatus(order.status);
     if (!next) return;
 
-    if (order.payment_method === "online" && order.payment_status !== "paid") {
+    if (order.payment_method === "online" && !["paid", "authorized"].includes(order.payment_status)) {
       setToast({
         type: "error",
         message: "No puedes procesar este pedido hasta que Mercado Pago confirme el cobro.",
       });
+      return;
+    }
+    if (order.payment_flow === "card_authorization" && next === "completed") {
+      setToast({ type: "error", message: "Confirma la entrega con el código del cliente para capturar el pago." });
       return;
     }
 
@@ -147,6 +154,29 @@ export default function AdminMenuOrderDetailPage() {
       setToast({
         type: "error",
         message: err instanceof Error ? err.message : "No se pudo actualizar el pedido.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmDelivery = async () => {
+    if (!order || busy || !/^\d{6}$/.test(confirmationCode)) return;
+    setBusy(true);
+    try {
+      const updated = await menuOrderService.confirmDelivery(order.id, confirmationCode);
+      setOrder(updated);
+      setConfirmationCode("");
+      setToast({ type: "success", message: updated.payment_status === "paid" ? "Entrega confirmada y pago capturado." : "Estamos confirmando la captura del pago." });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "No se pudo confirmar la entrega.";
+      const normalized = message.toLowerCase();
+      setToast({ type: "error", message:
+        /incorrect|invalid code|código incorrecto/.test(normalized) ? "Código incorrecto. Pide al cliente que lo revise." :
+        /too many|demasiados intentos/.test(normalized) ? "Demasiados intentos. Espera antes de reintentar." :
+        /venci|expir/.test(normalized) ? "La autorización de pago venció." :
+        /reconect|reconnect/.test(normalized) ? "El proveedor debe reconectar Mercado Pago." :
+        /captur|cobro/.test(normalized) ? "No se pudo capturar el pago. Inténtalo nuevamente." : message,
       });
     } finally {
       setBusy(false);
@@ -201,7 +231,8 @@ export default function AdminMenuOrderDetailPage() {
   const canCancel = ["pending", "confirmed", "preparing"].includes(order.status);
   const currentProgress = MENU_ORDER_STATUS_FLOW.indexOf(order.status);
   const onlineBlocked =
-    order.payment_method === "online" && order.payment_status !== "paid";
+    order.payment_method === "online" && !["paid", "authorized"].includes(order.payment_status);
+  const needsCode = order.payment_flow === "card_authorization" && order.status === "ready" && order.payment_status === "authorized";
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -215,7 +246,7 @@ export default function AdminMenuOrderDetailPage() {
         subtitle={`${order.customer_name} · ${productCount} productos · ${formatMenuOrderMoney(order.total)}`}
         actions={
           <div className="flex flex-wrap gap-2">
-            {primaryLabel ? (
+            {primaryLabel && !needsCode ? (
               <button
                 type="button"
                 disabled={busy || onlineBlocked}
@@ -245,6 +276,17 @@ export default function AdminMenuOrderDetailPage() {
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <strong>Pedido pendiente de pago.</strong> No lo prepares todavía. El backend bloqueará cualquier cambio de estado hasta que Mercado Pago confirme el cobro.
         </div>
+      ) : null}
+
+      {needsCode ? (
+        <section className="rounded-2xl border border-[#004e28]/20 bg-[#f2f3f4] p-4 sm:p-5">
+          <h2 className="font-bold text-[#004e28]">Confirmar entrega</h2>
+          <p className="mt-1 text-sm text-gray-600">Pide el código al cliente únicamente cuando le entregues el pedido. La captura del pago se confirmará con el backend.</p>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+            <input aria-label="Código de confirmación" inputMode="numeric" autoComplete="off" maxLength={6} value={confirmationCode} onChange={(event) => setConfirmationCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Código de confirmación" className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 font-mono text-lg tracking-widest sm:max-w-xs" />
+            <button type="button" disabled={busy || confirmationCode.length !== 6} onClick={() => void confirmDelivery()} className="rounded-xl bg-[#004e28] px-5 py-3 font-bold text-white disabled:opacity-50">{busy ? "Confirmando..." : "Confirmar entrega"}</button>
+          </div>
+        </section>
       ) : null}
 
       <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">

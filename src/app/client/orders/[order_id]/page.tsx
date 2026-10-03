@@ -14,6 +14,9 @@ import {
 } from "@/lib/orderLocation";
 import FileUpload from "@/components/ui/FileUpload";
 import { Toast } from "@/components/ui/Toast";
+import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
+import { useInboxReconnect } from "@/hooks/useInboxReconnect";
+import { useChatStore } from "@/store/useChatStore";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -170,7 +173,7 @@ function formatDeliveryCode(value: string | null) {
 function isDeliveryCodeStage(value: string, mode: DeliveryTypeKey) {
   const k = normalizeStatusKey(value);
   if (mode === "pickup") {
-    return ["ready_for_pickup", "preparing"].includes(k);
+    return k === "ready_for_pickup";
   }
   return ["en_route_to_pickup", "picked_up", "in_transit", "shipped"].includes(k);
 }
@@ -369,6 +372,8 @@ export default function ClientOrderDetailPage() {
   const [deliveryCodeError, setDeliveryCodeError] = useState<string | null>(null);
   const [deliveryCodeHighlighted, setDeliveryCodeHighlighted] = useState(false);
   const deliveryCodeRef = useRef<HTMLDivElement>(null);
+  const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
+  const { status: inboxStatus } = useChatInboxWebSocket(true);
 
   const orderId = useMemo(() => {
     const raw = params?.order_id;
@@ -429,6 +434,14 @@ export default function ClientOrderDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useInboxReconnect(inboxStatus, Boolean(orderId), load);
+  useEffect(() => {
+    if (!orderId) return;
+    return subscribeToInboxEvents((event) => {
+      if (event.type === "notification.created" || ("order_id" in event && event.order_id === orderId)) void load();
+    });
+  }, [load, orderId, subscribeToInboxEvents]);
 
   const latestHistoryKey = useMemo(() => pickLatestHistoryKey(history), [history]);
   const paymentMethod = useMemo(() => getPaymentMethodKey(order), [order]);
@@ -699,12 +712,12 @@ export default function ClientOrderDetailPage() {
                               {mode === "shipping" ? "Entrega en curso" : "Pedido listo para recoger"}
                             </div>
                             <div className="mt-3 text-sm font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
-                              Código de entrega
+                              {mode === "pickup" ? "Código para recoger tu pedido" : "Código de entrega"}
                             </div>
                             <p className="mt-1 text-sm leading-relaxed text-gray-600">
                               {mode === "shipping"
-                                ? "Compártelo con el repartidor únicamente cuando recibas tu pedido."
-                                : "Muéstralo al proveedor únicamente cuando recibas tu pedido en tienda."}
+                                ? "Compártelo únicamente cuando hayas recibido tu pedido."
+                                : "Entrégalo al negocio únicamente cuando tengas tu pedido."}
                             </p>
                           </div>
 

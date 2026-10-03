@@ -116,7 +116,7 @@ export function isAgendaInboxEvent(event: ChatInboxEvent): event is AgendaInboxE
 }
 
 export type MenuInboxEvent = {
-  type: "menu.order_created" | "menu.order_status_changed" | "menu.order_payment_changed";
+  type: "menu.order_created" | "menu.order_status_changed" | "menu.order_payment_changed" | "menu.order_payment_authorized" | "menu.order_completed";
   order_id: number;
   supplier_id: number;
   status: string;
@@ -128,7 +128,9 @@ export function isMenuInboxEvent(event: ChatInboxEvent): event is MenuInboxEvent
   return (
     (record.type === "menu.order_created" ||
       record.type === "menu.order_status_changed" ||
-      record.type === "menu.order_payment_changed") &&
+      record.type === "menu.order_payment_changed" ||
+      record.type === "menu.order_payment_authorized" ||
+      record.type === "menu.order_completed") &&
     typeof record.order_id === "number" &&
     Number.isInteger(record.order_id) &&
     typeof record.supplier_id === "number" &&

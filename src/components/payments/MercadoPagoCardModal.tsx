@@ -34,11 +34,16 @@ declare global {
 type Props = {
   supplierName: string;
   estimatedTotal: number;
-  checkout: CardAuthorizationDraft;
+  checkout?: CardAuthorizationDraft;
+  authorizeCard?: (cardData: MercadoPagoCardData) => Promise<CardModalResult>;
   onClose: () => void;
-  onOrderCreated: (response: CardAuthorizationResponse) => void;
-  onPending: (response: CardAuthorizationResponse) => void;
+  onOrderCreated: (response: CardModalResult) => void;
+  onPending: (response: CardModalResult) => void;
   onViewOrder: (orderId: number) => void;
+};
+
+type CardModalResult = Pick<CardAuthorizationResponse, "payment_status" | "order_id"> & {
+  checkout_id?: string;
 };
 
 type Phase = "loading" | "ready" | "submitting" | "authorized";
@@ -61,6 +66,7 @@ export function MercadoPagoCardModal({
   supplierName,
   estimatedTotal,
   checkout,
+  authorizeCard,
   onClose,
   onOrderCreated,
   onPending,
@@ -142,13 +148,18 @@ export function MercadoPagoCardModal({
               setPhase("submitting");
               setError(null);
               try {
-                const response = await cardCheckoutService.authorize({
-                  ...checkout,
-                  card_token: token,
-                  payment_method_id: paymentMethodId,
-                  issuer_id: cardData.issuer_id == null || cardData.issuer_id === "" ? null : String(cardData.issuer_id),
-                  installments: 1,
-                });
+                const response = authorizeCard
+                  ? await authorizeCard(cardData)
+                  : checkout
+                    ? await cardCheckoutService.authorize({
+                        ...checkout,
+                        card_token: token,
+                        payment_method_id: paymentMethodId,
+                        issuer_id: cardData.issuer_id == null || cardData.issuer_id === "" ? null : String(cardData.issuer_id),
+                        installments: 1,
+                      })
+                    : null;
+                if (!response) throw new Error("No se pudo iniciar la autorización de tarjeta.");
                 const status = String(response.payment_status || "").toLowerCase();
 
                 if (status === "authorized" && response.order_id) {
@@ -160,17 +171,8 @@ export function MercadoPagoCardModal({
                   return;
                 }
 
-                if (["pending", "in_process", "authorized"].includes(status) && !response.order_id) {
+                if (["pending", "in_process"].includes(status) || (status === "authorized" && !response.order_id)) {
                   callbacksRef.current.onPending(response);
-                  return;
-                }
-
-                if (status === "paid" && response.order_id) {
-                  setAuthorizedOrderId(response.order_id);
-                  controllerRef.current?.unmount();
-                  controllerRef.current = null;
-                  setPhase("authorized");
-                  callbacksRef.current.onOrderCreated(response);
                   return;
                 }
 
@@ -206,7 +208,7 @@ export function MercadoPagoCardModal({
       controllerRef.current?.unmount();
       controllerRef.current = null;
     };
-  }, [checkout, containerId, estimatedTotal, publicKey, sdkReady]);
+  }, [authorizeCard, checkout, containerId, estimatedTotal, publicKey, sdkReady]);
 
   const closeDisabled = phase === "submitting";
 
@@ -249,7 +251,7 @@ export function MercadoPagoCardModal({
               </div>
               <h3 className="mt-5 font-[family-name:var(--font-varela-round)] text-2xl font-bold text-[#004e28]">Tarjeta autorizada</h3>
               <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-gray-600">
-                Mercado Pago reservó el monto en tu tarjeta. El cobro se completará cuando recibas tu pedido y se confirme tu código de entrega.
+                Pago autorizado. El cobro se completará cuando recibas tu pedido y compartas el código de confirmación.
               </p>
               <button type="button" onClick={() => onViewOrder(authorizedOrderId)} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#004e28] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#168e00] sm:w-auto">
                 Ver pedido #{authorizedOrderId}
@@ -269,7 +271,7 @@ export function MercadoPagoCardModal({
               </div>
 
               <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-950">
-                El monto será autorizado en tu tarjeta. El cobro definitivo se realizará cuando recibas tu pedido y se confirme tu código de entrega. El backend calculará el importe definitivo.
+                El monto será autorizado en tu tarjeta. El cobro definitivo se realizará cuando recibas tu pedido y se confirme el código de entrega.
               </div>
 
               {!publicKey ? (

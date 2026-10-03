@@ -8,7 +8,8 @@ export type MenuOrderStatus =
 
 export type MenuOrderFulfillmentType = "pickup" | "delivery";
 export type MenuOrderPaymentMethod = "cash" | "online";
-export type MenuOrderPaymentStatus = "pending" | "paid" | "failed";
+export type MenuOrderPaymentStatus = "pending" | "authorized" | "paid" | "failed" | "cancelled";
+export type MenuOrderPaymentFlow = "preference" | "card_authorization";
 
 export interface MenuOrderSettings {
   menu_id: number;
@@ -60,6 +61,7 @@ export interface MenuOrderCreatePayload {
   customer_phone: string;
   fulfillment_type: MenuOrderFulfillmentType;
   payment_method: MenuOrderPaymentMethod;
+  payment_flow?: MenuOrderPaymentFlow;
   delivery_address?: string | null;
   distance_km?: number | null;
   notes?: string | null;
@@ -96,6 +98,9 @@ export interface MenuOrder {
   status: MenuOrderStatus;
   payment_method: MenuOrderPaymentMethod;
   payment_status: MenuOrderPaymentStatus;
+  payment_flow: MenuOrderPaymentFlow;
+  settlement_status: string | null;
+  payment_authorization_expires_at: string | null;
   mp_preference_id: string | null;
   mp_payment_id: string | null;
   payment_checkout_url: string | null;

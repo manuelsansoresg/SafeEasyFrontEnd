@@ -309,6 +309,7 @@ function normalizeBackendPath(pathname: string) {
     "approve",
     "mark-refunded",
     "verify-code",
+    "authorize",
     "delivery-code",
     "complete",
     "mark-ready",

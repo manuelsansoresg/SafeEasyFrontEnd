@@ -33,6 +33,9 @@ import {
 } from "@/lib/orderLocation";
 import FileUpload from "@/components/ui/FileUpload";
 import { Toast } from "@/components/ui/Toast";
+import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
+import { useInboxReconnect } from "@/hooks/useInboxReconnect";
+import { useChatStore } from "@/store/useChatStore";
 
 const OrderRouteMap = dynamic(() => import("@/components/orders/OrderRouteMap"), {
   ssr: false,
@@ -119,6 +122,12 @@ function getErrorMessage(error: unknown, fallback: string) {
     const msg = error.message.trim();
     const low = msg.toLowerCase();
 
+    if (low.includes("invalid code") || low.includes("incorrect code")) return "El código de entrega no es correcto.";
+    if (low.includes("too many attempts") || low.includes("demasiados intentos")) return "Demasiados intentos. Espera antes de volver a introducir el código.";
+    if (low.includes("authorization") && (low.includes("expired") || low.includes("venci"))) return "La autorización del pago venció.";
+    if (low.includes("reconnect") || low.includes("reconect")) return "El proveedor debe reconectar Mercado Pago.";
+    if (low.includes("capture") || low.includes("captura")) return "No se pudo capturar el pago. Inténtalo nuevamente.";
+
     if (low.includes("delivery code") || low.includes("código") || low.includes("codigo")) {
       if (low.includes("locked") || low.includes("bloque")) {
         return "El código quedó bloqueado temporalmente por varios intentos incorrectos. Intenta más tarde.";
@@ -164,6 +173,8 @@ export default function AdminOrderDetailPage() {
   const params = useParams<{ order_id?: string }>();
   const router = useRouter();
   const { user } = useAuthStore();
+  const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
+  const { status: inboxStatus } = useChatInboxWebSocket(true);
 
   const [authHydrated, setAuthHydrated] = useState(() => useAuthStore.persist.hasHydrated());
   const [loading, setLoading] = useState(true);
@@ -260,6 +271,14 @@ export default function AdminOrderDetailPage() {
     load();
   }, [load]);
 
+  useInboxReconnect(inboxStatus, authHydrated && Boolean(orderId), load);
+  useEffect(() => {
+    if (!authHydrated || !orderId) return;
+    return subscribeToInboxEvents((event) => {
+      if (event.type === "notification.created" || ("order_id" in event && event.order_id === orderId)) void load();
+    });
+  }, [authHydrated, load, orderId, subscribeToInboxEvents]);
+
   const mode = useMemo(() => (order ? getDeliveryType(order) : "pickup"), [order]);
   const paymentKey = normalizeStatusKey(order?.payment_status || order?.status || "");
   const isPaymentReady = paymentKey === "paid" || paymentKey === "authorized";
@@ -274,11 +293,12 @@ export default function AdminOrderDetailPage() {
 
   const activeRefund = useMemo(() => latestRefund(refunds), [refunds]);
   const finalState = ["completed", "cancelled", "refund_refunded"].includes(effectiveKey);
-  const ownDelivery = mode === "shipping" && !acceptsCourier;
+  const ownDelivery = mode === "shipping" && order?.courier_id == null;
   const codeEntryVisible =
     isPaymentReady &&
     !finalState &&
     deliveryCodeAllowed(mode, effectiveKey) &&
+    (paymentKey !== "authorized" || mode !== "pickup" || effectiveKey === "ready_for_pickup") &&
     (mode === "pickup" || ownDelivery);
 
   const buyerCoords = useMemo(() => (order ? getOrderBuyerCoordinates(order) : null), [order]);
@@ -345,11 +365,13 @@ export default function AdminOrderDetailPage() {
 
     setActionLoading("confirm-delivery");
     try {
-      await orderService.verifyDeliveryCode(orderId, code);
+      const updated = await orderService.verifyDeliveryCode(orderId, code);
       setDeliveryCode("");
       setToast({
         type: "success",
-        message: "Código correcto. Pedido entregado y ciclo de la orden finalizado.",
+        message: normalizeStatusKey(updated?.payment_status) === "paid"
+          ? "Código correcto. Pago capturado y pedido entregado."
+          : "Código correcto. Estamos confirmando el estado del pago.",
       });
       await load();
     } catch (e) {
@@ -617,7 +639,7 @@ export default function AdminOrderDetailPage() {
                     </button>
                   ) : null}
 
-                  {acceptsCourier && mode === "shipping" ? (
+                  {order?.courier_id != null && mode === "shipping" ? (
                     <div className="rounded-xl bg-[#f2f3f4] px-4 py-3 text-xs font-semibold text-gray-600">
                       La entrega se cierra desde la aplicación del repartidor mediante el código del cliente.
                     </div>
@@ -627,7 +649,7 @@ export default function AdminOrderDetailPage() {
                     <div className="rounded-2xl border border-[#004e28]/20 bg-[#f2f3f4] p-4">
                       <div className="flex items-center gap-2 text-sm font-bold text-[#004e28]">
                         <KeyRound className="h-4 w-4" />
-                        Código de entrega
+                        Código de confirmación
                       </div>
                       <p className="mt-2 text-xs font-semibold leading-relaxed text-gray-600">
                         Pide al cliente su código de 6 dígitos únicamente cuando ya tenga el pedido.

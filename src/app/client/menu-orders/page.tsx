@@ -44,12 +44,15 @@ const filters: Array<{ value: "all" | MenuOrderStatus; label: string }> = [
 
 function paymentStatusLabel(status: MenuOrderPaymentStatus) {
   if (status === "paid") return "Pagado";
+  if (status === "authorized") return "Pago autorizado";
   if (status === "failed") return "Pago fallido";
+  if (status === "cancelled") return "Pago cancelado";
   return "Pago pendiente";
 }
 
 function paymentStatusClass(status: MenuOrderPaymentStatus) {
   if (status === "paid") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "authorized") return "border-sky-200 bg-sky-50 text-sky-800";
   if (status === "failed") return "border-red-200 bg-red-50 text-red-700";
   return "border-amber-200 bg-amber-50 text-amber-800";
 }

@@ -25,6 +25,7 @@ import {
 } from "@/lib/menuOrders";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { menuOrderService } from "@/services/menuOrderService";
+import { notificationService } from "@/services/notificationService";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
@@ -45,7 +46,9 @@ function paymentStatusLabel(order: MenuOrder) {
     return order.status === "completed" ? "Cobro en efectivo" : "Pago al recibir / recoger";
   }
   if (order.payment_status === "paid") return "Pago confirmado";
+  if (order.payment_status === "authorized") return "Pago autorizado";
   if (order.payment_status === "failed") return "Pago no aprobado";
+  if (order.payment_status === "cancelled") return "Pago cancelado";
   return "Esperando confirmación";
 }
 
@@ -63,6 +66,7 @@ export default function PublicMenuOrderTrackingPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [codeNotice, setCodeNotice] = useState<string | null>(null);
   const ownsOrder = hydrated && isAuthenticated && user?.id != null && order !== null &&
     order.customer_user_id === user.id && order.order_number === orderNumber;
   const { status: inboxStatus } = useChatInboxWebSocket(ownsOrder);
@@ -140,15 +144,29 @@ export default function PublicMenuOrderTrackingPage() {
   }, [loadOrder]);
   useInboxReconnect(inboxStatus, ownsOrder, resyncAfterReconnect);
 
+  const loadCodeNotice = useCallback(async () => {
+    if (!ownsOrder || order?.payment_status !== "authorized") return;
+    try {
+      const notices = await notificationService.getNotifications({ limit: 100 });
+      const matching = notices.find((notice) => notice.type === "menu_order_confirmation_code" && notice.message?.includes(orderNumber));
+      if (matching?.message) setCodeNotice(matching.message);
+    } catch {
+      // El código también se entrega al correo del cliente.
+    }
+  }, [order?.payment_status, orderNumber, ownsOrder]);
+
+  useEffect(() => { void loadCodeNotice(); }, [loadCodeNotice]);
+
   useEffect(() => {
     if (!ownsOrder) return;
     const unsubscribe = subscribeToInboxEvents((event) => {
-      if (isMenuInboxEvent(event) && event.order_id === order?.id) {
+      if (event.type === "notification.created" || (isMenuInboxEvent(event) && event.order_id === order?.id)) {
         void loadOrder(true);
+        if (event.type === "notification.created") void loadCodeNotice();
       }
     });
     return unsubscribe;
-  }, [ownsOrder, loadOrder, order?.id, subscribeToInboxEvents]);
+  }, [ownsOrder, loadCodeNotice, loadOrder, order?.id, subscribeToInboxEvents]);
 
   useEffect(() => {
     if (!hydrated || ownsOrder || !order) return;
@@ -196,7 +214,7 @@ export default function PublicMenuOrderTrackingPage() {
   }
 
   const progress = MENU_ORDER_STATUS_FLOW.indexOf(order.status);
-  const safeCheckout = getSafeMercadoPagoUrl(order.payment_checkout_url);
+  const safeCheckout = order.payment_flow === "card_authorization" ? "" : getSafeMercadoPagoUrl(order.payment_checkout_url);
 
   return (
     <div className="min-h-screen bg-[#f7f9f8] pb-24 pt-28 md:pt-32">
@@ -331,6 +349,12 @@ export default function PublicMenuOrderTrackingPage() {
                 <p className={`mt-1 text-sm font-semibold ${order.payment_status === "paid" ? "text-[#168e00]" : order.payment_status === "failed" ? "text-red-600" : "text-amber-600"}`}>
                   {paymentStatusLabel(order)}
                 </p>
+                {order.payment_status === "authorized" ? (
+                  <div className="mt-2 text-sm leading-6 text-gray-600">
+                    <p>Se cobrará cuando recibas tu pedido. {order.fulfillment_type === "pickup" ? "Código para recoger tu pedido." : "Código de entrega."} Compártelo únicamente cuando tengas el pedido.</p>
+                    {codeNotice ? <p className="mt-2 rounded-xl bg-[#f2f3f4] p-3 font-semibold text-[#004e28]">{codeNotice}</p> : <p className="mt-2">Revisa tu correo electrónico{ownsOrder ? " o tus notificaciones" : ""} para consultar el código.</p>}
+                  </div>
+                ) : null}
                 {order.paid_at ? <p className="mt-1 text-xs text-gray-400">{formatMenuOrderDate(order.paid_at)}</p> : null}
               </div>
             </div>

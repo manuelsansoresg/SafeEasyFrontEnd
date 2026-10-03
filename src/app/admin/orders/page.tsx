@@ -33,6 +33,7 @@ function normalizeStatusKey(value: string) {
   const v = ascii.toLowerCase().trim().replace(/\s+/g, "_");
 
   if (v === "pending" || v === "pendiente") return "pending";
+  if (v === "authorized" || v === "autorizado") return "authorized";
   if (v === "paid" || v === "pagado" || v === "pago_verificado" || v === "validado" || v === "validated")
     return "paid";
   if (v === "verified" || v === "verificado") return "verified";
@@ -97,6 +98,7 @@ function toSpanishStatusLabel(value: string) {
   const key = normalizeStatusKey(raw);
   const map: Record<string, string> = {
     pending: "Pendiente",
+    authorized: "Pago autorizado",
     paid: "Pago verificado",
     verified: "Verificado",
     completed: "Completado",

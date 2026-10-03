@@ -19,6 +19,7 @@ import type { CheckoutSessionStatus } from "@/types/cardCheckout";
 
 type ViewState =
   | "loading"
+  | "authorized"
   | "approved"
   | "pending"
   | "cancelled"
@@ -63,6 +64,7 @@ function CheckoutResultContent() {
   const isTerminal = useMemo(
     () =>
       viewState === "approved" ||
+      viewState === "authorized" ||
       viewState === "cancelled" ||
       viewState === "rejected" ||
       (viewState === "failure" && ["failure", "failed"].includes(String(session?.status || "").toLowerCase())) ||
@@ -81,6 +83,11 @@ function CheckoutResultContent() {
       if (data.order_id && ["paid", "approved", "captured"].includes(status)) {
         setViewState("approved");
         setMessage("Tu pago fue confirmado y tu pedido fue creado correctamente.");
+        return;
+      }
+      if (data.order_id && status === "authorized") {
+        setViewState("authorized");
+        setMessage("Pago autorizado. El cobro se completará cuando recibas tu pedido y se confirme el código de entrega.");
         return;
       }
 
@@ -191,7 +198,7 @@ function CheckoutResultContent() {
   ]);
 
   const icon = (() => {
-    if (viewState === "approved") {
+    if (viewState === "approved" || viewState === "authorized") {
       return <CheckCircle2 className="h-12 w-12 text-green-600" />;
     }
 
@@ -210,6 +217,8 @@ function CheckoutResultContent() {
     switch (viewState) {
       case "approved":
         return "Pago aprobado";
+      case "authorized":
+        return "Pago autorizado";
       case "failure":
         return "Pago no completado";
       case "cancelled":
@@ -312,11 +321,11 @@ function CheckoutResultContent() {
             ) : null}
 
             <div className="flex flex-col gap-3 pt-2 sm:flex-row">
-              {viewState === "approved" && session?.order_id ? (
+              {(viewState === "approved" || viewState === "authorized") && session?.order_id ? (
                 <button
                   type="button"
                   onClick={() =>
-                    router.push(`/client/orders/${session.order_id}`)
+                    router.push(`/client/orders/${session.order_id}?focus=delivery-code`)
                   }
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#004e28] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#168e00]"
                 >
@@ -348,7 +357,7 @@ function CheckoutResultContent() {
               </button>
             </div>
 
-            {viewState === "approved" ? (
+            {viewState === "approved" || viewState === "authorized" ? (
               <div className="pt-1 text-center">
                 <Link
                   href="/client/orders"

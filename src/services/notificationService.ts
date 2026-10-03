@@ -3,6 +3,7 @@ import { fetchWithAuth } from "@/lib/api";
 export type NotificationItem = {
   id: number | string;
   title?: string;
+  type?: string | null;
   message?: string;
   created_at?: string;
   is_read?: boolean;
