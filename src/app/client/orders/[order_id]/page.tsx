@@ -109,10 +109,7 @@ function getPaymentMethodKey(order: Order | null): PaymentMethodKey {
 }
 
 function toEffectiveCardStatusKey(value: string) {
-  const k = normalizeStatusKey(value);
-  if (k === "expired") return "expired";
-  if (k === "created" || k === "pending") return "paid";
-  return k;
+  return normalizeStatusKey(value);
 }
 
 function isExpiredCheckout(order: Order | null) {
