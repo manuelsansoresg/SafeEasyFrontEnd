@@ -3,14 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { fetchWithAuth } from "@/lib/api";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
 import { PageHero } from "@/components/ui/PageHero";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
-import { MercadoPagoCardModal } from "@/components/payments/MercadoPagoCardModal";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
 import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
-import type { CardAuthorizationDraft } from "@/types/cardCheckout";
 import { Minus, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 
 type ProductLite = {
@@ -48,12 +47,6 @@ type SupplierCart = {
 type ToastState = null | { type: "success" | "error" | "info"; message: string };
 
 type DeliveryType = "pickup" | "shipping";
-
-type CardCheckoutModalState = {
-  supplierName: string;
-  estimatedTotal: number;
-  checkout: CardAuthorizationDraft;
-};
 
 type AddressForm = {
   address: string;
@@ -112,6 +105,32 @@ function readOptionalNumber(value: unknown) {
     if (Number.isFinite(parsed)) return parsed;
   }
   return null;
+}
+
+function checkoutErrorMessage(status: number, payload: unknown) {
+  const data = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  const detail = data.detail && typeof data.detail === "object"
+    ? (data.detail as Record<string, unknown>).message
+    : data.detail;
+  const candidate = [detail, data.message, data.error].find(
+    (value): value is string => typeof value === "string" && Boolean(value.trim()),
+  );
+  const normalized = candidate?.toLowerCase() || "";
+
+  if (status === 401) return "Tu sesión venció. Inicia sesión nuevamente para continuar.";
+  if (/stock|inventario|existencias|out.of.stock/.test(normalized)) return "Uno de los productos ya no tiene existencias suficientes. Revisa tu carrito.";
+  if (/shipping|distance|quote|env[ií]o|cotizaci[oó]n/.test(normalized)) return "La cotización de envío ya no es válida. Calcula el envío nuevamente.";
+  if (/mercado pago|payment account|payment method|cuenta de cobro|m[eé]todos de cobro/.test(normalized)) return "Este proveedor todavía no tiene disponible el cobro con Mercado Pago.";
+  if (/expir|venci[oó]|caduc/.test(normalized)) return "La sesión de pago venció. Inténtalo nuevamente.";
+  if (/cart|carrito|changed|cambi[oó]/.test(normalized)) return "El carrito cambió. Revísalo antes de intentar pagar nuevamente.";
+  if (status === 409) {
+    const safeDetail = candidate?.trim() || "";
+    if (safeDetail && safeDetail.length <= 160 && !/[\r\n<>\/\\{}]|token|secret|traceback|exception|stack|https?:/i.test(safeDetail)) {
+      return safeDetail;
+    }
+    return "Ya tienes un pago en curso. Espera su resultado antes de intentarlo nuevamente.";
+  }
+  return "No se pudo iniciar el pago con Mercado Pago. Inténtalo nuevamente.";
 }
 
 type AuthFetchOptions = Parameters<typeof fetchWithAuth>[1];
@@ -301,7 +320,6 @@ export default function CartPage() {
   const [addressLocked, setAddressLocked] = useState(false);
   const lastSavedAddressHashRef = useRef("");
   const checkoutOpeningRef = useRef(false);
-  const [cardCheckout, setCardCheckout] = useState<CardCheckoutModalState | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [addressModalSaving, setAddressModalSaving] = useState(false);
 
@@ -791,7 +809,7 @@ export default function CartPage() {
   };
 
   const confirmCheckout = async (supplierId: number, deliveryOverride?: DeliveryType) => {
-    if (checkoutOpeningRef.current || cardCheckout) return;
+    if (checkoutOpeningRef.current || isRedirectingRef.current) return;
     checkoutOpeningRef.current = true;
     const selectedDeliveryType = deliveryOverride ?? deliveryType;
     const selectedSupplier = carts.find((c) => c.supplier_id === supplierId) || null;
@@ -824,6 +842,10 @@ export default function CartPage() {
           setToast({ type: "error", message: "Primero calcula el costo de envío." });
           return;
         }
+        if (distanceKm == null || !Number.isFinite(distanceKm) || distanceKm < 0) {
+          setToast({ type: "error", message: "Calcula nuevamente la distancia para el envío." });
+          return;
+        }
       }
       const saved = await saveAddress();
       if (!saved) return;
@@ -845,21 +867,42 @@ export default function CartPage() {
         return;
       }
 
-      setCardCheckout({
-        supplierName: selectedSupplier.supplier_name,
-        estimatedTotal,
-        checkout: {
+      const response = await fetchWithAuth("/api/orders/checkout", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        body: JSON.stringify({
           items,
           delivery_type: selectedDeliveryType,
           payment_method: "card",
           distance_km: selectedDeliveryType === "shipping" ? distanceKm : null,
-        },
+        }),
       });
+      const payload: unknown = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setToast({ type: "error", message: checkoutErrorMessage(response.status, payload) });
+        return;
+      }
+      const data = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+      const preference = data.preference && typeof data.preference === "object"
+        ? data.preference as Record<string, unknown>
+        : {};
+      const initPoint = typeof preference.init_point === "string" ? preference.init_point : null;
+      const safeInitPoint = getSafeMercadoPagoUrl(initPoint);
+      if (!safeInitPoint) {
+        setToast({ type: "error", message: "No se pudo iniciar el pago con Mercado Pago. Inténtalo nuevamente." });
+        return;
+      }
+      isRedirectingRef.current = true;
+      window.location.assign(safeInitPoint);
     } catch {
-      setToast({ type: "error", message: "No se pudo preparar el pago con tarjeta." });
+      if (!isRedirectingRef.current) {
+        setToast({ type: "error", message: "No se pudo iniciar el pago con Mercado Pago. Inténtalo nuevamente." });
+      }
     } finally {
-      checkoutOpeningRef.current = false;
-      setMutating(false);
+      if (!isRedirectingRef.current) {
+        checkoutOpeningRef.current = false;
+        setMutating(false);
+      }
     }
   };
 
@@ -1183,7 +1226,7 @@ export default function CartPage() {
                               : "bg-[#168e00] text-white hover:bg-[#137500]",
                           )}
                         >
-                          {mutating || savingAddress ? "Procesando..." : "Finalizar compra"}
+                          {mutating || savingAddress ? "Preparando pago..." : "Finalizar compra"}
                         </button>
                       </div>
                     </div>
@@ -1386,28 +1429,6 @@ export default function CartPage() {
             </div>
           </div>
         </div>
-      ) : null}
-
-      {cardCheckout ? (
-        <MercadoPagoCardModal
-          supplierName={cardCheckout.supplierName}
-          estimatedTotal={cardCheckout.estimatedTotal}
-          checkout={cardCheckout.checkout}
-          onClose={() => setCardCheckout(null)}
-          onOrderCreated={() => {
-            window.dispatchEvent(new CustomEvent("cart:changed"));
-          }}
-          onPending={(response) => {
-            isRedirectingRef.current = true;
-            window.location.assign(
-              `/checkout/result?checkout_id=${encodeURIComponent(response.checkout_id)}&status=pending`,
-            );
-          }}
-          onViewOrder={(orderId) => {
-            isRedirectingRef.current = true;
-            window.location.assign(`/client/orders/${orderId}?focus=delivery-code&payment=authorized`);
-          }}
-        />
       ) : null}
 
       {toast ? <Toast type={toast.type} message={toast.message} onClose={closeToast} /> : null}
