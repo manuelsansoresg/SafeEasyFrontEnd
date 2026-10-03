@@ -70,6 +70,7 @@ export function ClientSidebar({
   ];
 
   return (
+    <>
     <motion.aside
       initial={false}
       animate={{
@@ -191,5 +192,25 @@ export function ClientSidebar({
         )}
       </button>
     </motion.aside>
+    <nav aria-label="Menú de cliente" className="fixed inset-x-0 bottom-0 z-50 flex h-16 items-center gap-1 overflow-x-auto border-t border-gray-200 bg-white px-2 pb-safe md:hidden">
+      {menuItems.map((item) => {
+        const isActive = pathname === item.path || pathname.startsWith(`${item.path}/`);
+        return (
+          <Link
+            key={item.path}
+            href={item.path}
+            aria-current={isActive ? "page" : undefined}
+            className={cn(
+              "flex h-full min-w-16 shrink-0 flex-col items-center justify-center gap-1 px-2 text-[10px] font-medium",
+              isActive ? "text-primary" : "text-gray-600 hover:text-primary",
+            )}
+          >
+            <item.icon size={20} />
+            <span className="whitespace-nowrap">{item.title}</span>
+          </Link>
+        );
+      })}
+    </nav>
+    </>
   );
 }

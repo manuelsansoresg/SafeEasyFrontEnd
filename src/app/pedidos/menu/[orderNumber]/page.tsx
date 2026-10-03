@@ -31,6 +31,7 @@ import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
 import { useChatStore } from "@/store/useChatStore";
 import { isMenuInboxEvent } from "@/types/chat";
+import { ClientShell } from "@/components/client/ClientShell";
 import type { MenuOrder } from "@/types/menuOrder";
 
 const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
@@ -52,11 +53,16 @@ function paymentStatusLabel(order: MenuOrder) {
   return "Esperando confirmación";
 }
 
+function TrackingFrame({ children, authenticated }: { children: React.ReactNode; authenticated: boolean }) {
+  return authenticated ? <ClientShell>{children}</ClientShell> : <>{children}</>;
+}
+
 export default function PublicMenuOrderTrackingPage() {
   const params = useParams<{ orderNumber: string }>();
   const searchParams = useSearchParams();
   const hydrated = useAuthHydrated();
   const { isAuthenticated, user } = useAuthStore();
+  const showClientShell = hydrated && isAuthenticated;
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
 
   const orderNumber = String(params?.orderNumber || "").trim();
@@ -186,17 +192,20 @@ export default function PublicMenuOrderTrackingPage() {
 
   if (loading && !order) {
     return (
-      <div className="min-h-screen bg-[#f7f9f8] px-4 pb-20 pt-28 md:pt-32">
+      <TrackingFrame authenticated={showClientShell}>
+      <div className={`bg-[#f7f9f8] px-4 pb-20 ${showClientShell ? "" : "min-h-screen pt-28 md:pt-32"}`}>
         <div className="mx-auto flex min-h-[55vh] max-w-4xl items-center justify-center">
           <Loader2 size={34} className="animate-spin text-[#168e00]" />
         </div>
       </div>
+      </TrackingFrame>
     );
   }
 
   if (error || !order) {
     return (
-      <div className="min-h-screen bg-[#f7f9f8] px-4 pb-20 pt-28 md:pt-32">
+      <TrackingFrame authenticated={showClientShell}>
+      <div className={`bg-[#f7f9f8] px-4 pb-20 ${showClientShell ? "" : "min-h-screen pt-28 md:pt-32"}`}>
         <div className="mx-auto max-w-3xl">
           <div className="rounded-3xl border border-red-100 bg-white p-7 text-center shadow-sm">
             <XCircle size={34} className="mx-auto text-red-500" />
@@ -210,6 +219,7 @@ export default function PublicMenuOrderTrackingPage() {
           </div>
         </div>
       </div>
+      </TrackingFrame>
     );
   }
 
@@ -217,7 +227,8 @@ export default function PublicMenuOrderTrackingPage() {
   const safeCheckout = order.payment_flow === "card_authorization" ? "" : getSafeMercadoPagoUrl(order.payment_checkout_url);
 
   return (
-    <div className="min-h-screen bg-[#f7f9f8] pb-24 pt-28 md:pt-32">
+    <TrackingFrame authenticated={showClientShell}>
+    <div className={`bg-[#f7f9f8] pb-24 ${showClientShell ? "" : "min-h-screen pt-28 md:pt-32"}`}>
       <div className="mx-auto max-w-6xl space-y-7 px-4 sm:px-6 lg:px-8">
         {paymentReturn ? (
         <div
@@ -383,5 +394,6 @@ export default function PublicMenuOrderTrackingPage() {
         </div>
       </div>
     </div>
+    </TrackingFrame>
   );
 }

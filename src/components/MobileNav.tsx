@@ -26,7 +26,7 @@ function getNavItems(pathname: string, userRole: Role, isDirectorySupplier: bool
       accountHref = "/admin/dashboard";
       accountLabel = "Mi Cuenta";
     } else if (userRole === "client") {
-      accountHref = "/admin/profile";
+      accountHref = "/client/profile";
       accountLabel = "Mi Cuenta";
     }
   }
@@ -55,9 +55,6 @@ function getNavItems(pathname: string, userRole: Role, isDirectorySupplier: bool
 
   if (userRole === "client") {
     base.push(
-      { href: "/client/favorites", label: "Favoritos", icon: Heart },
-      { href: "/cart", label: "Carrito", icon: ShoppingCart },
-      { href: messagesHref, label: "Mensajes", icon: MessageSquare },
       { href: accountHref, label: accountLabel, icon: User },
     );
   } else if (userRole === "supplier") {
@@ -102,6 +99,11 @@ export function MobileNav() {
   const pathname = usePathname();
   const { user, isAuthenticated } = useAuthStore();
   const isDirectorySupplier = useSupplierPageModeStore((state) => state.isDirectory);
+
+  if (isAuthenticated && user?.role === "client" &&
+    (pathname.startsWith("/client/") || pathname === "/client" || pathname.startsWith("/cart") || pathname.startsWith("/pedidos/menu/"))) {
+    return null;
+  }
 
   const navItems = getNavItems(pathname, user?.role as Role, isDirectorySupplier, isAuthenticated);
 
