@@ -339,7 +339,7 @@ export default function PendingPaymentReservationBanner() {
               {expired ? "La reserva de esta compra venció" : "Tu compra está reservada"}
             </div>
 
-            <p className="mt-1 text-sm leading-relaxed text-gray-600">
+            <p className="mt-1 text-sm leading-relaxed text-gray-600 pb-2">
               {expired
                 ? "El tiempo para completar este pago terminó. Si el producto sigue disponible, podrás iniciar una nueva compra."
                 : "Todavía no se ha confirmado el pago. Puedes regresar a Mercado Pago y usar otra tarjeta sin crear una orden nueva."}
