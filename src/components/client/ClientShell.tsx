@@ -9,9 +9,10 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 type ClientShellProps = {
   children: React.ReactNode;
+  allowGuest?: boolean;
 };
 
-export function ClientShell({ children }: ClientShellProps) {
+export function ClientShell({ children, allowGuest = false }: ClientShellProps) {
   const userRole = useAuthStore((state) => state.user?.role);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const hydrated = useAuthHydrated();
@@ -39,7 +40,7 @@ export function ClientShell({ children }: ClientShellProps) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !allowGuest) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-10 pt-28">
         <div className="rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-sm">
@@ -65,7 +66,7 @@ export function ClientShell({ children }: ClientShellProps) {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {isAdmin ? (
+      {!isAuthenticated ? null : isAdmin ? (
         <AdminSidebar
           isCollapsed={isSidebarCollapsed}
           toggleSidebar={() => setIsSidebarCollapsed((collapsed) => !collapsed)}

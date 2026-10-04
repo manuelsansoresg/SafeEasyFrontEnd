@@ -1633,7 +1633,7 @@ const contactHref = supplier?.phone
       />
 
       {activeTab === "menu" && publicMenus.length > 0 ? (
-        <PublicSupplierMenu menus={publicMenus} />
+        <PublicSupplierMenu menus={publicMenus} supplierName={supplier.name} />
       ) : null}
 
       {activeTab === "agenda" ? (

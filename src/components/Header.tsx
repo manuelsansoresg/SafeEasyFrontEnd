@@ -139,7 +139,7 @@ export function Header() {
               )}
               {isAuthenticated && <NotificationsBadge />}
               <div className="hidden items-center gap-4 xl:flex">
-                {isAuthenticated && <CartBadge />}
+                <CartBadge />
 
                 <div
                   className="relative"
@@ -216,6 +216,7 @@ export function Header() {
 
               {/* Mobile Actions */}
               <div className="flex items-center gap-1 xl:hidden">
+                <CartBadge />
                 <button
                   type="button"
                   aria-label={isMobileMenuOpen ? "Cerrar menú" : "Abrir menú"}

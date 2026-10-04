@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Clock3, Loader2 } from "lucide-react";
 
 import { fetchWithAuth } from "@/lib/api";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const CHECKOUT_KEY_PREFIX = "drooopy:checkout:";
 
@@ -43,11 +44,13 @@ function removeStoredCheckout(orderId: number) {
 }
 
 export default function PendingCartCheckoutGuard() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [checking, setChecking] = useState(false);
   const checkingRef = useRef(false);
   const redirectedRef = useRef(false);
 
   const recoverPendingCheckout = useCallback(async () => {
+    if (!isAuthenticated) return;
     if (checkingRef.current || redirectedRef.current) return;
 
     const orderIds = getStoredCheckoutOrderIds();
@@ -139,9 +142,10 @@ export default function PendingCartCheckoutGuard() {
         setChecking(false);
       }
     }
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     void recoverPendingCheckout();
 
     const handlePageShow = () => {
@@ -175,7 +179,7 @@ export default function PendingCartCheckoutGuard() {
         handleVisibilityChange,
       );
     };
-  }, [recoverPendingCheckout]);
+  }, [isAuthenticated, recoverPendingCheckout]);
 
   if (!checking) return null;
 

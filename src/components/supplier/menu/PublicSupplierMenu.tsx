@@ -42,6 +42,7 @@ import {
 import { extractCoordinates, fetchSupplierLocation } from "@/lib/orderLocation";
 import { menuOrderService } from "@/services/menuOrderService";
 import { useAuthStore } from "@/store/useAuthStore";
+import { menuCartKey, menuLineKey, useMenuCartHydrated, useMenuCartStore, type MenuCartLine as CartLine } from "@/store/useMenuCartStore";
 import type {
   Menu,
   MenuDay,
@@ -59,6 +60,7 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
   style: "currency",
   currency: "MXN",
 });
+const EMPTY_CART: Record<string, CartLine> = {};
 
 const dayNames: Record<MenuDay, string> = {
   0: "Lunes",
@@ -168,15 +170,8 @@ function menuSchedule(menu: Menu) {
   return parts.join(" · ");
 }
 
-type CartLine = {
-  item: MenuItem;
-  variant: MenuItemVariant | null;
-  quantity: number;
-  notes: string;
-};
-
 function lineKey(itemId: number, variantId?: number | null) {
-  return `${itemId}:${variantId ?? "base"}`;
+  return menuLineKey(itemId, variantId);
 }
 
 function itemHasVariants(item: MenuItem) {
@@ -589,7 +584,7 @@ function MenuItemDetailModal({
   );
 }
 
-export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
+export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; supplierName: string }) {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
@@ -602,7 +597,13 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
     Record<number, MenuOrderSettings>
   >({});
   const [settingsLoading, setSettingsLoading] = useState(false);
-  const [cart, setCart] = useState<Record<string, CartLine>>({});
+  const hydrated = useMenuCartHydrated();
+  const [requestedCartMenuId, setRequestedCartMenuId] = useState<number | null>(null);
+  const storedCarts = useMenuCartStore((state) => state.carts);
+  const changeStoredQuantity = useMenuCartStore((state) => state.changeQuantity);
+  const updateStoredNotes = useMenuCartStore((state) => state.updateNotes);
+  const removeStoredItem = useMenuCartStore((state) => state.removeItem);
+  const clearStoredCart = useMenuCartStore((state) => state.clearCart);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
@@ -634,6 +635,8 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
 
   const selectedMenu =
     menus.find((menu) => menu.id === selectedMenuId) ?? menus[0];
+  const currentCartKey = selectedMenu ? menuCartKey(selectedMenu.supplier_id, selectedMenu.id) : "";
+  const cart = hydrated ? storedCarts[currentCartKey]?.items ?? EMPTY_CART : EMPTY_CART;
   const orderSettings = selectedMenu
     ? settingsByMenu[selectedMenu.id] ?? null
     : null;
@@ -735,7 +738,6 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
   }, [menus, supplierSlug]);
 
   useEffect(() => {
-    setCart({});
     setCartOpen(false);
     setCheckoutOpen(false);
     setDeliveryLocation(null);
@@ -746,6 +748,15 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
     setShippingQuoteLoading(false);
     quoteRequestRef.current += 1;
   }, [selectedMenu?.id]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const requested = Number(new URLSearchParams(window.location.search).get("menuCart"));
+    if (Number.isInteger(requested) && menus.some((menu) => menu.id === requested)) {
+      setRequestedCartMenuId(requested);
+      setSelectedMenuId(requested);
+    }
+  }, [hydrated, menus]);
 
   useEffect(() => {
     if (!selectedMenu || fulfillmentType !== "delivery") return;
@@ -830,6 +841,12 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
   }, [orderSettings]);
 
   const cartItems = useMemo(() => Object.values(cart), [cart]);
+  useEffect(() => {
+    if (hydrated && requestedCartMenuId === selectedMenu?.id && cartItems.length) {
+      setCartOpen(true);
+      setRequestedCartMenuId(null);
+    }
+  }, [hydrated, requestedCartMenuId, selectedMenu?.id, cartItems.length]);
   const cartQuantity = useMemo(
     () => cartItems.reduce((sum, line) => sum + line.quantity, 0),
     [cartItems],
@@ -911,42 +928,21 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
       return;
     }
 
-    const key = lineKey(item.id, variant?.id);
-    setCart((current) => {
-      const existing = current[key];
-      const quantity = Math.max(
-        0,
-        Math.min(99, (existing?.quantity || 0) + delta),
-      );
-      const next = { ...current };
-
-      if (quantity === 0) delete next[key];
-      else {
-        next[key] = {
-          item,
-          variant,
-          quantity,
-          notes: existing?.notes || "",
-        };
-      }
-      return next;
-    });
+    changeStoredQuantity({
+      supplierId: selectedMenu.supplier_id,
+      supplierSlug,
+      supplierName,
+      menuId: selectedMenu.id,
+      menuName: selectedMenu.name,
+    }, item, variant, delta);
   }
 
   function updateNotes(key: string, notes: string) {
-    setCart((current) => {
-      const line = current[key];
-      if (!line) return current;
-      return { ...current, [key]: { ...line, notes } };
-    });
+    updateStoredNotes(currentCartKey, key, notes);
   }
 
   function removeLine(key: string) {
-    setCart((current) => {
-      const next = { ...current };
-      delete next[key];
-      return next;
-    });
+    removeStoredItem(currentCartKey, key);
   }
 
   function openCheckout() {
@@ -1021,6 +1017,23 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
       return;
     }
 
+    const availableItems = new Map(
+      selectedMenu.sections.flatMap((section) => section.items.map((item) => [item.id, item] as const)),
+    );
+    const hasUnavailableLine = cartItems.some((line) => {
+      const currentItem = availableItems.get(line.item.id);
+      if (!currentItem?.is_available || !Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > 99) return true;
+      if (line.variant) {
+        const currentVariant = currentItem.variants?.find((variant) => variant.id === line.variant?.id);
+        return !currentVariant?.is_active || !currentVariant.is_available || !Number.isFinite(currentVariant.price);
+      }
+      return itemHasVariants(currentItem) || typeof currentItem.price !== "number" || !Number.isFinite(currentItem.price);
+    });
+    if (hasUnavailableLine) {
+      setCheckoutError("La disponibilidad de algún platillo cambió. Revisa tu pedido antes de continuar.");
+      return;
+    }
+
     submittingRef.current = true;
     setSubmitting(true);
     setCheckoutError(null);
@@ -1062,13 +1075,14 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
           setCheckoutError("No se pudo iniciar el pago con Mercado Pago. Inténtalo nuevamente.");
           return;
         }
+        clearStoredCart(currentCartKey);
         setCheckoutOpen(false);
         window.location.assign(safeCheckout);
         return;
       }
 
       setCheckoutOpen(false);
-      setCart({});
+      clearStoredCart(currentCartKey);
       router.push(
         `/pedidos/menu/${encodeURIComponent(order.order_number)}?management_token=${encodeURIComponent(order.management_token)}`,
       );

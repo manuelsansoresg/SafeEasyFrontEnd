@@ -7,7 +7,7 @@ export default function CartLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClientShell>
+    <ClientShell allowGuest>
       <PendingCartCheckoutGuard />
       {children}
     </ClientShell>

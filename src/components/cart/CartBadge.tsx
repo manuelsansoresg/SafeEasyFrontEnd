@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
+import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
+import { menuCartQuantity, useMenuCartHydrated, useMenuCartStore } from "@/store/useMenuCartStore";
 
 type CartBadgeState = {
   count: number;
@@ -12,6 +14,11 @@ type CartBadgeState = {
 export function CartBadge() {
   const [state, setState] = useState<CartBadgeState>({ count: 0 });
   const inflight = useRef(false);
+  const authHydrated = useAuthHydrated();
+  const isAuthenticated = useAuthStore((value) => value.isAuthenticated);
+  const menuHydrated = useMenuCartHydrated();
+  const menuCarts = useMenuCartStore((value) => value.carts);
+  const menuCount = menuHydrated ? Object.values(menuCarts).reduce((sum, cart) => sum + menuCartQuantity(cart), 0) : 0;
 
   const refresh = async () => {
     if (inflight.current) return;
@@ -53,7 +60,10 @@ export function CartBadge() {
           (Array.isArray(c.lines) ? c.lines : null) ||
           null;
         if (!items) return sum;
-        return sum + items.reduce((s, it) => s + (Number((it as any)?.quantity ?? 0) || 0), 0);
+        return sum + items.reduce((s, it) => {
+          const line = it && typeof it === "object" ? it as Record<string, unknown> : {};
+          return s + (Number(line.quantity ?? 0) || 0);
+        }, 0);
       }, 0);
 
       setState({ count });
@@ -65,6 +75,7 @@ export function CartBadge() {
   };
 
   useEffect(() => {
+    if (!authHydrated || !isAuthenticated) return;
     refresh();
     const id = window.setInterval(refresh, 30000);
     const onEvent = () => refresh();
@@ -73,7 +84,9 @@ export function CartBadge() {
       window.clearInterval(id);
       window.removeEventListener("cart:changed", onEvent as EventListener);
     };
-  }, []);
+  }, [authHydrated, isAuthenticated]);
+
+  const count = (isAuthenticated ? state.count : 0) + menuCount;
 
   return (
     <Link
@@ -82,12 +95,11 @@ export function CartBadge() {
       className="relative flex items-center justify-center h-10 px-2 text-white hover:text-[#7ed957] transition-all"
     >
       <ShoppingCart size={20} />
-      {state.count > 0 ? (
+      {count > 0 ? (
         <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#168E00] text-white text-[10px] font-bold flex items-center justify-center">
-          {state.count > 99 ? "99+" : state.count}
+          {count > 99 ? "99+" : count}
         </span>
       ) : null}
     </Link>
   );
 }
-
