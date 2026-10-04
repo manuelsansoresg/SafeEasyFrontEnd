@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import {
   useEffect,
-  useCallback,
   useMemo,
   useRef,
   useState,
@@ -32,9 +31,9 @@ import {
   getBrowserPathWithSearchAndHash,
   getLoginUrl,
 } from "@/lib/authRedirect";
-import { MercadoPagoCardModal } from "@/components/payments/MercadoPagoCardModal";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
 import { fetchWithAuth } from "@/lib/api";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import {
   distanceKmDriving,
   parseMapLocation,
@@ -52,11 +51,9 @@ import type {
 import type {
   MenuOrderFulfillmentType,
   MenuOrderPaymentMethod,
-  MenuOrderCreated,
   MenuOrderSettings,
   MenuOrderShippingQuoteResponse,
 } from "@/types/menuOrder";
-import type { MercadoPagoCardData } from "@/types/cardCheckout";
 
 const currencyFormatter = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -611,7 +608,6 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [menuCardOrder, setMenuCardOrder] = useState<MenuOrderCreated | null>(null);
   const submittingRef = useRef(false);
   const [clientRequestId, setClientRequestId] = useState(createRequestId);
 
@@ -635,16 +631,6 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
   const [shippingQuoteError, setShippingQuoteError] = useState<string | null>(null);
   const quoteRequestRef = useRef(0);
   const [generalNotes, setGeneralNotes] = useState("");
-
-  const authorizeMenuCard = useCallback(async (cardData: MercadoPagoCardData) => {
-    if (!menuCardOrder) throw new Error("No se encontró el pedido que deseas pagar.");
-    const order = await menuOrderService.authorizeCard(menuCardOrder.order_number, menuCardOrder.management_token, {
-      card_token: cardData.token,
-      payment_method_id: cardData.payment_method_id,
-      issuer_id: cardData.issuer_id == null || cardData.issuer_id === "" ? null : String(cardData.issuer_id),
-    });
-    return { payment_status: order.payment_status, order_id: order.id };
-  }, [menuCardOrder]);
 
   const selectedMenu =
     menus.find((menu) => menu.id === selectedMenuId) ?? menus[0];
@@ -986,7 +972,7 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submittingRef.current || menuCardOrder) return;
+    if (submittingRef.current) return;
 
     if (!orderSettings?.accepts_orders || !supplierSlug || !cartItems.length) {
       return;
@@ -1047,7 +1033,6 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
         customer_phone: customerPhone.trim(),
         fulfillment_type: fulfillmentType,
         payment_method: paymentMethod,
-        ...(paymentMethod === "online" ? { payment_flow: "card_authorization" as const } : {}),
         delivery_address:
           fulfillmentType === "delivery" ? deliveryAddress.trim() : null,
         distance_km:
@@ -1072,7 +1057,13 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
       }
 
       if (order.payment_method === "online") {
-        setMenuCardOrder(order);
+        const safeCheckout = getSafeMercadoPagoUrl(order.payment_checkout_url);
+        if (!safeCheckout) {
+          setCheckoutError("No se pudo iniciar el pago con Mercado Pago. Inténtalo nuevamente.");
+          return;
+        }
+        setCheckoutOpen(false);
+        window.location.assign(safeCheckout);
         return;
       }
 
@@ -1542,7 +1533,7 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
                   </>
                 ) : null}
                 <div className="mt-3 flex items-center justify-between border-t border-[#004e28]/10 pt-3"><span className="font-bold text-[#004e28]">Total</span><strong className="text-xl text-[#168e00]">{currencyFormatter.format(checkoutTotal)}</strong></div>
-                {paymentMethod === "online" ? <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"><CreditCard size={13} /> Autorizarás tu tarjeta de forma segura con Mercado Pago.</p> : null}
+                {paymentMethod === "online" ? <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"><CreditCard size={13} /> Completarás tu pago en la página segura de Mercado Pago.</p> : null}
               </div>
 
               <button type="submit" disabled={submitting || !deliveryReady} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50">
@@ -1552,24 +1543,6 @@ export function PublicSupplierMenu({ menus }: { menus: Menu[] }) {
             </div>
           </form>
         </div>
-      ) : null}
-      {menuCardOrder ? (
-        <MercadoPagoCardModal
-          supplierName={menuCardOrder.menu_name}
-          estimatedTotal={menuCardOrder.total}
-          authorizeCard={authorizeMenuCard}
-          onClose={() => setMenuCardOrder(null)}
-          onOrderCreated={() => {
-            setCheckoutOpen(false);
-            setCart({});
-          }}
-          onPending={() => {
-            router.push(`/pedidos/menu/${encodeURIComponent(menuCardOrder.order_number)}?management_token=${encodeURIComponent(menuCardOrder.management_token)}`);
-          }}
-          onViewOrder={() => {
-            router.push(`/pedidos/menu/${encodeURIComponent(menuCardOrder.order_number)}?management_token=${encodeURIComponent(menuCardOrder.management_token)}`);
-          }}
-        />
       ) : null}
     </section>
   );
