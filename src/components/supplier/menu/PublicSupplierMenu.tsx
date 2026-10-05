@@ -593,6 +593,14 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
   const quoteRequestRef = useRef(0);
   const [generalNotes, setGeneralNotes] = useState("");
 
+  const invalidateShippingQuote = () => {
+    quoteRequestRef.current += 1;
+    setDeliveryDistanceKm(null);
+    setShippingQuote(null);
+    setShippingQuoteLoading(false);
+    setShippingQuoteError(null);
+  };
+
   const selectedMenu =
     menus.find((menu) => menu.id === selectedMenuId) ?? menus[0];
   const addressForQuote = formatDeliveryAddress(delivery.address);
@@ -803,7 +811,6 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
   );
   const deliveryFee =
     fulfillmentType === "delivery" ? shippingQuote?.delivery_fee ?? 0 : 0;
-  const checkoutTotal = cartSubtotal + deliveryFee;
   const deliveryReady =
     fulfillmentType !== "delivery" ||
     (Boolean(delivery.address.address.trim()) &&
@@ -817,6 +824,9 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
       shippingQuote.delivery_fee >= 0 &&
       !shippingQuoteLoading &&
       !shippingQuoteError);
+  const checkoutTotal = fulfillmentType === "delivery" && !deliveryReady
+    ? null
+    : cartSubtotal + deliveryFee;
 
   if (!selectedMenu) return null;
 
@@ -1416,9 +1426,9 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
                   {delivery.loadError ? <p className="text-sm text-amber-700">{delivery.loadError} Puedes capturarla aquí.</p> : null}
                   {!delivery.loading ? <DeliveryAddressEditor
                     address={delivery.address}
-                    onFieldChange={(field, value) => { delivery.setField(field, value); setProfileSaveError(null); }}
-                    onLocationChange={(location) => { delivery.setLocation(location); setProfileSaveError(null); }}
-                    onPlaceChange={(place) => { delivery.selectPlace(place); setProfileSaveError(null); }}
+                    onFieldChange={(field, value) => { delivery.setField(field, value); invalidateShippingQuote(); setProfileSaveError(null); }}
+                    onLocationChange={(location) => { delivery.setLocation(location); invalidateShippingQuote(); setProfileSaveError(null); }}
+                    onPlaceChange={(place) => { delivery.selectPlace(place); invalidateShippingQuote(); setProfileSaveError(null); }}
                     isAuthenticated={isAuthenticated}
                     saveToProfile={saveAddressInProfile}
                     onSaveToProfileChange={(value) => { setSaveAddressInProfile(value); setProfileSaveError(null); }}
@@ -1493,7 +1503,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
                     </div>
                   </>
                 ) : null}
-                <div className="mt-3 flex items-center justify-between border-t border-[#004e28]/10 pt-3"><span className="font-bold text-[#004e28]">Total</span><strong className="text-xl text-[#168e00]">{currencyFormatter.format(checkoutTotal)}</strong></div>
+                <div className="mt-3 flex items-center justify-between border-t border-[#004e28]/10 pt-3"><span className="font-bold text-[#004e28]">Total</span><strong className="text-xl text-[#168e00]">{checkoutTotal == null ? "Pendiente" : currencyFormatter.format(checkoutTotal)}</strong></div>
                 {paymentMethod === "online" ? <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"><CreditCard size={13} /> Completarás tu pago en la página segura de Mercado Pago.</p> : null}
               </div>
 

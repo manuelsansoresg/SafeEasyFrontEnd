@@ -2,19 +2,8 @@
 
 import { useState } from "react";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
-import { formatDeliveryAddress, type DeliveryAddress, type DeliveryAddressField, type GooglePlaceSelection } from "@/lib/deliveryAddress";
+import type { DeliveryAddress, DeliveryAddressField, GooglePlaceSelection } from "@/lib/deliveryAddress";
 import type { LatLngLiteral } from "@/lib/googleMaps";
-
-const fields: Array<{ key: DeliveryAddressField; label: string; placeholder: string; wide?: boolean }> = [
-  { key: "address", label: "Calle", placeholder: "Calle y nombre", wide: true },
-  { key: "exterior_number", label: "No. exterior", placeholder: "331" },
-  { key: "interior_number", label: "No. interior", placeholder: "Opcional" },
-  { key: "cp", label: "C.P.", placeholder: "97149" },
-  { key: "neighborhood", label: "Colonia", placeholder: "Colonia" },
-  { key: "city", label: "Ciudad", placeholder: "Ciudad" },
-  { key: "state", label: "Estado", placeholder: "Estado" },
-  { key: "country", label: "País", placeholder: "País" },
-];
 
 type Props = {
   address: DeliveryAddress;
@@ -27,53 +16,109 @@ type Props = {
   mapHeight?: string;
 };
 
+function addressLines(address: DeliveryAddress) {
+  const street = [address.address.trim(), address.exterior_number.trim() ? `#${address.exterior_number.trim()}` : ""]
+    .filter(Boolean).join(" ");
+  const first = [street, address.interior_number.trim() ? `Int. ${address.interior_number.trim()}` : ""]
+    .filter(Boolean).join(" · ");
+  const locality = [address.cp.trim(), [address.city.trim(), address.state.trim(), address.country.trim()]
+    .filter(Boolean).join(", ")].filter(Boolean).join(" · ");
+  return [first, address.neighborhood.trim(), locality].filter(Boolean);
+}
+
 export function DeliveryAddressEditor({
   address, onFieldChange, onLocationChange, onPlaceChange,
   isAuthenticated, saveToProfile, onSaveToProfileChange, mapHeight = "240px",
 }: Props) {
   const [editing, setEditing] = useState(false);
-  const showFields = editing || !address.address.trim();
-  const summary = formatDeliveryAddress(address);
+  const [manualStreetEntry, setManualStreetEntry] = useState(false);
+  const hasAddress = Boolean(address.address.trim());
+  const lines = addressLines(address);
+  const showStreet = !hasAddress || manualStreetEntry;
+  const showExterior = editing || (hasAddress && !address.exterior_number.trim());
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-start justify-between gap-3">
+    <div className="min-w-0 space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-bold text-gray-800">Dirección de entrega</p>
-          {summary ? <p className="mt-1 text-sm leading-5 text-gray-600">{summary}</p> : <p className="mt-1 text-sm text-gray-500">Agrega tu dirección y marca el punto exacto.</p>}
+          <p className="text-sm font-bold text-[#004e28]">Dirección de entrega</p>
+          {lines.length ? (
+            <div className="mt-1 text-sm leading-5 text-gray-700">
+              {lines.map((line, index) => <p key={index} className="break-words">{line}</p>)}
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-gray-500">Busca tu dirección y marca el punto exacto de entrega.</p>
+          )}
         </div>
-        {address.address.trim() ? (
-          <button type="button" onClick={() => setEditing((value) => !value)} className="shrink-0 text-sm font-semibold text-[#168e00] hover:underline">
-            {showFields ? "Ocultar campos" : "Cambiar dirección"}
+        {hasAddress && !editing ? (
+          <button type="button" onClick={() => setEditing(true)} className="shrink-0 text-sm font-semibold text-[#168e00] hover:underline">
+            Cambiar dirección
           </button>
         ) : null}
       </div>
 
-      {showFields ? (
-        <div className="grid grid-cols-2 gap-3 rounded-2xl bg-[#f2f3f4] p-3 sm:grid-cols-4">
-          {fields.map((field) => (
-            <label key={field.key} className={`min-w-0 text-xs font-semibold text-gray-700 ${field.wide ? "col-span-2" : ""}`}>
-              {field.label}
-              <input
-                value={address[field.key]}
-                onChange={(event) => onFieldChange(field.key, event.target.value)}
-                placeholder={field.placeholder}
-                autoComplete="off"
-                className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-normal text-gray-900 outline-none focus:border-[#168e00]"
-              />
-            </label>
-          ))}
-        </div>
+      {editing ? (
+        <p className="rounded-xl bg-[#f2f3f4] px-3 py-2 text-xs leading-5 text-gray-700">
+          Busca otra dirección en el mapa o mueve el pin para ajustar el punto de entrega.
+        </p>
       ) : null}
 
-      <p className="text-xs text-gray-500">Puedes buscar una dirección o ajustar el punto exacto en el mapa. Editar los campos no mueve el pin.</p>
       <GoogleMapPicker
         location={address.location}
         onChange={onLocationChange}
-        onPlaceChange={(place) => { setEditing(true); onPlaceChange(place); }}
+        onPlaceChange={(place) => { onPlaceChange(place); setManualStreetEntry(false); setEditing(false); }}
         height={mapHeight}
         className="max-w-full"
       />
+      <p className="text-xs leading-5 text-gray-500">Puedes mover el pin para indicar el punto exacto de entrega.</p>
+
+      {showStreet || showExterior ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {showStreet ? (
+            <label className="block min-w-0 text-xs font-semibold text-gray-700">
+              Calle o dirección
+              <input
+                value={address.address}
+                onChange={(event) => { setManualStreetEntry(true); onFieldChange("address", event.target.value); }}
+                onBlur={() => { if (address.address.trim()) setManualStreetEntry(false); }}
+                placeholder="Nombre de la calle"
+                autoComplete="street-address"
+                className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-normal text-gray-900 outline-none focus:border-[#168e00]"
+              />
+            </label>
+          ) : null}
+          {showExterior ? (
+            <label className="block min-w-0 text-xs font-semibold text-gray-700">
+              Número exterior
+              <input
+                value={address.exterior_number}
+                onChange={(event) => onFieldChange("exterior_number", event.target.value)}
+                placeholder="Número de la fachada"
+                autoComplete="address-line2"
+                className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-normal text-gray-900 outline-none focus:border-[#168e00]"
+              />
+            </label>
+          ) : null}
+        </div>
+      ) : null}
+
+      <label className="block max-w-xs text-xs font-semibold text-gray-700">
+        No. interior <span className="font-normal text-gray-500">(opcional)</span>
+        <input
+          value={address.interior_number}
+          onChange={(event) => onFieldChange("interior_number", event.target.value)}
+          placeholder="Departamento, local o interior"
+          autoComplete="off"
+          className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-normal text-gray-900 outline-none focus:border-[#168e00]"
+        />
+      </label>
+
+      {editing ? (
+        <button type="button" onClick={() => setEditing(false)} disabled={!address.location || !hasAddress}
+          className="w-full rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#137500] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
+          Usar esta ubicación
+        </button>
+      ) : null}
 
       {isAuthenticated ? (
         <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-700">
