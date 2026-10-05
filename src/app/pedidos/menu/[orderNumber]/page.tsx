@@ -225,6 +225,7 @@ export default function PublicMenuOrderTrackingPage() {
 
   const progress = MENU_ORDER_STATUS_FLOW.indexOf(order.status);
   const safeCheckout = order.payment_flow === "card_authorization" ? "" : getSafeMercadoPagoUrl(order.payment_checkout_url);
+  const confirmationCode = codeNotice?.replace(orderNumber, "").match(/\b\d{6}\b/)?.[0] ?? null;
 
   return (
     <TrackingFrame authenticated={showClientShell}>
@@ -322,6 +323,24 @@ export default function PublicMenuOrderTrackingPage() {
         </div>
         </section>
 
+        {order.payment_flow === "card_authorization" && order.payment_status === "authorized" ? (
+          <section className="rounded-3xl border-2 border-[#168e00]/35 bg-white px-5 py-6 text-center shadow-sm sm:px-8" aria-label="Código de confirmación">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#004e28]">
+              {order.fulfillment_type === "pickup" ? "Código para recoger tu pedido" : "Código de entrega"}
+            </p>
+            {confirmationCode ? (
+              <p className="mt-3 font-mono text-4xl font-black tracking-[0.25em] text-[#004e28] sm:text-5xl" aria-label={`Código ${confirmationCode.split("").join(" ")}`}>{confirmationCode}</p>
+            ) : (
+              <p className="mx-auto mt-3 max-w-lg text-sm font-semibold leading-6 text-gray-700">
+                Revisa el correo enviado a {order.customer_email} para consultar tu código{ownsOrder ? ", o consulta tus notificaciones" : ""}.
+              </p>
+            )}
+            <p className="mt-3 text-sm text-gray-600">
+              {order.fulfillment_type === "pickup" ? "Muéstralo únicamente cuando recojas tu pedido." : "Compártelo únicamente cuando tengas tu pedido."}
+            </p>
+          </section>
+        ) : null}
+
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-7">
           <h2 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[#004e28]">Productos</h2>
@@ -362,8 +381,7 @@ export default function PublicMenuOrderTrackingPage() {
                 </p>
                 {order.payment_status === "authorized" ? (
                   <div className="mt-2 text-sm leading-6 text-gray-600">
-                    <p>Se cobrará cuando recibas tu pedido. {order.fulfillment_type === "pickup" ? "Código para recoger tu pedido." : "Código de entrega."} Compártelo únicamente cuando tengas el pedido.</p>
-                    {codeNotice ? <p className="mt-2 rounded-xl bg-[#f2f3f4] p-3 font-semibold text-[#004e28]">{codeNotice}</p> : <p className="mt-2">Revisa tu correo electrónico{ownsOrder ? " o tus notificaciones" : ""} para consultar el código.</p>}
+                    <p>{order.fulfillment_type === "pickup" ? "Tu tarjeta está autorizada. Se cobrará cuando recojas tu pedido y el negocio confirme tu código." : "Tu tarjeta está autorizada. Se cobrará cuando recibas tu pedido y se confirme tu código."}</p>
                   </div>
                 ) : null}
                 {order.paid_at ? <p className="mt-1 text-xs text-gray-400">{formatMenuOrderDate(order.paid_at)}</p> : null}

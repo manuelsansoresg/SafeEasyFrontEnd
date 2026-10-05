@@ -133,7 +133,7 @@ export default function AdminMenuOrderDetailPage() {
     if (order.payment_method === "online" && !["paid", "authorized"].includes(order.payment_status)) {
       setToast({
         type: "error",
-        message: "No puedes procesar este pedido hasta que Mercado Pago confirme el cobro.",
+        message: "No puedes procesar este pedido hasta que Mercado Pago autorice la tarjeta.",
       });
       return;
     }
@@ -274,17 +274,17 @@ export default function AdminMenuOrderDetailPage() {
 
       {onlineBlocked ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <strong>Pedido pendiente de pago.</strong> No lo prepares todavía. El backend bloqueará cualquier cambio de estado hasta que Mercado Pago confirme el cobro.
+          <strong>Pedido pendiente de autorización.</strong> No lo prepares todavía. Espera a que Mercado Pago autorice la tarjeta.
         </div>
       ) : null}
 
       {needsCode ? (
         <section className="rounded-2xl border border-[#004e28]/20 bg-[#f2f3f4] p-4 sm:p-5">
-          <h2 className="font-bold text-[#004e28]">Confirmar entrega</h2>
-          <p className="mt-1 text-sm text-gray-600">Pide el código al cliente únicamente cuando le entregues el pedido. La captura del pago se confirmará con el backend.</p>
+          <h2 className="font-bold text-[#004e28]">{order.fulfillment_type === "pickup" ? "Confirmar recolección" : "Confirmar entrega"}</h2>
+          <p className="mt-1 text-sm text-gray-600">{order.fulfillment_type === "pickup" ? "Pide al cliente su código cuando le entregues el pedido." : "Pide al cliente su código únicamente al entregarle el pedido."} Al confirmarlo, se capturará el pago.</p>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row">
             <input aria-label="Código de confirmación" inputMode="numeric" autoComplete="off" maxLength={6} value={confirmationCode} onChange={(event) => setConfirmationCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Código de confirmación" className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 font-mono text-lg tracking-widest sm:max-w-xs" />
-            <button type="button" disabled={busy || confirmationCode.length !== 6} onClick={() => void confirmDelivery()} className="rounded-xl bg-[#004e28] px-5 py-3 font-bold text-white disabled:opacity-50">{busy ? "Confirmando..." : "Confirmar entrega"}</button>
+            <button type="button" disabled={busy || confirmationCode.length !== 6} onClick={() => void confirmDelivery()} className="rounded-xl bg-[#004e28] px-5 py-3 font-bold text-white disabled:opacity-50">{busy ? "Confirmando..." : order.fulfillment_type === "pickup" ? "Confirmar recolección" : "Confirmar entrega"}</button>
           </div>
         </section>
       ) : null}

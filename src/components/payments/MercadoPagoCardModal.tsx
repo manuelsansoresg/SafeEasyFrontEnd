@@ -40,6 +40,8 @@ type Props = {
   onOrderCreated: (response: CardModalResult) => void;
   onPending: (response: CardModalResult) => void;
   onViewOrder: (orderId: number) => void;
+  orderDisplayLabel?: string;
+  totalLabel?: string;
 };
 
 type CardModalResult = Pick<CardAuthorizationResponse, "payment_status" | "order_id"> & {
@@ -71,6 +73,8 @@ export function MercadoPagoCardModal({
   onOrderCreated,
   onPending,
   onViewOrder,
+  orderDisplayLabel,
+  totalLabel = "Total estimado",
 }: Props) {
   const reactId = useId();
   const containerId = `mp-card-${reactId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
@@ -81,11 +85,11 @@ export function MercadoPagoCardModal({
   const [authorizedOrderId, setAuthorizedOrderId] = useState<number | null>(null);
   const controllerRef = useRef<BrickController | null>(null);
   const submittingRef = useRef(false);
-  const callbacksRef = useRef({ onOrderCreated, onPending });
+  const callbacksRef = useRef({ onOrderCreated, onPending, authorizeCard, checkout });
 
   useEffect(() => {
-    callbacksRef.current = { onOrderCreated, onPending };
-  }, [onOrderCreated, onPending]);
+    callbacksRef.current = { onOrderCreated, onPending, authorizeCard, checkout };
+  }, [onOrderCreated, onPending, authorizeCard, checkout]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -148,11 +152,11 @@ export function MercadoPagoCardModal({
               setPhase("submitting");
               setError(null);
               try {
-                const response = authorizeCard
-                  ? await authorizeCard(cardData)
-                  : checkout
+                const response = callbacksRef.current.authorizeCard
+                  ? await callbacksRef.current.authorizeCard(cardData)
+                  : callbacksRef.current.checkout
                     ? await cardCheckoutService.authorize({
-                        ...checkout,
+                        ...callbacksRef.current.checkout,
                         card_token: token,
                         payment_method_id: paymentMethodId,
                         issuer_id: cardData.issuer_id == null || cardData.issuer_id === "" ? null : String(cardData.issuer_id),
@@ -173,6 +177,8 @@ export function MercadoPagoCardModal({
 
                 if (["pending", "in_process"].includes(status) || (status === "authorized" && !response.order_id)) {
                   callbacksRef.current.onPending(response);
+                  setError("La autorización sigue pendiente. Espera un momento antes de volver a intentarlo.");
+                  setPhase("ready");
                   return;
                 }
 
@@ -208,7 +214,7 @@ export function MercadoPagoCardModal({
       controllerRef.current?.unmount();
       controllerRef.current = null;
     };
-  }, [authorizeCard, checkout, containerId, estimatedTotal, publicKey, sdkReady]);
+  }, [containerId, estimatedTotal, publicKey, sdkReady]);
 
   const closeDisabled = phase === "submitting";
 
@@ -254,14 +260,14 @@ export function MercadoPagoCardModal({
                 Pago autorizado. El cobro se completará cuando recibas tu pedido y compartas el código de confirmación.
               </p>
               <button type="button" onClick={() => onViewOrder(authorizedOrderId)} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#004e28] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#168e00] sm:w-auto">
-                Ver pedido #{authorizedOrderId}
+                Ver pedido {orderDisplayLabel ?? `#${authorizedOrderId}`}
               </button>
             </div>
           ) : (
             <>
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div className="rounded-2xl border border-[#004e28]/10 bg-[#f2f3f4] px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total estimado</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{totalLabel}</div>
                   <div className="mt-1 font-[family-name:var(--font-varela-round)] text-2xl font-bold text-[#004e28]">{money(estimatedTotal)}</div>
                 </div>
                 <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 sm:max-w-[190px]">

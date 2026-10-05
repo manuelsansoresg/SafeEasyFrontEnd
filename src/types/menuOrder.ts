@@ -61,7 +61,6 @@ export interface MenuOrderCreatePayload {
   customer_phone: string;
   fulfillment_type: MenuOrderFulfillmentType;
   payment_method: MenuOrderPaymentMethod;
-  payment_flow?: MenuOrderPaymentFlow;
   delivery_address?: string | null;
   distance_km?: number | null;
   notes?: string | null;
