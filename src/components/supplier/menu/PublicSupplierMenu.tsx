@@ -603,7 +603,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
   const selectedMenu =
     menus.find((menu) => menu.id === selectedMenuId) ?? menus[0];
-  const addressForQuote = formatDeliveryAddress(delivery.address);
+  const formattedDeliveryAddress = formatDeliveryAddress(delivery.address).trim();
   const currentCartKey = selectedMenu ? menuCartKey(selectedMenu.supplier_id, selectedMenu.id) : "";
   const cart = hydrated ? storedCarts[currentCartKey]?.items ?? EMPTY_CART : EMPTY_CART;
   const orderSettings = selectedMenu
@@ -730,7 +730,6 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
     if (
       fulfillmentType !== "delivery" ||
-      !delivery.address.address.trim() ||
       !isValidDeliveryLocation(delivery.address.location) ||
       !supplierLocation ||
       !supplierSlug ||
@@ -776,7 +775,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
     }, 300);
 
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [addressForQuote, delivery.address.address, delivery.address.location, fulfillmentType, selectedMenu, supplierLocation, supplierSlug]);
+  }, [formattedDeliveryAddress, delivery.address.location, fulfillmentType, selectedMenu, supplierLocation, supplierSlug]);
 
   useEffect(() => {
     if (!orderSettings) return;
@@ -814,8 +813,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
     fulfillmentType === "delivery" ? shippingQuote?.delivery_fee ?? 0 : 0;
   const deliveryReady =
     fulfillmentType !== "delivery" ||
-    (Boolean(delivery.address.address.trim()) &&
-      isValidDeliveryLocation(delivery.address.location) &&
+    (isValidDeliveryLocation(delivery.address.location) &&
       Boolean(supplierLocation) &&
       typeof deliveryDistanceKm === "number" &&
       Number.isFinite(deliveryDistanceKm) &&
@@ -935,8 +933,8 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
       return;
     }
 
-    if (fulfillmentType === "delivery" && !delivery.address.address.trim()) {
-      setCheckoutError("Escribe la dirección para la entrega.");
+    if (fulfillmentType === "delivery" && !formattedDeliveryAddress) {
+      setCheckoutError("Selecciona una dirección en Google para la entrega.");
       return;
     }
 
@@ -1007,7 +1005,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
         fulfillment_type: fulfillmentType,
         payment_method: paymentMethod,
         delivery_address:
-          fulfillmentType === "delivery" ? formatDeliveryAddress(delivery.address) : null,
+          fulfillmentType === "delivery" ? formattedDeliveryAddress : null,
         distance_km:
           fulfillmentType === "delivery" ? deliveryDistanceKm : null,
         notes: generalNotes.trim() || null,
