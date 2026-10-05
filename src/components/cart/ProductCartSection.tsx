@@ -6,12 +6,12 @@ import { fetchWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
 import { DeliveryAddressEditor } from "@/components/checkout/DeliveryAddressEditor";
-import { formatDeliveryAddress, isValidDeliveryLocation, type DeliveryAddress } from "@/lib/deliveryAddress";
+import { isValidDeliveryLocation } from "@/lib/deliveryAddress";
 import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
 import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
-import { Minus, Plus, ShieldCheck, Trash2, X } from "lucide-react";
+import { Loader2, Minus, Plus, ShieldCheck, Trash2 } from "lucide-react";
 
 type ProductLite = {
   id: string;
@@ -248,18 +248,15 @@ export default function ProductCartSection() {
   const meUserId = delivery.userId;
   const [saveAddressInProfile, setSaveAddressInProfile] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
-  const addressBeforeEditRef = useRef<DeliveryAddress | null>(null);
   const quoteRequestRef = useRef(0);
   const [checkoutSupplierId, setCheckoutSupplierId] = useState<number | null>(null);
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("pickup");
-  const [, setSupplierMapLocation] = useState<LatLngLiteral | null>(null);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [shippingCost, setShippingCost] = useState<number | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [addressLocked, setAddressLocked] = useState(false);
   const checkoutOpeningRef = useRef(false);
-  const [addressModalOpen, setAddressModalOpen] = useState(false);
 
   const closeToast = () => setToast(null);
 
@@ -330,7 +327,9 @@ export default function ProductCartSection() {
 
   useEffect(() => {
     if (carts.length === 0) {
+      quoteRequestRef.current += 1;
       setCheckoutSupplierId(null);
+      setQuoteLoading(false);
       return;
     }
     if (!checkoutSupplierId || !carts.some((c) => c.supplier_id === checkoutSupplierId)) {
@@ -340,8 +339,9 @@ export default function ProductCartSection() {
       setQuoteError(null);
       setShippingCost(null);
       setDistanceKm(null);
-      setSupplierMapLocation(null);
       setAddressLocked(false);
+      setQuoteLoading(false);
+      quoteRequestRef.current += 1;
     }
   }, [carts, checkoutSupplierId]);
 
@@ -461,9 +461,8 @@ export default function ProductCartSection() {
     setQuoteError(null);
     setShippingCost(null);
     setDistanceKm(null);
-    const cached = supplier.supplier_map_location ?? null;
-    setSupplierMapLocation(cached);
     setAddressLocked(false);
+    setQuoteLoading(false);
     quoteRequestRef.current += 1;
   };
 
@@ -525,31 +524,30 @@ export default function ProductCartSection() {
   const computeShippingQuote = async (supplierId: number, force?: boolean) => {
     setQuoteError(null);
     if (!force && deliveryType !== "shipping") return;
+    setShippingCost(null);
+    setDistanceKm(null);
+    setAddressLocked(false);
     const location = delivery.address.location;
     if (!delivery.address.address.trim() || !isValidDeliveryLocation(location)) {
-      setCheckoutSupplierId(supplierId);
-      addressBeforeEditRef.current = delivery.address;
-      setAddressModalOpen(true);
+      setQuoteError("Selecciona tu ubicación para calcular el envío.");
       return;
     }
     const requestId = ++quoteRequestRef.current;
-
-    let sLoc = carts.find((c) => c.supplier_id === supplierId)?.supplier_map_location ?? null;
-    if (!sLoc) {
-      const details = await fetchSupplierDetails(supplierId);
-      sLoc = details?.mapLocation ?? null;
-    }
-    if (!sLoc) {
-      setQuoteError("No se pudo obtener la ubicación del proveedor.");
-      return;
-    }
-
-    if (requestId !== quoteRequestRef.current) return;
     setQuoteLoading(true);
     try {
+      let sLoc = carts.find((c) => c.supplier_id === supplierId)?.supplier_map_location ?? null;
+      if (!sLoc) {
+        const details = await fetchSupplierDetails(supplierId);
+        sLoc = details?.mapLocation ?? null;
+      }
+      if (requestId !== quoteRequestRef.current) return;
+      if (!sLoc) {
+        setQuoteError("Este negocio aún no tiene una ubicación configurada y no es posible calcular el envío.");
+        return;
+      }
       const km = await distanceKmDriving(location, sLoc);
       if (requestId !== quoteRequestRef.current) return;
-      setDistanceKm(km);
+      if (!Number.isFinite(km) || km < 0) throw new Error("Distancia inválida");
       const res = await tryFetch(
         ["/api/cart/shipping-quote", "/api/cart/shipping-quote/"],
         {
@@ -560,8 +558,7 @@ export default function ProductCartSection() {
       );
       if (requestId !== quoteRequestRef.current) return;
       if (!res) {
-        setQuoteError("No se pudo cotizar el envío.");
-        setShippingCost(null);
+        setQuoteError("No se pudo calcular el costo de envío.");
         return;
       }
       if (!res.ok) {
@@ -570,27 +567,30 @@ export default function ProductCartSection() {
         const msg =
           (typeof data.detail === "string" && data.detail) ||
           (typeof data.message === "string" && data.message) ||
-          "No se pudo cotizar el envío.";
+          "No se pudo calcular el costo de envío.";
         setQuoteError(msg);
-        setShippingCost(null);
         return;
       }
       const data: unknown = await res.json().catch(() => ({}));
       if (requestId !== quoteRequestRef.current) return;
       const rec = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
-      const rawCost = rec.shipping_cost ?? rec.cost ?? rec.amount ?? 0;
+      const rawCost = rec.shipping_cost ?? rec.cost ?? rec.amount;
       const parsedCost =
         typeof rawCost === "number"
           ? rawCost
           : typeof rawCost === "string"
-            ? Number.parseFloat(rawCost.replace(/[^\d.-]/g, "")) || 0
-            : Number(rawCost) || 0;
-      setShippingCost(Number.isFinite(parsedCost) && parsedCost >= 0 ? parsedCost : 0);
+            ? Number.parseFloat(rawCost.replace(/[^\d.-]/g, ""))
+            : NaN;
+      if (!Number.isFinite(parsedCost) || parsedCost < 0) {
+        setQuoteError("No se pudo calcular el costo de envío.");
+        return;
+      }
+      setDistanceKm(km);
+      setShippingCost(parsedCost);
       setAddressLocked(true);
     } catch {
       if (requestId !== quoteRequestRef.current) return;
-      setQuoteError("Error al calcular distancia o cotizar envío.");
-      setShippingCost(null);
+      setQuoteError("No se pudo calcular el costo de envío.");
     } finally {
       if (requestId === quoteRequestRef.current) setQuoteLoading(false);
     }
@@ -760,16 +760,17 @@ export default function ProductCartSection() {
               const visibleDeliveryType = isActiveCheckout ? deliveryType : getDefaultDeliveryType(c);
               const visibleShippingNeedsQuote = visibleDeliveryType === "shipping" && c.accepts_delivery;
               const isOwnSupplierCart = Boolean(c.supplier_user_id && meUserId && Number(c.supplier_user_id) === Number(meUserId));
-              const supplierTotal =
-                supplierSubtotal +
-                (isActiveCheckout && visibleShippingNeedsQuote && shippingCost != null && addressLocked ? shippingCost : 0);
+              const hasValidQuote = isActiveCheckout && visibleShippingNeedsQuote && addressLocked && shippingCost != null;
+              const supplierTotal = visibleShippingNeedsQuote
+                ? hasValidQuote ? supplierSubtotal + shippingCost : null
+                : supplierSubtotal;
               const cannotPay =
                 mutating ||
                 profileSaving ||
                 delivery.loading ||
                 isOwnSupplierCart ||
                 (!c.accepts_pickup && !c.accepts_delivery) ||
-                (isActiveCheckout && visibleShippingNeedsQuote && (!addressLocked || shippingCost == null));
+                (visibleShippingNeedsQuote && !hasValidQuote);
 
               return (
                 <div key={c.supplier_id} className="rounded-2xl bg-white overflow-hidden shadow-sm">
@@ -793,7 +794,7 @@ export default function ProductCartSection() {
                       <p className="text-sm font-bold text-gray-900">Entrega y pago</p>
                       <div>
                         <p className="text-sm font-semibold text-gray-800 mb-2">Método de entrega</p>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                           {c.accepts_pickup ? (
                             <button
                               type="button"
@@ -818,7 +819,6 @@ export default function ProductCartSection() {
                                 setCheckoutSupplierId(c.supplier_id);
                                 setDeliveryType("shipping");
                                 invalidateQuote();
-                                computeShippingQuote(c.supplier_id, true).catch(() => {});
                               }}
                               className={cn(
                                 "px-3 py-2 rounded-lg border disabled:opacity-50",
@@ -837,58 +837,64 @@ export default function ProductCartSection() {
                         ) : null}
                       </div>
                       {isActiveCheckout && visibleShippingNeedsQuote && (
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-semibold text-gray-800">Dirección de entrega</p>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  setCheckoutSupplierId(c.supplier_id);
-                                  invalidateQuote();
-                                  addressBeforeEditRef.current = delivery.address;
-                                  setAddressModalOpen(true);
-                                }}
-                                className="text-xs font-semibold text-gray-700 hover:underline"
-                              >
-                                {delivery.address.address || delivery.address.location ? "Modificar" : "Establecer"}
-                              </button>
-                            </div>
-                            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                              {delivery.address.address.trim() ? (
-                                <p className="truncate">
-                                  {formatDeliveryAddress(delivery.address)}
-                                </p>
-                              ) : delivery.address.location ? (
-                                <p className="text-gray-500">Ubicación guardada en el mapa.</p>
-                              ) : (
-                                <p className="text-gray-500">No tienes dirección configurada. Establécela para calcular el envío.</p>
-                              )}
-                            </div>
+                          <div className="space-y-4 rounded-2xl border border-[#d7e8d8] bg-white p-3 sm:p-4">
+                            {delivery.loadError ? <p className="text-sm text-amber-700">{delivery.loadError} Puedes capturar tu dirección aquí.</p> : null}
+                            {delivery.loading ? (
+                              <p className="text-sm text-gray-500">Cargando tu dirección guardada...</p>
+                            ) : (
+                              <DeliveryAddressEditor
+                                address={delivery.address}
+                                onFieldChange={(field, value) => { delivery.setField(field, value); invalidateQuote(); }}
+                                onLocationChange={(location) => { delivery.setLocation(location); invalidateQuote(); }}
+                                onPlaceChange={(place) => { delivery.selectPlace(place); invalidateQuote(); }}
+                                isAuthenticated={delivery.isAuthenticated}
+                                saveToProfile={saveAddressInProfile}
+                                onSaveToProfileChange={setSaveAddressInProfile}
+                                mapHeight="240px"
+                              />
+                            )}
+                            {delivery.address.location ? (
+                              <p className="break-words text-xs text-gray-500">
+                                Ubicación seleccionada: {delivery.address.location.lat.toFixed(5)}, {delivery.address.location.lng.toFixed(5)}
+                              </p>
+                            ) : null}
                             {!saveAddressInProfile && delivery.hasChanges ? (
-                              <div className="text-xs text-amber-700">
+                              <div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
                                 Para comprar Productos con esta dirección nueva, debes guardarla en tu perfil.
                                 {!delivery.loadError ? <button type="button" onClick={() => { delivery.resetToSaved(); invalidateQuote(); }} className="ml-1 font-bold underline">Usar mi dirección guardada</button> : null}
                               </div>
                             ) : null}
-                            {addressLocked && shippingCost != null ? (
-                              <div className="text-sm text-gray-700 mt-2">
-                                Envío cotizado: <b>{money(shippingCost)}</b>
-                                {distanceKm != null ? <span className="text-gray-500"> · {distanceKm.toFixed(1)} km</span> : null}
-                              </div>
-                            ) : null}
-                            {quoteError ? <div className="text-sm text-red-600 mt-2">{quoteError}</div> : null}
+                            <div className="rounded-xl bg-[#f2f3f4] p-3 text-sm" aria-live="polite">
+                              {quoteLoading ? (
+                                <p className="flex items-center gap-2 font-semibold text-[#004e28]"><Loader2 size={16} className="animate-spin" />Calculando envío...</p>
+                              ) : quoteError ? (
+                                <div className="space-y-2 text-red-700">
+                                  <p>{quoteError}</p>
+                                  <button type="button" onClick={() => void computeShippingQuote(c.supplier_id)} className="font-bold underline">Reintentar</button>
+                                </div>
+                              ) : hasValidQuote ? (
+                                <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 font-semibold text-[#004e28]">
+                                  <span>Distancia: {distanceKm?.toFixed(1)} km</span>
+                                  <span>Envío: {money(shippingCost)}</span>
+                                </div>
+                              ) : (
+                                <p className="text-gray-600">{!delivery.address.address.trim() || !isValidDeliveryLocation(delivery.address.location)
+                                  ? "Selecciona tu ubicación para calcular el envío."
+                                  : "Calcula el envío para conocer el total."}</p>
+                              )}
+                            </div>
                             <button
                               type="button"
                               onClick={() => computeShippingQuote(c.supplier_id)}
-                              disabled={quoteLoading || mutating || profileSaving || delivery.loading}
+                              disabled={quoteLoading || mutating || profileSaving || delivery.loading || !delivery.address.address.trim() || !isValidDeliveryLocation(delivery.address.location)}
                               className={cn(
-                                "mt-3 w-full px-5 py-3 rounded-xl font-bold text-sm",
-                                quoteLoading || mutating || profileSaving || delivery.loading
+                                "w-full px-5 py-3 rounded-xl font-bold text-sm",
+                                quoteLoading || mutating || profileSaving || delivery.loading || !delivery.address.address.trim() || !isValidDeliveryLocation(delivery.address.location)
                                   ? "bg-gray-200 text-gray-400 cursor-not-allowed"
                                   : "bg-primary text-white hover:bg-primary/90",
                               )}
                             >
-                              {quoteLoading ? "Calculando..." : "Calcular Envío"}
+                              {quoteLoading ? "Calculando envío..." : hasValidQuote ? "Recalcular envío" : "Calcular envío"}
                             </button>
                           </div>
                       )}
@@ -985,17 +991,13 @@ export default function ProductCartSection() {
                             <span>Subtotal productos</span>
                             <span className="font-bold text-gray-900">{money(supplierSubtotal)}</span>
                           </div>
-                          {isActiveCheckout && visibleShippingNeedsQuote ? (
-                            <div className="flex items-center justify-between gap-8 sm:justify-start">
-                              <span>Envío</span>
-                              <span className="font-bold text-gray-900">
-                                {shippingCost != null && addressLocked ? money(shippingCost) : "Pendiente"}
-                              </span>
-                            </div>
-                          ) : null}
+                          <div className="flex items-center justify-between gap-8 sm:justify-start">
+                            <span>Envío</span>
+                            <span className="font-bold text-gray-900">{visibleShippingNeedsQuote ? hasValidQuote ? money(shippingCost) : "Pendiente" : money(0)}</span>
+                          </div>
                           <div className="flex items-center justify-between gap-8 pt-2 sm:justify-start">
-                            <span className="font-bold text-gray-900">Total estimado</span>
-                            <span className="font-bold text-gray-900">{money(supplierTotal)}</span>
+                            <span className="font-bold text-gray-900">Total</span>
+                            <span className="font-bold text-gray-900">{supplierTotal == null ? "Pendiente" : money(supplierTotal)}</span>
                           </div>
                         </div>
                         <button
@@ -1028,56 +1030,6 @@ export default function ProductCartSection() {
           </div>
         )}
       </div>
-
-      {addressModalOpen && deliveryType === "shipping" && checkoutSupplierId != null ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Dirección de entrega">
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-[#168e00]">Entrega a domicilio</p>
-                <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-bold text-[#004e28]">Tu dirección</h3>
-              </div>
-              <button type="button" onClick={() => {
-                if (addressBeforeEditRef.current) delivery.replaceAddress(addressBeforeEditRef.current);
-                invalidateQuote();
-                setAddressModalOpen(false);
-              }} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" aria-label="Cerrar"><X size={20} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5">
-              {delivery.loadError ? <p className="mb-3 text-sm text-amber-700">{delivery.loadError} Puedes capturar tu dirección aquí.</p> : null}
-              {delivery.loading ? <p className="text-sm text-gray-500">Cargando tu dirección guardada...</p> : <DeliveryAddressEditor
-                address={delivery.address}
-                onFieldChange={(field, value) => { delivery.setField(field, value); invalidateQuote(); }}
-                onLocationChange={(location) => { delivery.setLocation(location); invalidateQuote(); }}
-                onPlaceChange={(place) => { delivery.selectPlace(place); invalidateQuote(); }}
-                isAuthenticated={delivery.isAuthenticated}
-                saveToProfile={saveAddressInProfile}
-                onSaveToProfileChange={setSaveAddressInProfile}
-                mapHeight="280px"
-              />}
-              {!saveAddressInProfile && delivery.hasChanges ? (
-                <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">Productos toma la dirección del perfil al crear la compra. Para usar esta dirección nueva, activa la opción de guardarla.</p>
-              ) : null}
-              {quoteError ? <p className="mt-3 text-sm text-red-600">{quoteError}</p> : null}
-            </div>
-            <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-5 py-4">
-              <button type="button" onClick={() => {
-                if (addressBeforeEditRef.current) delivery.replaceAddress(addressBeforeEditRef.current);
-                invalidateQuote();
-                setAddressModalOpen(false);
-              }} className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancelar</button>
-              <button type="button" disabled={delivery.loading} onClick={() => {
-                if (!delivery.address.address.trim() || !isValidDeliveryLocation(delivery.address.location)) {
-                  setQuoteError("Escribe tu calle y selecciona el punto exacto en el mapa.");
-                  return;
-                }
-                setAddressModalOpen(false);
-                void computeShippingQuote(checkoutSupplierId, true);
-              }} className="rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Usar esta dirección</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {toast ? <Toast type={toast.type} message={toast.message} onClose={closeToast} /> : null}
     </div>
