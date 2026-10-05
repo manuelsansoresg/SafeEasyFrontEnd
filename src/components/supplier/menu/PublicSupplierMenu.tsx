@@ -730,7 +730,8 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
     if (
       fulfillmentType !== "delivery" ||
-      !delivery.address.location ||
+      !delivery.address.address.trim() ||
+      !isValidDeliveryLocation(delivery.address.location) ||
       !supplierLocation ||
       !supplierSlug ||
       !selectedMenu
@@ -775,7 +776,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
     }, 300);
 
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [addressForQuote, delivery.address.location, fulfillmentType, selectedMenu, supplierLocation, supplierSlug]);
+  }, [addressForQuote, delivery.address.address, delivery.address.location, fulfillmentType, selectedMenu, supplierLocation, supplierSlug]);
 
   useEffect(() => {
     if (!orderSettings) return;
@@ -1405,14 +1406,14 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
                   {orderSettings?.allows_pickup ? (
                     <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${fulfillmentType === "pickup" ? "border-[#168e00] bg-[#168e00]/5" : "border-gray-200"}`}>
-                      <input type="radio" name="fulfillment" value="pickup" checked={fulfillmentType === "pickup"} onChange={() => setFulfillmentType("pickup")} className="accent-[#168e00]" />
+                      <input type="radio" name="fulfillment" value="pickup" checked={fulfillmentType === "pickup"} onChange={() => { invalidateShippingQuote(); setFulfillmentType("pickup"); }} className="accent-[#168e00]" />
                       <Store className="text-[#168e00]" size={21} />
                       <span><strong className="block text-sm text-gray-900">Recoger</strong><span className="text-xs text-gray-500">En el establecimiento</span></span>
                     </label>
                   ) : null}
                   {orderSettings?.allows_delivery ? (
                     <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${fulfillmentType === "delivery" ? "border-[#168e00] bg-[#168e00]/5" : "border-gray-200"}`}>
-                      <input type="radio" name="fulfillment" value="delivery" checked={fulfillmentType === "delivery"} onChange={() => setFulfillmentType("delivery")} className="accent-[#168e00]" />
+                      <input type="radio" name="fulfillment" value="delivery" checked={fulfillmentType === "delivery"} onChange={() => { invalidateShippingQuote(); setFulfillmentType("delivery"); }} className="accent-[#168e00]" />
                       <Truck className="text-[#168e00]" size={21} />
                       <span><strong className="block text-sm text-gray-900">Domicilio</strong><span className="text-xs text-gray-500">Entrega por el negocio</span></span>
                     </label>
@@ -1426,7 +1427,6 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
                   {delivery.loadError ? <p className="text-sm text-amber-700">{delivery.loadError} Puedes capturarla aquí.</p> : null}
                   {!delivery.loading ? <DeliveryAddressEditor
                     address={delivery.address}
-                    onFieldChange={(field, value) => { delivery.setField(field, value); invalidateShippingQuote(); setProfileSaveError(null); }}
                     onLocationChange={(location) => { delivery.setLocation(location); invalidateShippingQuote(); setProfileSaveError(null); }}
                     onPlaceChange={(place) => { delivery.selectPlace(place); invalidateShippingQuote(); setProfileSaveError(null); }}
                     isAuthenticated={isAuthenticated}
@@ -1502,7 +1502,12 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
                       </strong>
                     </div>
                   </>
-                ) : null}
+                ) : (
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Envío</span>
+                    <strong>{currencyFormatter.format(0)}</strong>
+                  </div>
+                )}
                 <div className="mt-3 flex items-center justify-between border-t border-[#004e28]/10 pt-3"><span className="font-bold text-[#004e28]">Total</span><strong className="text-xl text-[#168e00]">{checkoutTotal == null ? "Pendiente" : currencyFormatter.format(checkoutTotal)}</strong></div>
                 {paymentMethod === "online" ? <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"><CreditCard size={13} /> Completarás tu pago en la página segura de Mercado Pago.</p> : null}
               </div>

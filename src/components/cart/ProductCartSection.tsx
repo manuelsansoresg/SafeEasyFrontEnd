@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { fetchWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -255,6 +255,7 @@ export default function ProductCartSection() {
   const [shippingCost, setShippingCost] = useState<number | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [quoteRetryCount, setQuoteRetryCount] = useState(0);
   const [addressLocked, setAddressLocked] = useState(false);
   const checkoutOpeningRef = useRef(false);
 
@@ -475,10 +476,10 @@ export default function ProductCartSection() {
     setAddressLocked(false);
   };
 
-  const fetchSupplierDetails = async (supplierId: number) => {
+  const fetchSupplierDetails = useCallback(async (supplierId: number, signal?: AbortSignal) => {
     const res = await tryFetch(
       [`/api/suppliers/${supplierId}`, `/api/suppliers/${supplierId}/`],
-      { headers: { Accept: "application/json" } },
+      { headers: { Accept: "application/json" }, signal },
     );
     if (!res || !res.ok) return null;
     const data: unknown = await res.json().catch(() => null);
@@ -519,82 +520,95 @@ export default function ProductCartSection() {
       accepts_pickup: acceptsPickup,
       accepts_courier: acceptsCourier,
     };
-  };
+  }, []);
 
-  const computeShippingQuote = async (supplierId: number, force?: boolean) => {
+  const selectedSupplierLocation = carts.find((c) => c.supplier_id === checkoutSupplierId)?.supplier_map_location ?? null;
+  const supplierLat = selectedSupplierLocation?.lat ?? null;
+  const supplierLng = selectedSupplierLocation?.lng ?? null;
+
+  useEffect(() => {
+    const requestId = ++quoteRequestRef.current;
     setQuoteError(null);
-    if (!force && deliveryType !== "shipping") return;
     setShippingCost(null);
     setDistanceKm(null);
     setAddressLocked(false);
-    const location = delivery.address.location;
-    if (!delivery.address.address.trim() || !isValidDeliveryLocation(location)) {
-      setQuoteError("Selecciona tu ubicación para calcular el envío.");
+
+    const buyerLocation = delivery.address.location;
+    if (
+      deliveryType !== "shipping" ||
+      checkoutSupplierId == null ||
+      delivery.loading ||
+      !delivery.address.address.trim() ||
+      !isValidDeliveryLocation(buyerLocation)
+    ) {
+      setQuoteLoading(false);
       return;
     }
-    const requestId = ++quoteRequestRef.current;
+
+    const supplierId = checkoutSupplierId;
+    const controller = new AbortController();
     setQuoteLoading(true);
-    try {
-      let sLoc = carts.find((c) => c.supplier_id === supplierId)?.supplier_map_location ?? null;
-      if (!sLoc) {
-        const details = await fetchSupplierDetails(supplierId);
-        sLoc = details?.mapLocation ?? null;
-      }
-      if (requestId !== quoteRequestRef.current) return;
-      if (!sLoc) {
-        setQuoteError("Este negocio aún no tiene una ubicación configurada y no es posible calcular el envío.");
-        return;
-      }
-      const km = await distanceKmDriving(location, sLoc);
-      if (requestId !== quoteRequestRef.current) return;
-      if (!Number.isFinite(km) || km < 0) throw new Error("Distancia inválida");
-      const res = await tryFetch(
-        ["/api/cart/shipping-quote", "/api/cart/shipping-quote/"],
-        {
-          method: "POST",
-          body: JSON.stringify({ supplier_id: supplierId, distance_km: km }),
-          headers: { Accept: "application/json" },
-        },
-      );
-      if (requestId !== quoteRequestRef.current) return;
-      if (!res) {
-        setQuoteError("No se pudo calcular el costo de envío.");
-        return;
-      }
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (requestId !== quoteRequestRef.current) return;
-        const msg =
-          (typeof data.detail === "string" && data.detail) ||
-          (typeof data.message === "string" && data.message) ||
-          "No se pudo calcular el costo de envío.";
-        setQuoteError(msg);
-        return;
-      }
-      const data: unknown = await res.json().catch(() => ({}));
-      if (requestId !== quoteRequestRef.current) return;
-      const rec = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
-      const rawCost = rec.shipping_cost ?? rec.cost ?? rec.amount;
-      const parsedCost =
-        typeof rawCost === "number"
-          ? rawCost
-          : typeof rawCost === "string"
-            ? Number.parseFloat(rawCost.replace(/[^\d.-]/g, ""))
-            : NaN;
-      if (!Number.isFinite(parsedCost) || parsedCost < 0) {
-        setQuoteError("No se pudo calcular el costo de envío.");
-        return;
-      }
-      setDistanceKm(km);
-      setShippingCost(parsedCost);
-      setAddressLocked(true);
-    } catch {
-      if (requestId !== quoteRequestRef.current) return;
-      setQuoteError("No se pudo calcular el costo de envío.");
-    } finally {
-      if (requestId === quoteRequestRef.current) setQuoteLoading(false);
-    }
-  };
+    const timer = window.setTimeout(() => {
+      const requestQuote = async () => {
+        try {
+          let supplierLocation: LatLngLiteral | null = supplierLat != null && supplierLng != null
+            ? { lat: supplierLat, lng: supplierLng }
+            : null;
+          if (!supplierLocation) {
+            const details = await fetchSupplierDetails(supplierId, controller.signal);
+            supplierLocation = details?.mapLocation ?? null;
+          }
+          if (controller.signal.aborted || requestId !== quoteRequestRef.current) return;
+          if (!supplierLocation) {
+            setQuoteError("Este negocio aún no tiene una ubicación configurada y no es posible calcular el envío.");
+            return;
+          }
+
+          const km = await distanceKmDriving(buyerLocation, supplierLocation);
+          if (controller.signal.aborted || requestId !== quoteRequestRef.current) return;
+          if (!Number.isFinite(km) || km < 0) throw new Error("Distancia inválida");
+          const res = await tryFetch(
+            ["/api/cart/shipping-quote", "/api/cart/shipping-quote/"],
+            {
+              method: "POST",
+              body: JSON.stringify({ supplier_id: supplierId, distance_km: km }),
+              headers: { Accept: "application/json" },
+              signal: controller.signal,
+            },
+          );
+          if (controller.signal.aborted || requestId !== quoteRequestRef.current) return;
+          if (!res?.ok) throw new Error("No se pudo calcular el costo de envío.");
+          const data: unknown = await res.json().catch(() => ({}));
+          if (controller.signal.aborted || requestId !== quoteRequestRef.current) return;
+          const rec = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+          const rawCost = rec.shipping_cost ?? rec.cost ?? rec.amount;
+          const parsedCost = typeof rawCost === "number"
+            ? rawCost
+            : typeof rawCost === "string"
+              ? Number.parseFloat(rawCost.replace(/[^\d.-]/g, ""))
+              : NaN;
+          if (!Number.isFinite(parsedCost) || parsedCost < 0) throw new Error("Costo de envío inválido");
+          setDistanceKm(km);
+          setShippingCost(parsedCost);
+          setAddressLocked(true);
+        } catch {
+          if (!controller.signal.aborted && requestId === quoteRequestRef.current) {
+            setQuoteError("No se pudo calcular el costo de envío.");
+          }
+        } finally {
+          if (!controller.signal.aborted && requestId === quoteRequestRef.current) setQuoteLoading(false);
+        }
+      };
+      void requestQuote();
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+      quoteRequestRef.current += 1;
+    };
+  }, [checkoutSupplierId, deliveryType, delivery.loading, delivery.address.address, delivery.address.location,
+    supplierLat, supplierLng, quoteRetryCount, fetchSupplierDetails]);
 
   const confirmCheckout = async (supplierId: number, deliveryOverride?: DeliveryType) => {
     if (checkoutOpeningRef.current || isRedirectingRef.current) return;
@@ -815,7 +829,7 @@ export default function ProductCartSection() {
                             <button
                               type="button"
                               disabled={delivery.loading}
-                              onClick={async () => {
+                              onClick={() => {
                                 setCheckoutSupplierId(c.supplier_id);
                                 setDeliveryType("shipping");
                                 invalidateQuote();
@@ -844,7 +858,6 @@ export default function ProductCartSection() {
                             ) : (
                               <DeliveryAddressEditor
                                 address={delivery.address}
-                                onFieldChange={(field, value) => { delivery.setField(field, value); invalidateQuote(); }}
                                 onLocationChange={(location) => { delivery.setLocation(location); invalidateQuote(); }}
                                 onPlaceChange={(place) => { delivery.selectPlace(place); invalidateQuote(); }}
                                 isAuthenticated={delivery.isAuthenticated}
@@ -853,11 +866,6 @@ export default function ProductCartSection() {
                                 mapHeight="240px"
                               />
                             )}
-                            {delivery.address.location ? (
-                              <p className="break-words text-xs text-gray-500">
-                                Ubicación seleccionada: {delivery.address.location.lat.toFixed(5)}, {delivery.address.location.lng.toFixed(5)}
-                              </p>
-                            ) : null}
                             {!saveAddressInProfile && delivery.hasChanges ? (
                               <div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
                                 Para comprar Productos con esta dirección nueva, debes guardarla en tu perfil.
@@ -870,7 +878,7 @@ export default function ProductCartSection() {
                               ) : quoteError ? (
                                 <div className="space-y-2 text-red-700">
                                   <p>{quoteError}</p>
-                                  <button type="button" onClick={() => void computeShippingQuote(c.supplier_id)} className="font-bold underline">Reintentar</button>
+                                  <button type="button" onClick={() => { invalidateQuote(); setQuoteRetryCount((count) => count + 1); }} className="font-bold underline">Reintentar</button>
                                 </div>
                               ) : hasValidQuote ? (
                                 <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 font-semibold text-[#004e28]">
@@ -880,22 +888,9 @@ export default function ProductCartSection() {
                               ) : (
                                 <p className="text-gray-600">{!delivery.address.address.trim() || !isValidDeliveryLocation(delivery.address.location)
                                   ? "Selecciona tu ubicación para calcular el envío."
-                                  : "Calcula el envío para conocer el total."}</p>
+                                  : "Esperando cotización del envío."}</p>
                               )}
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => computeShippingQuote(c.supplier_id)}
-                              disabled={quoteLoading || mutating || profileSaving || delivery.loading || !delivery.address.address.trim() || !isValidDeliveryLocation(delivery.address.location)}
-                              className={cn(
-                                "w-full px-5 py-3 rounded-xl font-bold text-sm",
-                                quoteLoading || mutating || profileSaving || delivery.loading || !delivery.address.address.trim() || !isValidDeliveryLocation(delivery.address.location)
-                                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                                  : "bg-primary text-white hover:bg-primary/90",
-                              )}
-                            >
-                              {quoteLoading ? "Calculando envío..." : hasValidQuote ? "Recalcular envío" : "Calcular envío"}
-                            </button>
                           </div>
                       )}
                       <div className="pt-2">
