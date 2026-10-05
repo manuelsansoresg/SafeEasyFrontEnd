@@ -31,15 +31,12 @@ import {
   getBrowserPathWithSearchAndHash,
   getLoginUrl,
 } from "@/lib/authRedirect";
-import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
-import { fetchWithAuth } from "@/lib/api";
+import { DeliveryAddressEditor } from "@/components/checkout/DeliveryAddressEditor";
+import { formatDeliveryAddress, isValidDeliveryLocation } from "@/lib/deliveryAddress";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
-import {
-  distanceKmDriving,
-  parseMapLocation,
-  type LatLngLiteral,
-} from "@/lib/googleMaps";
-import { extractCoordinates, fetchSupplierLocation } from "@/lib/orderLocation";
+import { distanceKmDriving, type LatLngLiteral } from "@/lib/googleMaps";
+import { fetchSupplierLocation } from "@/lib/orderLocation";
+import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
 import { menuOrderService } from "@/services/menuOrderService";
 import { useAuthStore } from "@/store/useAuthStore";
 import { menuCartKey, menuLineKey, useMenuCartHydrated, useMenuCartStore, type MenuCartLine as CartLine } from "@/store/useMenuCartStore";
@@ -99,43 +96,6 @@ function formatTime(value: string) {
   if (!Number.isFinite(hours)) return value;
   const period = hours >= 12 ? "p.m." : "a.m.";
   return `${hours % 12 || 12}:${minutesValue.padStart(2, "0")} ${period}`;
-}
-
-function profileAddress(value: unknown) {
-  if (!value || typeof value !== "object") return "";
-  const record = value as Record<string, unknown>;
-  const nested =
-    (record.user && typeof record.user === "object"
-      ? (record.user as Record<string, unknown>)
-      : null) ||
-    (record.data && typeof record.data === "object"
-      ? (record.data as Record<string, unknown>)
-      : null) ||
-    record;
-  const text = (key: string) =>
-    typeof nested[key] === "string" ? nested[key].trim() : "";
-  return [
-    text("address") || text("street"),
-    text("exterior_number") || text("outdoor_number"),
-    text("interior_number") ? `Int. ${text("interior_number")}` : "",
-    text("neighborhood") || text("colonia"),
-    text("cp") || text("zip_code") || text("postal_code"),
-    text("city"),
-    text("state"),
-    text("country"),
-  ]
-    .filter(Boolean)
-    .join(", ");
-}
-
-function profileCoordinates(value: unknown) {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  const nested =
-    (record.user && typeof record.user === "object" ? record.user : null) ||
-    (record.data && typeof record.data === "object" ? record.data : null) ||
-    record;
-  return extractCoordinates(nested) || parseMapLocation(nested);
 }
 
 function menuSchedule(menu: Menu) {
@@ -609,6 +569,9 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
+  const [saveAddressInProfile, setSaveAddressInProfile] = useState(true);
+  const delivery = useDeliveryAddress();
   const submittingRef = useRef(false);
   const [clientRequestId, setClientRequestId] = useState(createRequestId);
 
@@ -619,9 +582,6 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
     useState<MenuOrderFulfillmentType>("pickup");
   const [paymentMethod, setPaymentMethod] =
     useState<MenuOrderPaymentMethod>("cash");
-  const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [deliveryLocation, setDeliveryLocation] =
-    useState<LatLngLiteral | null>(null);
   const [supplierLocation, setSupplierLocation] =
     useState<LatLngLiteral | null>(null);
   const [supplierLocationLoading, setSupplierLocationLoading] = useState(false);
@@ -635,6 +595,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
   const selectedMenu =
     menus.find((menu) => menu.id === selectedMenuId) ?? menus[0];
+  const addressForQuote = formatDeliveryAddress(delivery.address);
   const currentCartKey = selectedMenu ? menuCartKey(selectedMenu.supplier_id, selectedMenu.id) : "";
   const cart = hydrated ? storedCarts[currentCartKey]?.items ?? EMPTY_CART : EMPTY_CART;
   const orderSettings = selectedMenu
@@ -663,30 +624,6 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
     setCustomerName((current) => current || user.name || "");
     setCustomerEmail((current) => current || user.email || "");
   }, [user]);
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const controller = new AbortController();
-    fetchWithAuth("/api/users/me", {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return response.json() as Promise<unknown>;
-      })
-      .then((profile) => {
-        if (!profile || controller.signal.aborted) return;
-        const coordinates = profileCoordinates(profile);
-        if (coordinates) setDeliveryLocation((current) => current || coordinates);
-        const address = profileAddress(profile);
-        if (address) setDeliveryAddress((current) => current || address);
-      })
-      .catch(() => undefined);
-
-    return () => controller.abort();
-  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!supplierSlug || menus.length === 0) return;
@@ -740,7 +677,6 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
   useEffect(() => {
     setCartOpen(false);
     setCheckoutOpen(false);
-    setDeliveryLocation(null);
     setSupplierLocation(null);
     setDeliveryDistanceKm(null);
     setShippingQuote(null);
@@ -786,7 +722,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
     if (
       fulfillmentType !== "delivery" ||
-      !deliveryLocation ||
+      !delivery.address.location ||
       !supplierLocation ||
       !supplierSlug ||
       !selectedMenu
@@ -796,9 +732,11 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
     }
 
     const controller = new AbortController();
+    const buyerLocation = delivery.address.location;
     setShippingQuoteLoading(true);
 
-    distanceKmDriving(deliveryLocation, supplierLocation)
+    const timer = window.setTimeout(() => {
+    distanceKmDriving(buyerLocation, supplierLocation)
       .then(async (distanceKm) => {
         if (!Number.isFinite(distanceKm) || distanceKm < 0) {
           throw new Error("No se pudo calcular la distancia.");
@@ -826,9 +764,10 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
           setShippingQuoteLoading(false);
         }
       });
+    }, 300);
 
-    return () => controller.abort();
-  }, [deliveryLocation, fulfillmentType, selectedMenu, supplierLocation, supplierSlug]);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [addressForQuote, delivery.address.location, fulfillmentType, selectedMenu, supplierLocation, supplierSlug]);
 
   useEffect(() => {
     if (!orderSettings) return;
@@ -867,8 +806,8 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
   const checkoutTotal = cartSubtotal + deliveryFee;
   const deliveryReady =
     fulfillmentType !== "delivery" ||
-    (Boolean(deliveryAddress.trim()) &&
-      Boolean(deliveryLocation) &&
+    (Boolean(delivery.address.address.trim()) &&
+      isValidDeliveryLocation(delivery.address.location) &&
       Boolean(supplierLocation) &&
       typeof deliveryDistanceKm === "number" &&
       Number.isFinite(deliveryDistanceKm) &&
@@ -954,6 +893,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
     }
 
     setCheckoutError(null);
+    setProfileSaveError(null);
     setClientRequestId(createRequestId());
 
     if (orderSettings.allows_pickup) setFulfillmentType("pickup");
@@ -984,12 +924,12 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
       return;
     }
 
-    if (fulfillmentType === "delivery" && !deliveryAddress.trim()) {
+    if (fulfillmentType === "delivery" && !delivery.address.address.trim()) {
       setCheckoutError("Escribe la dirección para la entrega.");
       return;
     }
 
-    if (fulfillmentType === "delivery" && !deliveryLocation) {
+    if (fulfillmentType === "delivery" && !isValidDeliveryLocation(delivery.address.location)) {
       setCheckoutError("Selecciona tu ubicación en el mapa para calcular el envío.");
       return;
     }
@@ -1037,8 +977,17 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
     submittingRef.current = true;
     setSubmitting(true);
     setCheckoutError(null);
+    setProfileSaveError(null);
 
     try {
+      if (fulfillmentType === "delivery" && isAuthenticated && saveAddressInProfile) {
+        try {
+          await delivery.saveToProfile();
+        } catch (error) {
+          setProfileSaveError(error instanceof Error ? error.message : "No pudimos guardar tu nueva dirección.");
+          return;
+        }
+      }
       const order = await menuOrderService.createPublic(supplierSlug, {
         menu_id: selectedMenu.id,
         customer_name: customerName.trim(),
@@ -1047,7 +996,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
         fulfillment_type: fulfillmentType,
         payment_method: paymentMethod,
         delivery_address:
-          fulfillmentType === "delivery" ? deliveryAddress.trim() : null,
+          fulfillmentType === "delivery" ? formatDeliveryAddress(delivery.address) : null,
         distance_km:
           fulfillmentType === "delivery" ? deliveryDistanceKm : null,
         notes: generalNotes.trim() || null,
@@ -1422,6 +1371,9 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
               {checkoutError ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{checkoutError}</div>
               ) : null}
+              {profileSaveError ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-800">{profileSaveError}</div>
+              ) : null}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm font-bold text-gray-700 sm:col-span-2">
@@ -1460,22 +1412,17 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
               {fulfillmentType === "delivery" ? (
                 <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-bold text-gray-700">
-                      Dirección de entrega
-                    </p>
-                    <p className="mb-2 mt-1 text-xs leading-5 text-gray-500">
-                      Busca y selecciona tu dirección. También puedes ajustar el punto exacto en el mapa.
-                    </p>
-                    <GoogleMapPicker
-                      location={deliveryLocation}
-                      onChange={setDeliveryLocation}
-                      onAddressChange={setDeliveryAddress}
-                      addressLabel={deliveryAddress}
-                      height="240px"
-                      className="max-w-full"
-                    />
-                  </div>
+                  {delivery.loading ? <p className="text-sm text-gray-500">Cargando tu dirección guardada...</p> : null}
+                  {delivery.loadError ? <p className="text-sm text-amber-700">{delivery.loadError} Puedes capturarla aquí.</p> : null}
+                  {!delivery.loading ? <DeliveryAddressEditor
+                    address={delivery.address}
+                    onFieldChange={(field, value) => { delivery.setField(field, value); setProfileSaveError(null); }}
+                    onLocationChange={(location) => { delivery.setLocation(location); setProfileSaveError(null); }}
+                    onPlaceChange={(place) => { delivery.selectPlace(place); setProfileSaveError(null); }}
+                    isAuthenticated={isAuthenticated}
+                    saveToProfile={saveAddressInProfile}
+                    onSaveToProfileChange={(value) => { setSaveAddressInProfile(value); setProfileSaveError(null); }}
+                  /> : null}
 
                   {!supplierLocationLoading && !supplierLocation ? (
                     <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-800">
@@ -1539,7 +1486,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
                           ? currencyFormatter.format(shippingQuote.delivery_fee)
                           : shippingQuoteLoading
                             ? "Calculando..."
-                            : deliveryLocation
+                            : delivery.address.location
                               ? "Pendiente de cotización"
                               : "Selecciona tu ubicación"}
                       </strong>
@@ -1550,7 +1497,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
                 {paymentMethod === "online" ? <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"><CreditCard size={13} /> Completarás tu pago en la página segura de Mercado Pago.</p> : null}
               </div>
 
-              <button type="submit" disabled={submitting || !deliveryReady} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="submit" disabled={submitting || !deliveryReady || (fulfillmentType === "delivery" && delivery.loading)} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50">
                 {submitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                 {submitting ? "Creando pedido..." : paymentMethod === "online" ? "Continuar al pago seguro" : "Confirmar pedido"}
               </button>

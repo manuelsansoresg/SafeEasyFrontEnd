@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { LatLngLiteral, loadGoogleMaps } from "@/lib/googleMaps";
+import type { GooglePlaceSelection } from "@/lib/deliveryAddress";
 import { Loader2, Search, X } from "lucide-react";
 
 type Props = {
   location?: LatLngLiteral | null;
   onChange?: (location: LatLngLiteral) => void;
   onAddressChange?: (address: string) => void;
+  onPlaceChange?: (place: GooglePlaceSelection) => void;
   readOnly?: boolean;
   height?: string;
   zoom?: number;
@@ -29,7 +31,11 @@ type GoogleMarkerInstance = {
   getPosition?: () => GoogleLatLng | null;
   addListener?: (eventName: string, handler: (event?: GoogleMapMouseEvent) => void) => RemovableListener;
 };
-type GooglePlace = { geometry?: { location?: GoogleLatLng }; formatted_address?: string };
+type GooglePlace = {
+  geometry?: { location?: GoogleLatLng };
+  formatted_address?: string;
+  address_components?: GooglePlaceSelection["addressComponents"];
+};
 type GoogleAutocompleteInstance = {
   addListener: (eventName: string, handler: () => void) => RemovableListener;
   getPlace: () => GooglePlace;
@@ -48,6 +54,7 @@ export default function GoogleMapPicker({
   location,
   onChange,
   onAddressChange,
+  onPlaceChange,
   readOnly,
   height = "300px",
   zoom = 15,
@@ -63,6 +70,7 @@ export default function GoogleMapPicker({
   const placeListenerRef = useRef<RemovableListener | null>(null);
   const onChangeRef = useRef<Props["onChange"]>(onChange);
   const onAddressChangeRef = useRef<Props["onAddressChange"]>(onAddressChange);
+  const onPlaceChangeRef = useRef<Props["onPlaceChange"]>(onPlaceChange);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState(() => addressLabel?.trim() || "");
@@ -79,6 +87,10 @@ export default function GoogleMapPicker({
   useEffect(() => {
     onAddressChangeRef.current = onAddressChange;
   }, [onAddressChange]);
+
+  useEffect(() => {
+    onPlaceChangeRef.current = onPlaceChange;
+  }, [onPlaceChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,7 +121,7 @@ export default function GoogleMapPicker({
         const input = inputRef.current;
         if (input && g.maps.places?.Autocomplete) {
           const autocomplete = new g.maps.places.Autocomplete(input, {
-            fields: ["geometry", "formatted_address", "name"],
+            fields: ["geometry", "formatted_address", "address_components", "name"],
             componentRestrictions: { country: "mx" },
           });
           placeListenerRef.current = autocomplete.addListener("place_changed", () => {
@@ -123,6 +135,11 @@ export default function GoogleMapPicker({
             setQuery(address);
             onAddressChangeRef.current?.(address);
             onChangeRef.current?.({ lat, lng });
+            onPlaceChangeRef.current?.({
+              formattedAddress: address,
+              location: { lat, lng },
+              addressComponents: place.address_components ?? [],
+            });
           });
         }
 

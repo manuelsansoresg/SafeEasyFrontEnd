@@ -5,7 +5,9 @@ import Link from "next/link";
 import { fetchWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
-import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
+import { DeliveryAddressEditor } from "@/components/checkout/DeliveryAddressEditor";
+import { formatDeliveryAddress, isValidDeliveryLocation, type DeliveryAddress } from "@/lib/deliveryAddress";
+import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
 import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
@@ -46,32 +48,6 @@ type SupplierCart = {
 type ToastState = null | { type: "success" | "error" | "info"; message: string };
 
 type DeliveryType = "pickup" | "shipping";
-
-type AddressForm = {
-  address: string;
-  exterior_number: string;
-  interior_number: string;
-  cp: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  country: string;
-};
-
-function addressHash(form: AddressForm, loc: LatLngLiteral | null) {
-  const normalized: Record<string, unknown> = {
-    address: String(form.address || "").trim(),
-    exterior_number: String(form.exterior_number || "").trim(),
-    interior_number: String(form.interior_number || "").trim(),
-    cp: String(form.cp || "").trim(),
-    neighborhood: String(form.neighborhood || "").trim(),
-    city: String(form.city || "").trim(),
-    state: String(form.state || "").trim(),
-    country: String(form.country || "").trim(),
-    map_location: loc ? { lat: Number(loc.lat) || 0, lng: Number(loc.lng) || 0 } : null,
-  };
-  return JSON.stringify(normalized);
-}
 
 function money(value: number) {
   const safe = Number.isFinite(value) ? value : 0;
@@ -268,33 +244,22 @@ export default function ProductCartSection() {
   const prevSnapshot = useRef<SupplierCart[] | null>(null);
   const isUnmountedRef = useRef(false);
   const isRedirectingRef = useRef(false);
-  const addressDirtyRef = useRef(false);
+  const delivery = useDeliveryAddress();
+  const meUserId = delivery.userId;
+  const [saveAddressInProfile, setSaveAddressInProfile] = useState(true);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const addressBeforeEditRef = useRef<DeliveryAddress | null>(null);
+  const quoteRequestRef = useRef(0);
   const [checkoutSupplierId, setCheckoutSupplierId] = useState<number | null>(null);
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("pickup");
-  const [meUserId, setMeUserId] = useState<number | null>(null);
-  const [meLoading, setMeLoading] = useState(false);
-  const [addressForm, setAddressForm] = useState<AddressForm>({
-    address: "",
-    exterior_number: "",
-    interior_number: "",
-    cp: "",
-    neighborhood: "",
-    city: "Mérida",
-    state: "Yucatán",
-    country: "México",
-  });
-  const [userMapLocation, setUserMapLocation] = useState<LatLngLiteral | null>(null);
-  const [savingAddress, setSavingAddress] = useState(false);
   const [, setSupplierMapLocation] = useState<LatLngLiteral | null>(null);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [shippingCost, setShippingCost] = useState<number | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [addressLocked, setAddressLocked] = useState(false);
-  const lastSavedAddressHashRef = useRef("");
   const checkoutOpeningRef = useRef(false);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
-  const [addressModalSaving, setAddressModalSaving] = useState(false);
 
   const closeToast = () => setToast(null);
 
@@ -304,85 +269,6 @@ export default function ProductCartSection() {
       isUnmountedRef.current = true;
     };
   }, []);
-
-  useEffect(() => {
-    const loadMe = async () => {
-      setMeLoading(true);
-      try {
-        const res = await fetchWithAuth("/api/users/me", { headers: { Accept: "application/json" } });
-        if (!res.ok) return;
-        const data: unknown = await res.json().catch(() => null);
-        if (!data || typeof data !== "object") return;
-        const rec = data as Record<string, unknown>;
-        const nested =
-          (rec.user && typeof rec.user === "object" ? (rec.user as Record<string, unknown>) : null) ||
-          (rec.data && typeof rec.data === "object" ? (rec.data as Record<string, unknown>) : null) ||
-          null;
-        const src = nested || rec;
-
-        const idNum = Number(src.id ?? rec.id ?? 0);
-        if (Number.isFinite(idNum) && idNum > 0) setMeUserId(idNum);
-        const nextForm = {
-          address: String(src.address || src.street || rec.address || rec.street || "").trim(),
-          exterior_number: String(src.exterior_number || src.outdoor_number || rec.exterior_number || rec.outdoor_number || "").trim(),
-          interior_number: String(src.interior_number || src.indoor_number || rec.interior_number || rec.indoor_number || "").trim(),
-          cp: String(src.cp || src.zip_code || src.postal_code || rec.cp || rec.zip_code || rec.postal_code || "").trim(),
-          neighborhood: String(src.neighborhood || src.colonia || rec.neighborhood || rec.colonia || "").trim(),
-          city: String(src.city || rec.city || "Mérida"),
-          state: String(src.state || rec.state || "Yucatán"),
-          country: String(src.country || rec.country || "México"),
-        };
-        const loc = parseMapLocation(src.map_location ?? rec.map_location ?? null);
-        if (!addressDirtyRef.current) {
-          setAddressForm(nextForm);
-          if (loc) setUserMapLocation(loc);
-          lastSavedAddressHashRef.current = addressHash(nextForm, loc);
-        } else if (!userMapLocation && loc) {
-          setUserMapLocation(loc);
-        }
-      } catch {}
-      finally {
-        setMeLoading(false);
-      }
-    };
-    loadMe();
-  }, []);
-
-  const reloadMeAddress = async () => {
-    setMeLoading(true);
-    try {
-      const res = await fetchWithAuth("/api/users/me", { headers: { Accept: "application/json" } });
-      if (!res.ok) return;
-      const data: unknown = await res.json().catch(() => null);
-      if (!data || typeof data !== "object") return;
-      const rec = data as Record<string, unknown>;
-      const nested =
-        (rec.user && typeof rec.user === "object" ? (rec.user as Record<string, unknown>) : null) ||
-        (rec.data && typeof rec.data === "object" ? (rec.data as Record<string, unknown>) : null) ||
-        null;
-      const src = nested || rec;
-
-      const idNum = Number(src.id ?? rec.id ?? 0);
-      if (Number.isFinite(idNum) && idNum > 0) setMeUserId(idNum);
-      const nextForm = {
-        address: String(src.address || src.street || rec.address || rec.street || "").trim(),
-        exterior_number: String(src.exterior_number || src.outdoor_number || rec.exterior_number || rec.outdoor_number || "").trim(),
-        interior_number: String(src.interior_number || src.indoor_number || rec.interior_number || rec.indoor_number || "").trim(),
-        cp: String(src.cp || src.zip_code || src.postal_code || rec.cp || rec.zip_code || rec.postal_code || "").trim(),
-        neighborhood: String(src.neighborhood || src.colonia || rec.neighborhood || rec.colonia || "").trim(),
-        city: String(src.city || rec.city || "Mérida"),
-        state: String(src.state || rec.state || "Yucatán"),
-        country: String(src.country || rec.country || "México"),
-      };
-      const loc = parseMapLocation(src.map_location ?? rec.map_location ?? null);
-      setAddressForm(nextForm);
-      if (loc) setUserMapLocation(loc);
-      lastSavedAddressHashRef.current = addressHash(nextForm, loc);
-    } catch {}
-    finally {
-      setMeLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (!toast) return;
@@ -561,63 +447,6 @@ export default function ProductCartSection() {
     }
   };
 
-  const saveAddress = async () => {
-    if (!meUserId) return true;
-    const nextHash = addressHash(addressForm, userMapLocation);
-    if (nextHash === lastSavedAddressHashRef.current) return true;
-    setSavingAddress(true);
-    try {
-      const body: Record<string, unknown> = {
-        address: addressForm.address,
-        exterior_number: addressForm.exterior_number,
-        interior_number: addressForm.interior_number,
-        cp: addressForm.cp,
-        neighborhood: addressForm.neighborhood,
-        city: addressForm.city,
-        state: addressForm.state,
-        country: addressForm.country,
-      };
-      if (userMapLocation) body.map_location = `${userMapLocation.lat},${userMapLocation.lng}`;
-      const res = await fetchWithAuth(`/api/users/${meUserId}`, {
-        method: "PUT",
-        body: JSON.stringify(body),
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const msg =
-          (typeof data.detail === "string" && data.detail) ||
-          (typeof data.message === "string" && data.message) ||
-          "No se pudo guardar la dirección.";
-        setToast({ type: "error", message: msg });
-        return false;
-      }
-      if (userMapLocation) {
-        const mapRes = await fetchWithAuth(`/api/users/${meUserId}/map-location`, {
-          method: "PATCH",
-          body: JSON.stringify({ map_location: `${userMapLocation.lat},${userMapLocation.lng}` }),
-          headers: { Accept: "application/json" },
-        });
-        if (!mapRes.ok) {
-          const data = await mapRes.json().catch(() => ({}));
-          const msg =
-            (typeof data.detail === "string" && data.detail) ||
-            (typeof data.message === "string" && data.message) ||
-            "No se pudo guardar la ubicación en el mapa.";
-          setToast({ type: "error", message: msg });
-          return false;
-        }
-      }
-      lastSavedAddressHashRef.current = nextHash;
-      return true;
-    } catch {
-      setToast({ type: "error", message: "Error de conexión al guardar la dirección." });
-      return false;
-    } finally {
-      setSavingAddress(false);
-    }
-  };
-
   const getDefaultDeliveryType = (supplier: SupplierCart): DeliveryType => (supplier.accepts_pickup ? "pickup" : "shipping");
 
   const startCheckout = async (supplierId: number) => {
@@ -635,39 +464,16 @@ export default function ProductCartSection() {
     const cached = supplier.supplier_map_location ?? null;
     setSupplierMapLocation(cached);
     setAddressLocked(false);
+    quoteRequestRef.current += 1;
   };
 
   const invalidateQuote = () => {
+    quoteRequestRef.current += 1;
     setQuoteError(null);
+    setQuoteLoading(false);
     setShippingCost(null);
     setDistanceKm(null);
     setAddressLocked(false);
-  };
-
-  const saveAddressOnly = async () => {
-    setQuoteError(null);
-    if (!meUserId) {
-      setToast({ type: "error", message: "Inicia sesión para guardar tu dirección." });
-      return;
-    }
-    if (!userMapLocation) {
-      setQuoteError("Selecciona tu ubicación en el mapa.");
-      return;
-    }
-    setAddressModalSaving(true);
-    try {
-      const saved = await saveAddress();
-      if (!saved) return;
-      addressDirtyRef.current = false;
-      setAddressModalOpen(false);
-      if (deliveryType === "shipping" && checkoutSupplierId != null) {
-        window.setTimeout(() => {
-          computeShippingQuote(checkoutSupplierId, true).catch(() => {});
-        }, 0);
-      }
-    } finally {
-      setAddressModalSaving(false);
-    }
   };
 
   const fetchSupplierDetails = async (supplierId: number) => {
@@ -719,11 +525,14 @@ export default function ProductCartSection() {
   const computeShippingQuote = async (supplierId: number, force?: boolean) => {
     setQuoteError(null);
     if (!force && deliveryType !== "shipping") return;
-    if (!userMapLocation || addressDirtyRef.current) {
+    const location = delivery.address.location;
+    if (!delivery.address.address.trim() || !isValidDeliveryLocation(location)) {
       setCheckoutSupplierId(supplierId);
+      addressBeforeEditRef.current = delivery.address;
       setAddressModalOpen(true);
       return;
     }
+    const requestId = ++quoteRequestRef.current;
 
     let sLoc = carts.find((c) => c.supplier_id === supplierId)?.supplier_map_location ?? null;
     if (!sLoc) {
@@ -735,9 +544,11 @@ export default function ProductCartSection() {
       return;
     }
 
+    if (requestId !== quoteRequestRef.current) return;
     setQuoteLoading(true);
     try {
-      const km = await distanceKmDriving(userMapLocation, sLoc);
+      const km = await distanceKmDriving(location, sLoc);
+      if (requestId !== quoteRequestRef.current) return;
       setDistanceKm(km);
       const res = await tryFetch(
         ["/api/cart/shipping-quote", "/api/cart/shipping-quote/"],
@@ -747,6 +558,7 @@ export default function ProductCartSection() {
           headers: { Accept: "application/json" },
         },
       );
+      if (requestId !== quoteRequestRef.current) return;
       if (!res) {
         setQuoteError("No se pudo cotizar el envío.");
         setShippingCost(null);
@@ -754,6 +566,7 @@ export default function ProductCartSection() {
       }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        if (requestId !== quoteRequestRef.current) return;
         const msg =
           (typeof data.detail === "string" && data.detail) ||
           (typeof data.message === "string" && data.message) ||
@@ -763,6 +576,7 @@ export default function ProductCartSection() {
         return;
       }
       const data: unknown = await res.json().catch(() => ({}));
+      if (requestId !== quoteRequestRef.current) return;
       const rec = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
       const rawCost = rec.shipping_cost ?? rec.cost ?? rec.amount ?? 0;
       const parsedCost =
@@ -774,10 +588,11 @@ export default function ProductCartSection() {
       setShippingCost(Number.isFinite(parsedCost) && parsedCost >= 0 ? parsedCost : 0);
       setAddressLocked(true);
     } catch {
+      if (requestId !== quoteRequestRef.current) return;
       setQuoteError("Error al calcular distancia o cotizar envío.");
       setShippingCost(null);
     } finally {
-      setQuoteLoading(false);
+      if (requestId === quoteRequestRef.current) setQuoteLoading(false);
     }
   };
 
@@ -807,8 +622,12 @@ export default function ProductCartSection() {
         return;
       }
       if (requiresShippingQuote) {
-        if (!userMapLocation) {
+        if (!isValidDeliveryLocation(delivery.address.location)) {
           setToast({ type: "error", message: "Selecciona tu ubicación para el envío." });
+          return;
+        }
+        if (!delivery.address.address.trim()) {
+          setToast({ type: "error", message: "Escribe la dirección para el envío." });
           return;
         }
         if (!addressLocked || shippingCost == null) {
@@ -819,9 +638,22 @@ export default function ProductCartSection() {
           setToast({ type: "error", message: "Calcula nuevamente la distancia para el envío." });
           return;
         }
+        if (!saveAddressInProfile && delivery.hasChanges) {
+          setToast({ type: "error", message: "El checkout de Productos usa la dirección de tu perfil. Activa ‘Guardar esta dirección en mi perfil’ para comprar con la dirección nueva." });
+          return;
+        }
       }
-      const saved = await saveAddress();
-      if (!saved) return;
+      if (requiresShippingQuote && saveAddressInProfile) {
+        setProfileSaving(true);
+        try {
+          await delivery.saveToProfile();
+        } catch (error) {
+          setToast({ type: "error", message: error instanceof Error ? error.message : "No pudimos guardar tu nueva dirección." });
+          return;
+        } finally {
+          setProfileSaving(false);
+        }
+      }
       const items = (selectedSupplier?.items || [])
         .map((it) => ({ product_id: String(it.product_id || "").trim(), quantity: Number(it.quantity) || 0 }))
         .filter((it) => it.product_id && it.quantity > 0);
@@ -933,8 +765,8 @@ export default function ProductCartSection() {
                 (isActiveCheckout && visibleShippingNeedsQuote && shippingCost != null && addressLocked ? shippingCost : 0);
               const cannotPay =
                 mutating ||
-                savingAddress ||
-                meLoading ||
+                profileSaving ||
+                delivery.loading ||
                 isOwnSupplierCart ||
                 (!c.accepts_pickup && !c.accepts_delivery) ||
                 (isActiveCheckout && visibleShippingNeedsQuote && (!addressLocked || shippingCost == null));
@@ -981,6 +813,7 @@ export default function ProductCartSection() {
                           {c.accepts_delivery ? (
                             <button
                               type="button"
+                              disabled={delivery.loading}
                               onClick={async () => {
                                 setCheckoutSupplierId(c.supplier_id);
                                 setDeliveryType("shipping");
@@ -988,7 +821,7 @@ export default function ProductCartSection() {
                                 computeShippingQuote(c.supplier_id, true).catch(() => {});
                               }}
                               className={cn(
-                                "px-3 py-2 rounded-lg border",
+                                "px-3 py-2 rounded-lg border disabled:opacity-50",
                                 visibleDeliveryType === "shipping" ? "border-primary text-primary" : "border-gray-200 text-gray-700",
                               )}
                             >
@@ -1012,39 +845,31 @@ export default function ProductCartSection() {
                                 onClick={async () => {
                                   setCheckoutSupplierId(c.supplier_id);
                                   invalidateQuote();
-                                  addressDirtyRef.current = false;
-                                  await reloadMeAddress();
+                                  addressBeforeEditRef.current = delivery.address;
                                   setAddressModalOpen(true);
                                 }}
                                 className="text-xs font-semibold text-gray-700 hover:underline"
                               >
-                                {addressForm.address || userMapLocation ? "Modificar" : "Establecer"}
+                                {delivery.address.address || delivery.address.location ? "Modificar" : "Establecer"}
                               </button>
                             </div>
                             <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                              {addressForm.address.trim() ||
-                              addressForm.exterior_number.trim() ||
-                              addressForm.cp.trim() ||
-                              addressForm.neighborhood.trim() ? (
+                              {delivery.address.address.trim() ? (
                                 <p className="truncate">
-                                  {[
-                                    String(addressForm.address || "").trim(),
-                                    String(addressForm.exterior_number || "").trim(),
-                                    String(addressForm.neighborhood || "").trim(),
-                                    String(addressForm.cp || "").trim(),
-                                    String(addressForm.city || "").trim(),
-                                    String(addressForm.state || "").trim(),
-                                    String(addressForm.country || "").trim(),
-                                  ]
-                                    .filter(Boolean)
-                                    .join(", ")}
+                                  {formatDeliveryAddress(delivery.address)}
                                 </p>
-                              ) : userMapLocation ? (
+                              ) : delivery.address.location ? (
                                 <p className="text-gray-500">Ubicación guardada en el mapa.</p>
                               ) : (
                                 <p className="text-gray-500">No tienes dirección configurada. Establécela para calcular el envío.</p>
                               )}
                             </div>
+                            {!saveAddressInProfile && delivery.hasChanges ? (
+                              <div className="text-xs text-amber-700">
+                                Para comprar Productos con esta dirección nueva, debes guardarla en tu perfil.
+                                {!delivery.loadError ? <button type="button" onClick={() => { delivery.resetToSaved(); invalidateQuote(); }} className="ml-1 font-bold underline">Usar mi dirección guardada</button> : null}
+                              </div>
+                            ) : null}
                             {addressLocked && shippingCost != null ? (
                               <div className="text-sm text-gray-700 mt-2">
                                 Envío cotizado: <b>{money(shippingCost)}</b>
@@ -1055,10 +880,10 @@ export default function ProductCartSection() {
                             <button
                               type="button"
                               onClick={() => computeShippingQuote(c.supplier_id)}
-                              disabled={quoteLoading || mutating || savingAddress || meLoading}
+                              disabled={quoteLoading || mutating || profileSaving || delivery.loading}
                               className={cn(
                                 "mt-3 w-full px-5 py-3 rounded-xl font-bold text-sm",
-                                quoteLoading || mutating || savingAddress || meLoading
+                                quoteLoading || mutating || profileSaving || delivery.loading
                                   ? "bg-gray-200 text-gray-400 cursor-not-allowed"
                                   : "bg-primary text-white hover:bg-primary/90",
                               )}
@@ -1193,7 +1018,7 @@ export default function ProductCartSection() {
                               : "bg-[#168e00] text-white hover:bg-[#137500]",
                           )}
                         >
-                          {mutating || savingAddress ? "Procesando..." : "Finalizar compra"}
+                          {mutating || profileSaving ? "Procesando..." : "Finalizar compra"}
                         </button>
                       </div>
                     </div>
@@ -1205,194 +1030,50 @@ export default function ProductCartSection() {
       </div>
 
       {addressModalOpen && deliveryType === "shipping" && checkoutSupplierId != null ? (
-        <div className="fixed inset-0 z-[90]">
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={async () => {
-              if (addressModalSaving) return;
-              if (addressDirtyRef.current) {
-                addressDirtyRef.current = false;
-                await reloadMeAddress();
-              }
-              setAddressModalOpen(false);
-            }}
-          />
-          <div className="absolute inset-0 p-4 flex items-center justify-center">
-            <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-500">Dirección de entrega</p>
-                  <p className="font-bold text-gray-900 truncate">
-                    {addressForm.address || userMapLocation ? "Puedes modificar tu dirección" : "Configura tu dirección para continuar"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (addressModalSaving) return;
-                    if (addressDirtyRef.current) {
-                      addressDirtyRef.current = false;
-                      await reloadMeAddress();
-                    }
-                    setAddressModalOpen(false);
-                  }}
-                  className="p-2 text-gray-400 hover:text-gray-700"
-                  aria-label="Cerrar"
-                >
-                  <X size={20} />
-                </button>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Dirección de entrega">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-[#168e00]">Entrega a domicilio</p>
+                <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-bold text-[#004e28]">Tu dirección</h3>
               </div>
-              <div className="flex-1 overflow-auto p-5 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="md:col-span-2">
-                    <label className="text-xs text-gray-600">Calle</label>
-                    <input
-                      value={addressForm.address}
-                      onChange={(e) => {
-                        addressDirtyRef.current = true;
-                        setAddressForm((p) => ({ ...p, address: e.target.value }));
-                        invalidateQuote();
-                      }}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                      placeholder="Calle"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600">Número ext.</label>
-                    <input
-                      value={addressForm.exterior_number}
-                      onChange={(e) => {
-                        addressDirtyRef.current = true;
-                        setAddressForm((p) => ({ ...p, exterior_number: e.target.value }));
-                        invalidateQuote();
-                      }}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                      placeholder="123"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600">Número int.</label>
-                    <input
-                      value={addressForm.interior_number}
-                      onChange={(e) => {
-                        addressDirtyRef.current = true;
-                        setAddressForm((p) => ({ ...p, interior_number: e.target.value }));
-                        invalidateQuote();
-                      }}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                      placeholder="A"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600">C.P.</label>
-                    <input
-                      value={addressForm.cp}
-                      onChange={(e) => {
-                        addressDirtyRef.current = true;
-                        setAddressForm((p) => ({ ...p, cp: e.target.value }));
-                        invalidateQuote();
-                      }}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                      placeholder="97000"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600">Colonia</label>
-                    <input
-                      value={addressForm.neighborhood}
-                      onChange={(e) => {
-                        addressDirtyRef.current = true;
-                        setAddressForm((p) => ({ ...p, neighborhood: e.target.value }));
-                        invalidateQuote();
-                      }}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                      placeholder="Colonia"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600">Ciudad</label>
-                    <input
-                      value={addressForm.city}
-                      onChange={(e) => {
-                        addressDirtyRef.current = true;
-                        setAddressForm((p) => ({ ...p, city: e.target.value }));
-                        invalidateQuote();
-                      }}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                      placeholder="Mérida"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600">Estado</label>
-                    <input
-                      value={addressForm.state}
-                      onChange={(e) => {
-                        addressDirtyRef.current = true;
-                        setAddressForm((p) => ({ ...p, state: e.target.value }));
-                        invalidateQuote();
-                      }}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                      placeholder="Yucatán"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600">País</label>
-                    <input
-                      value={addressForm.country}
-                      onChange={(e) => {
-                        addressDirtyRef.current = true;
-                        setAddressForm((p) => ({ ...p, country: e.target.value }));
-                        invalidateQuote();
-                      }}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2"
-                      placeholder="México"
-                    />
-                  </div>
-                </div>
-
-                <GoogleMapPicker
-                  location={userMapLocation}
-                  readOnly={false}
-                  onChange={(loc) => {
-                    addressDirtyRef.current = true;
-                    setUserMapLocation(loc);
-                    invalidateQuote();
-                  }}
-                  height="320px"
-                />
-
-                {quoteError ? <div className="text-sm text-red-600">{quoteError}</div> : null}
-              </div>
-              <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (addressDirtyRef.current) {
-                      addressDirtyRef.current = false;
-                      await reloadMeAddress();
-                    }
-                    setAddressModalOpen(false);
-                  }}
-                  disabled={addressModalSaving}
-                  className={cn(
-                    "px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm",
-                    addressModalSaving ? "opacity-50 cursor-not-allowed" : "",
-                  )}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => saveAddressOnly()}
-                  disabled={addressModalSaving || savingAddress}
-                  className={cn(
-                    "px-4 py-2 rounded-lg text-sm bg-primary text-white hover:bg-primary/90",
-                    addressModalSaving || savingAddress ? "opacity-50 cursor-not-allowed" : "",
-                  )}
-                >
-                  {addressModalSaving || savingAddress ? "Guardando..." : "Guardar"}
-                </button>
-              </div>
+              <button type="button" onClick={() => {
+                if (addressBeforeEditRef.current) delivery.replaceAddress(addressBeforeEditRef.current);
+                invalidateQuote();
+                setAddressModalOpen(false);
+              }} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100" aria-label="Cerrar"><X size={20} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              {delivery.loadError ? <p className="mb-3 text-sm text-amber-700">{delivery.loadError} Puedes capturar tu dirección aquí.</p> : null}
+              {delivery.loading ? <p className="text-sm text-gray-500">Cargando tu dirección guardada...</p> : <DeliveryAddressEditor
+                address={delivery.address}
+                onFieldChange={(field, value) => { delivery.setField(field, value); invalidateQuote(); }}
+                onLocationChange={(location) => { delivery.setLocation(location); invalidateQuote(); }}
+                onPlaceChange={(place) => { delivery.selectPlace(place); invalidateQuote(); }}
+                isAuthenticated={delivery.isAuthenticated}
+                saveToProfile={saveAddressInProfile}
+                onSaveToProfileChange={setSaveAddressInProfile}
+                mapHeight="280px"
+              />}
+              {!saveAddressInProfile && delivery.hasChanges ? (
+                <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">Productos toma la dirección del perfil al crear la compra. Para usar esta dirección nueva, activa la opción de guardarla.</p>
+              ) : null}
+              {quoteError ? <p className="mt-3 text-sm text-red-600">{quoteError}</p> : null}
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-5 py-4">
+              <button type="button" onClick={() => {
+                if (addressBeforeEditRef.current) delivery.replaceAddress(addressBeforeEditRef.current);
+                invalidateQuote();
+                setAddressModalOpen(false);
+              }} className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancelar</button>
+              <button type="button" disabled={delivery.loading} onClick={() => {
+                if (!delivery.address.address.trim() || !isValidDeliveryLocation(delivery.address.location)) {
+                  setQuoteError("Escribe tu calle y selecciona el punto exacto en el mapa.");
+                  return;
+                }
+                setAddressModalOpen(false);
+                void computeShippingQuote(checkoutSupplierId, true);
+              }} className="rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Usar esta dirección</button>
             </div>
           </div>
         </div>
