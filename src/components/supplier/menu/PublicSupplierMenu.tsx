@@ -58,6 +58,7 @@ const currencyFormatter = new Intl.NumberFormat("es-MX", {
   currency: "MXN",
 });
 const EMPTY_CART: Record<string, CartLine> = {};
+type CustomerFieldErrors = Partial<Record<"name" | "email" | "phone", string>>;
 
 const dayNames: Record<MenuDay, string> = {
   0: "Lunes",
@@ -570,6 +571,10 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
+  const [customerFieldErrors, setCustomerFieldErrors] = useState<CustomerFieldErrors>({});
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
   const [saveAddressInProfile, setSaveAddressInProfile] = useState(true);
   const delivery = useDeliveryAddress();
   const submittingRef = useRef(false);
@@ -903,6 +908,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
     setCheckoutError(null);
     setProfileSaveError(null);
+    setCustomerFieldErrors({});
     setClientRequestId(createRequestId());
 
     if (orderSettings.allows_pickup) setFulfillmentType("pickup");
@@ -928,8 +934,31 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
       return;
     }
 
-    if (!customerName.trim() || !customerEmail.trim() || !customerPhone.trim()) {
-      setCheckoutError("Completa tu nombre, correo y teléfono.");
+    const errors: CustomerFieldErrors = {};
+    const name = customerName.trim();
+    const email = customerEmail.trim();
+    const phone = customerPhone.trim();
+    if (!name) errors.name = "Ingresa tu nombre.";
+    else if (name.length < 2) errors.name = "Ingresa un nombre válido.";
+    if (!email) errors.email = "Ingresa tu correo.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "Ingresa un correo válido.";
+    if (!phone) errors.phone = "Ingresa tu teléfono.";
+    else if (phone.replace(/\D/g, "").length < 7 || phone.length > 40 || !/^[\d\s+()\-]+$/.test(phone)) {
+      errors.phone = "Ingresa un teléfono válido.";
+    }
+    setCustomerFieldErrors(errors);
+    if (errors.name || errors.email || errors.phone) {
+      setCheckoutError(null);
+      const firstInput = errors.name ? nameInputRef : errors.email ? emailInputRef : phoneInputRef;
+      window.requestAnimationFrame(() => {
+        firstInput.current?.focus({ preventScroll: true });
+        firstInput.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      return;
+    }
+
+    if (fulfillmentType === "delivery" && !isValidDeliveryLocation(delivery.address.location)) {
+      setCheckoutError("Selecciona una dirección de entrega.");
       return;
     }
 
@@ -938,8 +967,8 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
       return;
     }
 
-    if (fulfillmentType === "delivery" && !isValidDeliveryLocation(delivery.address.location)) {
-      setCheckoutError("Selecciona tu ubicación en el mapa para calcular el envío.");
+    if (fulfillmentType === "delivery" && supplierLocationLoading) {
+      setCheckoutError("Obteniendo ubicación del negocio...");
       return;
     }
 
@@ -948,8 +977,23 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
       return;
     }
 
+    if (fulfillmentType === "delivery" && shippingQuoteLoading) {
+      setCheckoutError("Calculando costo de envío...");
+      return;
+    }
+
+    if (fulfillmentType === "delivery" && shippingQuoteError) {
+      setCheckoutError("No se pudo calcular el costo de envío. Inténtalo nuevamente.");
+      return;
+    }
+
     if (fulfillmentType === "delivery" && !deliveryReady) {
       setCheckoutError("No se pudo calcular el costo de envío. Inténtalo nuevamente.");
+      return;
+    }
+
+    if (paymentMethod !== "cash" && paymentMethod !== "online") {
+      setCheckoutError("Selecciona un método de pago.");
       return;
     }
 
@@ -1363,6 +1407,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
         >
           <form
             onSubmit={submitOrder}
+            noValidate
             className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
@@ -1370,6 +1415,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">Finalizar pedido</p>
                 <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[#004e28]">Tus datos</h3>
+                <p className="mt-1 text-xs font-normal text-gray-500">Los campos marcados con * son obligatorios.</p>
               </div>
               <button type="button" disabled={submitting} onClick={() => setCheckoutOpen(false)} className="rounded-full p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-40" aria-label="Cerrar">
                 <X size={20} />
@@ -1377,25 +1423,25 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
             </div>
 
             <div className="space-y-6 p-5 sm:p-6">
-              {checkoutError ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{checkoutError}</div>
-              ) : null}
               {profileSaveError ? (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-800">{profileSaveError}</div>
               ) : null}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm font-bold text-gray-700 sm:col-span-2">
-                  Nombre
-                  <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} required minLength={2} maxLength={255} className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
+                  Nombre <span className="text-red-600" aria-hidden="true">*</span>
+                  <input ref={nameInputRef} value={customerName} onChange={(event) => { setCustomerName(event.target.value); setCustomerFieldErrors((current) => current.name ? { ...current, name: undefined } : current); }} required minLength={2} maxLength={255} aria-invalid={Boolean(customerFieldErrors.name)} aria-describedby={customerFieldErrors.name ? "menu-name-error" : undefined} className={`mt-1.5 w-full rounded-xl border px-3.5 py-3 font-normal outline-none ${customerFieldErrors.name ? "border-red-500 focus:border-red-600" : "border-gray-200 focus:border-[#168e00]"}`} />
+                  {customerFieldErrors.name ? <span id="menu-name-error" role="alert" className="mt-1 block text-xs font-medium text-red-600">{customerFieldErrors.name}</span> : null}
                 </label>
                 <label className="text-sm font-bold text-gray-700">
-                  Correo
-                  <input type="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} required className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
+                  Correo <span className="text-red-600" aria-hidden="true">*</span>
+                  <input ref={emailInputRef} type="email" value={customerEmail} onChange={(event) => { setCustomerEmail(event.target.value); setCustomerFieldErrors((current) => current.email ? { ...current, email: undefined } : current); }} required aria-invalid={Boolean(customerFieldErrors.email)} aria-describedby={customerFieldErrors.email ? "menu-email-error" : undefined} className={`mt-1.5 w-full rounded-xl border px-3.5 py-3 font-normal outline-none ${customerFieldErrors.email ? "border-red-500 focus:border-red-600" : "border-gray-200 focus:border-[#168e00]"}`} />
+                  {customerFieldErrors.email ? <span id="menu-email-error" role="alert" className="mt-1 block text-xs font-medium text-red-600">{customerFieldErrors.email}</span> : null}
                 </label>
                 <label className="text-sm font-bold text-gray-700">
-                  Teléfono
-                  <input type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} required minLength={7} maxLength={40} className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
+                  Teléfono <span className="text-red-600" aria-hidden="true">*</span>
+                  <input ref={phoneInputRef} type="tel" value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setCustomerFieldErrors((current) => current.phone ? { ...current, phone: undefined } : current); }} required minLength={7} maxLength={40} aria-invalid={Boolean(customerFieldErrors.phone)} aria-describedby={customerFieldErrors.phone ? "menu-phone-error" : undefined} className={`mt-1.5 w-full rounded-xl border px-3.5 py-3 font-normal outline-none ${customerFieldErrors.phone ? "border-red-500 focus:border-red-600" : "border-gray-200 focus:border-[#168e00]"}`} />
+                  {customerFieldErrors.phone ? <span id="menu-phone-error" role="alert" className="mt-1 block text-xs font-medium text-red-600">{customerFieldErrors.phone}</span> : null}
                 </label>
               </div>
 
@@ -1438,7 +1484,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
                     </p>
                   ) : shippingQuoteLoading ? (
                     <p className="flex items-center gap-2 rounded-xl bg-[#f2f3f4] p-3 text-sm font-semibold text-[#004e28]">
-                      <Loader2 size={16} className="animate-spin" /> Calculando envío...
+                      <Loader2 size={16} className="animate-spin" /> Calculando costo de envío...
                     </p>
                   ) : shippingQuoteError ? (
                     <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -1510,7 +1556,10 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
                 {paymentMethod === "online" ? <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"><CreditCard size={13} /> Completarás tu pago en la página segura de Mercado Pago.</p> : null}
               </div>
 
-              <button type="submit" disabled={submitting || !deliveryReady || (fulfillmentType === "delivery" && delivery.loading)} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50">
+              {checkoutError ? (
+                <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{checkoutError}</div>
+              ) : null}
+              <button type="submit" disabled={submitting || (fulfillmentType === "delivery" && (delivery.loading || shippingQuoteLoading))} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50">
                 {submitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                 {submitting ? "Creando pedido..." : paymentMethod === "online" ? "Continuar al pago seguro" : "Confirmar pedido"}
               </button>
