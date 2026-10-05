@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchWithAuth } from "@/lib/api";
 import {
   addressFromGooglePlace, deliveryAddressChanged, emptyDeliveryAddress,
-  parseUserDeliveryAddress, type DeliveryAddress, type DeliveryAddressField,
+  isValidDeliveryLocation, parseUserDeliveryAddress,
+  reverseGeocodeDeliveryLocation, type DeliveryAddress, type DeliveryAddressField,
   type GooglePlaceSelection,
 } from "@/lib/deliveryAddress";
 import type { LatLngLiteral } from "@/lib/googleMaps";
@@ -58,17 +59,67 @@ export function useDeliveryAddress() {
   const [savedAddress, setSavedAddress] = useState<DeliveryAddress>(emptyDeliveryAddress);
   const [loadedUserId, setLoadedUserId] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [resolvingAddress, setResolvingAddress] = useState(false);
   const editedRef = useRef(false);
+  const addressRequestRef = useRef(0);
+  const addressTimerRef = useRef<number | null>(null);
   const loading = Boolean(authHydrated && isAuthenticated && userId && loadedUserId !== userId && !loadError);
+
+  const cancelAddressResolution = useCallback(() => {
+    addressRequestRef.current += 1;
+    if (addressTimerRef.current != null) window.clearTimeout(addressTimerRef.current);
+    addressTimerRef.current = null;
+    setResolvingAddress(false);
+  }, []);
+
+  const resolveAddress = useCallback((location: LatLngLiteral, delayMs = 0, savedFields?: DeliveryAddress) => {
+    const requestId = ++addressRequestRef.current;
+    if (addressTimerRef.current != null) window.clearTimeout(addressTimerRef.current);
+    addressTimerRef.current = null;
+    setResolvingAddress(true);
+    const run = async () => {
+      try {
+        const place = await reverseGeocodeDeliveryLocation(location);
+        if (requestId === addressRequestRef.current) {
+          const resolved = addressFromGooglePlace(place);
+          setAddress(savedFields ? {
+            ...resolved,
+            exterior_number: resolved.exterior_number || savedFields.exterior_number,
+            interior_number: savedFields.interior_number,
+            neighborhood: resolved.neighborhood || savedFields.neighborhood,
+            cp: resolved.cp || savedFields.cp,
+            city: resolved.city || savedFields.city,
+            state: resolved.state || savedFields.state,
+            country: resolved.country || savedFields.country,
+          } : resolved);
+        }
+      } catch {
+        // La ubicación sigue siendo válida para cotizar aunque Google no devuelva texto.
+      } finally {
+        if (requestId === addressRequestRef.current) setResolvingAddress(false);
+      }
+    };
+    if (delayMs > 0) addressTimerRef.current = window.setTimeout(() => { addressTimerRef.current = null; void run(); }, delayMs);
+    else void run();
+  }, []);
 
   useEffect(() => useAuthStore.subscribe((next, previous) => {
     if (next.isAuthenticated === previous.isAuthenticated && next.user?.id === previous.user?.id) return;
     editedRef.current = false;
+    addressRequestRef.current += 1;
+    if (addressTimerRef.current != null) window.clearTimeout(addressTimerRef.current);
+    addressTimerRef.current = null;
     setAddress(emptyDeliveryAddress());
     setSavedAddress(emptyDeliveryAddress());
     setLoadedUserId(null);
     setLoadError(null);
+    setResolvingAddress(false);
   }), []);
+
+  useEffect(() => () => {
+    addressRequestRef.current += 1;
+    if (addressTimerRef.current != null) window.clearTimeout(addressTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!authHydrated || !isAuthenticated || !userId) return;
@@ -81,7 +132,12 @@ export function useDeliveryAddress() {
       .then((profile) => {
         if (controller.signal.aborted) return;
         const parsed = parseUserDeliveryAddress(profile);
-        if (!editedRef.current) setAddress(parsed);
+        if (!editedRef.current) {
+          setAddress(parsed);
+          if (isValidDeliveryLocation(parsed.location) && !parsed.address.trim()) {
+            resolveAddress(parsed.location, 0, parsed);
+          }
+        }
         setSavedAddress(parsed);
         setLoadedUserId(profileId(profile) ?? userId);
         setLoadError(null);
@@ -90,22 +146,31 @@ export function useDeliveryAddress() {
         if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "No pudimos cargar tu dirección guardada.");
       });
     return () => controller.abort();
-  }, [authHydrated, isAuthenticated, userId]);
+  }, [authHydrated, isAuthenticated, userId, resolveAddress]);
 
   const setField = useCallback((field: DeliveryAddressField, value: string) => {
     editedRef.current = true;
+    cancelAddressResolution();
     setAddress((current) => ({ ...current, [field]: value }));
-  }, []);
-  const setLocation = useCallback((location: LatLngLiteral) => {
+  }, [cancelAddressResolution]);
+  const setLocationAndResolve = useCallback((location: LatLngLiteral) => {
     editedRef.current = true;
-    setAddress((current) => ({ ...current, location }));
-  }, []);
-  const replaceAddress = useCallback((next: DeliveryAddress) => { editedRef.current = true; setAddress(next); }, []);
+    setAddress({ ...emptyDeliveryAddress(), location });
+    resolveAddress(location, 350);
+  }, [resolveAddress]);
+  const replaceAddress = useCallback((next: DeliveryAddress) => { editedRef.current = true; cancelAddressResolution(); setAddress(next); }, [cancelAddressResolution]);
   const selectPlace = useCallback((place: GooglePlaceSelection) => {
     editedRef.current = true;
+    cancelAddressResolution();
     setAddress(addressFromGooglePlace(place));
-  }, []);
-  const resetToSaved = useCallback(() => setAddress(savedAddress), [savedAddress]);
+  }, [cancelAddressResolution]);
+  const resetToSaved = useCallback(() => {
+    cancelAddressResolution();
+    setAddress(savedAddress);
+    if (isValidDeliveryLocation(savedAddress.location) && !savedAddress.address.trim()) {
+      resolveAddress(savedAddress.location, 0, savedAddress);
+    }
+  }, [cancelAddressResolution, resolveAddress, savedAddress]);
   const hasChanges = deliveryAddressChanged(savedAddress, address);
 
   const saveToProfile = useCallback(async () => {
@@ -134,7 +199,7 @@ export function useDeliveryAddress() {
   }, [address, hasChanges, isAuthenticated, loadError, loadedUserId, savedAddress, userId]);
 
   return {
-    address, setField, setLocation, replaceAddress, selectPlace, resetToSaved, hasChanges,
-    saveToProfile, loading, loadError, isAuthenticated, userId: loadedUserId ?? userId,
+    address, setField, setLocationAndResolve, replaceAddress, selectPlace, resetToSaved, hasChanges,
+    saveToProfile, loading, resolvingAddress, loadError, isAuthenticated, userId: loadedUserId ?? userId,
   };
 }

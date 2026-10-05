@@ -1,4 +1,4 @@
-import { parseMapLocation, type LatLngLiteral } from "@/lib/googleMaps";
+import { loadGoogleMaps, parseMapLocation, type LatLngLiteral } from "@/lib/googleMaps";
 
 export type DeliveryAddress = {
   address: string;
@@ -89,4 +89,36 @@ export function addressFromGooglePlace(place: GooglePlaceSelection): DeliveryAdd
     country: component("country"),
     location: place.location,
   };
+}
+
+export async function reverseGeocodeDeliveryLocation(location: LatLngLiteral): Promise<GooglePlaceSelection> {
+  if (!isValidDeliveryLocation(location)) throw new Error("Ubicación inválida para obtener la dirección.");
+  const google = await loadGoogleMaps(["places"]);
+  return new Promise<GooglePlaceSelection>((resolve, reject) => {
+    new google.maps.Geocoder().geocode({ location }, (results, status) => {
+      const result = results?.[0];
+      if (status !== "OK" || !result || typeof result !== "object") {
+        reject(new Error("No pudimos obtener el nombre de tu dirección."));
+        return;
+      }
+      const record = result as Record<string, unknown>;
+      const formattedAddress = typeof record.formatted_address === "string" ? record.formatted_address.trim() : "";
+      if (!formattedAddress) {
+        reject(new Error("No pudimos obtener el nombre de tu dirección."));
+        return;
+      }
+      const rawComponents = Array.isArray(record.address_components) ? record.address_components : [];
+      const addressComponents = rawComponents.flatMap((part): GooglePlaceSelection["addressComponents"] => {
+        if (!part || typeof part !== "object") return [];
+        const component = part as Record<string, unknown>;
+        if (typeof component.long_name !== "string" || !Array.isArray(component.types)) return [];
+        return [{
+          long_name: component.long_name,
+          short_name: typeof component.short_name === "string" ? component.short_name : "",
+          types: component.types.filter((type): type is string => typeof type === "string"),
+        }];
+      });
+      resolve({ formattedAddress, location, addressComponents });
+    });
+  });
 }

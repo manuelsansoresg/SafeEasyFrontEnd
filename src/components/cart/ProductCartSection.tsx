@@ -538,6 +538,7 @@ export default function ProductCartSection() {
       deliveryType !== "shipping" ||
       checkoutSupplierId == null ||
       delivery.loading ||
+      delivery.resolvingAddress ||
       !isValidDeliveryLocation(buyerLocation)
     ) {
       setQuoteLoading(false);
@@ -606,7 +607,7 @@ export default function ProductCartSection() {
       controller.abort();
       quoteRequestRef.current += 1;
     };
-  }, [checkoutSupplierId, deliveryType, delivery.loading, delivery.address.address, delivery.address.location,
+  }, [checkoutSupplierId, deliveryType, delivery.loading, delivery.resolvingAddress, delivery.address.address, delivery.address.location,
     supplierLat, supplierLng, quoteRetryCount, fetchSupplierDetails]);
 
   const confirmCheckout = async (supplierId: number, deliveryOverride?: DeliveryType) => {
@@ -639,8 +640,12 @@ export default function ProductCartSection() {
           setToast({ type: "error", message: "Selecciona tu ubicación para el envío." });
           return;
         }
+        if (delivery.resolvingAddress) {
+          setToast({ type: "info", message: "Obteniendo dirección..." });
+          return;
+        }
         if (!delivery.address.address.trim()) {
-          setToast({ type: "error", message: "Escribe la dirección para el envío." });
+          setToast({ type: "error", message: "No pudimos obtener el nombre de tu dirección. Busca una dirección para continuar." });
           return;
         }
         if (!addressLocked || shippingCost == null) {
@@ -857,7 +862,8 @@ export default function ProductCartSection() {
                             ) : (
                               <DeliveryAddressEditor
                                 address={delivery.address}
-                                onLocationChange={(location) => { delivery.setLocation(location); invalidateQuote(); }}
+                                resolvingAddress={delivery.resolvingAddress}
+                                onLocationChange={(location) => { delivery.setLocationAndResolve(location); invalidateQuote(); }}
                                 onPlaceChange={(place) => { delivery.selectPlace(place); invalidateQuote(); }}
                                 isAuthenticated={delivery.isAuthenticated}
                                 saveToProfile={saveAddressInProfile}
@@ -872,7 +878,9 @@ export default function ProductCartSection() {
                               </div>
                             ) : null}
                             <div className="rounded-xl bg-[#f2f3f4] p-3 text-sm" aria-live="polite">
-                              {quoteLoading ? (
+                              {delivery.resolvingAddress ? (
+                                <p className="font-semibold text-[#004e28]">Obteniendo dirección...</p>
+                              ) : quoteLoading ? (
                                 <p className="flex items-center gap-2 font-semibold text-[#004e28]"><Loader2 size={16} className="animate-spin" />Calculando envío...</p>
                               ) : quoteError ? (
                                 <div className="space-y-2 text-red-700">

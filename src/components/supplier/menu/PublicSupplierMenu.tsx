@@ -735,6 +735,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
     if (
       fulfillmentType !== "delivery" ||
+      delivery.resolvingAddress ||
       !isValidDeliveryLocation(delivery.address.location) ||
       !supplierLocation ||
       !supplierSlug ||
@@ -780,7 +781,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
     }, 300);
 
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [formattedDeliveryAddress, delivery.address.location, fulfillmentType, selectedMenu, supplierLocation, supplierSlug]);
+  }, [formattedDeliveryAddress, delivery.address.location, delivery.resolvingAddress, fulfillmentType, selectedMenu, supplierLocation, supplierSlug]);
 
   useEffect(() => {
     if (!orderSettings) return;
@@ -818,7 +819,8 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
     fulfillmentType === "delivery" ? shippingQuote?.delivery_fee ?? 0 : 0;
   const deliveryReady =
     fulfillmentType !== "delivery" ||
-    (isValidDeliveryLocation(delivery.address.location) &&
+    (!delivery.resolvingAddress &&
+      isValidDeliveryLocation(delivery.address.location) &&
       Boolean(supplierLocation) &&
       typeof deliveryDistanceKm === "number" &&
       Number.isFinite(deliveryDistanceKm) &&
@@ -962,8 +964,13 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
       return;
     }
 
+    if (fulfillmentType === "delivery" && delivery.resolvingAddress) {
+      setCheckoutError("Obteniendo dirección...");
+      return;
+    }
+
     if (fulfillmentType === "delivery" && !formattedDeliveryAddress) {
-      setCheckoutError("Selecciona una dirección en Google para la entrega.");
+      setCheckoutError("No pudimos obtener el nombre de tu dirección. Busca una dirección para continuar.");
       return;
     }
 
@@ -1471,7 +1478,8 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
                   {delivery.loadError ? <p className="text-sm text-amber-700">{delivery.loadError} Puedes capturarla aquí.</p> : null}
                   {!delivery.loading ? <DeliveryAddressEditor
                     address={delivery.address}
-                    onLocationChange={(location) => { delivery.setLocation(location); invalidateShippingQuote(); setProfileSaveError(null); }}
+                    resolvingAddress={delivery.resolvingAddress}
+                    onLocationChange={(location) => { delivery.setLocationAndResolve(location); invalidateShippingQuote(); setProfileSaveError(null); }}
                     onPlaceChange={(place) => { delivery.selectPlace(place); invalidateShippingQuote(); setProfileSaveError(null); }}
                     isAuthenticated={isAuthenticated}
                     saveToProfile={saveAddressInProfile}
@@ -1559,7 +1567,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
               {checkoutError ? (
                 <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{checkoutError}</div>
               ) : null}
-              <button type="submit" disabled={submitting || (fulfillmentType === "delivery" && (delivery.loading || shippingQuoteLoading))} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="submit" disabled={submitting || (fulfillmentType === "delivery" && (delivery.loading || delivery.resolvingAddress || shippingQuoteLoading))} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50">
                 {submitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                 {submitting ? "Creando pedido..." : paymentMethod === "online" ? "Continuar al pago seguro" : "Confirmar pedido"}
               </button>
