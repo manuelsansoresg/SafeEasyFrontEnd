@@ -538,7 +538,6 @@ export default function ProductCartSection() {
       deliveryType !== "shipping" ||
       checkoutSupplierId == null ||
       delivery.loading ||
-      !delivery.address.address.trim() ||
       !isValidDeliveryLocation(buyerLocation)
     ) {
       setQuoteLoading(false);
@@ -886,7 +885,7 @@ export default function ProductCartSection() {
                                   <span>Envío: {money(shippingCost)}</span>
                                 </div>
                               ) : (
-                                <p className="text-gray-600">{!delivery.address.address.trim() || !isValidDeliveryLocation(delivery.address.location)
+                                <p className="text-gray-600">{!isValidDeliveryLocation(delivery.address.location)
                                   ? "Selecciona tu ubicación para calcular el envío."
                                   : "Esperando cotización del envío."}</p>
                               )}
