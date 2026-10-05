@@ -24,6 +24,7 @@ import {
   fulfillmentLabel,
 } from "@/lib/menuOrders";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import { menuOrderAwaitingHandoff } from "@/lib/menuOrderFlow";
 import { menuOrderService } from "@/services/menuOrderService";
 import { notificationService } from "@/services/notificationService";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
@@ -46,7 +47,9 @@ function paymentStatusLabel(order: MenuOrder) {
   if (order.payment_method === "cash") {
     return order.status === "completed" ? "Cobro en efectivo" : "Pago al recibir / recoger";
   }
-  if (order.payment_status === "paid") return "Pago confirmado";
+  if (order.payment_status === "paid" && order.settlement_status === "on_hold") return "Pago recibido";
+  if (order.payment_status === "paid" && order.settlement_status === "released" && order.status === "completed") return "Pago confirmado";
+  if (order.payment_status === "paid") return "Pago recibido";
   if (order.payment_status === "authorized") return "Pago autorizado";
   if (order.payment_status === "failed") return "Pago no aprobado";
   if (order.payment_status === "cancelled") return "Pago cancelado";
@@ -75,6 +78,7 @@ export default function PublicMenuOrderTrackingPage() {
   const [codeNotice, setCodeNotice] = useState<string | null>(null);
   const ownsOrder = hydrated && isAuthenticated && user?.id != null && order !== null &&
     order.customer_user_id === user.id && order.order_number === orderNumber;
+  const awaitingHandoff = menuOrderAwaitingHandoff(order);
   const { status: inboxStatus } = useChatInboxWebSocket(ownsOrder);
 
   const paymentReturn = searchParams.get("payment");
@@ -151,7 +155,7 @@ export default function PublicMenuOrderTrackingPage() {
   useInboxReconnect(inboxStatus, ownsOrder, resyncAfterReconnect);
 
   const loadCodeNotice = useCallback(async () => {
-    if (!ownsOrder || order?.payment_status !== "authorized") return;
+    if (!ownsOrder || !awaitingHandoff) return;
     try {
       const notices = await notificationService.getNotifications({ limit: 100 });
       const matching = notices.find((notice) => notice.type === "menu_order_confirmation_code" && notice.message?.includes(orderNumber));
@@ -159,7 +163,7 @@ export default function PublicMenuOrderTrackingPage() {
     } catch {
       // El código también se entrega al correo del cliente.
     }
-  }, [order?.payment_status, orderNumber, ownsOrder]);
+  }, [awaitingHandoff, orderNumber, ownsOrder]);
 
   useEffect(() => { void loadCodeNotice(); }, [loadCodeNotice]);
 
@@ -243,7 +247,9 @@ export default function PublicMenuOrderTrackingPage() {
         >
           {paymentReturn === "success"
             ? order.payment_status === "paid"
-              ? "Pago confirmado correctamente."
+              ? order.settlement_status === "on_hold"
+                ? "Pago recibido correctamente. Conserva tu código hasta que recibas o recojas el pedido."
+                : "Pago confirmado correctamente."
               : "Mercado Pago recibió la operación. Estamos esperando la confirmación final."
             : paymentReturn === "pending"
               ? "El pago sigue pendiente de confirmación. Esta pantalla se actualizará automáticamente."
@@ -323,7 +329,7 @@ export default function PublicMenuOrderTrackingPage() {
         </div>
         </section>
 
-        {order.payment_flow === "card_authorization" && order.payment_status === "authorized" ? (
+        {awaitingHandoff ? (
           <section className="rounded-3xl border-2 border-[#168e00]/35 bg-white px-5 py-6 text-center shadow-sm sm:px-8" aria-label="Código de confirmación">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#004e28]">
               {order.fulfillment_type === "pickup" ? "Código para recoger tu pedido" : "Código de entrega"}
@@ -379,6 +385,9 @@ export default function PublicMenuOrderTrackingPage() {
                 <p className={`mt-1 text-sm font-semibold ${order.payment_status === "paid" ? "text-[#168e00]" : order.payment_status === "failed" ? "text-red-600" : "text-amber-600"}`}>
                   {paymentStatusLabel(order)}
                 </p>
+                {order.payment_status === "paid" && order.settlement_status === "on_hold" ? (
+                  <p className="mt-2 text-sm leading-6 text-gray-600">{order.fulfillment_type === "pickup" ? "Tu pago fue recibido. Conserva tu código y muéstralo cuando recojas el pedido." : "Tu pago fue recibido. Conserva tu código y compártelo únicamente cuando recibas el pedido."}</p>
+                ) : null}
                 {order.payment_status === "authorized" ? (
                   <div className="mt-2 text-sm leading-6 text-gray-600">
                     <p>{order.fulfillment_type === "pickup" ? "Tu tarjeta está autorizada. Se cobrará cuando recojas tu pedido y el negocio confirme tu código." : "Tu tarjeta está autorizada. Se cobrará cuando recibas tu pedido y se confirme tu código."}</p>

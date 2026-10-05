@@ -99,6 +99,7 @@ export interface MenuOrder {
   payment_status: MenuOrderPaymentStatus;
   payment_flow: MenuOrderPaymentFlow;
   settlement_status: string | null;
+  settlement_released_at: string | null;
   payment_authorization_expires_at: string | null;
   mp_preference_id: string | null;
   mp_payment_id: string | null;

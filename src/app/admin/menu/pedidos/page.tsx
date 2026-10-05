@@ -13,6 +13,7 @@ import {
   Truck,
 } from "lucide-react";
 import { PageHero } from "@/components/ui/PageHero";
+import { menuProviderPaymentStatusLabel } from "@/lib/menuOrderFlow";
 import { useSupplierModules } from "@/hooks/useSupplierModules";
 import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import {
@@ -44,11 +45,12 @@ const filters: Array<{ value: "all" | MenuOrderStatus; label: string }> = [
   { value: "cancelled", label: "Cancelados" },
 ];
 
-function paymentStatusLabel(status: MenuOrderPaymentStatus) {
-  if (status === "paid") return "Pagado";
-  if (status === "authorized") return "Pago autorizado";
-  if (status === "failed") return "Fallido";
-  if (status === "cancelled") return "Cancelado";
+function paymentStatusLabel(order: MenuOrder) {
+  if (order.payment_method === "online") return menuProviderPaymentStatusLabel(order);
+  if (order.payment_status === "paid") return "Pagado";
+  if (order.payment_status === "authorized") return "Pago autorizado";
+  if (order.payment_status === "failed") return "Fallido";
+  if (order.payment_status === "cancelled") return "Cancelado";
   return "Pendiente";
 }
 
@@ -288,7 +290,7 @@ export default function AdminMenuOrdersPage() {
                       {MENU_ORDER_STATUS_LABELS[order.status]}
                     </span>
                     <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${paymentStatusClass(order.payment_status)}`}>
-                      {paymentStatusLabel(order.payment_status)}
+                      {paymentStatusLabel(order)}
                     </span>
                   </div>
                   <p className="mt-1 font-semibold text-gray-900">{order.customer_name}</p>

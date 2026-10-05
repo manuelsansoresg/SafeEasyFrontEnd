@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "rm -rf .next/cache && next build",
+    "test": "node --test test/menu-order-flow.test.mjs",
     "start": "next start",
     "lint": "eslint"
   },

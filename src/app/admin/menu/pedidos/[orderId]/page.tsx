@@ -18,6 +18,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { PageHero } from "@/components/ui/PageHero";
+import { menuOrderNeedsCode, menuProviderPaymentStatusLabel } from "@/lib/menuOrderFlow";
 import { Toast } from "@/components/ui/Toast";
 import {
   MENU_ORDER_STATUS_CLASSES,
@@ -47,11 +48,7 @@ function paymentStatusLabel(order: MenuOrder) {
   if (order.payment_method === "cash") {
     return order.status === "completed" ? "Pedido completado" : "Cobro al entregar / recoger";
   }
-  if (order.payment_status === "paid") return "Pago confirmado";
-  if (order.payment_status === "authorized") return "Pago autorizado; pendiente de entrega";
-  if (order.payment_status === "failed") return "Pago fallido";
-  if (order.payment_status === "cancelled") return "Pago cancelado";
-  return "Pendiente de pago";
+  return menuProviderPaymentStatusLabel(order);
 }
 
 export default function AdminMenuOrderDetailPage() {
@@ -133,12 +130,12 @@ export default function AdminMenuOrderDetailPage() {
     if (order.payment_method === "online" && !["paid", "authorized"].includes(order.payment_status)) {
       setToast({
         type: "error",
-        message: "No puedes procesar este pedido hasta que Mercado Pago autorice la tarjeta.",
+        message: "No puedes procesar este pedido hasta que Mercado Pago confirme el pago.",
       });
       return;
     }
-    if (order.payment_flow === "card_authorization" && next === "completed") {
-      setToast({ type: "error", message: "Confirma la entrega con el código del cliente para capturar el pago." });
+    if (order.payment_method === "online" && order.settlement_status === "on_hold" && next === "completed") {
+      setToast({ type: "error", message: "Confirma la entrega con el código del cliente." });
       return;
     }
 
@@ -167,7 +164,13 @@ export default function AdminMenuOrderDetailPage() {
       const updated = await menuOrderService.confirmDelivery(order.id, confirmationCode);
       setOrder(updated);
       setConfirmationCode("");
-      setToast({ type: "success", message: updated.payment_status === "paid" ? "Entrega confirmada y pago capturado." : "Estamos confirmando la captura del pago." });
+      const completed = updated.status === "completed" && updated.settlement_status === "released";
+      const action = updated.fulfillment_type === "pickup" ? "Recolección" : "Entrega";
+      setToast({ type: "success", message: completed
+        ? updated.payment_flow === "preference"
+          ? `${action} confirmada. La venta quedó completada.`
+          : `${action} confirmada y pago capturado.`
+        : "La confirmación sigue en proceso. Actualiza el pedido en unos momentos." });
     } catch (err) {
       const message = err instanceof Error ? err.message : "No se pudo confirmar la entrega.";
       const normalized = message.toLowerCase();
@@ -176,7 +179,7 @@ export default function AdminMenuOrderDetailPage() {
         /too many|demasiados intentos/.test(normalized) ? "Demasiados intentos. Espera antes de reintentar." :
         /venci|expir/.test(normalized) ? "La autorización de pago venció." :
         /reconect|reconnect/.test(normalized) ? "El proveedor debe reconectar Mercado Pago." :
-        /captur|cobro/.test(normalized) ? "No se pudo capturar el pago. Inténtalo nuevamente." : message,
+        /captur|cobro|liber|release/.test(normalized) ? order.payment_flow === "preference" ? "No se pudo liberar la venta. Inténtalo nuevamente." : "No se pudo capturar el pago. Inténtalo nuevamente." : message,
       });
     } finally {
       setBusy(false);
@@ -232,7 +235,7 @@ export default function AdminMenuOrderDetailPage() {
   const currentProgress = MENU_ORDER_STATUS_FLOW.indexOf(order.status);
   const onlineBlocked =
     order.payment_method === "online" && !["paid", "authorized"].includes(order.payment_status);
-  const needsCode = order.payment_flow === "card_authorization" && order.status === "ready" && order.payment_status === "authorized";
+  const needsCode = menuOrderNeedsCode(order);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -274,14 +277,14 @@ export default function AdminMenuOrderDetailPage() {
 
       {onlineBlocked ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <strong>Pedido pendiente de autorización.</strong> No lo prepares todavía. Espera a que Mercado Pago autorice la tarjeta.
+          <strong>Pedido pendiente de pago.</strong> No lo prepares todavía. Espera a que Mercado Pago confirme el pago.
         </div>
       ) : null}
 
       {needsCode ? (
         <section className="rounded-2xl border border-[#004e28]/20 bg-[#f2f3f4] p-4 sm:p-5">
           <h2 className="font-bold text-[#004e28]">{order.fulfillment_type === "pickup" ? "Confirmar recolección" : "Confirmar entrega"}</h2>
-          <p className="mt-1 text-sm text-gray-600">{order.fulfillment_type === "pickup" ? "Pide al cliente su código cuando le entregues el pedido." : "Pide al cliente su código únicamente al entregarle el pedido."} Al confirmarlo, se capturará el pago.</p>
+          <p className="mt-1 text-sm text-gray-600">{order.fulfillment_type === "pickup" ? "Solicita al cliente su código cuando le entregues el pedido." : "Solicita al cliente su código únicamente cuando le entregues el pedido."} {order.payment_flow === "preference" ? "Al confirmar el código, la entrega quedará completada y la venta será liberada." : "Al confirmar el código, se capturará el pago."}</p>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row">
             <input aria-label="Código de confirmación" inputMode="numeric" autoComplete="off" maxLength={6} value={confirmationCode} onChange={(event) => setConfirmationCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Código de confirmación" className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 font-mono text-lg tracking-widest sm:max-w-xs" />
             <button type="button" disabled={busy || confirmationCode.length !== 6} onClick={() => void confirmDelivery()} className="rounded-xl bg-[#004e28] px-5 py-3 font-bold text-white disabled:opacity-50">{busy ? "Confirmando..." : order.fulfillment_type === "pickup" ? "Confirmar recolección" : "Confirmar entrega"}</button>
@@ -396,6 +399,7 @@ export default function AdminMenuOrderDetailPage() {
               {order.preparing_at ? <p>Preparación: {formatMenuOrderDate(order.preparing_at)}</p> : null}
               {order.ready_at ? <p>Listo: {formatMenuOrderDate(order.ready_at)}</p> : null}
               {order.completed_at ? <p>Completado: {formatMenuOrderDate(order.completed_at)}</p> : null}
+              {order.settlement_released_at ? <p>Venta liberada: {formatMenuOrderDate(order.settlement_released_at)}</p> : null}
               {order.cancelled_at ? <p>Cancelado: {formatMenuOrderDate(order.cancelled_at)}</p> : null}
             </div>
           </section>

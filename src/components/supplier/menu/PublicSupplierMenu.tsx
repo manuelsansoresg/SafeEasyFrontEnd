@@ -33,7 +33,7 @@ import {
 } from "@/lib/authRedirect";
 import { DeliveryAddressEditor } from "@/components/checkout/DeliveryAddressEditor";
 import { formatDeliveryAddress, isValidDeliveryLocation } from "@/lib/deliveryAddress";
-import { MercadoPagoCardModal } from "@/components/payments/MercadoPagoCardModal";
+import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { distanceKmDriving, type LatLngLiteral } from "@/lib/googleMaps";
 import { fetchSupplierLocation } from "@/lib/orderLocation";
 import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
@@ -48,7 +48,6 @@ import type {
 } from "@/types/menu";
 import type {
   MenuOrderFulfillmentType,
-  MenuOrderCreated,
   MenuOrderPaymentMethod,
   MenuOrderSettings,
   MenuOrderShippingQuoteResponse,
@@ -568,9 +567,6 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
   const clearStoredCart = useMenuCartStore((state) => state.clearCart);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [cardOrder, setCardOrder] = useState<MenuOrderCreated | null>(null);
-  const [cardModalOpen, setCardModalOpen] = useState(false);
-  const [cardAuthorized, setCardAuthorized] = useState(false);
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -905,11 +901,6 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
   }
 
   function openCheckout() {
-    if (cardOrder) {
-      setCartOpen(false);
-      setCardModalOpen(true);
-      return;
-    }
     if (!cartItems.length || !orderSettings?.accepts_orders) return;
 
     if (!isAuthenticated && !orderSettings.allow_guest_orders) {
@@ -933,7 +924,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submittingRef.current || cardOrder) return;
+    if (submittingRef.current) return;
 
     if (!orderSettings?.accepts_orders || !supplierSlug || !cartItems.length) {
       return;
@@ -1087,13 +1078,15 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
       }
 
       if (order.payment_method === "online") {
-        if (order.payment_flow !== "card_authorization") {
-          setCheckoutError("No se pudo iniciar la autorización de tarjeta. Contacta al negocio antes de repetir el pedido.");
+        const safeCheckout = getSafeMercadoPagoUrl(order.payment_checkout_url);
+        if (!safeCheckout) {
+          setCheckoutError("No se pudo iniciar el pago con Mercado Pago. Inténtalo nuevamente.");
           return;
         }
-        setCardOrder(order);
+        clearStoredCart(currentCartKey);
         setCheckoutOpen(false);
-        setCardModalOpen(true);
+        setClientRequestId(createRequestId());
+        window.location.assign(safeCheckout);
         return;
       }
 
@@ -1306,11 +1299,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
         />
       ) : null}
 
-      {cardOrder && !cardModalOpen && !cardAuthorized ? (
-        <button type="button" onClick={() => setCardModalOpen(true)} className="fixed bottom-5 right-5 z-[19000] rounded-2xl bg-[#004e28] px-5 py-3.5 font-bold text-white shadow-2xl">
-          Continuar autorización de {cardOrder.order_number}
-        </button>
-      ) : acceptsOrders && hasOrderableItems && cartQuantity > 0 && !cartOpen && !checkoutOpen && !cardModalOpen ? (
+      {acceptsOrders && hasOrderableItems && cartQuantity > 0 && !cartOpen && !checkoutOpen ? (
         <button
           type="button"
           onClick={() => setCartOpen(true)}
@@ -1414,54 +1403,6 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
             </div>
           </div>
         </div>
-      ) : null}
-
-      {cardOrder && cardModalOpen ? (
-        <MercadoPagoCardModal
-          supplierName={supplierName}
-          estimatedTotal={cardOrder.total}
-          totalLabel="Total del pedido"
-          orderDisplayLabel={cardOrder.order_number}
-          authorizeCard={async (cardData) => {
-            try {
-              const result = await menuOrderService.authorizeCard(cardOrder.order_number, cardOrder.management_token, {
-                card_token: cardData.token,
-                payment_method_id: cardData.payment_method_id,
-                issuer_id: cardData.issuer_id == null || cardData.issuer_id === "" ? null : String(cardData.issuer_id),
-              });
-              return { payment_status: result.payment_status, order_id: result.id };
-            } catch (error) {
-              // Una respuesta perdida puede llegar después de una autorización exitosa.
-              // Consultar el pedido evita pedir otra tarjeta si el backend ya la autorizó.
-              try {
-                const latest = await menuOrderService.publicOrder(cardOrder.order_number, cardOrder.management_token);
-                if (latest.payment_status === "authorized") {
-                  return { payment_status: latest.payment_status, order_id: latest.id };
-                }
-              } catch {
-                // Conserva el error original de autorización.
-              }
-              throw error instanceof TypeError
-                ? new Error("No pudimos conectar con Mercado Pago. Revisa tu conexión e inténtalo de nuevo.")
-                : error;
-            }
-          }}
-          onOrderCreated={(result) => {
-            if (result.payment_status === "authorized") {
-              clearStoredCart(menuCartKey(cardOrder.supplier_id, cardOrder.menu_id ?? selectedMenu.id));
-              setCardAuthorized(true);
-              setClientRequestId(createRequestId());
-            }
-          }}
-          onPending={() => {}}
-          onViewOrder={() => router.push(`/pedidos/menu/${encodeURIComponent(cardOrder.order_number)}?management_token=${encodeURIComponent(cardOrder.management_token)}`)}
-          onClose={() => {
-            setCardModalOpen(false);
-            if (cardAuthorized) {
-              router.push(`/pedidos/menu/${encodeURIComponent(cardOrder.order_number)}?management_token=${encodeURIComponent(cardOrder.management_token)}`);
-            }
-          }}
-        />
       ) : null}
 
       {checkoutOpen ? (
