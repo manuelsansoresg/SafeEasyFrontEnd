@@ -84,8 +84,11 @@ function statusLabel(value: unknown) {
     cancelled: "Cancelado",
     expired: "Expirado",
     refund_requested: "Reembolso solicitado",
+    requested: "Reembolso solicitado",
     refund_approved: "Reembolso aprobado",
+    approved: "Reembolso aprobado",
     refund_rejected: "Reembolso rechazado",
+    rejected: "Reembolso rechazado",
     refund_refunded: "Reembolsado",
   };
   return map[key] || String(value || "—");
@@ -196,6 +199,10 @@ export default function AdminOrderDetailPage() {
   const [refundRejectReason, setRefundRejectReason] = useState("");
   const [refundFinalizeNote, setRefundFinalizeNote] = useState("");
   const [refundFinalizeFile, setRefundFinalizeFile] = useState<File | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [noShowOpen, setNoShowOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   const orderId = useMemo(() => {
     const n = Number(params?.order_id);
@@ -292,6 +299,18 @@ export default function AdminOrderDetailPage() {
         : historyKey || paymentKey || "pending";
 
   const activeRefund = useMemo(() => latestRefund(refunds), [refunds]);
+  const isMercadoPago = ["card", "online", "mercadopago"].includes(String(order?.payment_method || "").toLowerCase());
+  const canCancel = ["pending", "preparing", "ready_for_pickup"].includes(fulfillmentKey) && order?.status !== "cancelled";
+  const readyAt = [...history]
+    .filter((item) => normalizeStatusKey(item.status || item.event || item.action) === "ready_for_pickup")
+    .sort((a, b) => Date.parse(b.created_at || b.timestamp || b.date || "") - Date.parse(a.created_at || a.timestamp || a.date || ""))[0];
+  const readyTime = readyAt ? Date.parse(readyAt.created_at || readyAt.timestamp || readyAt.date || "") : NaN;
+  const noShowDeadline = mode === "pickup" && fulfillmentKey === "ready_for_pickup" && Number.isFinite(readyTime) ? readyTime + 60 * 60000 : null;
+  useEffect(() => {
+    if (noShowDeadline === null) return;
+    const id = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(id);
+  }, [noShowDeadline]);
   const finalState = ["completed", "cancelled", "refund_refunded"].includes(effectiveKey);
   const ownDelivery = mode === "shipping" && order?.courier_id == null;
   const codeEntryVisible =
@@ -370,8 +389,8 @@ export default function AdminOrderDetailPage() {
       setToast({
         type: "success",
         message: normalizeStatusKey(updated?.payment_status) === "paid"
-          ? "Código correcto. Pago capturado y pedido entregado."
-          : "Código correcto. Estamos confirmando el estado del pago.",
+          ? "Código correcto. Pedido entregado y venta completada."
+          : "Código correcto. Entrega confirmada.",
       });
       await load();
     } catch (e) {
@@ -382,17 +401,33 @@ export default function AdminOrderDetailPage() {
   };
 
   const cancelOrder = async () => {
-    if (!orderId || finalState) return;
+    if (!orderId || !canCancel || !cancelReason.trim() || actionLoading) return;
     setActionLoading("cancel");
     try {
-      await orderService.updateOrderStatus(orderId, "cancelled");
-      setToast({ type: "success", message: "Orden cancelada." });
+      const updated = await orderService.providerCancelOrder(orderId, cancelReason.trim());
+      setCancelOpen(false); setCancelReason("");
+      setToast({ type: "success", message: updated.payment_status === "refunded" ? "Orden cancelada y reembolso procesado." : "Orden cancelada." });
       await load();
     } catch (e) {
       setToast({ type: "error", message: getErrorMessage(e, "No se pudo cancelar la orden.") });
+      await load();
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const markNoShow = async () => {
+    if (!orderId || noShowDeadline === null || now < noShowDeadline || actionLoading) return;
+    setActionLoading("no-show");
+    try {
+      await orderService.markCustomerNoShow(orderId);
+      setNoShowOpen(false);
+      setToast({ type: "success", message: "Pedido marcado como no recogido." });
+      await load();
+    } catch (e) {
+      setToast({ type: "error", message: getErrorMessage(e, "No se pudo marcar como no recogido.") });
+      await load();
+    } finally { setActionLoading(null); }
   };
 
   const approveRefund = async () => {
@@ -402,10 +437,13 @@ export default function AdminOrderDetailPage() {
       await orderService.approveOrderRefund(orderId, Number(activeRefund.id), refundApproveNote.trim() || undefined);
       setRefundApproveOpen(false);
       setRefundApproveNote("");
-      setToast({ type: "success", message: "Reembolso aprobado." });
       await load();
+      const updatedRefunds = await orderService.getOrderRefunds(orderId);
+      setRefunds(updatedRefunds);
+      setToast({ type: "success", message: updatedRefunds.some((refund) => refund.id === activeRefund.id && refund.status === "refunded") ? "Reembolso procesado." : "Reembolso aprobado." });
     } catch (e) {
       setToast({ type: "error", message: getErrorMessage(e, "No se pudo aprobar el reembolso.") });
+      await load();
     } finally {
       setActionLoading(null);
     }
@@ -422,6 +460,7 @@ export default function AdminOrderDetailPage() {
       await load();
     } catch (e) {
       setToast({ type: "error", message: getErrorMessage(e, "No se pudo rechazar el reembolso.") });
+      await load();
     } finally {
       setActionLoading(null);
     }
@@ -700,16 +739,18 @@ export default function AdminOrderDetailPage() {
                     </button>
                   )}
 
-                  {!finalState ? (
+                  {canCancel ? (
                     <button
                       type="button"
-                      onClick={cancelOrder}
+                      onClick={() => setCancelOpen(true)}
                       disabled={actionLoading !== null}
                       className="w-full rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-600 disabled:opacity-50"
                     >
                       Cancelar orden
                     </button>
                   ) : null}
+                  {noShowDeadline !== null && now < noShowDeadline ? <p className="text-xs text-gray-500">Podrás marcar como no recogido después de las {new Date(noShowDeadline).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}.</p> : null}
+                  {noShowDeadline !== null && now >= noShowDeadline ? <button type="button" disabled={actionLoading !== null} onClick={() => setNoShowOpen(true)} className="w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900 disabled:opacity-50">Cliente no recogió</button> : null}
                 </div>
               </section>
 
@@ -740,30 +781,30 @@ export default function AdminOrderDetailPage() {
                 <section className="rounded-2xl border border-gray-100 bg-white p-5">
                   <div className="font-bold text-gray-900">Reembolso</div>
                   <div className="mt-3 text-sm text-gray-600">{activeRefund.reason || "Sin motivo"}</div>
-                  <div className="mt-2 text-sm font-bold">{statusLabel(activeRefund.status)}</div>
+                  <div className="mt-2 text-sm font-bold">{activeRefund.status === "approved" ? "Reembolso aprobado" : statusLabel(activeRefund.status)}</div>
 
                   <div className="mt-4 space-y-2">
-                    <button
+                    {activeRefund.status === "requested" ? <button
                       type="button"
                       onClick={() => setRefundApproveOpen(true)}
                       className="w-full rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-bold text-white"
                     >
                       Aprobar
-                    </button>
-                    <button
+                    </button> : null}
+                    {activeRefund.status === "requested" ? <button
                       type="button"
                       onClick={() => setRefundRejectOpen(true)}
                       className="w-full rounded-xl bg-red-500 px-4 py-2.5 text-sm font-bold text-white"
                     >
                       Rechazar
-                    </button>
-                    <button
+                    </button> : null}
+                    {activeRefund.status === "approved" && !isMercadoPago ? <button
                       type="button"
                       onClick={() => setRefundFinalizeOpen(true)}
                       className="w-full rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-bold text-white"
                     >
                       Finalizar reembolso
-                    </button>
+                    </button> : null}
                   </div>
                 </section>
               ) : null}
@@ -772,6 +813,8 @@ export default function AdminOrderDetailPage() {
         </div>
       </div>
 
+      {cancelOpen ? <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-lg rounded-2xl bg-white p-5"><h2 className="text-lg font-bold">Cancelar pedido</h2><p className="mt-2 text-sm text-gray-600">Si el pago ya fue aprobado, el cliente recibirá el reembolso total.</p><textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Motivo obligatorio" className="mt-4 min-h-24 w-full rounded-xl border p-3" /><div className="mt-4 flex justify-end gap-2"><button disabled={actionLoading !== null} onClick={() => setCancelOpen(false)} className="rounded-xl border px-4 py-2">Volver</button><button disabled={actionLoading !== null || !cancelReason.trim()} onClick={() => void cancelOrder()} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-white disabled:opacity-50">{actionLoading === "cancel" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Cancelar pedido</button></div></div></div> : null}
+      {noShowOpen ? <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-lg rounded-2xl bg-white p-5"><h2 className="text-lg font-bold">Marcar como no recogido</h2><p className="mt-2 text-sm text-gray-600">El producto regresará al inventario y, si el pago fue realizado con Mercado Pago, se procesará el reembolso total.</p><div className="mt-4 flex justify-end gap-2"><button disabled={actionLoading !== null} onClick={() => setNoShowOpen(false)} className="rounded-xl border px-4 py-2">Volver</button><button disabled={actionLoading !== null} onClick={() => void markNoShow()} className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-white disabled:opacity-50">{actionLoading === "no-show" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Confirmar no recogido</button></div></div></div> : null}
       {refundApproveOpen ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white p-5">
@@ -785,8 +828,9 @@ export default function AdminOrderDetailPage() {
               placeholder="Nota opcional"
               className="mt-4 min-h-24 w-full rounded-xl border border-gray-200 p-3"
             />
-            <button onClick={approveRefund} className="mt-3 w-full rounded-xl bg-[#004e28] px-4 py-3 font-bold text-white">
-              Aprobar
+            <p className="mt-2 text-sm text-gray-600">Si el pago fue con Mercado Pago, el reembolso se procesará automáticamente.</p>
+            <button onClick={approveRefund} disabled={actionLoading !== null} className="mt-3 w-full rounded-xl bg-[#004e28] px-4 py-3 font-bold text-white disabled:opacity-50">
+              {actionLoading === "refund-approve" ? "Procesando..." : "Aprobar"}
             </button>
           </div>
         </div>
@@ -807,7 +851,7 @@ export default function AdminOrderDetailPage() {
             />
             <button
               onClick={rejectRefund}
-              disabled={!refundRejectReason.trim()}
+              disabled={actionLoading !== null || !refundRejectReason.trim()}
               className="mt-3 w-full rounded-xl bg-red-500 px-4 py-3 font-bold text-white disabled:opacity-50"
             >
               Rechazar
@@ -840,7 +884,7 @@ export default function AdminOrderDetailPage() {
             </div>
             <button
               onClick={finalizeRefund}
-              disabled={!refundFinalizeFile}
+              disabled={actionLoading !== null || !refundFinalizeFile}
               className="mt-3 w-full rounded-xl bg-blue-500 px-4 py-3 font-bold text-white disabled:opacity-50"
             >
               Finalizar reembolso

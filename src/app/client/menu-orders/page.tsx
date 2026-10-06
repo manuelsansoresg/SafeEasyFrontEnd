@@ -40,9 +40,11 @@ const filters: Array<{ value: "all" | MenuOrderStatus; label: string }> = [
   { value: "ready", label: "Listos" },
   { value: "completed", label: "Completados" },
   { value: "cancelled", label: "Cancelados" },
+  { value: "no_show", label: "No recogidos" },
 ];
 
 function paymentStatusLabel(status: MenuOrderPaymentStatus) {
+  if (status === "refunded") return "Reembolsado";
   if (status === "paid") return "Pagado";
   if (status === "authorized") return "Pago autorizado";
   if (status === "failed") return "Pago fallido";
@@ -51,6 +53,7 @@ function paymentStatusLabel(status: MenuOrderPaymentStatus) {
 }
 
 function paymentStatusClass(status: MenuOrderPaymentStatus) {
+  if (status === "refunded") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (status === "paid") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (status === "authorized") return "border-sky-200 bg-sky-50 text-sky-800";
   if (status === "failed") return "border-red-200 bg-red-50 text-red-700";

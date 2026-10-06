@@ -13,6 +13,7 @@ import {
   getSupplierAddress,
 } from "@/lib/orderLocation";
 import FileUpload from "@/components/ui/FileUpload";
+import { PRODUCT_CANCEL_STATUSES, PRODUCT_REFUND_STATUSES, canRequestAnotherRefund } from "@/lib/orderActionRules";
 import { Toast } from "@/components/ui/Toast";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
@@ -140,8 +141,11 @@ function toSpanishStatusLabel(value: string) {
     cancelled: "Cancelado",
     expired: "Checkout expirado",
     refund_requested: "Reembolso solicitado",
+    requested: "Reembolso solicitado",
     refund_approved: "Reembolso aprobado",
+    approved: "Reembolso aprobado",
     refund_rejected: "Reembolso rechazado",
+    rejected: "Reembolso rechazado",
     refund_refunded: "Reembolsado",
   };
   return map[key] || raw;
@@ -361,6 +365,9 @@ export default function ClientOrderDetailPage() {
   const [refundReason, setRefundReason] = useState("");
   const [refundEvidence, setRefundEvidence] = useState<File | null>(null);
   const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
   const [buyerAddress, setBuyerAddress] = useState("");
   const [supplierAddress, setSupplierAddress] = useState("");
   const [supplierCoordsFromApi, setSupplierCoordsFromApi] = useState<LatLngLiteral | null>(null);
@@ -458,8 +465,10 @@ export default function ClientOrderDetailPage() {
   const cancelled = normalizeStatusKey(effectiveKey) === "cancelled" || isExpired;
   const rank = getProgressRank(mode, effectiveKey);
   const activeRefund = useMemo(() => pickLatestRefund(refunds), [refunds]);
+  const fulfillmentStatus = normalizeStatusKey(order?.fulfillment_status || "");
+  const canCancelOrder = Boolean(order && !isExpired && order.status !== "cancelled" && PRODUCT_CANCEL_STATUSES.some((status) => status === fulfillmentStatus));
   const deliveryCodeStage = !cancelled && isDeliveryCodeStage(effectiveKey, mode);
-  const showDeliveryCodeCard = Boolean(order && !isExpired && deliveryCodeStage);
+  const showDeliveryCodeCard = Boolean(order && !isExpired && order.payment_status !== "refunded" && order.status !== "cancelled" && deliveryCodeStage);
 
   const address = useMemo(() => {
     if (!order) return "";
@@ -489,8 +498,22 @@ export default function ClientOrderDetailPage() {
   const canRequestRefund = useMemo(() => {
     if (!order || isExpired) return false;
     const k = normalizeStatusKey(statusRaw);
-    return k === "completed" || k === "verified";
-  }, [order, statusRaw, isExpired]);
+    return PRODUCT_REFUND_STATUSES.some((status) => status === k) && canRequestAnotherRefund(activeRefund?.status);
+  }, [order, statusRaw, isExpired, activeRefund]);
+
+  const submitCancel = async () => {
+    if (!orderId || !cancelReason.trim() || cancelSubmitting) return;
+    setCancelSubmitting(true);
+    try {
+      await orderService.cancelOrder(orderId, cancelReason.trim());
+      setCancelModalOpen(false); setCancelReason("");
+      setToast({ type: "success", message: "Pedido cancelado." });
+      await load();
+    } catch (e) {
+      setToast({ type: "error", message: getErrorMessage(e, "No se pudo cancelar el pedido.") });
+      await load();
+    } finally { setCancelSubmitting(false); }
+  };
 
   useEffect(() => {
     if (!orderId || !showDeliveryCodeCard) {
@@ -546,7 +569,7 @@ export default function ClientOrderDetailPage() {
   };
 
   const submitRefund = async () => {
-    if (!orderId) return;
+    if (!orderId || refundSubmitting) return;
     const reason = refundReason.trim();
     if (!reason) {
       setToast({ type: "error", message: "Escribe el motivo del reembolso." });
@@ -567,6 +590,7 @@ export default function ClientOrderDetailPage() {
     } catch (e: unknown) {
       const msg = getErrorMessage(e, "No se pudo solicitar el reembolso.");
       setToast({ type: "error", message: msg });
+      await load();
     } finally {
       setRefundLoading(false);
       setRefundSubmitting(false);
@@ -965,7 +989,7 @@ export default function ClientOrderDetailPage() {
                       <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
                         <div className="text-xs font-semibold text-gray-500">Último estado</div>
                         <div className="mt-1 text-sm font-semibold text-gray-900">
-                          {toSpanishStatusLabel(activeRefund.status || effectiveKey)}
+                          {activeRefund.status === "requested" ? "Reembolso solicitado" : activeRefund.status === "approved" ? "Reembolso aprobado" : activeRefund.status === "rejected" ? "Reembolso rechazado" : activeRefund.status === "refunded" ? "Reembolsado" : toSpanishStatusLabel(activeRefund.status || effectiveKey)}
                         </div>
                         <div className="mt-2 text-xs text-gray-500">{activeRefund.reason || "—"}</div>
                       </div>
@@ -973,6 +997,7 @@ export default function ClientOrderDetailPage() {
                       <div className="text-sm text-gray-500">No hay reembolsos registrados.</div>
                     )}
 
+                    {canCancelOrder ? <button type="button" onClick={() => setCancelModalOpen(true)} disabled={cancelSubmitting} className="mt-4 w-full rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Cancelar pedido</button> : null}
                     {canRequestRefund ? (
                       <button
                         type="button"
@@ -991,6 +1016,7 @@ export default function ClientOrderDetailPage() {
         )}
       </div>
 
+      {cancelModalOpen ? <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"><h3 className="text-lg font-bold text-[#004e28]">Cancelar pedido</h3><p className="mt-2 text-sm text-gray-600">Si el pago ya fue aprobado, recibirás un reembolso total.</p><label className="mt-4 block text-sm font-semibold">Motivo de cancelación<textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} disabled={cancelSubmitting} className="mt-2 min-h-28 w-full rounded-xl border p-3" /></label><div className="mt-4 flex justify-end gap-2"><button disabled={cancelSubmitting} onClick={() => setCancelModalOpen(false)} className="rounded-xl border px-4 py-2">Volver</button><button disabled={cancelSubmitting || !cancelReason.trim()} onClick={() => void submitCancel()} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-white disabled:opacity-50">{cancelSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Cancelar pedido</button></div></div></div> : null}
       {refundModalOpen ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4" onClick={() => setRefundModalOpen(false)}>
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>

@@ -36,7 +36,7 @@ import { useInboxReconnect } from "@/hooks/useInboxReconnect";
 import { useChatStore } from "@/store/useChatStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { isMenuInboxEvent } from "@/types/chat";
-import type { MenuOrder } from "@/types/menuOrder";
+import type { MenuOrder, MenuOrderRefund } from "@/types/menuOrder";
 
 function paymentLabel(order: MenuOrder) {
   return order.payment_method === "online"
@@ -45,6 +45,7 @@ function paymentLabel(order: MenuOrder) {
 }
 
 function paymentStatusLabel(order: MenuOrder) {
+  if (order.payment_status === "refunded") return "Reembolsado";
   if (order.payment_method === "cash") {
     return order.status === "completed" ? "Pedido completado" : "Cobro al entregar / recoger";
   }
@@ -68,6 +69,11 @@ export default function AdminMenuOrderDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [confirmationCode, setConfirmationCode] = useState("");
+  const [refunds, setRefunds] = useState<MenuOrderRefund[]>([]);
+  const [refundAction, setRefundAction] = useState<"approve" | "reject" | null>(null);
+  const [refundNote, setRefundNote] = useState("");
+  const [noShowOpen, setNoShowOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   const loadOrder = useCallback(async (signal?: AbortSignal, silent = false) => {
     if (!Number.isFinite(orderId) || orderId <= 0) {
@@ -82,8 +88,11 @@ export default function AdminMenuOrderDetailPage() {
     }
 
     try {
-      const updated = await menuOrderService.providerOrder(orderId, signal);
-      if (!signal?.aborted) setOrder(updated);
+      const [updated, currentRefunds] = await Promise.all([
+        menuOrderService.providerOrder(orderId, signal),
+        menuOrderService.getProviderRefunds(orderId),
+      ]);
+      if (!signal?.aborted) { setOrder(updated); setRefunds(currentRefunds); }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       if (!silent && !signal?.aborted) setError(err instanceof Error ? err.message : "No se pudo cargar el pedido.");
@@ -91,6 +100,12 @@ export default function AdminMenuOrderDetailPage() {
       if (!silent && !signal?.aborted) setLoading(false);
     }
   }, [orderId]);
+
+  useEffect(() => {
+    if (order?.fulfillment_type !== "pickup" || order.status !== "ready") return;
+    const id = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(id);
+  }, [order?.fulfillment_type, order?.status]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -187,26 +202,57 @@ export default function AdminMenuOrderDetailPage() {
   };
 
   const cancelOrder = async () => {
-    if (!order || !cancelReason.trim()) return;
+    if (!order || !cancelReason.trim() || busy) return;
     setBusy(true);
 
     try {
-      const updated = await menuOrderService.updateStatus(order.id, {
-        status: "cancelled",
-        cancellation_reason: cancelReason.trim(),
-      });
+      const updated = await menuOrderService.providerCancelOrder(order.id, cancelReason.trim());
       setOrder(updated);
       setCancelOpen(false);
       setCancelReason("");
-      setToast({ type: "success", message: "Pedido cancelado." });
+      setToast({ type: "success", message: updated.payment_status === "refunded" ? "Pedido cancelado y reembolso procesado." : "Pedido cancelado." });
     } catch (err) {
       setToast({
         type: "error",
         message: err instanceof Error ? err.message : "No se pudo cancelar el pedido.",
       });
+      await loadOrder(undefined, true);
     } finally {
       setBusy(false);
     }
+  };
+
+  const markNoShow = async () => {
+    if (!order || busy) return;
+    setBusy(true);
+    try {
+      await menuOrderService.markNoShow(order.id);
+      setNoShowOpen(false);
+      await loadOrder(undefined, true);
+      setToast({ type: "success", message: "Pedido cerrado como no recogido." });
+    } catch (err) {
+      setToast({ type: "error", message: err instanceof Error ? err.message : "No se pudo actualizar el pedido." });
+      await loadOrder(undefined, true);
+    } finally { setBusy(false); }
+  };
+
+  const decideRefund = async () => {
+    const active = [...refunds].sort((a, b) => Date.parse(b.requested_at) - Date.parse(a.requested_at))[0];
+    if (!order || !active || !refundAction || busy || (refundAction === "reject" && !refundNote.trim())) return;
+    setBusy(true);
+    try {
+      const decision = refundAction;
+      if (decision === "approve") await menuOrderService.approveRefund(order.id, active.id, refundNote);
+      else await menuOrderService.rejectRefund(order.id, active.id, refundNote.trim());
+      setRefundAction(null); setRefundNote("");
+      await loadOrder(undefined, true);
+      const current = await menuOrderService.getProviderRefunds(order.id);
+      setRefunds(current);
+      setToast({ type: "success", message: decision === "reject" ? "Reembolso rechazado." : current.some((refund) => refund.id === active.id && refund.status === "refunded") ? "Reembolso procesado." : "Reembolso aprobado." });
+    } catch (err) {
+      setToast({ type: "error", message: err instanceof Error ? err.message : "No se pudo resolver la solicitud." });
+      await loadOrder(undefined, true);
+    } finally { setBusy(false); }
   };
 
   if (loading && !order) {
@@ -231,7 +277,9 @@ export default function AdminMenuOrderDetailPage() {
   }
 
   const primaryLabel = nextPrimaryStatusLabel(order.status);
-  const canCancel = ["pending", "confirmed", "preparing"].includes(order.status);
+  const canCancel = ["pending", "confirmed", "preparing", "ready"].includes(order.status);
+  const readyDeadline = order.fulfillment_type === "pickup" && order.status === "ready" && order.ready_at ? Date.parse(order.ready_at) + 60 * 60000 : null;
+  const latestRefund = [...refunds].sort((a, b) => Date.parse(b.requested_at) - Date.parse(a.requested_at))[0];
   const currentProgress = MENU_ORDER_STATUS_FLOW.indexOf(order.status);
   const onlineBlocked =
     order.payment_method === "online" && !["paid", "authorized"].includes(order.payment_status);
@@ -271,11 +319,14 @@ export default function AdminMenuOrderDetailPage() {
                 <XCircle size={17} /> Cancelar pedido
               </button>
             ) : null}
+            {readyDeadline && now >= readyDeadline ? <button type="button" disabled={busy} onClick={() => setNoShowOpen(true)} className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 font-semibold text-amber-900 disabled:opacity-50">Cliente no recogió</button> : null}
           </div>
         }
       />
 
-      {onlineBlocked ? (
+      {readyDeadline && now < readyDeadline ? <p className="text-sm text-gray-600">Podrás marcar el pedido como no recogido después de las {new Date(readyDeadline).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}.</p> : null}
+
+      {onlineBlocked && order.payment_status !== "refunded" ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <strong>Pedido pendiente de pago.</strong> No lo prepares todavía. Espera a que Mercado Pago confirme el pago.
         </div>
@@ -303,7 +354,7 @@ export default function AdminMenuOrderDetailPage() {
           <p className="text-sm text-gray-500">Recibido {formatMenuOrderDate(order.created_at)}</p>
         </div>
 
-        {order.status !== "cancelled" ? (
+        {order.status !== "cancelled" && order.status !== "no_show" ? (
           <div className="mt-5 grid gap-2 sm:grid-cols-5">
             {MENU_ORDER_STATUS_FLOW.map((status, index) => {
               const completed = index <= currentProgress;
@@ -319,10 +370,12 @@ export default function AdminMenuOrderDetailPage() {
           </div>
         ) : (
           <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
-            <strong>Pedido cancelado.</strong>{order.cancellation_reason ? ` Motivo: ${order.cancellation_reason}` : ""}
+            <strong>{order.status === "no_show" ? "No recogido." : "Pedido cancelado."}</strong>{order.cancellation_reason ? ` Motivo: ${order.cancellation_reason}` : ""}
           </div>
         )}
       </section>
+
+      {latestRefund ? <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm"><h2 className="text-lg font-bold text-[#004e28]">Solicitud de reembolso</h2><p className="mt-2 text-sm">Motivo: {latestRefund.reason}</p><p className="text-xs text-gray-500">Fecha: {formatMenuOrderDate(latestRefund.requested_at)}</p><p className="mt-2 font-semibold">{({ requested: "Reembolso solicitado", approved: "Reembolso aprobado", rejected: "Reembolso rechazado", refunded: "Reembolso procesado" })[latestRefund.status]}</p>{latestRefund.decision_note ? <p className="mt-2 text-sm">{latestRefund.decision_note}</p> : null}{latestRefund.status === "requested" ? <div className="mt-4 flex gap-2"><button disabled={busy} onClick={() => setRefundAction("approve")} className="rounded-xl bg-[#168e00] px-4 py-2 text-white disabled:opacity-50">Aprobar reembolso</button><button disabled={busy} onClick={() => setRefundAction("reject")} className="rounded-xl border border-red-300 px-4 py-2 text-red-700 disabled:opacity-50">Rechazar reembolso</button></div> : null}</section> : null}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
@@ -361,14 +414,15 @@ export default function AdminMenuOrderDetailPage() {
           <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
             <p className="text-xs font-black uppercase tracking-[0.14em] text-gray-400">Pago</p>
             <div className="mt-3 flex gap-3">
-              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${order.payment_status === "paid" ? "bg-[#168e00]/10 text-[#168e00]" : order.payment_status === "failed" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${["paid", "refunded"].includes(order.payment_status) ? "bg-[#168e00]/10 text-[#168e00]" : order.payment_status === "failed" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>
                 {order.payment_method === "online" ? <CreditCard size={20} /> : <Banknote size={20} />}
               </span>
               <div>
                 <p className="font-bold text-gray-900">{paymentLabel(order)}</p>
-                <p className={`mt-1 text-sm font-semibold ${order.payment_status === "paid" ? "text-[#168e00]" : order.payment_status === "failed" ? "text-red-600" : "text-amber-600"}`}>
+                <p className={`mt-1 text-sm font-semibold ${["paid", "refunded"].includes(order.payment_status) ? "text-[#168e00]" : order.payment_status === "failed" ? "text-red-600" : "text-amber-600"}`}>
                   {paymentStatusLabel(order)}
                 </p>
+                {order.status === "no_show" && order.settlement_status === "released" ? <p className="mt-1 text-sm font-semibold text-[#004e28]">Venta: Liberada</p> : null}
                 {order.paid_at ? <p className="mt-1 text-xs text-gray-400">Pagado {formatMenuOrderDate(order.paid_at)}</p> : null}
                 {order.mp_payment_id ? <p className="mt-1 break-all text-xs text-gray-400">MP #{order.mp_payment_id}</p> : null}
               </div>
@@ -401,6 +455,7 @@ export default function AdminMenuOrderDetailPage() {
               {order.completed_at ? <p>Completado: {formatMenuOrderDate(order.completed_at)}</p> : null}
               {order.settlement_released_at ? <p>Venta liberada: {formatMenuOrderDate(order.settlement_released_at)}</p> : null}
               {order.cancelled_at ? <p>Cancelado: {formatMenuOrderDate(order.cancelled_at)}</p> : null}
+              {order.no_show_at ? <p>No recogido: {formatMenuOrderDate(order.no_show_at)}</p> : null}
             </div>
           </section>
         </aside>
@@ -410,7 +465,7 @@ export default function AdminMenuOrderDetailPage() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => !busy && setCancelOpen(false)}>
           <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <h2 className="text-xl font-black text-gray-900">Cancelar pedido</h2>
-            <p className="mt-1 text-sm text-gray-500">El cliente recibirá el cambio de estado.</p>
+            <p className="mt-1 text-sm text-gray-500">{order.payment_method === "online" && order.payment_status === "paid" ? "Al cancelar, se realizará el reembolso total al cliente." : "El cliente recibirá el cambio de estado."}</p>
             <label className="mt-5 block text-sm font-bold text-gray-700">
               Motivo de cancelación
               <textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} maxLength={1000} className="mt-1.5 min-h-28 w-full resize-none rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-red-400" placeholder="Explica brevemente por qué se cancela el pedido" />
@@ -424,6 +479,9 @@ export default function AdminMenuOrderDetailPage() {
           </div>
         </div>
       ) : null}
+
+      {noShowOpen ? <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-lg rounded-3xl bg-white p-6"><h2 className="text-xl font-bold">Marcar como no recogido</h2><p className="mt-2 text-sm text-gray-600">Confirma sólo si el pedido estaba listo y el cliente no acudió a recogerlo. Esta acción cerrará la venta y el código dejará de funcionar.</p><div className="mt-5 flex justify-end gap-2"><button disabled={busy} onClick={() => setNoShowOpen(false)} className="rounded-xl border px-4 py-2">Volver</button><button disabled={busy} onClick={() => void markNoShow()} className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-white disabled:opacity-50">{busy ? <Loader2 size={16} className="animate-spin" /> : null}Confirmar no recogido</button></div></div></div> : null}
+      {refundAction ? <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-lg rounded-3xl bg-white p-6"><h2 className="text-xl font-bold">{refundAction === "approve" ? "Aprobar reembolso" : "Rechazar reembolso"}</h2><p className="mt-2 text-sm text-gray-600">{refundAction === "approve" ? "Si el pago se realizó con Mercado Pago, el backend procesará automáticamente el reembolso total." : "Explica al cliente por qué se rechaza su solicitud."}</p><textarea value={refundNote} onChange={(event) => setRefundNote(event.target.value)} placeholder={refundAction === "approve" ? "Nota opcional" : "Motivo obligatorio"} className="mt-4 min-h-24 w-full rounded-xl border p-3" /><div className="mt-4 flex justify-end gap-2"><button disabled={busy} onClick={() => setRefundAction(null)} className="rounded-xl border px-4 py-2">Volver</button><button disabled={busy || (refundAction === "reject" && !refundNote.trim())} onClick={() => void decideRefund()} className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-2 text-white disabled:opacity-50">{busy ? <Loader2 size={16} className="animate-spin" /> : null}Confirmar</button></div></div></div> : null}
 
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
     </div>

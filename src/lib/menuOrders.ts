@@ -11,6 +11,7 @@ export const MENU_ORDER_STATUS_LABELS: Record<MenuOrderStatus, string> = {
   ready: "Listo",
   completed: "Completado",
   cancelled: "Cancelado",
+  no_show: "No recogido",
 };
 
 export const MENU_ORDER_STATUS_CLASSES: Record<MenuOrderStatus, string> = {
@@ -20,6 +21,7 @@ export const MENU_ORDER_STATUS_CLASSES: Record<MenuOrderStatus, string> = {
   ready: "border-emerald-200 bg-emerald-50 text-emerald-800",
   completed: "border-[#168e00]/20 bg-[#168e00]/10 text-[#116f00]",
   cancelled: "border-red-200 bg-red-50 text-red-700",
+  no_show: "border-amber-200 bg-amber-50 text-amber-800",
 };
 
 export const MENU_ORDER_STATUS_FLOW: MenuOrderStatus[] = [
@@ -37,9 +39,10 @@ export const MENU_ORDER_ALLOWED_TRANSITIONS: Record<
   pending: ["confirmed", "cancelled"],
   confirmed: ["preparing", "cancelled"],
   preparing: ["ready", "cancelled"],
-  ready: ["completed"],
+  ready: ["completed", "cancelled", "no_show"],
   completed: [],
   cancelled: [],
+  no_show: [],
 };
 
 export function formatMenuOrderMoney(value: number | null | undefined) {
@@ -85,6 +88,6 @@ export function nextPrimaryStatusLabel(status: MenuOrderStatus) {
 }
 
 export function orderProgressIndex(order: MenuOrder) {
-  if (order.status === "cancelled") return -1;
+  if (order.status === "cancelled" || order.status === "no_show") return -1;
   return MENU_ORDER_STATUS_FLOW.indexOf(order.status);
 }

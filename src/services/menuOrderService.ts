@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "@/lib/api";
 import type {
   MenuOrder,
+  MenuOrderRefund,
   MenuOrderCreatePayload,
   MenuOrderCreated,
   MenuOrderSettings,
@@ -13,6 +14,19 @@ import type {
 
 const privateBase = "/api/menu-orders";
 const publicBase = "/api/public/menu-orders";
+const guestUrl = (orderNumber: string, token: string, suffix: string) =>
+  `${publicBase}/${encodeURIComponent(orderNumber)}${suffix}?${new URLSearchParams({ management_token: token })}`;
+
+async function readRefunds(response: Response): Promise<MenuOrderRefund[]> {
+  const data: unknown = await response.json();
+  if (Array.isArray(data)) return data as MenuOrderRefund[];
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    const items = record.items ?? record.refunds ?? record.results ?? record.data;
+    if (Array.isArray(items)) return items as MenuOrderRefund[];
+  }
+  return [];
+}
 
 function extractError(value: unknown): string | undefined {
   if (typeof value === "string") return value;
@@ -147,6 +161,39 @@ function normalizeSettings(
 }
 
 export const menuOrderService = {
+  async cancelCustomerOrder(orderId: number, reason: string): Promise<MenuOrder> {
+    return (await authRequest(`${privateBase}/${orderId}/cancel`, { method: "POST", body: JSON.stringify({ reason }) })).json();
+  },
+  async cancelGuestOrder(orderNumber: string, managementToken: string, reason: string): Promise<MenuOrder> {
+    return (await publicRequest(guestUrl(orderNumber, managementToken, "/cancel"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason }) })).json();
+  },
+  async providerCancelOrder(orderId: number, reason: string): Promise<MenuOrder> {
+    return (await authRequest(`${privateBase}/${orderId}/provider-cancel`, { method: "POST", body: JSON.stringify({ reason }) })).json();
+  },
+  async markNoShow(orderId: number): Promise<MenuOrder> {
+    return (await authRequest(`${privateBase}/${orderId}/no-show`, { method: "POST" })).json();
+  },
+  async requestCustomerRefund(orderId: number, reason: string): Promise<MenuOrderRefund> {
+    return (await authRequest(`${privateBase}/${orderId}/refunds`, { method: "POST", body: JSON.stringify({ reason }) })).json();
+  },
+  async requestGuestRefund(orderNumber: string, managementToken: string, reason: string): Promise<MenuOrderRefund> {
+    return (await publicRequest(guestUrl(orderNumber, managementToken, "/refunds"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason }) })).json();
+  },
+  async getProviderRefunds(orderId: number): Promise<MenuOrderRefund[]> {
+    return readRefunds(await authRequest(`${privateBase}/${orderId}/refunds`));
+  },
+  async getCustomerRefunds(orderId: number): Promise<MenuOrderRefund[]> {
+    return readRefunds(await authRequest(`${privateBase}/${orderId}/refunds/my`));
+  },
+  async getGuestRefunds(orderNumber: string, managementToken: string): Promise<MenuOrderRefund[]> {
+    return readRefunds(await publicRequest(guestUrl(orderNumber, managementToken, "/refunds")));
+  },
+  async approveRefund(orderId: number, refundId: number, note?: string): Promise<MenuOrderRefund> {
+    return (await authRequest(`${privateBase}/${orderId}/refunds/${refundId}/approve`, { method: "POST", body: JSON.stringify({ note: note?.trim() || "" }) })).json();
+  },
+  async rejectRefund(orderId: number, refundId: number, reason: string): Promise<MenuOrderRefund> {
+    return (await authRequest(`${privateBase}/${orderId}/refunds/${refundId}/reject`, { method: "POST", body: JSON.stringify({ reason }) })).json();
+  },
   async shippingQuote(
     supplierSlug: string,
     payload: MenuOrderShippingQuoteRequest,

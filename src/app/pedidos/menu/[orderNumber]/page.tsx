@@ -25,6 +25,7 @@ import {
 } from "@/lib/menuOrders";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { menuOrderAwaitingHandoff } from "@/lib/menuOrderFlow";
+import { MENU_CANCEL_STATUSES, MENU_REFUND_STATUSES, canRequestAnotherRefund, elapsedMinutes } from "@/lib/orderActionRules";
 import { menuOrderService } from "@/services/menuOrderService";
 import { notificationService } from "@/services/notificationService";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
@@ -33,9 +34,9 @@ import { useInboxReconnect } from "@/hooks/useInboxReconnect";
 import { useChatStore } from "@/store/useChatStore";
 import { isMenuInboxEvent } from "@/types/chat";
 import { ClientShell } from "@/components/client/ClientShell";
-import type { MenuOrder } from "@/types/menuOrder";
+import type { MenuOrder, MenuOrderRefund } from "@/types/menuOrder";
 
-const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
+const TERMINAL_STATUSES = new Set(["completed", "cancelled", "no_show"]);
 
 function paymentMethodLabel(order: MenuOrder) {
   return order.payment_method === "online"
@@ -44,11 +45,13 @@ function paymentMethodLabel(order: MenuOrder) {
 }
 
 function paymentStatusLabel(order: MenuOrder) {
+  if (order.payment_status === "refunded") return "Reembolsado";
   if (order.payment_method === "cash") {
     return order.status === "completed" ? "Cobro en efectivo" : "Pago al recibir / recoger";
   }
   if (order.payment_status === "paid" && order.settlement_status === "on_hold") return "Pago recibido";
   if (order.payment_status === "paid" && order.settlement_status === "released" && order.status === "completed") return "Pago confirmado";
+  if (order.payment_status === "paid" && order.settlement_status === "released" && order.status === "no_show") return "Pago recibido · pedido no recogido";
   if (order.payment_status === "paid") return "Pago recibido";
   if (order.payment_status === "authorized") return "Pago autorizado";
   if (order.payment_status === "failed") return "Pago no aprobado";
@@ -76,6 +79,14 @@ export default function PublicMenuOrderTrackingPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [codeNotice, setCodeNotice] = useState<string | null>(null);
+  const [refunds, setRefunds] = useState<MenuOrderRefund[]>([]);
+  const [refundsLoaded, setRefundsLoaded] = useState(false);
+  const [action, setAction] = useState<"cancel" | "refund" | null>(null);
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const ownsOrder = hydrated && isAuthenticated && user?.id != null && order !== null &&
     order.customer_user_id === user.id && order.order_number === orderNumber;
   const awaitingHandoff = menuOrderAwaitingHandoff(order);
@@ -83,6 +94,7 @@ export default function PublicMenuOrderTrackingPage() {
 
   const paymentReturn = searchParams.get("payment");
   const tokenKey = `menu-order-token:${orderNumber}`;
+  const managementToken = queryToken || storedToken;
 
   useEffect(() => {
     if (!orderNumber) return;
@@ -149,6 +161,56 @@ export default function PublicMenuOrderTrackingPage() {
     void loadOrder();
   }, [hydrated, isAuthenticated, loadOrder, queryToken, storedToken]);
 
+  const loadRefunds = useCallback(async () => {
+    if (!order) return;
+    setRefundsLoaded(false);
+    try {
+      const data = ownsOrder
+        ? await menuOrderService.getCustomerRefunds(order.id)
+        : managementToken
+          ? await menuOrderService.getGuestRefunds(orderNumber, managementToken)
+          : [];
+      setRefunds(data);
+      setRefundsLoaded(true);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "No se pudieron consultar los reembolsos.");
+    }
+  }, [managementToken, order, orderNumber, ownsOrder]);
+
+  useEffect(() => { void loadRefunds(); }, [loadRefunds]);
+  useEffect(() => {
+    if (order?.status !== "pending") return;
+    const id = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(id);
+  }, [order?.status]);
+
+  const submitAction = async () => {
+    if (!order || !action || !reason.trim() || submitting) return;
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      if (action === "cancel") {
+        const updated = ownsOrder
+          ? await menuOrderService.cancelCustomerOrder(order.id, reason.trim())
+          : await menuOrderService.cancelGuestOrder(orderNumber, managementToken, reason.trim());
+        setOrder(updated);
+        setActionMessage(updated.payment_status === "refunded" ? "Pedido cancelado. Tu pago fue reembolsado." : "Pedido cancelado.");
+      } else {
+        if (ownsOrder) await menuOrderService.requestCustomerRefund(order.id, reason.trim());
+        else await menuOrderService.requestGuestRefund(orderNumber, managementToken, reason.trim());
+        setActionMessage("Solicitud de reembolso enviada.");
+      }
+      setAction(null);
+      setReason("");
+      await Promise.all([loadOrder(true), loadRefunds()]);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "No se pudo completar la acción.");
+      await Promise.all([loadOrder(true), loadRefunds()]);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const resyncAfterReconnect = useCallback(() => {
     void loadOrder(true);
   }, [loadOrder]);
@@ -181,7 +243,7 @@ export default function PublicMenuOrderTrackingPage() {
   useEffect(() => {
     if (!hydrated || ownsOrder || !order) return;
     const shouldPoll =
-      !TERMINAL_STATUSES.has(order.status) ||
+      (order.payment_status !== "refunded" && !TERMINAL_STATUSES.has(order.status)) ||
       (order.payment_method === "online" && order.payment_status === "pending");
     if (!shouldPoll) return;
 
@@ -230,12 +292,20 @@ export default function PublicMenuOrderTrackingPage() {
   const progress = MENU_ORDER_STATUS_FLOW.indexOf(order.status);
   const safeCheckout = order.payment_flow === "card_authorization" ? "" : getSafeMercadoPagoUrl(order.payment_checkout_url);
   const confirmationCode = codeNotice?.replace(orderNumber, "").match(/\b\d{6}\b/)?.[0] ?? null;
+  const latestRefund = [...refunds].sort((a, b) => Date.parse(b.requested_at) - Date.parse(a.requested_at))[0];
+  const canManage = ownsOrder || Boolean(managementToken);
+  const canCancel = MENU_CANCEL_STATUSES.some((status) => status === order.status);
+  const canRefund = MENU_REFUND_STATUSES.some((status) => status === order.status);
+  const waiting15 = order.status === "pending" && elapsedMinutes(order.created_at, 15, now);
 
   return (
     <TrackingFrame authenticated={showClientShell}>
     <div className={`bg-[#f7f9f8] pb-24 ${showClientShell ? "" : "min-h-screen pt-28 md:pt-32"}`}>
       <div className="mx-auto max-w-6xl space-y-7 px-4 sm:px-6 lg:px-8">
-        {paymentReturn ? (
+        {actionMessage ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-[#004e28]">{actionMessage}</div> : null}
+        {actionError ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{actionError}</div> : null}
+        {waiting15 ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>El negocio aún no ha confirmado tu pedido.</strong><p className="mt-1">Si no deseas seguir esperando, puedes cancelar el pedido y recibir el reembolso correspondiente.</p></div> : null}
+        {paymentReturn && order.payment_status !== "refunded" ? (
         <div
           className={`rounded-2xl border p-4 text-sm shadow-sm ${
             paymentReturn === "success"
@@ -283,7 +353,7 @@ export default function PublicMenuOrderTrackingPage() {
         </div>
 
         <div className="p-5 sm:p-8">
-          {order.status !== "cancelled" ? (
+          {order.status !== "cancelled" && order.status !== "no_show" ? (
             <div>
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
@@ -322,12 +392,20 @@ export default function PublicMenuOrderTrackingPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
-              <strong>Pedido cancelado.</strong>{order.cancellation_reason ? ` ${order.cancellation_reason}` : ""}
+            <div className={`rounded-2xl border p-4 text-sm ${order.status === "no_show" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-100 bg-red-50 text-red-700"}`}>
+              <strong>{order.status === "no_show" ? "No recogido." : "Pedido cancelado."}</strong> {order.status === "no_show" ? "El negocio indicó que el pedido no fue recogido dentro del tiempo establecido." : order.cancellation_reason || ""}
             </div>
           )}
         </div>
         </section>
+
+        {canManage ? <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-7">
+          <h2 className="font-[family-name:var(--font-varela-round)] text-xl font-bold text-[#004e28]">Cancelaciones y reembolsos</h2>
+          {latestRefund ? <div className={`mt-4 rounded-2xl border p-4 text-sm ${latestRefund.status === "rejected" ? "border-red-200 bg-red-50" : latestRefund.status === "requested" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}><strong>{({ requested: "Reembolso solicitado", approved: "Reembolso aprobado", rejected: "Reembolso rechazado", refunded: "Reembolsado" })[latestRefund.status]}</strong><p className="mt-1">{latestRefund.status === "requested" ? "El negocio está revisando tu solicitud." : latestRefund.status === "refunded" ? "El reembolso fue procesado." : latestRefund.reason}</p>{latestRefund.decision_note ? <p className="mt-1">{latestRefund.decision_note}</p> : null}</div> : null}
+          {order.status === "no_show" ? <p className="mt-3 text-sm text-gray-600">Este pedido fue cerrado como no recogido. Si tuviste un problema, puedes solicitar un reembolso.</p> : null}
+          {canCancel ? <button type="button" disabled={submitting} onClick={() => setAction("cancel")} className="mt-4 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Cancelar pedido</button> : null}
+          {canRefund && refundsLoaded && canRequestAnotherRefund(latestRefund?.status) ? <button type="button" disabled={submitting} onClick={() => setAction("refund")} className="mt-4 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">Solicitar reembolso</button> : null}
+        </section> : null}
 
         {awaitingHandoff ? (
           <section className="rounded-3xl border-2 border-[#168e00]/35 bg-white px-5 py-6 text-center shadow-sm sm:px-8" aria-label="Código de confirmación">
@@ -382,9 +460,10 @@ export default function PublicMenuOrderTrackingPage() {
               </span>
               <div>
                 <p className="font-bold text-gray-900">{paymentMethodLabel(order)}</p>
-                <p className={`mt-1 text-sm font-semibold ${order.payment_status === "paid" ? "text-[#168e00]" : order.payment_status === "failed" ? "text-red-600" : "text-amber-600"}`}>
+                <p className={`mt-1 text-sm font-semibold ${["paid", "refunded"].includes(order.payment_status) ? "text-[#168e00]" : order.payment_status === "failed" ? "text-red-600" : "text-amber-600"}`}>
                   {paymentStatusLabel(order)}
                 </p>
+                {order.payment_status === "refunded" ? <p className="mt-2 text-sm text-gray-600">El importe de este pedido fue reembolsado.</p> : null}
                 {order.payment_status === "paid" && order.settlement_status === "on_hold" ? (
                   <p className="mt-2 text-sm leading-6 text-gray-600">{order.fulfillment_type === "pickup" ? "Tu pago fue recibido. Conserva tu código y muéstralo cuando recojas el pedido." : "Tu pago fue recibido. Conserva tu código y compártelo únicamente cuando recibas el pedido."}</p>
                 ) : null}
@@ -397,7 +476,7 @@ export default function PublicMenuOrderTrackingPage() {
               </div>
             </div>
 
-            {order.payment_method === "online" && order.payment_status !== "paid" && safeCheckout ? (
+            {order.payment_method === "online" && ["pending", "failed"].includes(order.payment_status) && !["cancelled", "no_show"].includes(order.status) && safeCheckout ? (
               <a href={safeCheckout} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white">
                 <CreditCard size={16} /> Intentar pago nuevamente
               </a>
@@ -420,6 +499,7 @@ export default function PublicMenuOrderTrackingPage() {
         </aside>
         </div>
       </div>
+      {action ? <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"><h2 className="text-xl font-bold text-[#004e28]">{action === "cancel" ? "Cancelar pedido" : "Solicitar reembolso"}</h2><p className="mt-2 text-sm text-gray-600">{action === "cancel" ? "Si cancelas ahora y pagaste con Mercado Pago, se solicitará el reembolso total." : "El negocio revisará tu solicitud."}</p><label className="mt-5 block text-sm font-semibold text-gray-700">{action === "cancel" ? "Motivo de cancelación" : "Cuéntanos qué ocurrió"}<textarea value={reason} onChange={(event) => setReason(event.target.value)} disabled={submitting} className="mt-2 min-h-28 w-full rounded-xl border border-gray-200 p-3" /></label>{actionError ? <p className="mt-2 text-sm text-red-600">{actionError}</p> : null}<div className="mt-5 flex justify-end gap-2"><button type="button" disabled={submitting} onClick={() => setAction(null)} className="rounded-xl border px-4 py-2.5">Volver</button><button type="button" disabled={submitting || !reason.trim()} onClick={() => void submitAction()} className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 font-bold text-white disabled:opacity-50">{submitting ? <Loader2 size={16} className="animate-spin" /> : null}{action === "cancel" ? "Cancelar pedido" : "Enviar solicitud"}</button></div></div></div> : null}
     </div>
     </TrackingFrame>
   );

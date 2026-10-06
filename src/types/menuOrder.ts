@@ -4,11 +4,26 @@ export type MenuOrderStatus =
   | "preparing"
   | "ready"
   | "completed"
-  | "cancelled";
+  | "cancelled"
+  | "no_show";
 
 export type MenuOrderFulfillmentType = "pickup" | "delivery";
 export type MenuOrderPaymentMethod = "cash" | "online";
-export type MenuOrderPaymentStatus = "pending" | "authorized" | "paid" | "failed" | "cancelled";
+export type MenuOrderPaymentStatus = "pending" | "authorized" | "paid" | "failed" | "cancelled" | "refunded";
+export type MenuOrderRefundStatus = "requested" | "approved" | "rejected" | "refunded";
+
+export interface MenuOrderRefund {
+  id: number;
+  menu_order_id?: number;
+  status: MenuOrderRefundStatus;
+  reason: string;
+  requested_at: string;
+  requested_by_user_id?: number | null;
+  decided_at: string | null;
+  decided_by_user_id?: number | null;
+  decision_note: string | null;
+  refunded_at: string | null;
+}
 export type MenuOrderPaymentFlow = "preference" | "card_authorization";
 
 export interface MenuOrderSettings {
@@ -114,6 +129,7 @@ export interface MenuOrder {
   ready_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
+  no_show_at: string | null;
   created_at: string;
   updated_at: string;
   items: MenuOrderItem[];

@@ -43,9 +43,11 @@ const filters: Array<{ value: "all" | MenuOrderStatus; label: string }> = [
   { value: "ready", label: "Listos" },
   { value: "completed", label: "Completados" },
   { value: "cancelled", label: "Cancelados" },
+  { value: "no_show", label: "No recogidos" },
 ];
 
 function paymentStatusLabel(order: MenuOrder) {
+  if (order.payment_status === "refunded") return "Reembolsado";
   if (order.payment_method === "online") return menuProviderPaymentStatusLabel(order);
   if (order.payment_status === "paid") return "Pagado";
   if (order.payment_status === "authorized") return "Pago autorizado";
@@ -55,6 +57,7 @@ function paymentStatusLabel(order: MenuOrder) {
 }
 
 function paymentStatusClass(status: MenuOrderPaymentStatus) {
+  if (status === "refunded") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (status === "paid") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (status === "authorized") return "border-sky-200 bg-sky-50 text-sky-800";
   if (status === "failed") return "border-red-200 bg-red-50 text-red-700";
@@ -136,6 +139,7 @@ export default function AdminMenuOrdersPage() {
       ready: 0,
       completed: 0,
       cancelled: 0,
+      no_show: 0,
     };
 
     orders.forEach((order) => {

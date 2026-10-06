@@ -104,6 +104,21 @@ async function parseError(response: Response | null, fallback: string) {
 }
 
 export const orderService = {
+  cancelOrder: async (orderId: number, reason: string): Promise<Order> => {
+    const response = await fetchWithAuth(`/api/orders/${orderId}/cancel`, { method: "POST", body: JSON.stringify({ reason }) });
+    if (!response.ok) throw new Error(await parseError(response, "No se pudo cancelar el pedido."));
+    return response.json();
+  },
+  providerCancelOrder: async (orderId: number, reason: string): Promise<Order> => {
+    const response = await fetchWithAuth(`/api/orders/${orderId}/provider-cancel`, { method: "POST", body: JSON.stringify({ reason }) });
+    if (!response.ok) throw new Error(await parseError(response, "No se pudo cancelar el pedido."));
+    return response.json();
+  },
+  markCustomerNoShow: async (orderId: number): Promise<Order> => {
+    const response = await fetchWithAuth(`/api/orders/${orderId}/no-show`, { method: "POST" });
+    if (!response.ok) throw new Error(await parseError(response, "No se pudo marcar como no recogido."));
+    return response.json();
+  },
   getOrderById: async (orderId: number): Promise<Order> => {
     const tryUrls = [
       `/api/orders/${orderId}`,
@@ -363,17 +378,14 @@ export const orderService = {
     ];
 
     let response: Response | null = null;
-    let usedUrl = "";
     for (const url of tryUrls) {
-      usedUrl = url;
       response = await fetchWithAuth(url, options);
       if (response.ok) break;
       if (response.status !== 404 && response.status !== 405) break;
     }
 
     if (!response || !response.ok) {
-      const errorText = await response?.text().catch(() => "") ?? "";
-      throw new Error(`Failed to request refund: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+      throw new Error(await parseError(response, "No se pudo solicitar el reembolso."));
     }
 
     const contentType = response.headers.get("content-type") || "";
@@ -430,9 +442,7 @@ export const orderService = {
     ];
 
     let response: Response | null = null;
-    let usedUrl = "";
     for (const url of tryUrls) {
-      usedUrl = url;
       response = await fetchWithAuth(url, options);
       if ([301, 302, 307, 308].includes(response.status)) {
         const redirectUrl = response.headers.get("Location");
@@ -445,8 +455,7 @@ export const orderService = {
     }
 
     if (!response || !response.ok) {
-      const errorText = await response?.text().catch(() => "") ?? "";
-      throw new Error(`Failed to approve refund: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+      throw new Error(await parseError(response, "No se pudo aprobar el reembolso."));
     }
 
     const contentType = response.headers.get("content-type") || "";
@@ -465,10 +474,8 @@ export const orderService = {
     ];
 
     let response: Response | null = null;
-    let usedUrl = "";
 
     for (const url of tryUrls) {
-      usedUrl = url;
       response = await fetchWithAuth(url, options);
       if ([301, 302, 307, 308].includes(response.status)) {
         const redirectUrl = response.headers.get("Location");
@@ -481,8 +488,7 @@ export const orderService = {
     }
 
     if (!response || !response.ok) {
-      const errorText = await response?.text().catch(() => "") ?? "";
-      throw new Error(`Failed to reject refund: ${response?.status ?? "unknown"} ${usedUrl} ${errorText}`.trim());
+      throw new Error(await parseError(response, "No se pudo rechazar el reembolso."));
     }
 
     const contentType = response.headers.get("content-type") || "";
