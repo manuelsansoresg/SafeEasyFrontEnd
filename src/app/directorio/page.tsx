@@ -7,7 +7,7 @@ type SearchParams = Record<string, string | string[] | undefined>;
 
 const title = "Publica tu negocio en Drooopy | Directorio en México";
 const description =
-  "Crea un espacio para mostrar tus servicios, imágenes, horarios, ubicación y formas de contacto dentro de Drooopy. Comparte tu negocio fácilmente.";
+  "Crea un espacio para mostrar tus servicios, imágenes, horarios, ubicación y formas de contacto dentro de Drooopy.";
 
 export const metadata: Metadata = buildMetadata({
   title,

@@ -2,21 +2,19 @@
 
 import Link from "next/link";
 import { ArrowRight, ChevronDown, MessageCircle } from "lucide-react";
+import type { MouseEvent } from "react";
 
 export const primaryCtaClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#168e00] px-6 py-3 text-center text-sm font-bold text-white transition-colors hover:bg-[#116f04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004e28] sm:text-base";
 
 type CtaProps = {
   href: string;
-  onClick: () => void;
-  disabled?: boolean;
+  onClick: (event: MouseEvent<HTMLAnchorElement>) => void;
   className?: string;
+  label?: string;
 };
 
-export function MarketingCta({ href, onClick, disabled = false, className = "" }: CtaProps) {
-  if (disabled) {
-    return <span aria-live="polite" className={`${primaryCtaClass} cursor-not-allowed opacity-60 ${className}`}>Plan no disponible</span>;
-  }
-  return <Link href={href} onClick={onClick} className={`${primaryCtaClass} ${className}`}>Quiero publicar mi negocio <ArrowRight size={18} aria-hidden="true" /></Link>;
+export function MarketingCta({ href, onClick, className = "", label = "Quiero información" }: CtaProps) {
+  return <Link href={href} onClick={onClick} className={`${primaryCtaClass} ${className}`}>{label} <ArrowRight size={18} aria-hidden="true" /></Link>;
 }
 
 export function MarketingFaq({ items }: { items: Array<{ question: string; answer: string; href?: string; linkLabel?: string }> }) {
@@ -39,7 +37,7 @@ export function MarketingWhatsappButton({ href, onClick, className = "" }: { hre
   </a>;
 }
 
-export function MarketingStickyCta({ visible, href, onClick }: { visible: boolean; href: string; onClick: () => void }) {
+export function MarketingStickyCta({ visible, href, onClick }: { visible: boolean; href: string; onClick: (event: MouseEvent<HTMLAnchorElement>) => void }) {
   if (!visible) return null;
   return <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#004e28]/15 bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_26px_-20px_#004e28] md:hidden">
     <MarketingCta href={href} onClick={onClick} className="w-full" />

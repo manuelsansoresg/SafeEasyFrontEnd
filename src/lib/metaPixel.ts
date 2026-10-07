@@ -2,7 +2,8 @@ export type MetaStandardEvent =
   | "PageView"
   | "CompleteRegistration"
   | "InitiateCheckout"
-  | "Contact";
+  | "Contact"
+  | "Lead";
 
 type MetaPixelWindow = Window & {
   fbq?: (
