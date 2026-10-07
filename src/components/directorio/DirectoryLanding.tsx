@@ -1,24 +1,20 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { BriefcaseBusiness, Check, Facebook, Images, Instagram, MapPin, MessageCircle } from "lucide-react";
-import { FaXTwitter } from "react-icons/fa6";
+import { BriefcaseBusiness, Check, Images, MapPin, MessageCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { DirectoryLeadForm } from "@/components/directorio/DirectoryLeadForm";
 import { MarketingCta, MarketingFaq, MarketingStickyCta, MarketingWhatsappButton } from "@/components/marketing/MarketingBlocks";
+import { MarketingFooter, MarketingHeader } from "@/components/marketing/MarketingChrome";
 import { getPlanFeatureLines } from "@/components/sell/planText";
-import { trackMetaCustomEvent, trackMetaEvent } from "@/lib/metaPixel";
+import { campaignWhatsAppUrl, emitCampaignEvent, type CampaignAction } from "@/lib/marketingCampaign";
 import type { Plan } from "@/types/subscriptions";
 
 type DirectoryLandingProps = {
   initialPlan: Plan | null;
   campaignParams: Array<[string, string]>;
 };
-type MarketingEvent = "directory_view" | "directory_cta_click" | "directory_whatsapp_click" | "directory_lead_created";
-type AnalyticsWindow = Window & { dataLayer?: Array<Record<string, unknown>> };
-
-const WHATSAPP_URL = `https://wa.me/529992685617?text=${encodeURIComponent("Hola, vi Drooopy y quiero información para publicar mi negocio.")}`;
+const WHATSAPP_URL = campaignWhatsAppUrl("directory");
 const containerClass = "mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10";
 const headingClass = "font-[family-name:var(--font-varela-round)] tracking-[-0.025em] text-[#004e28]";
 
@@ -47,15 +43,8 @@ const pickPlanArray = (payload: unknown): Plan[] => {
   return Array.isArray(items) ? items as Plan[] : [];
 };
 
-const emitMarketingEvent = (event: MarketingEvent, placement?: string) => {
-  if (typeof window === "undefined") return;
-  const detail = { event, placement, path: window.location.pathname };
-  window.dispatchEvent(new CustomEvent("drooopy:marketing", { detail }));
-  (window as AnalyticsWindow).dataLayer?.push(detail);
-  if (event === "directory_cta_click") trackMetaCustomEvent("DirectoryCtaClick", { placement });
-  if (event === "directory_whatsapp_click") trackMetaEvent("Contact", { content_name: "WhatsApp Directorio" });
-  if (event === "directory_lead_created") trackMetaEvent("Lead", { content_name: "Directorio Drooopy" });
-};
+const emitMarketingEvent = (event: `directory_${CampaignAction}`, placement?: string) =>
+  emitCampaignEvent("directory", event.replace("directory_", "") as CampaignAction, placement);
 
 export function DirectoryLanding({ initialPlan, campaignParams }: DirectoryLandingProps) {
   const [plan, setPlan] = useState<Plan | null>(initialPlan);
@@ -138,18 +127,7 @@ export function DirectoryLanding({ initialPlan, campaignParams }: DirectoryLandi
 
   return (
     <div className="min-h-screen overflow-x-clip bg-white pb-20 text-[#17251c] md:pb-0">
-      <a href="#contenido-directorio" className="fixed left-4 top-3 z-[100] -translate-y-24 rounded-lg bg-white px-4 py-2 font-semibold text-[#004e28] shadow-lg focus:translate-y-0">Ir al contenido</a>
-      <header className="sticky top-0 z-30 border-b border-[#004e28]/10 bg-white/95 backdrop-blur-sm">
-        <div className={`${containerClass} flex h-16 items-center justify-between gap-3 sm:h-[72px]`}>
-          <Link href="/" aria-label="Drooopy, ir al inicio" className="relative h-10 w-28 shrink-0 sm:w-40">
-            <Image src="/LOGO DROOOPY NEGRO.svg" alt="Drooopy" fill priority className="object-contain object-left" />
-          </Link>
-          <nav aria-label="Navegación de la página" className="flex items-center gap-3 sm:gap-5">
-            <a href="#como-funciona" onClick={scrollToSteps} className="hidden text-sm font-semibold text-[#004e28] hover:underline focus-visible:outline-2 focus-visible:outline-[#004e28] sm:inline">Cómo funciona</a>
-            <MarketingCta href="#quiero-informacion" onClick={(event) => scrollToForm(event, "header")} className="min-h-10 px-4 py-2 text-xs sm:min-h-11 sm:text-sm" />
-          </nav>
-        </div>
-      </header>
+      <MarketingHeader contentId="contenido-directorio" onCta={(event) => scrollToForm(event, "header")} onSteps={scrollToSteps} />
 
       <main id="contenido-directorio">
         <section ref={heroRef} className="bg-[#fbfcfa] py-9 sm:py-12 lg:py-14" aria-labelledby="directory-title">
@@ -219,14 +197,14 @@ export function DirectoryLanding({ initialPlan, campaignParams }: DirectoryLandi
           </div>
         </section>
 
-        <section id="quiero-informacion" ref={formRef} className="scroll-mt-20 bg-[#f2f3f4] py-12 sm:py-16" aria-labelledby="lead-title"><div className={`${containerClass} grid items-center gap-7 lg:grid-cols-[0.45fr_0.55fr] lg:gap-12`}><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00672f]">Hablemos</p><h2 id="lead-title" className={`${headingClass} mt-3 text-3xl leading-tight sm:text-4xl`}>¿Quieres información para tu negocio?</h2><p className="mt-3 text-sm leading-6 text-[#40554a] sm:text-base">Déjanos tus datos y te contactamos.</p></div><DirectoryLeadForm onLeadCreated={() => emitMarketingEvent("directory_lead_created", "lead_form")} onWhatsappClick={() => emitMarketingEvent("directory_whatsapp_click", "lead_success")} /></div></section>
+        <section id="quiero-informacion" ref={formRef} className="scroll-mt-20 bg-[#f2f3f4] py-12 sm:py-16" aria-labelledby="lead-title"><div className={`${containerClass} grid items-center gap-7 lg:grid-cols-[0.45fr_0.55fr] lg:gap-12`}><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00672f]">Hablemos</p><h2 id="lead-title" className={`${headingClass} mt-3 text-3xl leading-tight sm:text-4xl`}>¿Quieres información para tu negocio?</h2><p className="mt-3 text-sm leading-6 text-[#40554a] sm:text-base">Déjanos tus datos y te contactamos.</p></div><DirectoryLeadForm onLeadCreated={() => emitMarketingEvent("directory_lead_created", "lead_form")} /></div></section>
 
         <section className="py-12 sm:py-16" aria-labelledby="faq-title"><div className="mx-auto max-w-3xl px-5 sm:px-8"><h2 id="faq-title" className={`${headingClass} text-3xl sm:text-4xl`}>Preguntas frecuentes</h2><div className="mt-5"><MarketingFaq items={faqs} /></div></div></section>
 
         <section className="border-t border-[#004e28]/10 bg-[#fbfcfa] py-12 sm:py-16" aria-labelledby="final-title"><div className={`${containerClass} flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between`}><div><h2 id="final-title" className={`${headingClass} max-w-2xl text-3xl leading-tight sm:text-4xl`}>Tu negocio ya existe. Haz que sea más fácil encontrarlo y conocerlo.</h2></div><div className="flex flex-col items-start gap-2 lg:shrink-0"><MarketingCta href="#quiero-informacion" onClick={(event) => scrollToForm(event, "final")} className="w-full sm:w-auto" /><a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" onClick={() => emitMarketingEvent("directory_whatsapp_click", "final")} className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-[#004e28] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[#004e28]">Tengo una pregunta por WhatsApp</a></div></div></section>
       </main>
 
-      <footer className="border-t border-[#004e28]/10 bg-white py-8"><div className={`${containerClass} flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between`}><Link href="/" aria-label="Drooopy, ir al inicio" className="relative h-10 w-32"><Image src="/LOGO DROOOPY NEGRO.svg" alt="Drooopy" fill className="object-contain object-left" /></Link><nav aria-label="Enlaces legales" className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-[#40554a]"><Link href="/politicas-de-privacidad" className="hover:underline">Privacidad</Link><Link href="/terminos-y-condiciones" className="hover:underline">Términos</Link><Link href="/contacto" className="hover:underline">Contacto</Link></nav><div className="flex gap-4 text-[#004e28]" aria-label="Redes sociales"><a href="https://www.facebook.com/drooopymexico" target="_blank" rel="noreferrer" aria-label="Facebook"><Facebook size={18} aria-hidden="true" /></a><a href="https://www.instagram.com/drooopymx" target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={18} aria-hidden="true" /></a><a href="https://x.com/drooopymx" target="_blank" rel="noreferrer" aria-label="X"><FaXTwitter size={18} aria-hidden="true" /></a></div></div></footer>
+      <MarketingFooter />
 
       <MarketingWhatsappButton href={WHATSAPP_URL} onClick={() => emitMarketingEvent("directory_whatsapp_click", "floating")} className={`fixed right-4 z-30 shadow-md ${!heroVisible && !priceVisible && !formVisible ? "bottom-24 md:bottom-5" : "bottom-5"}`} />
       <MarketingStickyCta visible={!heroVisible && !priceVisible && !formVisible} href="#quiero-informacion" onClick={(event) => scrollToForm(event, "sticky_mobile")} />

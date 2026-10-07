@@ -38,6 +38,11 @@ const staticRoutes: MetadataRoute.Sitemap = [
     changeFrequency: "weekly",
     priority: 0.8,
   },
+  ...["/menu", "/vender", "/agenda"].map((path) => ({
+    url: absoluteSiteUrl(path),
+    changeFrequency: "weekly" as const,
+    priority: 0.8,
+  })),
   {
     url: absoluteSiteUrl("/politicas-de-privacidad"),
     changeFrequency: "yearly",

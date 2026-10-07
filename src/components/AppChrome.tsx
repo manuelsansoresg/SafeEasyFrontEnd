@@ -9,6 +9,12 @@ import { useChromeVisibilityStore } from "@/store/useChromeVisibilityStore";
 const legalPaths = new Set(["/politicas-de-privacidad", "/terminos-y-condiciones"]);
 const mobileEmbedParams = ["from_mobile", "is_mobile", "is_movil"];
 const enabledValues = new Set(["1", "true", "yes", "si"]);
+const marketingPaths = new Set([
+  "/directorio", "/directorio/gracias",
+  "/menu", "/menu/gracias",
+  "/vender", "/vender/gracias",
+  "/agenda", "/agenda/gracias",
+]);
 
 function isMobileEmbed(searchParams: URLSearchParams) {
   return mobileEmbedParams.some((param) => {
@@ -23,14 +29,13 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const normalizedPathname = pathname.replace(/\/$/, "");
   const hideForDirectory = useChromeVisibilityStore((state) => state.hideForDirectory);
   const isSupplierPage = normalizedPathname.startsWith("/empresas/");
-  const isDirectoryCampaignPage =
-    normalizedPathname === "/directorio" || normalizedPathname === "/directorio/gracias";
+  const isMarketingPage = marketingPaths.has(normalizedPathname);
   const hideForLegalEmbed = legalPaths.has(normalizedPathname) && isMobileEmbed(searchParams);
-  const hideChrome = isDirectoryCampaignPage || hideForLegalEmbed || (isSupplierPage && hideForDirectory);
+  const hideChrome = isMarketingPage || hideForLegalEmbed || (isSupplierPage && hideForDirectory);
   const isCancelAccountPage = normalizedPathname === "/cancel-account";
   const isPortalCustomizer = normalizedPathname === "/admin/my-company/customize";
 
-  if (isDirectoryCampaignPage || isCancelAccountPage || isPortalCustomizer) {
+  if (isMarketingPage || isCancelAccountPage || isPortalCustomizer) {
     return <>{children}</>;
   }
 
