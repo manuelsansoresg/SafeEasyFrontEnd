@@ -9,11 +9,10 @@ const title = "Publica tu negocio en Drooopy | Directorio en México";
 const description =
   "Crea un espacio para mostrar tus servicios, imágenes, horarios, ubicación y formas de contacto dentro de Drooopy.";
 
-export const metadata: Metadata = buildMetadata({
-  title,
-  description,
-  path: "/directorio",
-});
+export const metadata: Metadata = {
+  ...buildMetadata({ title, description, path: "/directorio" }),
+  title: { absolute: title },
+};
 
 const toEntries = (searchParams: SearchParams): Array<[string, string]> =>
   Object.entries(searchParams).flatMap(([key, value]) => {

@@ -30,7 +30,7 @@ function AgendaLivePreview({ today, dates }: { today: string; dates: string[] })
 
   return <div className="w-full rounded-[1.5rem] border border-[#004e28]/10 bg-white p-4 shadow-[0_24px_70px_-40px_rgba(0,78,40,0.32)] sm:p-6">
     <div className="mb-5 border-b border-[#004e28]/10 pb-5">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">Agenda en Drooopy</p>
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#116f04]">Agenda en Drooopy</p>
       <h2 className="mt-2 font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28]">Reserva tu cita</h2>
       <p className="mt-1 text-sm text-[#40554a]">Elige el servicio, la fecha y un horario disponible.</p>
       <div className="mt-4 rounded-xl border border-[#168e00]/25 bg-[#f3faf1] px-4 py-3 text-sm text-[#004e28]">
@@ -44,7 +44,7 @@ function AgendaLivePreview({ today, dates }: { today: string; dates: string[] })
         onSelectDate={() => {}} onPreviousMonth={() => {}} onNextMonth={() => {}}
       />
     </div>
-    <p className="mt-3 text-xs text-[#5f7164]">Vista del calendario real de reservaciones.</p>
+    <p className="mt-3 text-xs text-[#5f7164]">{dates.length ? "Vista del calendario real de reservaciones." : "La disponibilidad de este ejemplo no está disponible en este momento."}</p>
   </div>;
 }
 
@@ -74,7 +74,7 @@ export function MarketingProductVisual({ kind }: { kind: Exclude<NewLandingKind,
         <Image src={item.image} alt={item.name} fill sizes="(max-width: 639px) 100vw, 33vw" className="object-cover" />
       </div>
       <figcaption className="flex min-h-16 items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-[#004e28]">
-        {item.name}{item.price ? <span className="shrink-0 text-xs text-[#168e00]">{item.price}</span> : null}
+        {item.name}{item.price ? <span className="shrink-0 text-xs text-[#116f04]">{item.price}</span> : null}
       </figcaption>
     </figure>)}
   </div>;

@@ -55,10 +55,15 @@ export function DirectoryLanding({ initialPlan, campaignParams }: DirectoryLandi
   const heroRef = useRef<HTMLElement>(null);
   const priceRef = useRef<HTMLElement>(null);
   const formRef = useRef<HTMLElement>(null);
+  const trackedView = useRef(false);
   const originalParams = useMemo(() => new URLSearchParams(campaignParams), [campaignParams]);
   const accessCode = originalParams.get("code")?.trim() ?? "";
 
-  useEffect(() => { emitMarketingEvent("directory_view"); }, []);
+  useEffect(() => {
+    if (trackedView.current) return;
+    trackedView.current = true;
+    emitMarketingEvent("directory_view");
+  }, []);
   useEffect(() => {
     if (plan) return;
     let mounted = true;
@@ -182,7 +187,7 @@ export function DirectoryLanding({ initialPlan, campaignParams }: DirectoryLandi
 
         <section className="border-y border-[#004e28]/10 bg-[#fbfcfa] py-6" aria-labelledby="menu-title"><div className={`${containerClass} flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-4`}><h2 id="menu-title" className={`${headingClass} text-lg sm:text-xl`}>¿Tienes restaurante o negocio de comida?</h2><p className="text-sm text-[#40554a]">También puedes mostrar tu menú dentro de Drooopy cuando tu plan lo incluya.</p><a href="#quiero-informacion" onClick={(event) => scrollToForm(event, "menu")} className="inline-flex min-h-11 items-center self-start text-sm font-semibold text-[#005c2e] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[#004e28] sm:ml-auto">Quiero información</a></div></section>
 
-        <section id="como-funciona" className="scroll-mt-20 py-12 sm:py-16" aria-labelledby="steps-title"><div className={containerClass}><h2 id="steps-title" className={`${headingClass} text-3xl sm:text-4xl`}>Así de sencillo funciona.</h2><ol className="mt-7 grid gap-5 sm:grid-cols-3">{steps.map((step) => <li key={step.number} className="border-t-2 border-[#004e28] pt-4"><span className="text-xs font-bold text-[#168e00]">{step.number}</span><h3 className={`${headingClass} mt-2 text-xl`}>{step.title}</h3><p className="mt-1 text-sm text-[#40554a]">{step.text}</p></li>)}</ol></div></section>
+        <section id="como-funciona" className="scroll-mt-20 py-12 sm:py-16" aria-labelledby="steps-title"><div className={containerClass}><h2 id="steps-title" className={`${headingClass} text-3xl sm:text-4xl`}>Así de sencillo funciona.</h2><ol className="mt-7 grid gap-5 sm:grid-cols-3">{steps.map((step) => <li key={step.number} className="border-t-2 border-[#004e28] pt-4"><span className="text-xs font-bold text-[#116f04]">{step.number}</span><h3 className={`${headingClass} mt-2 text-xl`}>{step.title}</h3><p className="mt-1 text-sm text-[#40554a]">{step.text}</p></li>)}</ol></div></section>
 
         <section id="precio" ref={priceRef} className="scroll-mt-20 bg-[#004e28] py-12 text-white sm:py-16" aria-labelledby="pricing-title">
           <div className={`${containerClass} grid items-center gap-7 lg:grid-cols-[0.45fr_0.55fr] lg:gap-12`}>

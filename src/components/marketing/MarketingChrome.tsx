@@ -19,7 +19,7 @@ export function MarketingHeader({ contentId, onCta, onSteps }: {
     <header className="sticky top-0 z-30 border-b border-[#004e28]/10 bg-white/95 backdrop-blur-sm">
       <div className={`${containerClass} flex h-16 items-center justify-between gap-3 sm:h-[72px]`}>
         <Link href="/" aria-label="Drooopy, ir al inicio" className="relative h-10 w-28 shrink-0 sm:w-40">
-          <Image src="/LOGO DROOOPY NEGRO.svg" alt="Drooopy" fill priority className="object-contain object-left" />
+          <Image src="/LOGO DROOOPY NEGRO.svg" alt="Drooopy" fill className="object-contain object-left" />
         </Link>
         <nav aria-label="Navegación de la página" className="flex items-center gap-3 sm:gap-5">
           <a href="#como-funciona" onClick={onSteps} className="hidden text-sm font-semibold text-[#004e28] hover:underline focus-visible:outline-2 focus-visible:outline-[#004e28] sm:inline">Cómo funciona</a>

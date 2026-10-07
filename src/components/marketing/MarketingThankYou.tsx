@@ -42,7 +42,7 @@ export function MarketingThankYou({ kind }: { kind: CampaignKind }) {
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => emitCampaignEvent(kind, "whatsapp_click", "thank_you")}
-            className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#168e00] px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-[#116f04] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#004e28] sm:text-base"
+            className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#158900] px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-[#116f04] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#004e28] sm:text-base"
           >
             <MessageCircle size={19} aria-hidden="true" />
             Continuar por WhatsApp

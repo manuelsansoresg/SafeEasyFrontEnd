@@ -4,6 +4,15 @@ import { getAgendaExampleDates, getMarketingPlans } from "@/lib/marketingPageDat
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
+function todayInMerida() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Merida",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const value = (part: "year" | "month" | "day") => parts.find((item) => item.type === part)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
 export async function MarketingLandingPage({ kind, searchParams }: {
   kind: NewLandingKind;
   searchParams: Promise<SearchParams>;
@@ -15,7 +24,7 @@ export async function MarketingLandingPage({ kind, searchParams }: {
     return [];
   });
   const accessCode = typeof resolved.code === "string" ? resolved.code.trim() : "";
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInMerida();
   const [plans, agendaDates] = await Promise.all([
     getMarketingPlans(accessCode),
     kind === "agenda" ? getAgendaExampleDates(today) : Promise.resolve([]),

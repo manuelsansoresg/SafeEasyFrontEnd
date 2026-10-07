@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowRight, ChevronDown, MessageCircle } from "lucide-react";
 import type { MouseEvent } from "react";
 
-export const primaryCtaClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#168e00] px-6 py-3 text-center text-sm font-bold text-white transition-colors hover:bg-[#116f04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004e28] sm:text-base";
+export const primaryCtaClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#158900] px-6 py-3 text-center text-sm font-bold text-white transition-colors hover:bg-[#116f04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004e28] sm:text-base";
 
 type CtaProps = {
   href: string;
