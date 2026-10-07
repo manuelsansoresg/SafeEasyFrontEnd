@@ -299,7 +299,7 @@ export function AdminSidebar({
       title: "Prospectos",
       path: "/admin/leads",
       icon: ContactRound,
-      roles: ["admin", "superuser"],
+      roles: ["admin"],
     },
     {
       title: "Mi Subscripción",
