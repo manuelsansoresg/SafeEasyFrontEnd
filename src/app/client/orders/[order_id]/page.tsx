@@ -13,7 +13,7 @@ import {
   getSupplierAddress,
 } from "@/lib/orderLocation";
 import FileUpload from "@/components/ui/FileUpload";
-import { PRODUCT_CANCEL_STATUSES, PRODUCT_REFUND_STATUSES, canRequestAnotherRefund } from "@/lib/orderActionRules";
+import { PRODUCT_CANCEL_STATUSES, PRODUCT_REFUND_STATUSES, canRequestAnotherRefund, canShowProductDeliveryCode, getProductEffectiveStatus, isTerminalOrderState, productCancelMessage } from "@/lib/orderActionRules";
 import { Toast } from "@/components/ui/Toast";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
@@ -67,6 +67,7 @@ function normalizeStatusKey(value: string) {
   if (v === "rejected" || v === "rechazado" || v === "payment_rejected" || v === "pago_rechazado")
     return "payment_rejected";
   if (v === "cancelled" || v === "cancelado") return "cancelled";
+  if (v === "customer_no_show" || v === "no_show") return "no_show";
   if (v === "expired" || v === "expirado" || v === "checkout_expired" || v === "checkout_expirado") return "expired";
   if (v === "created" || v === "creado") return "created";
   if (v === "refund_requested" || v === "reembolso_solicitado") return "refund_requested";
@@ -139,6 +140,7 @@ function toSpanishStatusLabel(value: string) {
     verified: "Entregado",
     payment_rejected: "Pago rechazado",
     cancelled: "Cancelado",
+    no_show: "No recogido",
     expired: "Checkout expirado",
     refund_requested: "Reembolso solicitado",
     requested: "Reembolso solicitado",
@@ -235,8 +237,7 @@ function getSteps(mode: DeliveryTypeKey, paymentStatus: string): ProgressStep[] 
 
 function getProgressRank(mode: DeliveryTypeKey, statusKey: string) {
   const k = normalizeStatusKey(statusKey);
-  if (k === "cancelled" || k === "expired") return 0;
-  if (k === "refund_refunded") return 4;
+  if (isTerminalOrderState(k) && k !== "completed") return 0;
   if (k === "refund_requested" || k === "refund_approved" || k === "refund_rejected") return 3;
   if (k === "completed" || k === "verified") return 4;
 
@@ -253,7 +254,7 @@ function getProgressRank(mode: DeliveryTypeKey, statusKey: string) {
   return 1;
 }
 
-function Stepper({ steps, rank, cancelled }: { steps: ProgressStep[]; rank: number; cancelled: boolean }) {
+function Stepper({ steps, rank, cancelled, finalLabel }: { steps: ProgressStep[]; rank: number; cancelled: boolean; finalLabel: string }) {
   const muted = cancelled ? "#9ca3af" : "#004e28";
   return (
     <div className="rounded-2xl border border-gray-100 bg-white px-3 py-3 sm:px-5 sm:py-4">
@@ -282,7 +283,7 @@ function Stepper({ steps, rank, cancelled }: { steps: ProgressStep[]; rank: numb
                 {s.label}
               </div>
               <div className="mt-0.5 text-center text-[10px] text-gray-400 font-[family-name:var(--font-poppins)] sm:text-[11px]">
-                {cancelled ? "Cancelado" : done ? "Listo" : active ? "Actual" : "Pendiente"}
+                {cancelled ? finalLabel : done ? "Listo" : active ? "Actual" : "Pendiente"}
               </div>
             </div>
           );
@@ -305,7 +306,7 @@ function pickLatestHistoryKey(items: OrderHistoryItem[]) {
         (typeof h.action === "string" && h.action) ||
         "";
       const description = (h.description || h.message || "").toString().trim();
-      const candidate = rawEvent || description;
+      const candidate = [h.event, h.action, h.status, description].find((value) => normalizeStatusKey(String(value || "")) === "no_show") || rawEvent || description;
       return { ts, key: normalizeStatusKey(candidate) };
     })
     .sort((a, b) => b.ts - a.ts);
@@ -458,17 +459,17 @@ export default function ClientOrderDetailPage() {
       ? "expired"
       : String(order.fulfillment_status || order.visual_status || order.status || order.payment_status || "")
     : "";
-  const mergedKey = isExpired ? "expired" : latestHistoryKey || normalizeStatusKey(statusRaw || "paid");
+  const mergedKey = isExpired ? "expired" : getProductEffectiveStatus(order || {}, history, latestHistoryKey);
   const rawEffective =
     paymentMethod === "card" ? toEffectiveCardStatusKey(mergedKey) : normalizeStatusKey(mergedKey);
   const effectiveKey = rawEffective || "paid";
-  const cancelled = normalizeStatusKey(effectiveKey) === "cancelled" || isExpired;
+  const cancelled = isTerminalOrderState(effectiveKey) && effectiveKey !== "completed";
   const rank = getProgressRank(mode, effectiveKey);
   const activeRefund = useMemo(() => pickLatestRefund(refunds), [refunds]);
   const fulfillmentStatus = normalizeStatusKey(order?.fulfillment_status || "");
-  const canCancelOrder = Boolean(order && !isExpired && order.status !== "cancelled" && PRODUCT_CANCEL_STATUSES.some((status) => status === fulfillmentStatus));
+  const canCancelOrder = Boolean(order && !isTerminalOrderState(effectiveKey) && !isTerminalOrderState(order.status) && paymentStatusKey !== "refund_refunded" && PRODUCT_CANCEL_STATUSES.some((status) => status === fulfillmentStatus));
   const deliveryCodeStage = !cancelled && isDeliveryCodeStage(effectiveKey, mode);
-  const showDeliveryCodeCard = Boolean(order && !isExpired && order.payment_status !== "refunded" && order.status !== "cancelled" && deliveryCodeStage);
+  const showDeliveryCodeCard = Boolean(order && canShowProductDeliveryCode(order, effectiveKey) && deliveryCodeStage);
 
   const address = useMemo(() => {
     if (!order) return "";
@@ -496,18 +497,18 @@ export default function ClientOrderDetailPage() {
   }, [order]);
 
   const canRequestRefund = useMemo(() => {
-    if (!order || isExpired) return false;
+    if (!order || isTerminalOrderState(effectiveKey) && effectiveKey !== "completed" || isTerminalOrderState(order.status) && order.status !== "completed" || paymentStatusKey === "refund_refunded") return false;
     const k = normalizeStatusKey(statusRaw);
     return PRODUCT_REFUND_STATUSES.some((status) => status === k) && canRequestAnotherRefund(activeRefund?.status);
-  }, [order, statusRaw, isExpired, activeRefund]);
+  }, [order, statusRaw, effectiveKey, paymentStatusKey, activeRefund]);
 
   const submitCancel = async () => {
-    if (!orderId || !cancelReason.trim() || cancelSubmitting) return;
+    if (!orderId || !canCancelOrder || !cancelReason.trim() || cancelSubmitting) return;
     setCancelSubmitting(true);
     try {
-      await orderService.cancelOrder(orderId, cancelReason.trim());
+      const updated = await orderService.cancelOrder(orderId, cancelReason.trim());
       setCancelModalOpen(false); setCancelReason("");
-      setToast({ type: "success", message: "Pedido cancelado." });
+      setToast({ type: "success", message: productCancelMessage(updated.payment_status) });
       await load();
     } catch (e) {
       setToast({ type: "error", message: getErrorMessage(e, "No se pudo cancelar el pedido.") });
@@ -612,7 +613,7 @@ export default function ClientOrderDetailPage() {
           </div>
         ) : (
           <>
-            {mercadoPagoReturnStatus ? (
+            {mercadoPagoReturnStatus && !isTerminalOrderState(effectiveKey) ? (
               <div
                 role="status"
                 className={
@@ -689,7 +690,7 @@ export default function ClientOrderDetailPage() {
                     >
                       {toSpanishStatusLabel(effectiveKey)}
                     </span>
-                    <div className="text-left sm:text-right">
+                    {!isTerminalOrderState(effectiveKey) ? <div className="text-left sm:text-right">
                       <div className="text-xs text-white/60">
                         {mode === "shipping" ? "Entrega estimada" : "Recolección"}
                       </div>
@@ -697,7 +698,7 @@ export default function ClientOrderDetailPage() {
                         <Clock className="h-3.5 w-3.5 text-white/70" />
                         <div className="text-sm font-bold text-white">{formatEtaLabel(order, mode)}</div>
                       </div>
-                    </div>
+                    </div> : null}
                   </div>
                 </div>
               </div>
@@ -716,7 +717,7 @@ export default function ClientOrderDetailPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <Stepper steps={steps} rank={rank} cancelled={cancelled} />
+                    {cancelled ? <div className="rounded-2xl border border-[#004e28]/20 bg-[#f2f3f4] p-5 text-lg font-bold text-[#004e28]">{toSpanishStatusLabel(effectiveKey)}</div> : <Stepper steps={steps} rank={rank} cancelled={false} finalLabel={toSpanishStatusLabel(effectiveKey)} />}
                     {showDeliveryCodeCard ? (
                       <div
                         ref={deliveryCodeRef}
@@ -850,7 +851,8 @@ export default function ClientOrderDetailPage() {
                         })
                         .slice(0, 8)
                         .map((h, idx) => {
-                          const label = toSpanishStatusLabel(String(h.status || h.event || h.action || h.description || h.message || "").trim());
+                          const event = [h.event, h.action, h.status, h.description, h.message].find((value) => normalizeStatusKey(String(value || "")) === "no_show") || h.status || h.event || h.action || h.description || h.message || "";
+                          const label = toSpanishStatusLabel(String(event).trim());
                           const at = formatDate(h.created_at || h.timestamp || h.date || "");
                           return (
                             <div key={idx} className="flex items-start justify-between gap-3 rounded-xl border border-gray-100 px-4 py-3">

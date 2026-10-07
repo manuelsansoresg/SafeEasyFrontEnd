@@ -36,6 +36,7 @@ import { Toast } from "@/components/ui/Toast";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
 import { useChatStore } from "@/store/useChatStore";
+import { PRODUCT_CANCEL_STATUSES, canMarkCustomerNoShow, canShowProductDeliveryCode, getProductEffectiveStatus, isTerminalOrderState, productCancelMessage, productNoShowMessage } from "@/lib/orderActionRules";
 
 const OrderRouteMap = dynamic(() => import("@/components/orders/OrderRouteMap"), {
   ssr: false,
@@ -59,6 +60,7 @@ function normalizeStatusKey(value: unknown) {
   if (["en_route_to_pickup", "going_to_pickup", "camino_a_recoger"].includes(v)) return "en_route_to_pickup";
   if (["picked_up", "pickup_completed", "recogido"].includes(v)) return "picked_up";
   if (["cancelled", "cancelado"].includes(v)) return "cancelled";
+  if (["customer_no_show", "no_show"].includes(v)) return "no_show";
   if (["expired", "expirado", "vencido"].includes(v)) return "expired";
   if (["refund_requested", "reembolso_solicitado"].includes(v)) return "refund_requested";
   if (["refund_approved", "reembolso_aprobado"].includes(v)) return "refund_approved";
@@ -82,6 +84,7 @@ function statusLabel(value: unknown) {
     in_transit: "En camino",
     completed: "Entregado",
     cancelled: "Cancelado",
+    no_show: "No recogido",
     expired: "Expirado",
     refund_requested: "Reembolso solicitado",
     requested: "Reembolso solicitado",
@@ -156,7 +159,7 @@ function latestHistoryKey(items: OrderHistoryItem[]) {
     return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
   });
   const h = sorted[0];
-  return normalizeStatusKey(h?.status || h?.event || h?.action || h?.description || h?.message || "");
+  return normalizeStatusKey([h?.event, h?.action, h?.status, h?.description, h?.message].find((value) => normalizeStatusKey(value) === "no_show") || h?.status || h?.event || h?.action || h?.description || h?.message || "");
 }
 
 function latestRefund(items: OrderRefund[]) {
@@ -291,32 +294,28 @@ export default function AdminOrderDetailPage() {
   const isPaymentReady = paymentKey === "paid" || paymentKey === "authorized";
   const fulfillmentKey = normalizeStatusKey(order?.fulfillment_status || order?.visual_status || "");
   const historyKey = latestHistoryKey(history);
-  const effectiveKey =
-    ["completed", "cancelled", "refund_refunded"].includes(fulfillmentKey)
-      ? fulfillmentKey
-      : fulfillmentKey && !["pending", "created", "authorized", "paid"].includes(fulfillmentKey)
-        ? fulfillmentKey
-        : historyKey || paymentKey || "pending";
+  const effectiveKey = getProductEffectiveStatus(order || {}, history, historyKey);
 
   const activeRefund = useMemo(() => latestRefund(refunds), [refunds]);
   const isMercadoPago = ["card", "online", "mercadopago"].includes(String(order?.payment_method || "").toLowerCase());
-  const canCancel = ["pending", "preparing", "ready_for_pickup"].includes(fulfillmentKey) && order?.status !== "cancelled";
+  const canCancel = PRODUCT_CANCEL_STATUSES.some((status) => status === fulfillmentKey) && !isTerminalOrderState(effectiveKey) && !isTerminalOrderState(order?.status) && paymentKey !== "refund_refunded";
   const readyAt = [...history]
     .filter((item) => normalizeStatusKey(item.status || item.event || item.action) === "ready_for_pickup")
     .sort((a, b) => Date.parse(b.created_at || b.timestamp || b.date || "") - Date.parse(a.created_at || a.timestamp || a.date || ""))[0];
   const readyTime = readyAt ? Date.parse(readyAt.created_at || readyAt.timestamp || readyAt.date || "") : NaN;
-  const noShowDeadline = mode === "pickup" && fulfillmentKey === "ready_for_pickup" && Number.isFinite(readyTime) ? readyTime + 60 * 60000 : null;
+  const noShowDeadline = mode === "pickup" && fulfillmentKey === "ready_for_pickup" && Number.isFinite(readyTime) && !isTerminalOrderState(effectiveKey) && !isTerminalOrderState(order?.status) && paymentKey !== "refund_refunded" ? readyTime + 60 * 60000 : null;
+  const canMarkNoShow = Boolean(order && canMarkCustomerNoShow(order, effectiveKey, readyAt?.created_at || readyAt?.timestamp || readyAt?.date, now));
   useEffect(() => {
     if (noShowDeadline === null) return;
     const id = window.setInterval(() => setNow(Date.now()), 30000);
     return () => window.clearInterval(id);
   }, [noShowDeadline]);
-  const finalState = ["completed", "cancelled", "refund_refunded"].includes(effectiveKey);
+  const finalState = isTerminalOrderState(effectiveKey) || isTerminalOrderState(order?.status) || paymentKey === "refund_refunded";
   const ownDelivery = mode === "shipping" && order?.courier_id == null;
   const codeEntryVisible =
     isPaymentReady &&
     !finalState &&
-    deliveryCodeAllowed(mode, effectiveKey) &&
+    canShowProductDeliveryCode(order || {}, effectiveKey) && deliveryCodeAllowed(mode, effectiveKey) &&
     (paymentKey !== "authorized" || mode !== "pickup" || effectiveKey === "ready_for_pickup") &&
     (mode === "pickup" || ownDelivery);
 
@@ -333,7 +332,7 @@ export default function AdminOrderDetailPage() {
   }, [buyerAddress, mode, order, supplierAddress]);
 
   const markReady = async () => {
-    if (!orderId || !isPaymentReady) return;
+    if (!orderId || !isPaymentReady || finalState) return;
     setActionLoading("ready");
     try {
       if (mode === "shipping" && acceptsCourier) {
@@ -406,7 +405,7 @@ export default function AdminOrderDetailPage() {
     try {
       const updated = await orderService.providerCancelOrder(orderId, cancelReason.trim());
       setCancelOpen(false); setCancelReason("");
-      setToast({ type: "success", message: updated.payment_status === "refunded" ? "Orden cancelada y reembolso procesado." : "Orden cancelada." });
+      setToast({ type: "success", message: productCancelMessage(updated.payment_status) });
       await load();
     } catch (e) {
       setToast({ type: "error", message: getErrorMessage(e, "No se pudo cancelar la orden.") });
@@ -417,12 +416,12 @@ export default function AdminOrderDetailPage() {
   };
 
   const markNoShow = async () => {
-    if (!orderId || noShowDeadline === null || now < noShowDeadline || actionLoading) return;
+    if (!orderId || !canMarkNoShow || actionLoading) return;
     setActionLoading("no-show");
     try {
-      await orderService.markCustomerNoShow(orderId);
+      const updated = await orderService.markCustomerNoShow(orderId);
       setNoShowOpen(false);
-      setToast({ type: "success", message: "Pedido marcado como no recogido." });
+      setToast({ type: "success", message: productNoShowMessage(updated.payment_status) });
       await load();
     } catch (e) {
       setToast({ type: "error", message: getErrorMessage(e, "No se pudo marcar como no recogido.") });
@@ -633,7 +632,7 @@ export default function AdminOrderDetailPage() {
                       .map((h, index) => (
                         <div key={index} className="rounded-xl border border-gray-100 px-4 py-3">
                           <div className="text-sm font-semibold text-gray-900">
-                            {statusLabel(h.status || h.event || h.action || h.description || h.message)}
+                            {statusLabel([h.event, h.action, h.status, h.description, h.message].find((value) => normalizeStatusKey(value) === "no_show") || h.status || h.event || h.action || h.description || h.message)}
                           </div>
                           <div className="mt-1 text-xs text-gray-500">{date(h.created_at || h.timestamp || h.date)}</div>
                         </div>
@@ -666,7 +665,7 @@ export default function AdminOrderDetailPage() {
                     </button>
                   )}
 
-                  {ownDelivery && isPaymentReady && ["preparing", "ready_for_pickup"].includes(effectiveKey) ? (
+                  {!finalState && ownDelivery && isPaymentReady && ["preparing", "ready_for_pickup"].includes(effectiveKey) ? (
                     <button
                       type="button"
                       onClick={startOwnDelivery}
@@ -750,7 +749,7 @@ export default function AdminOrderDetailPage() {
                     </button>
                   ) : null}
                   {noShowDeadline !== null && now < noShowDeadline ? <p className="text-xs text-gray-500">Podrás marcar como no recogido después de las {new Date(noShowDeadline).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}.</p> : null}
-                  {noShowDeadline !== null && now >= noShowDeadline ? <button type="button" disabled={actionLoading !== null} onClick={() => setNoShowOpen(true)} className="w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900 disabled:opacity-50">Cliente no recogió</button> : null}
+                  {canMarkNoShow ? <button type="button" disabled={actionLoading !== null} onClick={() => setNoShowOpen(true)} className="w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900 disabled:opacity-50">Cliente no recogió</button> : null}
                 </div>
               </section>
 
@@ -771,7 +770,7 @@ export default function AdminOrderDetailPage() {
                   <div className="mt-3 rounded-xl bg-gray-50 p-4">
                     <div className="text-xs font-semibold text-gray-500">Liquidación</div>
                     <div className="mt-1 font-bold">
-                      {String(order.settlement_status).toUpperCase() === "RELEASED" ? "Liberada" : "Pendiente de entrega"}
+                      {String(order.settlement_status).toUpperCase() === "RELEASED" ? "Liberada" : String(order.settlement_status).toUpperCase() === "CANCELLED" ? "Cancelada" : "Pendiente de entrega"}
                     </div>
                   </div>
                 ) : null}
