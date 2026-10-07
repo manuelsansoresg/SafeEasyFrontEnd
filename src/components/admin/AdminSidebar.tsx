@@ -30,6 +30,7 @@ import {
   Trash2,
   Tags,
   Blocks,
+  ContactRound,
   
 } from "lucide-react";
 import { BriefcaseBusiness } from "lucide-react";
@@ -292,6 +293,12 @@ export function AdminSidebar({
       title: "Soporte",
       path: "/admin/support",
       icon: LifeBuoy,
+      roles: ["admin", "superuser"],
+    },
+    {
+      title: "Prospectos",
+      path: "/admin/leads",
+      icon: ContactRound,
       roles: ["admin", "superuser"],
     },
     {
