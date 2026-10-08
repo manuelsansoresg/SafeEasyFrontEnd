@@ -26,6 +26,7 @@ import {
 } from "@/lib/agendaTime";
 import { agendaBookingService } from "@/services/agendaBookingService";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import { isExpectedAbort, isHttpConflict } from "@/lib/agendaRequest";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
 import {
   getBrowserPathWithSearchAndHash,
@@ -149,6 +150,9 @@ export default function PublicAgendaBookingPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [availabilityRefresh, setAvailabilityRefresh] = useState(0);
+  const savingRef = useRef(false);
+  const createdBookingId = useRef<number | null>(null);
+  const lastVisibilityRefresh = useRef(0);
   const timezoneAligned = useRef(false);
   const calendarBounds = useRef<{ min: string; max: string | null }>({
     min: todayInput(),
@@ -222,6 +226,7 @@ export default function PublicAgendaBookingPage() {
             supplierId,
             controller.signal,
           );
+        if (controller.signal.aborted) return;
 
         setServices(data);
 
@@ -229,13 +234,14 @@ export default function PublicAgendaBookingPage() {
           setSelectedServiceId(data[0].id);
         }
       } catch (err) {
+        if (isExpectedAbort(err, controller.signal)) return;
         setError(
           err instanceof Error
             ? err.message
             : "No se pudo cargar la agenda.",
         );
       } finally {
-        setLoadingServices(false);
+        if (!controller.signal.aborted) setLoadingServices(false);
       }
     };
 
@@ -243,6 +249,29 @@ export default function PublicAgendaBookingPage() {
 
     return () => controller.abort();
   }, [supplierId]);
+
+  useEffect(() => {
+    const refreshAfterReturn = () => {
+      if (document.visibilityState !== "visible" || !selectedServiceId) return;
+      const now = Date.now();
+      if (now - lastVisibilityRefresh.current < 15_000) return;
+      lastVisibilityRefresh.current = now;
+      setAvailabilityRefresh((current) => current + 1);
+    };
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      createdBookingId.current = null;
+      setSelectedSlot(null);
+      lastVisibilityRefresh.current = 0;
+      refreshAfterReturn();
+    };
+    document.addEventListener("visibilitychange", refreshAfterReturn);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshAfterReturn);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, [selectedServiceId]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -275,7 +304,6 @@ export default function PublicAgendaBookingPage() {
 
     const run = async () => {
       setLoadingSlots(true);
-      setSelectedSlot(null);
 
       try {
         const data =
@@ -286,6 +314,7 @@ export default function PublicAgendaBookingPage() {
             dateTo,
             controller.signal,
           );
+        if (controller.signal.aborted) return;
 
         const providerToday =
           dateInputInTimeZone(new Date(), data.timezone) || todayInput();
@@ -305,6 +334,10 @@ export default function PublicAgendaBookingPage() {
           current === providerMaxDate ? current : providerMaxDate,
         );
         setAvailability(data);
+        setSelectedSlot((current) => current &&
+          data.slots.some((slot) => slot.start_at === current.start_at)
+            ? data.slots.find((slot) => slot.start_at === current.start_at) ?? null
+            : null);
         setPaymentMethod((current) => nextPaymentMethod(data, current));
 
         if (!timezoneAligned.current) {
@@ -332,9 +365,10 @@ export default function PublicAgendaBookingPage() {
           return grouped.keys().next().value ?? null;
         });
       } catch (err) {
-        if (controller.signal.aborted) return;
+        if (isExpectedAbort(err, controller.signal)) return;
         setAvailability(null);
         setSelectedDate(null);
+        setSelectedSlot(null);
         setError(
           err instanceof Error
             ? err.message
@@ -358,7 +392,8 @@ export default function PublicAgendaBookingPage() {
   ]);
 
   const submit = async () => {
-    if (!selectedService || !selectedSlot) {
+    if (savingRef.current || createdBookingId.current !== null) return;
+    if (!selectedService || !selectedSlot || !availability) {
       setError("Selecciona servicio, fecha y horario.");
       return;
     }
@@ -387,10 +422,34 @@ export default function PublicAgendaBookingPage() {
       return;
     }
 
+    savingRef.current = true;
     setSaving(true);
     setError(null);
+    let creating = false;
 
     try {
+      const slotDate = dateInputInTimeZone(
+        selectedSlot.start_at,
+        availability.timezone,
+      );
+      if (!slotDate) {
+        setError("No pudimos confirmar ese horario. Elige otro.");
+        return;
+      }
+      const latest = await agendaBookingService.availability(
+        supplierId,
+        selectedService.id,
+        slotDate,
+        slotDate,
+      );
+      if (!latest.slots.some((slot) => slot.start_at === selectedSlot.start_at)) {
+        setSelectedSlot(null);
+        setAvailabilityRefresh((current) => current + 1);
+        setError("Ese horario acaba de dejar de estar disponible. Elige otro.");
+        return;
+      }
+
+      creating = true;
       const booking =
         await agendaBookingService.createBooking(
           supplierId,
@@ -406,6 +465,7 @@ export default function PublicAgendaBookingPage() {
               : "none",
           },
         );
+      createdBookingId.current = booking.id;
 
       if (typeof window !== "undefined") {
         window.localStorage.setItem(
@@ -432,10 +492,15 @@ export default function PublicAgendaBookingPage() {
         `/agenda/bookings/${booking.id}${query}`,
       );
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "No se pudo crear la cita.";
+      if (createdBookingId.current !== null) {
+        setError("Tu reservación fue creada, pero no pudimos actualizar algunos detalles. Puedes intentarlo nuevamente desde tu cita.");
+        return;
+      }
+      const message = isHttpConflict(err)
+        ? "Ese horario acaba de dejar de estar disponible. Elige otro."
+        : !creating
+          ? "No pudimos actualizar los horarios. Intenta nuevamente antes de reservar."
+          : err instanceof Error ? err.message : "No se pudo crear la cita.";
 
       setError(message);
 
@@ -447,6 +512,7 @@ export default function PublicAgendaBookingPage() {
         setAvailabilityRefresh((current) => current + 1);
       }
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -642,6 +708,7 @@ export default function PublicAgendaBookingPage() {
                   setError(null);
                   setSelectedServiceId(service.id);
                   setSelectedSlot(null);
+                  setAvailability(null);
                   setPaymentMethod("none");
                 }}
                 aria-pressed={selected}
@@ -708,12 +775,14 @@ export default function PublicAgendaBookingPage() {
               setVisibleMonth((current) => addMonthsToInput(current, -1));
               setSelectedDate(null);
               setSelectedSlot(null);
+              setAvailability(null);
             }}
             onNextMonth={() => {
               setError(null);
               setVisibleMonth((current) => addMonthsToInput(current, 1));
               setSelectedDate(null);
               setSelectedSlot(null);
+              setAvailability(null);
             }}
           />
 
@@ -927,6 +996,8 @@ export default function PublicAgendaBookingPage() {
             onClick={() => void submit()}
             disabled={
               saving ||
+              createdBookingId.current !== null ||
+              loadingSlots ||
               !selectedService ||
               !selectedSlot ||
               !name.trim() ||

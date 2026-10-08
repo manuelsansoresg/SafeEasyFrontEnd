@@ -21,6 +21,7 @@ import type {
   AgendaBookingStatus,
 } from "@/types/agendaBooking";
 import { getLoginUrl } from "@/lib/authRedirect";
+import { isExpectedAbort } from "@/lib/agendaRequest";
 
 type ServiceMap = Record<string, AgendaService>;
 
@@ -56,6 +57,11 @@ export default function ClientAppointmentsPage() {
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
   const { status: inboxStatus } = useChatInboxWebSocket(hydrated && auth.isAuthenticated);
   const refreshSequence = useRef(0);
+  const refreshRequest = useRef<Promise<void> | null>(null);
+  const refreshController = useRef<AbortController | null>(null);
+  const refreshQueued = useRef(false);
+  const eventTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const serviceCache = useRef(new Map<number, { list: AgendaService[]; loadedAt: number }>());
 
   const [bookings, setBookings] = useState<AgendaBooking[]>([]);
   const [services, setServices] = useState<ServiceMap>({});
@@ -63,36 +69,78 @@ export default function ClientAppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const bookingsRef = useRef(bookings);
-  const servicesRef = useRef(services);
 
   useEffect(() => { bookingsRef.current = bookings; }, [bookings]);
-  useEffect(() => { servicesRef.current = services; }, [services]);
-
-  const refreshBookings = useCallback(async (signal?: AbortSignal) => {
-    const sequence = ++refreshSequence.current;
-    try {
-      const data = await agendaBookingService.myBookings(undefined, signal);
-      if (signal?.aborted || sequence !== refreshSequence.current) return;
-      setBookings(data);
-
-      const newSuppliers = [...new Set(data.map((item) => item.supplier_id))]
-        .filter((supplierId) => !Object.keys(servicesRef.current).some((key) => key.startsWith(`${supplierId}:`)));
-      const results = await Promise.all(newSuppliers.map(async (supplierId) => ({
-        supplierId,
-        list: await agendaBookingService.listPublicServices(supplierId, signal),
-      })));
-      if (signal?.aborted || sequence !== refreshSequence.current) return;
-      setServices((current) => {
-        const next = { ...current };
-        for (const { supplierId, list } of results) {
-          for (const service of list) next[`${supplierId}:${service.id}`] = service;
-        }
-        return next;
-      });
-    } catch {
-      // Mantener el contenido visible; otro evento puede actualizarlo.
+  const refreshBookings = useCallback((silent = true): Promise<void> => {
+    if (!hydrated || !auth.isAuthenticated) return Promise.resolve();
+    if (refreshRequest.current && !refreshController.current?.signal.aborted) {
+      refreshQueued.current = true;
+      return refreshRequest.current;
     }
-  }, []);
+
+    const controller = new AbortController();
+    refreshController.current = controller;
+    const sequence = ++refreshSequence.current;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
+
+    const request = (async () => {
+      do {
+        refreshQueued.current = false;
+        try {
+          const data = await agendaBookingService.myBookings(undefined, controller.signal);
+          if (controller.signal.aborted || sequence !== refreshSequence.current) return;
+          bookingsRef.current = data;
+          setBookings(data);
+          setError(null);
+
+          const supplierIds = [...new Set(data.map((item) => item.supplier_id))];
+          const staleIds = supplierIds.filter((supplierId) => {
+            const cached = serviceCache.current.get(supplierId);
+            return !cached || Date.now() - cached.loadedAt > 5 * 60_000 ||
+              data.some((booking) => booking.supplier_id === supplierId &&
+                !cached.list.some((service) => service.id === booking.service_id));
+          });
+          const results = await Promise.allSettled(staleIds.map(async (supplierId) => ({
+            supplierId,
+            list: await agendaBookingService.listPublicServices(supplierId, controller.signal),
+          })));
+          if (controller.signal.aborted || sequence !== refreshSequence.current) return;
+          for (const result of results) {
+            if (result.status === "fulfilled") {
+              serviceCache.current.set(result.value.supplierId, {
+                list: result.value.list,
+                loadedAt: Date.now(),
+              });
+            }
+          }
+          setServices((current) => {
+            const next = { ...current };
+            for (const supplierId of supplierIds) {
+              for (const service of serviceCache.current.get(supplierId)?.list ?? []) {
+                next[`${supplierId}:${service.id}`] = service;
+              }
+            }
+            return next;
+          });
+        } catch (err) {
+          if (isExpectedAbort(err, controller.signal) || sequence !== refreshSequence.current) return;
+          if (!silent || bookingsRef.current.length === 0) {
+            setError(err instanceof Error ? err.message : "No se pudieron cargar tus citas.");
+          }
+        }
+      } while (refreshQueued.current && !controller.signal.aborted);
+      if (sequence === refreshSequence.current && !controller.signal.aborted) setLoading(false);
+    })();
+
+    refreshRequest.current = request;
+    void request.finally(() => {
+      if (refreshRequest.current === request) refreshRequest.current = null;
+    });
+    return request;
+  }, [auth.isAuthenticated, hydrated]);
 
   const resyncAfterReconnect = useCallback(() => {
     void refreshBookings();
@@ -107,77 +155,31 @@ export default function ClientAppointmentsPage() {
       return;
     }
 
-    const controller = new AbortController();
-
-    const run = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const data = await agendaBookingService.myBookings(
-          undefined,
-          controller.signal,
-        );
-
-        setBookings(data);
-
-        const supplierIds = Array.from(
-          new Set(data.map((item) => item.supplier_id)),
-        );
-
-        const results = await Promise.all(
-          supplierIds.map(async (supplierId) => {
-            try {
-              const list =
-                await agendaBookingService.listPublicServices(
-                  supplierId,
-                  controller.signal,
-                );
-
-              return { supplierId, list };
-            } catch {
-              return { supplierId, list: [] as AgendaService[] };
-            }
-          }),
-        );
-
-        const nextMap: ServiceMap = {};
-
-        for (const result of results) {
-          for (const service of result.list) {
-            nextMap[`${result.supplierId}:${service.id}`] = service;
-          }
-        }
-
-        setServices(nextMap);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "No se pudieron cargar tus citas.",
-        );
-      } finally {
-        setLoading(false);
-      }
+    void refreshBookings(false);
+    return () => {
+      refreshController.current?.abort();
+      refreshSequence.current += 1;
+      refreshRequest.current = null;
+      refreshQueued.current = false;
+      if (eventTimer.current) clearTimeout(eventTimer.current);
     };
-
-    void run();
-
-    return () => controller.abort();
-  }, [auth.isAuthenticated, hydrated]);
+  }, [auth.isAuthenticated, hydrated, refreshBookings]);
 
   useEffect(() => {
     if (!hydrated || !auth.isAuthenticated) return;
-    const controller = new AbortController();
     const unsubscribe = subscribeToInboxEvents((event) => {
       if (!isAgendaInboxEvent(event)) return;
       if (event.type !== "agenda.booking_created" &&
           !bookingsRef.current.some((item) => item.id === event.booking_id)) return;
 
-      void refreshBookings(controller.signal);
+      if (eventTimer.current) clearTimeout(eventTimer.current);
+      eventTimer.current = setTimeout(() => {
+        eventTimer.current = null;
+        void refreshBookings();
+      }, 120);
     });
     return () => {
-      controller.abort();
+      if (eventTimer.current) clearTimeout(eventTimer.current);
       unsubscribe();
     };
   }, [auth.isAuthenticated, hydrated, refreshBookings, subscribeToInboxEvents]);

@@ -58,11 +58,11 @@ export const notificationService = {
     if (params.limit) query.set("limit", String(params.limit));
 
     const qs = query.toString();
-    const data = await requestJson(`/api/notifications${qs ? `?${qs}` : ""}`);
+    const data = await requestJson(`/proxy/notifications/${qs ? `?${qs}` : ""}`);
     return extractNotifications(data);
   },
 
   async markRead(id: number | string) {
-    await requestJson(`/api/notifications/${encodeURIComponent(String(id))}/read`, { method: "PATCH" });
+    await requestJson(`/proxy/notifications/${encodeURIComponent(String(id))}/read`, { method: "PATCH" });
   },
 };

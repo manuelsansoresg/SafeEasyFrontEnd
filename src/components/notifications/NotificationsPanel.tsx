@@ -1,9 +1,13 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { notificationService, NotificationItem } from "@/services/notificationService";
 import { PageHero } from "@/components/ui/PageHero";
+import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
+import { useInboxReconnect } from "@/hooks/useInboxReconnect";
+import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
+import { useChatStore } from "@/store/useChatStore";
 
 export default function NotificationsPanel() {
   const [items, setItems] = useState<NotificationItem[]>([]);
@@ -11,6 +15,15 @@ export default function NotificationsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const router = useRouter();
+  const hydrated = useAuthHydrated();
+  const token = useAuthStore((state) => state.token);
+  const userId = useAuthStore((state) => state.user?.id);
+  const enabled = hydrated && Boolean(token) && Boolean(userId);
+  const { status: inboxStatus } = useChatInboxWebSocket(enabled);
+  const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
+  const requestSequence = useRef(0);
+  const inFlight = useRef<Promise<void> | null>(null);
+  const queued = useRef(false);
 
   const truncate = (value: string, max = 90) => {
     const raw = String(value || "").trim();
@@ -18,27 +31,62 @@ export default function NotificationsPanel() {
     return `${raw.slice(0, max - 1)}…`;
   };
 
-  const load = async ({ silent = false }: { silent?: boolean } = {}) => {
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      const list = await notificationService.getNotifications();
-      setItems(list);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron cargar las notificaciones.");
-    } finally {
-      if (!silent) setLoading(false);
+  const load = useCallback(({ silent = false }: { silent?: boolean } = {}): Promise<void> => {
+    if (!enabled) return Promise.resolve();
+    if (inFlight.current) {
+      queued.current = true;
+      return inFlight.current;
     }
-  };
+    const sequence = requestSequence.current;
+    if (!silent) setLoading(true);
+    const request = (async () => {
+      do {
+        queued.current = false;
+        try {
+          const list = await notificationService.getNotifications();
+          if (sequence === requestSequence.current) {
+            setItems(list);
+            setError(null);
+          }
+        } catch (e) {
+          if (sequence === requestSequence.current) {
+            setError(e instanceof Error ? e.message : "No se pudieron cargar las notificaciones.");
+          }
+        }
+      } while (queued.current && sequence === requestSequence.current);
+      if (sequence === requestSequence.current) setLoading(false);
+    })();
+    inFlight.current = request;
+    void request.finally(() => {
+      if (inFlight.current === request) inFlight.current = null;
+    });
+    return request;
+  }, [enabled]);
 
   useEffect(() => {
-    load();
-  }, []);
+    if (enabled) void load();
+    else {
+      setItems([]);
+      setLoading(false);
+    }
+    return () => {
+      requestSequence.current += 1;
+      inFlight.current = null;
+      queued.current = false;
+    };
+  }, [enabled, userId, load]);
 
   useEffect(() => {
-    const id = setInterval(() => load({ silent: true }), 10000);
-    return () => clearInterval(id);
-  }, []);
+    if (!enabled) return;
+    return subscribeToInboxEvents((event) => {
+      if (event.type === "notification.created") void load({ silent: true });
+    });
+  }, [enabled, load, subscribeToInboxEvents]);
+
+  const resyncAfterReconnect = useCallback(() => {
+    void load({ silent: true });
+  }, [load]);
+  useInboxReconnect(inboxStatus, enabled, resyncAfterReconnect);
 
   const markRead = async (id: number | string) => {
     try {

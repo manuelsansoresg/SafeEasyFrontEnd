@@ -1,12 +1,12 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Search } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { notificationService, NotificationItem } from "@/services/notificationService";
 import { createPortal } from "react-dom";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
-import { useAuthStore } from "@/store/useAuthStore";
+import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
 
 export default function NotificationsBadge() {
@@ -17,24 +17,56 @@ export default function NotificationsBadge() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const pathname = usePathname();
   const router = useRouter();
+  const hydrated = useAuthHydrated();
   const token = useAuthStore((state) => state.token);
+  const userId = useAuthStore((state) => state.user?.id);
+  const enabled = hydrated && Boolean(token) && Boolean(userId);
+  const unreadRequest = useRef<Promise<void> | null>(null);
+  const unreadQueued = useRef(false);
+  const sessionSequence = useRef(0);
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
-  const { status: inboxStatus } = useChatInboxWebSocket(Boolean(token));
+  const { status: inboxStatus } = useChatInboxWebSocket(enabled);
 
-  const refreshUnreadCount = useCallback(async (silent = false) => {
-    try {
-      const items = await notificationService.getNotifications({ unreadOnly: true });
-      setCount(items.length || 0);
-    } catch (e) {
-      if (!silent) setError(e instanceof Error ? e.message : "No se pudieron cargar las notificaciones.");
+  const refreshUnreadCount = useCallback((silent = false): Promise<void> => {
+    if (!enabled) return Promise.resolve();
+    if (unreadRequest.current) {
+      unreadQueued.current = true;
+      return unreadRequest.current;
     }
-  }, []);
+    const sequence = sessionSequence.current;
+    const request = (async () => {
+      do {
+        unreadQueued.current = false;
+        try {
+          const list = await notificationService.getNotifications({ unreadOnly: true });
+          if (sequence === sessionSequence.current) setCount(list.length);
+        } catch (e) {
+          if (!silent && sequence === sessionSequence.current) {
+            setError(e instanceof Error ? e.message : "No se pudieron cargar las notificaciones.");
+          }
+        }
+      } while (unreadQueued.current && sequence === sessionSequence.current);
+    })();
+    unreadRequest.current = request;
+    void request.finally(() => {
+      if (unreadRequest.current === request) unreadRequest.current = null;
+    });
+    return request;
+  }, [enabled]);
 
   useEffect(() => {
-    void refreshUnreadCount();
-  }, [pathname, refreshUnreadCount]);
+    setCount(0);
+    setItems([]);
+    setError(null);
+    if (enabled) void refreshUnreadCount();
+    else setIsOpen(false);
+    return () => {
+      sessionSequence.current += 1;
+      unreadQueued.current = false;
+      unreadRequest.current = null;
+    };
+  }, [enabled, userId, refreshUnreadCount]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -47,45 +79,50 @@ export default function NotificationsBadge() {
   }, []);
 
   const loadLatest = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!enabled) return;
+    const sequence = sessionSequence.current;
     if (!silent) setLoading(true);
     if (!silent) setError(null);
     try {
       const list = await notificationService.getNotifications({ limit: 10 });
+      if (sequence !== sessionSequence.current) return;
       setItems(list);
       setError(null);
     } catch (e) {
+      if (sequence !== sessionSequence.current) return;
       if (!silent) setError(e instanceof Error ? e.message : "No se pudieron cargar las notificaciones.");
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent && sequence === sessionSequence.current) setLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!enabled) return;
     const unsubscribe = subscribeToInboxEvents((event) => {
       if (event.type !== "notification.created") return;
       void refreshUnreadCount(true);
       if (isOpen) void loadLatest({ silent: true });
     });
     return unsubscribe;
-  }, [isOpen, loadLatest, refreshUnreadCount, subscribeToInboxEvents, token]);
+  }, [enabled, isOpen, loadLatest, refreshUnreadCount, subscribeToInboxEvents]);
 
   const resyncAfterReconnect = useCallback(() => {
     void refreshUnreadCount(true);
     if (isOpen) void loadLatest({ silent: true });
   }, [isOpen, loadLatest, refreshUnreadCount]);
-  useInboxReconnect(inboxStatus, Boolean(token), resyncAfterReconnect);
+  useInboxReconnect(inboxStatus, enabled, resyncAfterReconnect);
 
   const toggleOpen = async () => {
     setIsOpen((prev) => !prev);
   };
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !enabled) return;
     void loadLatest();
-  }, [isOpen, loadLatest]);
+  }, [enabled, isOpen, loadLatest]);
 
   const markRead = async (id: number | string) => {
+    if (!enabled) return;
     try {
       await notificationService.markRead(id);
       setItems((prev) =>
@@ -93,7 +130,7 @@ export default function NotificationsBadge() {
           String(n.id) === String(id) ? { ...n, is_read: true, read: true } : n
         )
       );
-      refreshUnreadCount();
+      void refreshUnreadCount();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo marcar la notificación como leída.");
     }

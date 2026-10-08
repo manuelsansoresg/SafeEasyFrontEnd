@@ -21,6 +21,7 @@ import {
   humanizeMinutes,
 } from "@/lib/agendaTime";
 import { didAgendaRefundConfirm, getAgendaPaymentNotice, hasProcessingAgendaRefund } from "@/lib/agendaRefundPresentation";
+import { isExpectedAbort } from "@/lib/agendaRequest";
 import {
   getCurrentPathWithSearch,
   getLoginUrl,
@@ -42,6 +43,8 @@ import type {
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400";
+const detailsUnavailableMessage =
+  "Tu reservación existe, pero no pudimos actualizar algunos detalles. Puedes intentarlo nuevamente.";
 
 function statusLabel(status: AgendaBooking["status"]) {
   return {
@@ -138,8 +141,13 @@ export default function AgendaBookingManagementPage() {
 
   const [managementToken, setManagementToken] =
     useState(tokenFromUrl);
+  const [tokenReadyFor, setTokenReadyFor] = useState<string | null>(null);
+  const tokenResolutionKey = `${bookingId}:${tokenFromUrl}`;
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
   const lastAgendaEvent = useRef<Map<string, number>>(new Map());
+  const loadSequence = useRef(0);
+  const registeredRefreshSequence = useRef(0);
+  const loadedBookingKey = useRef<string | null>(null);
   const registeredClient = hydrated && auth.isAuthenticated && !managementToken;
   const { status: inboxStatus } = useChatInboxWebSocket(registeredClient);
 
@@ -165,6 +173,7 @@ export default function AgendaBookingManagementPage() {
     useState<string | null>(null);
   const [success, setSuccess] =
     useState<string | null>(null);
+  const [loadRefresh, setLoadRefresh] = useState(0);
 
   const [cancelReason, setCancelReason] = useState("");
 
@@ -220,7 +229,7 @@ export default function AgendaBookingManagementPage() {
     !rules || rules.allow_reschedule_requests;
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!hydrated || typeof window === "undefined") return;
 
     if (tokenFromUrl) {
       window.localStorage.setItem(
@@ -228,6 +237,7 @@ export default function AgendaBookingManagementPage() {
         tokenFromUrl,
       );
       setManagementToken(tokenFromUrl);
+      setTokenReadyFor(tokenResolutionKey);
       return;
     }
 
@@ -235,21 +245,28 @@ export default function AgendaBookingManagementPage() {
       `agenda-management-${bookingId}`,
     );
 
-    if (stored) {
-      setManagementToken(stored);
-    }
-  }, [bookingId, tokenFromUrl]);
+    setManagementToken(stored || "");
+    setTokenReadyFor(tokenResolutionKey);
+  }, [bookingId, hydrated, tokenFromUrl, tokenResolutionKey]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || tokenReadyFor !== tokenResolutionKey) return;
 
     const controller = new AbortController();
+    const sequence = ++loadSequence.current;
+    const isCurrent = () => !controller.signal.aborted && sequence === loadSequence.current;
+    const requestKey = managementToken
+      ? `${bookingId}:guest:${managementToken}`
+      : `${bookingId}:user:${auth.user?.id ?? "none"}`;
 
     const run = async () => {
-      setLoading(true);
+      setLoading(loadedBookingKey.current !== requestKey);
       setError(null);
-      setBooking(null);
-      setRefunds([]);
+      if (loadedBookingKey.current !== requestKey) {
+        setBooking(null);
+        setService(null);
+        setRefunds([]);
+      }
 
       try {
         let data: AgendaBooking | null = null;
@@ -283,20 +300,24 @@ export default function AgendaBookingManagementPage() {
           );
         }
 
+        if (!isCurrent()) return;
+        loadedBookingKey.current = requestKey;
         setBooking(data);
 
-        const services =
-          await agendaBookingService.listPublicServices(
+        let found: AgendaService | null = null;
+        try {
+          const services = await agendaBookingService.listPublicServices(
             data.supplier_id,
             controller.signal,
           );
-
-        const found =
-          services.find(
-            (item) => item.id === data?.service_id,
-          ) || null;
-
-        setService(found);
+          if (!isCurrent()) return;
+          found = services.find((item) => item.id === data?.service_id) || null;
+          setService(found);
+        } catch (serviceError) {
+          if (!isExpectedAbort(serviceError, controller.signal) && isCurrent()) {
+            setError(detailsUnavailableMessage);
+          }
+        }
 
         if (found) {
           try {
@@ -311,6 +332,7 @@ export default function AgendaBookingManagementPage() {
                 controller.signal,
               );
 
+            if (!isCurrent()) return;
             setRules(availabilityData);
             setTimezone(
               availabilityData.timezone,
@@ -334,10 +356,11 @@ export default function AgendaBookingManagementPage() {
             managementToken || null,
             controller.signal,
           );
+          if (!isCurrent()) return;
           setPayment(paymentData);
           setPaymentError(null);
         } catch (paymentRequestError) {
-          setPayment(null);
+          if (isExpectedAbort(paymentRequestError, controller.signal) || !isCurrent()) return;
           setPaymentError(
             paymentRequestError instanceof Error
               ? paymentRequestError.message
@@ -345,33 +368,45 @@ export default function AgendaBookingManagementPage() {
           );
         }
         try {
-          setRefunds(await agendaBookingService.getBookingRefunds(bookingId, managementToken || null, controller.signal));
+          const nextRefunds = await agendaBookingService.getBookingRefunds(bookingId, managementToken || null, controller.signal);
+          if (!isCurrent()) return;
+          setRefunds(nextRefunds);
           setRefundError(null);
         } catch (refundRequestError) {
+          if (isExpectedAbort(refundRequestError, controller.signal) || !isCurrent()) return;
           setRefundError(refundRequestError instanceof Error ? refundRequestError.message : "No se pudieron consultar las devoluciones.");
         }
       } catch (err) {
+        if (isExpectedAbort(err, controller.signal) || !isCurrent()) return;
         setError(
           err instanceof Error
             ? err.message
             : "No se pudo cargar la cita.",
         );
       } finally {
-        setLoading(false);
+        if (isCurrent()) setLoading(false);
       }
     };
 
     void run();
 
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      loadSequence.current += 1;
+    };
   }, [
     auth.isAuthenticated,
+    auth.user?.id,
     bookingId,
     hydrated,
     managementToken,
+    loadRefresh,
+    tokenReadyFor,
+    tokenResolutionKey,
   ]);
 
   const refreshRegisteredBooking = useCallback(async (signal?: AbortSignal) => {
+    const sequence = ++registeredRefreshSequence.current;
     try {
       const [mine, paymentResult, refundResult] = await Promise.all([
         agendaBookingService.myBookings(undefined, signal),
@@ -384,13 +419,13 @@ export default function AgendaBookingManagementPage() {
           (error: unknown) => ({ value: null, error: error instanceof Error ? error.message : "No se pudieron consultar las devoluciones." }),
         ),
       ]);
-      if (signal?.aborted) return;
+      if (signal?.aborted || sequence !== registeredRefreshSequence.current) return;
       const updated = mine.find((item) => item.id === bookingId);
       if (updated) setBooking(updated);
       if (!paymentResult.error) setPayment(paymentResult.value);
-      setPaymentError(paymentResult.error || null);
+      if (!isExpectedAbort(paymentResult.error, signal)) setPaymentError(paymentResult.error || null);
       if (refundResult.value) setRefunds(refundResult.value);
-      setRefundError(refundResult.error || null);
+      if (!isExpectedAbort(refundResult.error, signal)) setRefundError(refundResult.error || null);
     } catch {
       // Una actualización automática fallida no interrumpe la gestión de la cita.
     }
@@ -425,6 +460,7 @@ export default function AgendaBookingManagementPage() {
     });
     return () => {
       controller.abort();
+      registeredRefreshSequence.current += 1;
       unsubscribe();
     };
   }, [bookingId, refreshRegisteredBooking, registeredClient, subscribeToInboxEvents]);
@@ -578,6 +614,7 @@ export default function AgendaBookingManagementPage() {
         setRules(data);
         setTimezone(data.timezone);
       } catch (err) {
+        if (isExpectedAbort(err, controller.signal)) return;
         setAvailability(null);
         setError(
           err instanceof Error
@@ -776,6 +813,15 @@ export default function AgendaBookingManagementPage() {
       {error ? (
         <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {error}
+          {error === detailsUnavailableMessage ? (
+            <button
+              type="button"
+              onClick={() => setLoadRefresh((current) => current + 1)}
+              className="ml-2 font-bold underline underline-offset-2"
+            >
+              Volver a consultar
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -873,6 +919,13 @@ export default function AgendaBookingManagementPage() {
         {paymentError ? (
           <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             {paymentError}
+            <button
+              type="button"
+              onClick={() => void refreshFinancials()}
+              className="ml-2 font-bold underline underline-offset-2"
+            >
+              Volver a consultar
+            </button>
           </p>
         ) : null}
         <div className="mt-4">
