@@ -105,7 +105,7 @@ export function MarketingAgendaShowcase({ today, example }: { today: string; exa
     <div className="mt-5 border-t border-[#004e28]/10 pt-5">
       <h3 className="text-lg font-bold text-[#17251c] sm:text-xl">2. Elige fecha y horario</h3>
       <div className="mt-4 grid items-center gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:gap-8">
-        <div className="pointer-events-none min-w-0 [&>div]:!shadow-none [&_[role=gridcell]_button]:!size-9 sm:[&_[role=gridcell]_button]:!size-10" aria-hidden="true"><AgendaMonthlyCalendar month={month} availableDates={availableDates} selectedDate={selectedDate} minDate={today} maxDate={max.toISOString().slice(0, 10)} loading={false} onSelectDate={() => {}} onPreviousMonth={() => {}} onNextMonth={() => {}} /></div>
+        <div inert className="pointer-events-none min-w-0 [&>div]:!shadow-none [&_[role=gridcell]_button]:!size-9 sm:[&_[role=gridcell]_button]:!size-10" aria-hidden="true"><AgendaMonthlyCalendar month={month} availableDates={availableDates} selectedDate={selectedDate} minDate={today} maxDate={max.toISOString().slice(0, 10)} loading={false} onSelectDate={() => {}} onPreviousMonth={() => {}} onNextMonth={() => {}} /></div>
         <div className="min-w-0 lg:pl-1">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#116f04]">Fecha seleccionada</p>
           <p className="mt-2 font-[family-name:var(--font-varela-round)] text-xl leading-tight text-[#004e28] sm:text-2xl">{selectedLabel ?? "Sin fecha disponible"}</p>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AgendaMarketingLanding } from "@/components/marketing/AgendaMarketingLanding";
-import { getMarketingPlans } from "@/lib/marketingPageData";
+import { getAgendaExample, getMarketingPlans } from "@/lib/marketingPageData";
 import { buildMetadata } from "@/lib/seo";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -27,12 +27,26 @@ export default async function AgendaLandingPage({
   );
   const accessCode =
     typeof resolved.code === "string" ? resolved.code.trim() : "";
-  const plans = await getMarketingPlans(accessCode);
+  const dateParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Merida",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const datePart = (type: "year" | "month" | "day") =>
+    dateParts.find((part) => part.type === type)?.value ?? "";
+  const today = `${datePart("year")}-${datePart("month")}-${datePart("day")}`;
+  const [plans, agendaExample] = await Promise.all([
+    getMarketingPlans(accessCode),
+    getAgendaExample(today),
+  ]);
 
   return (
     <AgendaMarketingLanding
       initialPlans={plans}
       campaignParams={campaignParams}
+      today={today}
+      agendaExample={agendaExample}
     />
   );
 }

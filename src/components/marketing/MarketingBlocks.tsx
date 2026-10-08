@@ -37,9 +37,9 @@ export function MarketingWhatsappButton({ href, onClick, className = "" }: { hre
   </a>;
 }
 
-export function MarketingStickyCta({ visible, href, onClick }: { visible: boolean; href: string; onClick: (event: MouseEvent<HTMLAnchorElement>) => void }) {
+export function MarketingStickyCta({ visible, href, onClick, label }: { visible: boolean; href: string; onClick: (event: MouseEvent<HTMLAnchorElement>) => void; label?: string }) {
   if (!visible) return null;
   return <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#004e28]/15 bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_26px_-20px_#004e28] md:hidden">
-    <MarketingCta href={href} onClick={onClick} className="w-full" />
+    <MarketingCta href={href} onClick={onClick} label={label} className="w-full" />
   </div>;
 }

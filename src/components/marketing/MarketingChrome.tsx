@@ -9,10 +9,11 @@ import { MarketingCta } from "@/components/marketing/MarketingBlocks";
 
 const containerClass = "mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10";
 
-export function MarketingHeader({ contentId, onCta, onSteps }: {
+export function MarketingHeader({ contentId, onCta, onSteps, ctaLabel }: {
   contentId: string;
   onCta: (event: MouseEvent<HTMLAnchorElement>) => void;
   onSteps: (event: MouseEvent<HTMLAnchorElement>) => void;
+  ctaLabel?: string;
 }) {
   return <>
     <a href={`#${contentId}`} className="fixed left-4 top-3 z-[100] -translate-y-24 rounded-lg bg-white px-4 py-2 font-semibold text-[#004e28] shadow-lg focus:translate-y-0">Ir al contenido</a>
@@ -23,7 +24,7 @@ export function MarketingHeader({ contentId, onCta, onSteps }: {
         </Link>
         <nav aria-label="Navegación de la página" className="flex items-center gap-3 sm:gap-5">
           <a href="#como-funciona" onClick={onSteps} className="hidden text-sm font-semibold text-[#004e28] hover:underline focus-visible:outline-2 focus-visible:outline-[#004e28] sm:inline">Cómo funciona</a>
-          <MarketingCta href="#quiero-informacion" onClick={onCta} className="min-h-10 px-4 py-2 text-xs sm:min-h-11 sm:text-sm" />
+          <MarketingCta href="#quiero-informacion" onClick={onCta} label={ctaLabel} className={ctaLabel ? "min-h-10 px-3 py-2 text-xs max-sm:[&_svg]:hidden sm:min-h-11 sm:px-4 sm:text-sm" : "min-h-10 px-4 py-2 text-xs sm:min-h-11 sm:text-sm"} />
         </nav>
       </div>
     </header>

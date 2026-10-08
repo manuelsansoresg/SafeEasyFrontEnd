@@ -22,6 +22,7 @@ import {
   MarketingHeader,
 } from "@/components/marketing/MarketingChrome";
 import { MarketingLeadForm } from "@/components/marketing/MarketingLeadForm";
+import { MarketingAgendaShowcase } from "@/components/marketing/MarketingVisuals";
 import {
   campaignWhatsAppUrl,
   emitCampaignEvent,
@@ -30,62 +31,42 @@ import {
   plansFromPayload,
   selectMarketingPlan,
 } from "@/lib/marketingPlans";
+import type { AgendaExample } from "@/lib/marketingPageData";
 import type { Plan } from "@/types/subscriptions";
 
 type Props = {
   initialPlans: Plan[];
   campaignParams: Array<[string, string]>;
+  today: string;
+  agendaExample: AgendaExample | null;
 };
 
 const container = "mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10";
 const heading =
   "font-[family-name:var(--font-varela-round)] tracking-[-0.035em] text-[#004e28]";
 const whatsappUrl = campaignWhatsAppUrl("agenda");
-
-const quickBenefits = [
-  { icon: Settings2, label: "Servicios configurables" },
-  { icon: Clock3, label: "Horarios disponibles" },
-  { icon: CalendarCheck2, label: "Citas organizadas" },
-];
-
-const steps = [
-  {
-    number: "01",
-    title: "Eligen un servicio",
-    text: "Tus clientes consultan las opciones que ofreces.",
-  },
-  {
-    number: "02",
-    title: "Encuentran un horario",
-    text: "Ven las fechas y horas disponibles para reservar.",
-  },
-  {
-    number: "03",
-    title: "Realizan su reservación",
-    text: "La cita queda registrada en la Agenda de tu negocio.",
-  },
-];
+const agendaCtaLabel = "Quiero recibir citas";
 
 const benefits = [
   {
     icon: Settings2,
-    title: "Tú defines la disponibilidad",
-    text: "Configura los horarios en los que puedes atender.",
+    title: "Define cuándo atiendes",
+    text: "Configura los servicios y horarios disponibles para reservar.",
   },
   {
     icon: Link2,
-    title: "Un espacio para compartir",
-    text: "Tus clientes pueden acceder a tu negocio desde un enlace.",
+    title: "Comparte un enlace",
+    text: "Tus clientes encuentran dónde consultar tus servicios y horarios.",
   },
   {
     icon: CalendarDays,
-    title: "Servicios bien presentados",
-    text: "Muestra qué servicios se pueden reservar.",
+    title: "Menos coordinación por chat",
+    text: "Pueden elegir entre las opciones disponibles sin preguntarte cada horario.",
   },
   {
     icon: CalendarCheck2,
-    title: "Reservaciones en orden",
-    text: "Consulta y administra las citas desde Drooopy.",
+    title: "Citas en un solo lugar",
+    text: "Revisa y administra las reservaciones desde Drooopy.",
   },
 ];
 
@@ -108,7 +89,12 @@ const faqs = [
   {
     question: "¿Qué plan necesito para utilizar Agenda?",
     answer:
-      "Depende de los planes y módulos disponibles. Déjanos tus datos y te explicamos las opciones vigentes.",
+      "Agenda está disponible según el plan y la configuración de módulos de tu negocio. Déjanos tus datos y te explicamos las opciones vigentes.",
+  },
+  {
+    question: "¿Tengo que pagar para solicitar información?",
+    answer:
+      "No. Este formulario solo sirve para contactarte y explicarte cómo funciona Agenda para tu negocio.",
   },
 ];
 
@@ -123,6 +109,8 @@ function formatPrice(value: number): string {
 export function AgendaMarketingLanding({
   initialPlans,
   campaignParams,
+  today,
+  agendaExample,
 }: Props) {
   const [plans, setPlans] = useState<Plan[]>(initialPlans);
   const [loadingPlans, setLoadingPlans] = useState(initialPlans.length === 0);
@@ -138,7 +126,7 @@ export function AgendaMarketingLanding({
     [campaignParams],
   );
   const accessCode = originalParams.get("code")?.trim() ?? "";
-  const plan = selectMarketingPlan(plans, "agenda");
+  const plan = selectMarketingPlan(plans, "agenda", Boolean(accessCode));
   const showSticky = !heroVisible && !priceVisible && !formVisible;
 
   useEffect(() => {
@@ -231,38 +219,38 @@ export function AgendaMarketingLanding({
         contentId="contenido-agenda"
         onCta={cta("header")}
         onSteps={(event) => scrollTo(event, "como-funciona")}
+        ctaLabel={agendaCtaLabel}
       />
       <main id="contenido-agenda">
         {/* HERO */}
         <section
           ref={heroRef}
           aria-labelledby="agenda-hero-title"
-          className="bg-[#fbfcfa] py-10 sm:py-14 lg:py-20"
+          className="bg-[#fbfcfa] py-8 sm:py-11 lg:py-14"
         >
-          <div className={`${container} grid items-center gap-9 lg:grid-cols-[0.45fr_0.55fr] lg:gap-8`}>
+          <div className={`${container} grid items-center gap-7 lg:grid-cols-[0.47fr_0.53fr] lg:gap-8`}>
             <div className="max-w-xl">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00672f]">
                 Agenda online para tu negocio
               </p>
               <h1
                 id="agenda-hero-title"
-                className={`${heading} mt-5 text-[clamp(2.35rem,5vw,4.15rem)] leading-[1.08]`}
+                className={`${heading} mt-4 text-[clamp(2.25rem,4.5vw,3.8rem)] leading-[1.08]`}
               >
-                Tus clientes reservan.
+                Mientras tú atiendes,{" "}
                 <span className="block text-[#158900]">
-                  Tú te concentras en atender.
+                  tus clientes pueden reservar.
                 </span>
               </h1>
-              <p className="mt-6 max-w-lg text-base leading-7 text-[#40554a] sm:text-lg sm:leading-8">
-                Muestra tus servicios y horarios disponibles en Drooopy para
-                que tus clientes elijan cuándo reservar, sin preguntarte
-                horarios por mensaje.
+              <p className="mt-5 max-w-lg text-base leading-7 text-[#40554a] sm:text-lg sm:leading-8">
+                Comparte un enlace para que elijan servicio, fecha y horario.
+                Organiza tus reservaciones sin coordinar cada cita por mensaje.
               </p>
-              <div className="mt-7 flex flex-col items-start gap-3">
+              <div className="mt-6 flex flex-col items-start gap-2">
                 <MarketingCta
                   href="#quiero-informacion"
                   onClick={cta("hero")}
-                  label="Quiero organizar mis citas"
+                  label={agendaCtaLabel}
                   className="w-full sm:w-auto"
                 />
                 <a
@@ -274,17 +262,17 @@ export function AgendaMarketingLanding({
                 </a>
               </div>
               <p className="mt-3 text-xs text-[#5f7164]">
-                Déjanos tu nombre y WhatsApp. Te contactamos para orientarte.
+                Déjanos tu nombre y WhatsApp. Te explicamos cómo comenzar.
               </p>
             </div>
-            <figure className="mx-auto w-full max-w-[700px] lg:max-w-none">
+            <figure className="mx-auto w-full max-w-[570px] lg:max-w-[620px]">
               <Image
                 src="/agenda.png"
                 alt="Ilustración del proceso de reservación: elegir un servicio, seleccionar fecha y horario y registrar una cita en Drooopy"
                 width={1600}
                 height={960}
                 priority
-                sizes="(max-width: 1023px) 100vw, 55vw"
+                sizes="(max-width: 639px) 100vw, (max-width: 1023px) 570px, 620px"
                 className="h-auto w-full object-contain"
               />
               <figcaption className="mt-1 text-center text-[11px] text-[#5f7164]">
@@ -294,114 +282,99 @@ export function AgendaMarketingLanding({
           </div>
         </section>
 
-        {/* BENEFICIOS INMEDIATOS */}
-        <div className="border-y border-[#004e28]/10 bg-white">
-          <ul className={`${container} grid gap-4 py-5 sm:grid-cols-3 sm:gap-6`}>
-            {quickBenefits.map(({ icon: Icon, label }) => (
-              <li key={label} className="flex items-center gap-3 text-sm font-semibold text-[#004e28]">
-                <Icon className="shrink-0 text-[#158900]" size={21} aria-hidden="true" />
-                {label}
-              </li>
-            ))}
-          </ul>
-        </div>
-
         {/* PROBLEMA / SOLUCIÓN */}
-        <section aria-labelledby="agenda-problem-title" className="py-14 sm:py-20">
-          <div className={`${container} grid items-start gap-9 lg:grid-cols-[0.45fr_0.55fr] lg:gap-16`}>
+        <section aria-labelledby="agenda-problem-title" className="py-12 sm:py-16">
+          <div className={`${container} grid items-center gap-8 lg:grid-cols-[0.45fr_0.55fr] lg:gap-12`}>
             <div className="max-w-xl">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00672f]">
-                Menos mensajes de ida y vuelta
+                Cuando las citas llegan por mensaje
               </p>
-              <h2 id="agenda-problem-title" className={`${heading} mt-3 text-3xl leading-tight sm:text-4xl lg:text-[2.7rem]`}>
-                ¿Todavía coordinas cada cita por mensaje?
+              <h2 id="agenda-problem-title" className={`${heading} mt-3 text-[1.8rem] leading-tight sm:text-[2.2rem]`}>
+                ¿Te preguntan por horarios mientras estás atendiendo?
               </h2>
               <p className="mt-4 text-base leading-7 text-[#40554a]">
-                Tus clientes pueden consultar tus servicios y las opciones
-                disponibles sin tener que escribirte para preguntar cada horario.
+                Una consulta puede convertirse en varios mensajes para acordar
+                servicio, día y hora. Con Agenda, tus clientes revisan las
+                opciones disponibles desde un enlace.
               </p>
-              <MarketingCta
-                href="#quiero-informacion"
-                onClick={cta("problem")}
-                label="Quiero organizar mis citas"
-                className="mt-6 w-full sm:w-auto"
-              />
             </div>
-            <div className="grid gap-5 sm:grid-cols-2 sm:gap-0">
-              <div className="border-l-2 border-[#d5ddd7] pl-5 sm:pr-6">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#687970]">
-                  Cuando todo es por mensaje
-                </p>
-                <ul className="mt-5 space-y-4 text-sm leading-6 text-[#55665c]">
-                  <li>Preguntas repetidas sobre disponibilidad.</li>
-                  <li>Mensajes para coordinar fecha y hora.</li>
-                  <li>Información dispersa entre conversaciones.</li>
-                </ul>
-              </div>
-              <div className="rounded-2xl border border-[#004e28]/10 bg-[#f3f8f1] px-5 py-6 sm:-my-2 sm:py-8">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#005c2e]">
-                  Con Agenda en Drooopy
-                </p>
-                <ul className="mt-5 space-y-4">
-                  {[
-                    "Servicios visibles y organizados.",
-                    "Horarios disponibles para consultar.",
-                    "Reservaciones dentro de tu espacio.",
-                  ].map((item) => (
-                    <li key={item} className="flex items-start gap-2.5 text-sm font-semibold leading-6 text-[#004e28]">
-                      <Check size={18} className="mt-1 shrink-0 text-[#158900]" aria-hidden="true" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+            <ul className="divide-y divide-[#004e28]/15 border-y border-[#004e28]/15">
+              {[
+                "Te escriben para preguntar qué servicios pueden reservar.",
+                "Buscas entre conversaciones para confirmar un horario.",
+                "Coordinas cada cita mientras sigues atendiendo.",
+              ].map((item, index) => (
+                <li key={item} className="flex items-center gap-4 py-4 text-sm leading-6 text-[#40554a] sm:text-base">
+                  <span className="font-[family-name:var(--font-varela-round)] text-lg text-[#168e00]">0{index + 1}</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 
-        {/* CÓMO FUNCIONA, SIN REPETIR EL CALENDARIO */}
+        {/* DEMOSTRACIÓN DEL RECORRIDO */}
         <section
           id="como-funciona"
           aria-labelledby="agenda-steps-title"
-          className="scroll-mt-24 bg-[#f2f3f4] py-14 sm:py-20"
+          className="scroll-mt-24 bg-[#f2f3f4] py-12 sm:py-16"
         >
           <div className={container}>
-            <div className="max-w-2xl">
+            <div className="max-w-3xl">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00672f]">
-                Fácil para tus clientes
+                Así reserva un cliente
               </p>
-              <h2 id="agenda-steps-title" className={`${heading} mt-3 text-3xl leading-tight sm:text-4xl`}>
-                Reservar es sencillo en tres pasos.
+              <h2 id="agenda-steps-title" className={`${heading} mt-3 text-[1.8rem] leading-tight sm:text-[2.2rem]`}>
+                Del servicio a la cita, en un solo recorrido.
               </h2>
+              <p className="mt-3 text-base leading-7 text-[#40554a]">
+                Tus clientes consultan los servicios, eligen una fecha y un horario
+                disponible y completan su reservación.
+              </p>
             </div>
-            <ol className="mt-10 grid gap-7 sm:grid-cols-3 sm:gap-8">
-              {steps.map((step) => (
-                <li key={step.number} className="border-t-2 border-[#004e28] pt-5">
-                  <span className="text-xs font-bold tracking-[0.16em] text-[#158900]">
-                    {step.number}
-                  </span>
-                  <h3 className={`${heading} mt-3 text-xl sm:text-2xl`}>{step.title}</h3>
-                  <p className="mt-2 max-w-xs text-sm leading-6 text-[#40554a]">
-                    {step.text}
-                  </p>
-                </li>
-              ))}
-            </ol>
+            {agendaExample?.service && agendaExample.slots.length ? (
+              <MarketingAgendaShowcase today={today} example={agendaExample} />
+            ) : (
+              <ol className="mt-7 grid gap-5 border-y border-[#004e28]/10 py-6 sm:grid-cols-4">
+                {[
+                  { icon: Settings2, title: "Consulta servicios", text: "Ve las opciones que ofreces." },
+                  { icon: CalendarDays, title: "Elige una fecha", text: "Revisa los días disponibles." },
+                  { icon: Clock3, title: "Selecciona horario", text: "Escoge una hora libre." },
+                  { icon: CalendarCheck2, title: "Reserva", text: "Completa la solicitud de cita." },
+                ].map(({ icon: Icon, title, text }, index) => (
+                  <li key={title} className="min-w-0 border-l-2 border-[#168e00] pl-4">
+                    <Icon size={21} className="text-[#168e00]" aria-hidden="true" />
+                    <p className="mt-2 text-xs font-bold text-[#168e00]">0{index + 1}</p>
+                    <h3 className={`${heading} mt-1 text-base`}>{title}</h3>
+                    <p className="mt-1 text-sm leading-6 text-[#40554a]">{text}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+            <p className="mt-4 text-xs leading-5 text-[#5f7164]">
+              {agendaExample?.service && agendaExample.slots.length
+                ? "Ejemplo con información pública de Agenda. Los horarios pueden cambiar; esta vista no permite reservar."
+                : "Recorrido ilustrativo. Consulta la disponibilidad real en la Agenda de cada negocio."}
+            </p>
+            <p className="mt-4 flex items-start gap-2 text-sm font-semibold text-[#004e28]">
+              <Check size={18} className="mt-0.5 shrink-0 text-[#168e00]" aria-hidden="true" />
+              Una vez realizada la reservación, puedes revisarla desde Drooopy.
+            </p>
           </div>
         </section>
 
         {/* BENEFICIOS */}
-        <section aria-labelledby="agenda-benefits-title" className="py-14 sm:py-20">
+        <section aria-labelledby="agenda-benefits-title" className="py-12 sm:py-16">
           <div className={container}>
             <div className="max-w-2xl">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00672f]">
                 Pensado para tu negocio
               </p>
-              <h2 id="agenda-benefits-title" className={`${heading} mt-3 text-3xl leading-tight sm:text-4xl`}>
-                Tú controlas los horarios. Tus clientes eligen cuándo reservar.
+              <h2 id="agenda-benefits-title" className={`${heading} mt-3 text-[1.8rem] leading-tight sm:text-[2.2rem]`}>
+                Más tiempo para atender. Tus citas, en orden.
               </h2>
             </div>
-            <div className="mt-9 grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-7 grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-4">
               {benefits.map(({ icon: Icon, title, text }) => (
                 <article key={title} className="border-t border-[#004e28]/15 pt-5">
                   <Icon size={23} className="text-[#158900]" aria-hidden="true" />
@@ -427,7 +400,8 @@ export function AgendaMarketingLanding({
             <ul className="flex flex-wrap gap-2.5 text-sm font-semibold text-[#004e28]">
               {[
                 "Barberías",
-                "Salones de belleza",
+                "Estéticas y salones",
+                "Especialistas en uñas",
                 "Spas",
                 "Consultorios",
                 "Terapeutas",
@@ -446,7 +420,7 @@ export function AgendaMarketingLanding({
           id="precio"
           ref={priceRef}
           aria-labelledby="agenda-pricing-title"
-          className="scroll-mt-24 bg-[#004e28] py-14 text-white sm:py-20"
+          className="scroll-mt-24 bg-[#004e28] py-12 text-white sm:py-16"
         >
           <div className={`${container} grid items-center gap-8 lg:grid-cols-[0.46fr_0.54fr] lg:gap-14`}>
             <div>
@@ -454,11 +428,11 @@ export function AgendaMarketingLanding({
                 Opciones para tu negocio
               </p>
               <h2 id="agenda-pricing-title" className="mt-4 font-[family-name:var(--font-varela-round)] text-3xl leading-tight tracking-[-0.025em] sm:text-4xl">
-                Organiza tus reservaciones desde Drooopy.
+                Conoce el plan para recibir reservaciones con Drooopy.
               </h2>
               <p className="mt-4 max-w-md text-base leading-7 text-white/85">
-                Te orientamos para conocer el plan y la configuración de Agenda
-                adecuados para tu negocio.
+                El precio corresponde al plan mostrado. Te explicamos cómo se
+                habilita Agenda según la configuración de tu negocio.
               </p>
             </div>
             <div className="rounded-[1.65rem] bg-white p-6 text-[#17251c] shadow-[0_24px_60px_-40px_rgba(0,0,0,0.25)] sm:p-8">
@@ -469,7 +443,6 @@ export function AgendaMarketingLanding({
                 {plan ? (
                   <>
                     <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
-                      <span className="pb-1 text-sm font-semibold text-[#40554a]">Desde</span>
                       <span className={`${heading} text-5xl leading-none sm:text-6xl`}>
                         {formatPrice(plan.price)}
                       </span>
@@ -491,14 +464,14 @@ export function AgendaMarketingLanding({
               </div>
               <div className="mt-5 border-t border-[#004e28]/10 pt-4">
                 <p className="text-xs leading-5 text-[#5f7164]">
-                  La disponibilidad y las condiciones de activación del módulo
-                  Agenda dependen de su configuración vigente.
+                  El precio corresponde a la suscripción del plan. La activación
+                  de Agenda depende de los módulos disponibles para tu negocio.
                 </p>
               </div>
               <MarketingCta
                 href="#quiero-informacion"
                 onClick={cta("pricing")}
-                label="Quiero información sobre Agenda"
+                label={agendaCtaLabel}
                 className="mt-6 w-full"
               />
             </div>
@@ -510,7 +483,7 @@ export function AgendaMarketingLanding({
           id="quiero-informacion"
           ref={formRef}
           aria-labelledby="agenda-lead-title"
-          className="scroll-mt-24 bg-[#f2f3f4] py-14 sm:py-20"
+          className="scroll-mt-24 bg-[#f2f3f4] py-12 sm:py-16"
         >
           <div className={`${container} grid items-center gap-8 lg:grid-cols-[0.45fr_0.55fr] lg:gap-14`}>
             <div className="max-w-lg">
@@ -518,11 +491,10 @@ export function AgendaMarketingLanding({
                 Hablemos de tu negocio
               </p>
               <h2 id="agenda-lead-title" className={`${heading} mt-3 text-3xl leading-tight sm:text-4xl`}>
-                Haz que reservar una cita sea más sencillo para tus clientes.
+                Descubre cómo recibir reservaciones con Drooopy.
               </h2>
               <p className="mt-4 text-base leading-7 text-[#40554a]">
-                Déjanos tus datos y te contactamos para explicarte cómo usar
-                Agenda en Drooopy.
+                Déjanos tus datos y te explicamos cómo funciona Agenda para tu negocio.
               </p>
               <p className="mt-5 flex items-start gap-2 text-sm font-semibold text-[#004e28]">
                 <Check size={18} className="mt-0.5 shrink-0 text-[#158900]" aria-hidden="true" />
@@ -537,7 +509,7 @@ export function AgendaMarketingLanding({
         </section>
 
         {/* DUDAS */}
-        <section className="py-14 sm:py-20" aria-labelledby="agenda-faq-title">
+        <section className="py-12 sm:py-16" aria-labelledby="agenda-faq-title">
           <div className="mx-auto max-w-3xl px-5 sm:px-8">
             <h2 id="agenda-faq-title" className={`${heading} text-3xl sm:text-4xl`}>
               Preguntas frecuentes
@@ -549,22 +521,21 @@ export function AgendaMarketingLanding({
         </section>
 
         {/* CIERRE */}
-        <section className="border-t border-[#004e28]/10 bg-[#fbfcfa] py-14 sm:py-16" aria-labelledby="agenda-closing-title">
+        <section className="border-t border-[#004e28]/10 bg-[#fbfcfa] py-12 sm:py-16" aria-labelledby="agenda-closing-title">
           <div className={`${container} flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between`}>
             <div className="max-w-2xl">
               <h2 id="agenda-closing-title" className={`${heading} text-3xl leading-tight sm:text-4xl`}>
-                Que pedir una cita sea fácil para todos.
+                Atiende a tus clientes. Deja que los siguientes reserven.
               </h2>
               <p className="mt-3 text-sm leading-7 text-[#40554a] sm:text-base">
-                Tus clientes consultan la disponibilidad. Tú mantienes tus
-                reservaciones organizadas.
+                Comparte tus servicios y horarios desde un enlace de Drooopy.
               </p>
             </div>
             <div className="flex flex-col items-start gap-3 lg:shrink-0">
               <MarketingCta
                 href="#quiero-informacion"
                 onClick={cta("final")}
-                label="Quiero organizar mis citas"
+                label={agendaCtaLabel}
                 className="w-full sm:w-auto"
               />
               <a
@@ -591,6 +562,7 @@ export function AgendaMarketingLanding({
         visible={showSticky}
         href="#quiero-informacion"
         onClick={cta("sticky_mobile")}
+        label={agendaCtaLabel}
       />
     </div>
   );

@@ -2,8 +2,8 @@ import type { Plan } from "@/types/subscriptions";
 
 export type NewLandingKind = "menu" | "products" | "agenda";
 
-export function selectMarketingPlan(plans: Plan[], kind: NewLandingKind): Plan | null {
-  const active = plans.filter((plan) => plan.is_active && plan.is_listed !== false);
+export function selectMarketingPlan(plans: Plan[], kind: NewLandingKind, includeUnlisted = false): Plan | null {
+  const active = plans.filter((plan) => plan.is_active && (includeUnlisted || plan.is_listed !== false));
   if (kind === "menu") return active.find((plan) => plan.is_directory === true) ?? null;
 
   if (kind === "agenda") {
