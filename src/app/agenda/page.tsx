@@ -1,15 +1,38 @@
 import type { Metadata } from "next";
-import { MarketingLandingPage } from "@/components/marketing/MarketingLandingPage";
+import { AgendaMarketingLanding } from "@/components/marketing/AgendaMarketingLanding";
+import { getMarketingPlans } from "@/lib/marketingPageData";
 import { buildMetadata } from "@/lib/seo";
 
+type SearchParams = Record<string, string | string[] | undefined>;
+
 export const metadata: Metadata = buildMetadata({
-  title: "Agenda y reservaciones para tu negocio",
-  description: "Muestra tus servicios y horarios disponibles para que tus clientes encuentren una opción para reservar en Drooopy.",
+  title: "Agenda de citas y reservaciones para negocios",
+  description:
+    "Organiza servicios, horarios y reservaciones en Drooopy. Facilita que tus clientes encuentren una fecha y un horario para reservar.",
   path: "/agenda",
 });
 
-export default function AgendaLandingPage({ searchParams }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+export default async function AgendaLandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
 }) {
-  return <MarketingLandingPage kind="agenda" searchParams={searchParams} />;
+  const resolved = await searchParams;
+  const campaignParams: Array<[string, string]> = Object.entries(resolved).flatMap(
+    ([key, value]): Array<[string, string]> => {
+      if (typeof value === "string") return [[key, value]];
+      if (Array.isArray(value)) return value.map((entry) => [key, entry]);
+      return [];
+    },
+  );
+  const accessCode =
+    typeof resolved.code === "string" ? resolved.code.trim() : "";
+  const plans = await getMarketingPlans(accessCode);
+
+  return (
+    <AgendaMarketingLanding
+      initialPlans={plans}
+      campaignParams={campaignParams}
+    />
+  );
 }
