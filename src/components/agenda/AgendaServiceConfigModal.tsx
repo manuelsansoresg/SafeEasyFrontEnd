@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ChevronDown } from "lucide-react";
+import { AlertTriangle, ChevronDown, Info } from "lucide-react";
 import { useState } from "react";
 import AgendaModalShell from "@/components/agenda/AgendaModalShell";
 import type {
@@ -119,57 +119,85 @@ export default function AgendaServiceConfigModal({
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label>
-              <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-                Duración de la cita
-              </span>
-              <div className="relative">
-                <select
-                  className={selectClass}
-                  value={duration}
-                  onChange={(event) =>
-                    setDuration(Number(event.target.value) as ServiceDuration)
-                  }
-                >
-                  {durations.map((value) => (
-                    <option key={value} value={value}>
-                      {value} minutos
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  aria-hidden="true"
-                  size={18}
-                  className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-              </div>
-            </label>
+            <div className="min-w-0">
+              <label>
+                <span className="mb-1.5 block text-sm font-semibold text-gray-700 sm:min-h-10">
+                  Duración de la cita
+                </span>
+                <div className="relative">
+                  <select
+                    className={selectClass}
+                    value={duration}
+                    onChange={(event) =>
+                      setDuration(Number(event.target.value) as ServiceDuration)
+                    }
+                  >
+                    {durations.map((value) => (
+                      <option key={value} value={value}>
+                        {value} minutos
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    aria-hidden="true"
+                    size={18}
+                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                </div>
+              </label>
+              <p className="mt-2 text-xs leading-5 text-gray-600">
+                Tiempo que necesitas para realizar el servicio.
+              </p>
+              <details className="mt-1 text-xs leading-5 text-gray-600">
+                <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded text-[#168e00] marker:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00] [&::-webkit-details-marker]:hidden">
+                  <Info aria-hidden="true" size={14} />
+                  Ver ejemplo
+                </summary>
+                <p className="mt-1">
+                  Si seleccionas 30 minutos y la cita comienza a las 10:00, terminará a las 10:30.
+                </p>
+              </details>
+            </div>
 
-            <label>
-              <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-                Tiempo libre después de la cita
-              </span>
-              <div className="relative">
-                <select
-                  className={selectClass}
-                  value={buffer}
-                  onChange={(event) =>
-                    setBuffer(Number(event.target.value) as BufferDuration)
-                  }
-                >
-                  {buffers.map((value) => (
-                    <option key={value} value={value}>
-                      {value === 0 ? "Sin tiempo adicional" : `${value} minutos`}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  aria-hidden="true"
-                  size={18}
-                  className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-              </div>
-            </label>
+            <div className="min-w-0">
+              <label>
+                <span className="mb-1.5 block text-sm font-semibold text-gray-700 sm:min-h-10">
+                  Tiempo de preparación entre citas
+                </span>
+                <div className="relative">
+                  <select
+                    className={selectClass}
+                    value={buffer}
+                    onChange={(event) =>
+                      setBuffer(Number(event.target.value) as BufferDuration)
+                    }
+                  >
+                    {buffers.map((value) => (
+                      <option key={value} value={value}>
+                        {value === 0 ? "Sin tiempo adicional" : `${value} minutos`}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    aria-hidden="true"
+                    size={18}
+                    className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                </div>
+              </label>
+              <p className="mt-2 text-xs leading-5 text-gray-600">
+                Tiempo adicional que se bloqueará antes de recibir al siguiente cliente.
+              </p>
+              <details className="mt-1 text-xs leading-5 text-gray-600">
+                <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded text-[#168e00] marker:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00] [&::-webkit-details-marker]:hidden">
+                  <Info aria-hidden="true" size={14} />
+                  Ver ejemplo
+                </summary>
+                <p className="mt-1">
+                  Si el servicio dura 30 minutos y agregas 15 de preparación, la siguiente cita podrá comenzar a las 10:45.
+                </p>
+              </details>
+            </div>
 
             <label>
               <span className="mb-1.5 block text-sm font-semibold text-gray-700">

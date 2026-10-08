@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Clock3,
   ExternalLink,
+  Info,
   Loader2,
   Pencil,
   Plus,
@@ -1312,18 +1313,18 @@ export default function AdminAgendaPage() {
         <section className="space-y-6">
           <div className={panelClass}>
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">
                 Avisos para tu negocio
               </h2>
-              <p className="text-sm text-gray-500">
-                Elige cómo quieres recibir los movimientos de tus citas.
+              <p className="mt-1 text-sm leading-6 text-gray-600">
+                Elige cómo quieres enterarte de nuevas citas, cancelaciones y cambios.
               </p>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
               <Toggle
-                label="Notificaciones push"
-                description="Recibe avisos en la aplicación del proveedor cuando haya movimientos en una cita."
+                label="Recibir avisos en la aplicación"
+                description="Te avisaremos cuando tengas nuevas reservaciones o cambios en tus citas."
                 checked={settings.provider_push_notifications}
                 onChange={(value) =>
                   setSettings({
@@ -1334,8 +1335,8 @@ export default function AdminAgendaPage() {
               />
 
               <Toggle
-                label="Notificaciones por correo"
-                description="Recibe por email las confirmaciones y cambios relacionados con las citas."
+                label="Recibir avisos por correo"
+                description="Recibe también las confirmaciones y cambios en tu correo electrónico."
                 checked={settings.provider_email_notifications}
                 onChange={(value) =>
                   setSettings({
@@ -1349,7 +1350,7 @@ export default function AdminAgendaPage() {
             <div className="mt-5 max-w-2xl">
               <label>
                 <span className="mb-1.5 block text-sm font-semibold text-gray-700">
-                  Correo para notificaciones
+                  Correo para notificaciones (opcional)
                 </span>
                 <input
                   type="email"
@@ -1357,7 +1358,7 @@ export default function AdminAgendaPage() {
                   className={inputClass}
                   value={settings.notification_email ?? ""}
                   disabled={!settings.provider_email_notifications}
-                  placeholder="Si lo dejas vacío se usará el correo de tu cuenta"
+                  placeholder="Se usará el correo de tu cuenta"
                   onChange={(e) =>
                     setSettings({
                       ...settings,
@@ -1366,8 +1367,7 @@ export default function AdminAgendaPage() {
                   }
                 />
                 <small className="mt-1.5 block text-gray-500">
-                  Es opcional. Si no escribes otro correo, se utilizará el
-                  correo principal de tu cuenta.
+                  Si prefieres recibir los avisos en otro correo, escríbelo aquí.
                 </small>
               </label>
             </div>
@@ -1375,55 +1375,18 @@ export default function AdminAgendaPage() {
 
           <div className={panelClass}>
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-gray-900">
-                Avisos para tus clientes
+              <h2 className="font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">
+                Recordatorios automáticos
               </h2>
-              <p className="text-sm text-gray-500">
-                Define qué canales se utilizarán para informar al cliente.
-              </p>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <Toggle
-                label="Enviar correos al cliente"
-                description="Envía confirmaciones y cambios al correo asociado con la cita."
-                checked={settings.customer_email_notifications}
-                onChange={(value) =>
-                  setSettings({
-                    ...settings,
-                    customer_email_notifications: value,
-                  })
-                }
-              />
-
-              <Toggle
-                label="Enviar notificaciones push"
-                description="Los clientes registrados podrán recibir avisos en su aplicación."
-                checked={settings.customer_push_notifications}
-                onChange={(value) =>
-                  setSettings({
-                    ...settings,
-                    customer_push_notifications: value,
-                  })
-                }
-              />
-            </div>
-          </div>
-
-          <div className={panelClass}>
-            <div className="mb-6">
-              <h2 className="text-xl font-bold text-gray-900">
-                Recordatorios de citas
-              </h2>
-              <p className="text-sm text-gray-500">
-                Activa los avisos automáticos antes de que comience una cita.
+              <p className="mt-1 text-sm leading-6 text-gray-600">
+                Ayuda a que tus clientes no olviden sus citas.
               </p>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
               <Toggle
                 label="Recordatorio 24 horas antes"
-                description="Envía un recordatorio aproximadamente un día antes de la cita."
+                description="Envía un aviso al cliente un día antes de su cita."
                 checked={settings.reminder_24_hours}
                 onChange={(value) =>
                   setSettings({
@@ -1435,7 +1398,7 @@ export default function AdminAgendaPage() {
 
               <Toggle
                 label="Recordatorio 2 horas antes"
-                description="Envía un segundo aviso aproximadamente dos horas antes de la cita."
+                description="Envía otro aviso al cliente dos horas antes de su cita."
                 checked={settings.reminder_2_hours}
                 onChange={(value) =>
                   setSettings({
@@ -1447,6 +1410,17 @@ export default function AdminAgendaPage() {
             </div>
           </div>
 
+          <div className="flex items-start gap-3 rounded-2xl border border-[#168e00]/15 bg-[#f2f3f4] p-4 sm:p-5">
+            <Info aria-hidden="true" size={19} className="mt-0.5 shrink-0 text-[#168e00]" />
+            <div>
+              <h2 className="font-[family-name:var(--font-varela-round)] text-base text-[#004e28]">
+                Tus clientes también estarán informados
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-gray-600">
+                Drooopy les enviará avisos sobre sus reservaciones, confirmaciones, cambios y cancelaciones mediante los canales disponibles.
+              </p>
+            </div>
+          </div>
         </section>
       ) : null}
 
