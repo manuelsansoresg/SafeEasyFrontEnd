@@ -1,6 +1,6 @@
 import { MarketingLanding } from "@/components/marketing/MarketingLanding";
 import { type NewLandingKind } from "@/lib/marketingPlans";
-import { getAgendaExampleDates, getMarketingPlans } from "@/lib/marketingPageData";
+import { getAgendaExample, getMarketingPlans, type AgendaExample } from "@/lib/marketingPageData";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -25,10 +25,10 @@ export async function MarketingLandingPage({ kind, searchParams }: {
   });
   const accessCode = typeof resolved.code === "string" ? resolved.code.trim() : "";
   const today = todayInMerida();
-  const [plans, agendaDates] = await Promise.all([
+  const [plans, agendaExample] = await Promise.all([
     getMarketingPlans(accessCode),
-    kind === "agenda" ? getAgendaExampleDates(today) : Promise.resolve([]),
+    kind === "agenda" ? getAgendaExample(today) : Promise.resolve<AgendaExample | null>(null),
   ]);
 
-  return <MarketingLanding kind={kind} initialPlans={plans} campaignParams={campaignParams} today={today} agendaDates={agendaDates} />;
+  return <MarketingLanding kind={kind} initialPlans={plans} campaignParams={campaignParams} today={today} agendaExample={agendaExample} />;
 }

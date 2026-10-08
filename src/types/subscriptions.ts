@@ -13,6 +13,8 @@ export interface Plan {
   description?: string;
   price: number;
   features?: string[];
+  module_codes?: string[];
+  display_order?: number;
   duration: PlanDuration;
   is_active: boolean;
   is_listed?: boolean;

@@ -5,9 +5,10 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { MarketingCta, MarketingFaq, MarketingStickyCta, MarketingWhatsappButton } from "@/components/marketing/MarketingBlocks";
 import { MarketingFooter, MarketingHeader } from "@/components/marketing/MarketingChrome";
 import { MarketingLeadForm } from "@/components/marketing/MarketingLeadForm";
-import { MarketingHeroVisual, MarketingProductVisual } from "@/components/marketing/MarketingVisuals";
+import { MarketingAgendaShowcase, MarketingHeroVisual, MarketingProductVisual } from "@/components/marketing/MarketingVisuals";
 import { campaignWhatsAppUrl, emitCampaignEvent } from "@/lib/marketingCampaign";
 import { hasProfessionalOption, plansFromPayload, selectMarketingPlan, type NewLandingKind } from "@/lib/marketingPlans";
+import type { AgendaExample } from "@/lib/marketingPageData";
 import type { Plan } from "@/types/subscriptions";
 
 type LandingContent = {
@@ -105,7 +106,7 @@ const content: Record<NewLandingKind, LandingContent> = {
       { title: "Organiza tu agenda", text: "Define servicios y horarios disponibles." },
     ],
     pricingTitle: "Una forma más clara de reservar.",
-    pricingText: "La agenda está disponible desde el Plan Estándar.",
+    pricingText: "Consulta el plan disponible para organizar tus reservaciones.",
     leadTitle: "Hablemos de tus reservaciones.",
     closing: "Tu tiempo importa. Haz que reservar sea más sencillo.",
   },
@@ -115,12 +116,12 @@ const containerClass = "mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10";
 const headingClass = "font-[family-name:var(--font-varela-round)] tracking-[-0.025em] text-[#004e28]";
 const formatCurrency = (value: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(value);
 
-export function MarketingLanding({ kind, initialPlans, campaignParams, today, agendaDates }: {
+export function MarketingLanding({ kind, initialPlans, campaignParams, today, agendaExample }: {
   kind: NewLandingKind;
   initialPlans: Plan[];
   campaignParams: Array<[string, string]>;
   today: string;
-  agendaDates: string[];
+  agendaExample: AgendaExample | null;
 }) {
   const copy = content[kind];
   const [plans, setPlans] = useState(initialPlans);
@@ -128,9 +129,11 @@ export function MarketingLanding({ kind, initialPlans, campaignParams, today, ag
   const [heroVisible, setHeroVisible] = useState(true);
   const [priceVisible, setPriceVisible] = useState(false);
   const [formVisible, setFormVisible] = useState(false);
+  const [showcaseVisible, setShowcaseVisible] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
   const priceRef = useRef<HTMLElement>(null);
   const formRef = useRef<HTMLElement>(null);
+  const showcaseRef = useRef<HTMLElement>(null);
   const trackedView = useRef(false);
   const originalParams = useMemo(() => new URLSearchParams(campaignParams), [campaignParams]);
   const accessCode = originalParams.get("code")?.trim() ?? "";
@@ -157,12 +160,13 @@ export function MarketingLanding({ kind, initialPlans, campaignParams, today, ag
     return () => { mounted = false; };
   }, [accessCode, plans.length]);
   useEffect(() => {
-    const observed = [heroRef.current, priceRef.current, formRef.current].filter((item): item is HTMLElement => !!item);
+    const observed = [heroRef.current, priceRef.current, formRef.current, showcaseRef.current].filter((item): item is HTMLElement => !!item);
     if (!observed.length || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
       if (entry.target === heroRef.current) setHeroVisible(entry.isIntersecting);
       if (entry.target === priceRef.current) setPriceVisible(entry.isIntersecting);
       if (entry.target === formRef.current) setFormVisible(entry.isIntersecting);
+      if (entry.target === showcaseRef.current) setShowcaseVisible(entry.isIntersecting);
     }), { threshold: 0.18 });
     observed.forEach((item) => observer.observe(item));
     return () => observer.disconnect();
@@ -209,7 +213,7 @@ export function MarketingLanding({ kind, initialPlans, campaignParams, today, ag
             </div>
             <p className="mt-3 text-xs text-[#536657]">Un espacio para tu negocio dentro de Drooopy.</p>
           </div>
-          <MarketingHeroVisual kind={kind} today={today} agendaDates={agendaDates} />
+          <MarketingHeroVisual kind={kind} agendaExample={agendaExample} />
         </div>
       </section>
 
@@ -219,11 +223,13 @@ export function MarketingLanding({ kind, initialPlans, campaignParams, today, ag
 
       {kind !== "agenda" && copy.productTitle ? <section className="bg-[#f2f3f4] py-12 sm:py-16" aria-labelledby="product-title"><div className={containerClass}><div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00672f]">Ejemplo real</p><h2 id="product-title" className={`${headingClass} mt-2 text-3xl leading-tight sm:text-4xl`}>{copy.productTitle}</h2><p className="mt-3 text-sm leading-6 text-[#40554a] sm:text-base">{copy.productText}</p></div><MarketingProductVisual kind={kind} /></div></section> : null}
 
+      {kind === "agenda" ? <section ref={showcaseRef} className="bg-[#f2f3f4] py-12 sm:py-16" aria-labelledby="agenda-showcase-title"><div className={containerClass}><div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00672f]">ASÍ FUNCIONA</p><h2 id="agenda-showcase-title" className={`${headingClass} mt-2 text-3xl leading-tight sm:text-4xl`}>Así reserva un cliente en Drooopy.</h2><p className="mt-3 text-sm leading-6 text-[#40554a] sm:text-base">Elige un servicio, consulta los días disponibles y selecciona el horario que mejor le funcione.</p></div><MarketingAgendaShowcase today={today} example={agendaExample} /></div></section> : null}
+
       <section className="py-12 sm:py-16" aria-labelledby="benefits-title"><div className={containerClass}><h2 id="benefits-title" className={`${headingClass} text-3xl sm:text-4xl`}>{copy.benefitsTitle}</h2><div className="mt-7 grid gap-x-7 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">{copy.benefits.map(({ icon: Icon, title, text }) => <article key={title} className="border-t border-[#004e28]/20 pt-4"><Icon size={21} className="text-[#168e00]" aria-hidden="true" /><h3 className={`${headingClass} mt-3 text-lg`}>{title}</h3><p className="mt-1 text-sm leading-6 text-[#40554a]">{text}</p></article>)}</div></div></section>
 
       <section id="como-funciona" className="scroll-mt-20 bg-[#fbfcfa] py-12 sm:py-16" aria-labelledby="steps-title"><div className={containerClass}><h2 id="steps-title" className={`${headingClass} text-3xl sm:text-4xl`}>Así de sencillo funciona.</h2><ol className="mt-7 grid gap-5 sm:grid-cols-3">{copy.steps.map((step, index) => <li key={step.title} className="border-t-2 border-[#004e28] pt-4"><span className="text-xs font-bold text-[#116f04]">{String(index + 1).padStart(2, "0")}</span><h3 className={`${headingClass} mt-2 text-xl`}>{step.title}</h3><p className="mt-1 text-sm text-[#40554a]">{step.text}</p></li>)}</ol></div></section>
 
-      <section id="precio" ref={priceRef} className="scroll-mt-20 bg-[#004e28] py-12 text-white sm:py-16" aria-labelledby="pricing-title"><div className={`${containerClass} grid items-center gap-7 lg:grid-cols-[0.45fr_0.55fr] lg:gap-12`}><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b3ecaa]">Plan recomendado</p><h2 id="pricing-title" className="mt-3 font-[family-name:var(--font-varela-round)] text-3xl leading-tight sm:text-4xl">{copy.pricingTitle}</h2><p className="mt-3 max-w-md text-sm leading-6 text-white/85 sm:text-base">{copy.pricingText}</p></div><div className="rounded-[1.5rem] bg-white p-6 text-[#17251c] sm:p-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#00672f]">{plan?.title || (kind === "menu" ? "Plan Directorio" : "Plan Estándar")}</p><div className="mt-4 min-h-16" aria-live="polite">{plan ? <><div className="flex flex-wrap items-end gap-x-2">{kind !== "menu" ? <span className="pb-1 text-sm font-semibold text-[#40554a]">Desde</span> : null}<span className={`${headingClass} text-5xl leading-none sm:text-6xl`}>{formatCurrency(plan.price)}</span><span className="pb-1 text-sm font-semibold text-[#40554a]">MXN / {plan.duration === "monthly" ? "mes" : "año"}</span></div><p className="mt-2 text-xs text-[#40554a]">Cobro {plan.duration === "monthly" ? "mensual" : "anual"}</p></> : <p className="text-sm font-semibold text-[#40554a]">{loadingPlans ? "Consultando el precio actual…" : "El precio no está disponible en este momento. Déjanos tus datos y te orientamos."}</p>}</div>{kind !== "menu" && higherTier ? <p className="mt-4 border-t border-[#004e28]/10 pt-4 text-sm text-[#40554a]">También hay una opción Profesional para negocios que necesitan mayor capacidad.</p> : null}<MarketingCta href="#quiero-informacion" onClick={(event) => scrollTo(event, "quiero-informacion", "pricing")} className="mt-6 w-full" /></div></div></section>
+      <section id="precio" ref={priceRef} className="scroll-mt-20 bg-[#004e28] py-12 text-white sm:py-16" aria-labelledby="pricing-title"><div className={`${containerClass} grid items-center gap-7 lg:grid-cols-[0.45fr_0.55fr] lg:gap-12`}><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b3ecaa]">Plan recomendado</p><h2 id="pricing-title" className="mt-3 font-[family-name:var(--font-varela-round)] text-3xl leading-tight sm:text-4xl">{copy.pricingTitle}</h2><p className="mt-3 max-w-md text-sm leading-6 text-white/85 sm:text-base">{copy.pricingText}</p></div><div className="rounded-[1.5rem] bg-white p-6 text-[#17251c] sm:p-8"><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#00672f]">{plan?.title || (kind === "menu" ? "Plan Directorio" : kind === "products" ? "Plan Estándar" : "Plan no disponible")}</p><div className="mt-4 min-h-16" aria-live="polite">{plan ? <><div className="flex flex-wrap items-end gap-x-2">{kind !== "menu" ? <span className="pb-1 text-sm font-semibold text-[#40554a]">Desde</span> : null}<span className={`${headingClass} text-5xl leading-none sm:text-6xl`}>{formatCurrency(plan.price)}</span><span className="pb-1 text-sm font-semibold text-[#40554a]">MXN / {plan.duration === "monthly" ? "mes" : "año"}</span></div><p className="mt-2 text-xs text-[#40554a]">Cobro {plan.duration === "monthly" ? "mensual" : "anual"}</p></> : <p className="text-sm font-semibold text-[#40554a]">{loadingPlans ? "Consultando el precio actual…" : "El precio no está disponible en este momento. Déjanos tus datos y te orientamos."}</p>}</div>{kind === "products" && higherTier ? <p className="mt-4 border-t border-[#004e28]/10 pt-4 text-sm text-[#40554a]">También hay una opción Profesional para negocios que necesitan mayor capacidad.</p> : null}<MarketingCta href="#quiero-informacion" onClick={(event) => scrollTo(event, "quiero-informacion", "pricing")} className="mt-6 w-full" /></div></div></section>
 
       <section id="quiero-informacion" ref={formRef} className="scroll-mt-20 bg-[#f2f3f4] py-12 sm:py-16" aria-labelledby="lead-title"><div className={`${containerClass} grid items-center gap-7 lg:grid-cols-[0.45fr_0.55fr] lg:gap-12`}><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#00672f]">Hablemos</p><h2 id="lead-title" className={`${headingClass} mt-3 text-3xl leading-tight sm:text-4xl`}>{copy.leadTitle}</h2><p className="mt-3 text-sm leading-6 text-[#40554a] sm:text-base">Déjanos tus datos y te contactamos.</p></div><MarketingLeadForm kind={kind} onLeadCreated={() => emitCampaignEvent(kind, "lead_created", "lead_form")} /></div></section>
 
@@ -232,7 +238,7 @@ export function MarketingLanding({ kind, initialPlans, campaignParams, today, ag
       <section className="border-t border-[#004e28]/10 bg-[#fbfcfa] py-12 sm:py-16" aria-labelledby="final-title"><div className={`${containerClass} flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between`}><h2 id="final-title" className={`${headingClass} max-w-2xl text-3xl leading-tight sm:text-4xl`}>{copy.closing}</h2><div className="flex flex-col items-start gap-2 lg:shrink-0"><MarketingCta href="#quiero-informacion" onClick={(event) => scrollTo(event, "quiero-informacion", "final")} className="w-full sm:w-auto" /><a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={() => emitCampaignEvent(kind, "whatsapp_click", "final")} className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-[#004e28] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[#004e28]">Tengo una pregunta por WhatsApp</a></div></div></section>
     </main>
     <MarketingFooter />
-    <MarketingWhatsappButton href={whatsappUrl} onClick={() => emitCampaignEvent(kind, "whatsapp_click", "floating")} className={`fixed right-4 z-30 shadow-md ${!heroVisible && !priceVisible && !formVisible ? "bottom-24 md:bottom-5" : "bottom-5"}`} />
-    <MarketingStickyCta visible={!heroVisible && !priceVisible && !formVisible} href="#quiero-informacion" onClick={(event) => scrollTo(event, "quiero-informacion", "sticky_mobile")} />
+    <MarketingWhatsappButton href={whatsappUrl} onClick={() => emitCampaignEvent(kind, "whatsapp_click", "floating")} className={`fixed right-4 z-30 shadow-md ${showcaseVisible ? "hidden" : !heroVisible && !priceVisible && !formVisible ? "bottom-24 md:bottom-5" : "bottom-5"}`} />
+    <MarketingStickyCta visible={!heroVisible && !priceVisible && !formVisible && !showcaseVisible} href="#quiero-informacion" onClick={(event) => scrollTo(event, "quiero-informacion", "sticky_mobile")} />
   </div>;
 }

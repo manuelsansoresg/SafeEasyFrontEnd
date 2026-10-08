@@ -6,6 +6,11 @@ export function selectMarketingPlan(plans: Plan[], kind: NewLandingKind): Plan |
   const active = plans.filter((plan) => plan.is_active && plan.is_listed !== false);
   if (kind === "menu") return active.find((plan) => plan.is_directory === true) ?? null;
 
+  if (kind === "agenda") {
+    return active.filter((plan) => plan.module_codes?.includes("agenda"))
+      .sort((a, b) => (a.display_order ?? Infinity) - (b.display_order ?? Infinity) || a.price - b.price || a.id - b.id)[0] ?? null;
+  }
+
   // The backend exposes no stable plan code. Product capacity distinguishes
   // the entry tier from Professional without relying on translated titles.
   const productPlans = active.filter((plan) =>

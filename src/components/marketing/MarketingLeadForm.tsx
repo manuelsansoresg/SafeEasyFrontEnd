@@ -7,6 +7,7 @@ import { saveMarketingLeadConfirmation } from "@/lib/marketingLeadConfirmation";
 
 const CAMPAIGN_PARAMETERS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "fbclid"];
 const inputClass = "mt-2 min-h-12 w-full rounded-xl border border-[#004e28]/20 bg-white px-4 py-3 text-base text-[#17251c] outline-none placeholder:text-[#67796c] focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/20";
+type LeadCreatedResponse = { success: boolean; created?: boolean };
 
 export function MarketingLeadForm({ kind, onLeadCreated }: { kind: CampaignKind; onLeadCreated: () => void }) {
   const router = useRouter();
@@ -52,6 +53,7 @@ export function MarketingLeadForm({ kind, onLeadCreated }: { kind: CampaignKind;
       referrer: document.referrer || null,
     };
 
+    let created = false;
     try {
       const response = await fetch("/api/backend/public/leads", {
         method: "POST",
@@ -59,6 +61,9 @@ export function MarketingLeadForm({ kind, onLeadCreated }: { kind: CampaignKind;
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error(`Lead request failed: ${response.status}`);
+      const result = await response.json() as LeadCreatedResponse;
+      if (result.success !== true) throw new Error("Invalid lead response");
+      created = result.created === true;
     } catch {
       setError("No pudimos enviar tus datos. Intenta nuevamente.");
       inFlight.current = false;
@@ -66,7 +71,7 @@ export function MarketingLeadForm({ kind, onLeadCreated }: { kind: CampaignKind;
       return;
     }
 
-    onLeadCreated();
+    if (created) onLeadCreated();
     saveMarketingLeadConfirmation(kind, trimmedName);
     const campaign = new URLSearchParams();
     for (const key of CAMPAIGN_PARAMETERS) {
