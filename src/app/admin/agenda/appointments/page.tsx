@@ -18,6 +18,7 @@ import { Toast } from "@/components/ui/Toast";
 import AgendaPaymentStatus from "@/components/agenda/AgendaPaymentStatus";
 import AgendaRefundStatus from "@/components/agenda/AgendaRefundStatus";
 import AgendaModalShell from "@/components/agenda/AgendaModalShell";
+import { createAgendaRefundHistoryCache } from "@/lib/agendaRefundHistoryCache";
 import { useSupplierModules } from "@/hooks/useSupplierModules";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
@@ -109,6 +110,9 @@ export default function ProviderAgendaAppointmentsPage() {
   >({});
   const [refunds, setRefunds] = useState<Record<number, AgendaRefund[]>>({});
   const [refundErrors, setRefundErrors] = useState<Record<number, string>>({});
+  const [refundLoading, setRefundLoading] = useState<Record<number, boolean>>({});
+  const [openRefundIds, setOpenRefundIds] = useState<Set<number>>(new Set());
+  const openRefundIdsRef = useRef<Set<number>>(new Set());
   const [cancelBooking, setCancelBooking] = useState<AgendaProviderBooking | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -126,20 +130,41 @@ export default function ProviderAgendaAppointmentsPage() {
     useState<AgendaProviderBooking | null>(null);
   const [requestsRefreshKey, setRequestsRefreshKey] = useState(0);
 
+  const refundHistory = useMemo(() => createAgendaRefundHistoryCache<AgendaRefund>({
+    fetch: (bookingId, signal) => agendaBookingService.providerBookingRefunds(bookingId, signal),
+    onLoaded: (bookingId, items) => {
+      setRefunds((current) => ({ ...current, [bookingId]: items }));
+      setRefundErrors((current) => ({ ...current, [bookingId]: "" }));
+    },
+    onError: (bookingId, error) => setRefundErrors((current) => ({
+      ...current,
+      [bookingId]: error instanceof Error ? error.message : "No se pudieron consultar las devoluciones.",
+    })),
+    onLoading: (bookingId, loading) => setRefundLoading((current) => ({ ...current, [bookingId]: loading })),
+  }), []);
+  const loadRefunds = refundHistory.load;
+
+  const toggleRefunds = (bookingId: number) => {
+    const opening = !openRefundIdsRef.current.has(bookingId);
+    const next = new Set(openRefundIdsRef.current);
+    if (opening) next.add(bookingId);
+    else next.delete(bookingId);
+    openRefundIdsRef.current = next;
+    setOpenRefundIds(next);
+    if (opening) void loadRefunds(bookingId);
+  };
+
   const refreshAppointment = useCallback(async (
     bookingId: number,
     includePayment = false,
     signal?: AbortSignal,
+    includeRefunds = true,
   ) => {
-    const [updated, payment, refundResult] = await Promise.all([
+    const [updated, payment] = await Promise.all([
       agendaBookingService.providerAppointment(bookingId, signal),
       includePayment
         ? agendaBookingService.providerBookingPayment(bookingId, signal)
         : Promise.resolve(undefined),
-      agendaBookingService.providerBookingRefunds(bookingId, signal).then(
-        (value) => ({ value, error: "" }),
-        (error: unknown) => ({ value: null, error: error instanceof Error ? error.message : "No se pudieron consultar las devoluciones." }),
-      ),
     ]);
     if (signal?.aborted) return;
     setAppointments((current) => {
@@ -150,10 +175,10 @@ export default function ProviderAgendaAppointmentsPage() {
     if (includePayment) {
       setPayments((current) => ({ ...current, [bookingId]: payment }));
     }
-    const refreshedRefunds = refundResult.value;
-    if (refreshedRefunds) setRefunds((current) => ({ ...current, [bookingId]: refreshedRefunds }));
-    setRefundErrors((current) => ({ ...current, [bookingId]: refundResult.error }));
-  }, []);
+    if (includeRefunds && (openRefundIdsRef.current.has(bookingId) || refundHistory.hasLoaded(bookingId))) {
+      void loadRefunds(bookingId, true, signal);
+    }
+  }, [loadRefunds, refundHistory]);
 
   const load = useCallback(async (signal?: AbortSignal, silent = false) => {
     if (!hasAccess) {
@@ -191,12 +216,8 @@ export default function ProviderAgendaAppointmentsPage() {
           ? { ...current, ...Object.fromEntries(paymentEntries) }
           : Object.fromEntries(paymentEntries));
       }
-      const refundResults = await Promise.allSettled(
-        appointmentsData.filter((booking) => booking.status === "cancelled").map(async (booking) => [booking.id, await agendaBookingService.providerBookingRefunds(booking.id, signal)] as const),
-      );
-      if (!signal?.aborted) {
-        const entries = refundResults.filter((result): result is PromiseFulfilledResult<readonly [number, AgendaRefund[]]> => result.status === "fulfilled").map((result) => result.value);
-        setRefunds((current) => ({ ...current, ...Object.fromEntries(entries) }));
+      for (const bookingId of openRefundIdsRef.current) {
+        void loadRefunds(bookingId, true, signal);
       }
     } catch (error) {
       if (signal?.aborted) return;
@@ -210,7 +231,7 @@ export default function ProviderAgendaAppointmentsPage() {
     } finally {
       if (!signal?.aborted && !silent) setLoading(false);
     }
-  }, [hasAccess]);
+  }, [hasAccess, loadRefunds]);
 
   const resyncAfterReconnect = useCallback(() => {
     void load(undefined, true);
@@ -234,8 +255,10 @@ export default function ProviderAgendaAppointmentsPage() {
       if (now - (lastAgendaEvent.current.get(eventKey) ?? 0) < 500) return;
       lastAgendaEvent.current.set(eventKey, now);
       const includePayment = true;
-      void refreshAppointment(event.booking_id, includePayment, controller.signal)
+      const refundEvent = event.type.includes("refund");
+      void refreshAppointment(event.booking_id, includePayment, controller.signal, !refundEvent)
         .catch(() => { /* Una actualización posterior puede recuperar esta cita. */ });
+      if (refundEvent) void loadRefunds(event.booking_id, true, controller.signal);
       if (requestsBooking?.id === event.booking_id &&
           (event.type === "agenda.reschedule_requested" ||
            event.type === "agenda.reschedule_decided")) {
@@ -246,7 +269,7 @@ export default function ProviderAgendaAppointmentsPage() {
       controller.abort();
       unsubscribe();
     };
-  }, [accessLoading, hasAccess, refreshAppointment, requestsBooking?.id, subscribeToInboxEvents, token]);
+  }, [accessLoading, hasAccess, loadRefunds, refreshAppointment, requestsBooking?.id, subscribeToInboxEvents, token]);
 
   useEffect(() => {
     if (!toast) return;
@@ -328,8 +351,13 @@ export default function ProviderAgendaAppointmentsPage() {
       const updated = await agendaBookingService.updateProviderStatus(bookingId, { status: "cancelled", cancellation_reason: cancelReason.trim(), provider_notes: cancelBooking.provider_notes });
       replaceAppointment(updated);
       setCancelBooking(null);
+      const open = new Set(openRefundIdsRef.current);
+      open.add(bookingId);
+      openRefundIdsRef.current = open;
+      setOpenRefundIds(open);
+      void loadRefunds(bookingId, true);
       setToast({ type: "success", message: "Reservación cancelada. Consulta el estado de la devolución." });
-      void refreshAppointment(bookingId, true).catch(() => setToast({ type: "info", message: "Reservación cancelada. Usa Actualizar estado para consultar la devolución." }));
+      void refreshAppointment(bookingId, true, undefined, false).catch(() => setToast({ type: "info", message: "Reservación cancelada. Usa Actualizar estado para consultar la devolución." }));
     } catch (error) {
       setCancelError(error instanceof Error ? error.message : "No se pudo cancelar la reservación. Intenta nuevamente.");
     } finally { setWorkingId(null); }
@@ -541,34 +569,36 @@ export default function ProviderAgendaAppointmentsPage() {
                     compact
                     payment={payments[booking.id]}
                     cancelled={booking.status === "cancelled"}
+                    primaryRefundConfirmed={refunds[booking.id]?.some((refund) => refund.refund_type === "primary" && refund.status === "confirmed")}
                     markingPaid={paymentWorkingId === booking.id}
                     onMarkPaid={() => void markCashPaymentPaid(booking.id)}
                   />
                 </div>
 
-                {booking.status === "cancelled" ? (
-                  <div className="mt-4 space-y-3">
-                    {refunds[booking.id]?.length ? (
-                      <details className="rounded-2xl border border-gray-100 bg-[#f2f3f4] p-4" open>
-                        <summary className="cursor-pointer font-bold text-[#004e28]">Devoluciones de esta reservación</summary>
-                        <div className="mt-3 space-y-3">
-                          {refunds[booking.id].map((refund) => (
-                            <div key={refund.id}>
-                              <AgendaRefundStatus refund={refund} compact />
-                              {refund.status === "manual_pending" && refund.method === "cash" ? (
-                                <button type="button" className="mt-2 rounded-xl bg-[#168e00] px-4 py-2 text-sm font-bold text-white focus-visible:outline-2" onClick={() => { setRefundAction({ booking, refund, kind: "manual" }); setReference(""); setRefundActionError(null); }}>Confirmar devolución</button>
-                              ) : refund.method === "online" && (refund.status === "failed" || refund.status === "pending") ? (
-                                <button type="button" className="mt-2 rounded-xl border border-[#168e00] px-4 py-2 text-sm font-bold text-[#168e00] focus-visible:outline-2" onClick={() => { setRefundAction({ booking, refund, kind: "retry" }); setRefundActionError(null); }}>Reintentar reembolso</button>
-                              ) : null}
-                            </div>
-                          ))}
+                <div className="mt-4 rounded-2xl border border-gray-100 bg-[#f2f3f4] p-4">
+                  <button type="button" aria-expanded={openRefundIds.has(booking.id)} onClick={() => toggleRefunds(booking.id)} className="w-full text-left font-bold text-[#004e28] focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-[#168e00]">
+                    {openRefundIds.has(booking.id) ? "Ocultar devoluciones" : "Ver devoluciones"}
+                    {refunds[booking.id]?.length ? ` (${refunds[booking.id].length})` : ""}
+                  </button>
+                  {openRefundIds.has(booking.id) ? (
+                    <div className="mt-3 space-y-3">
+                      {refundLoading[booking.id] && refunds[booking.id] === undefined ? <p role="status" className="text-sm text-gray-600">Consultando devoluciones...</p> : null}
+                      {refundErrors[booking.id] ? <p role="alert" className="text-sm text-amber-800">{refundErrors[booking.id]}</p> : null}
+                      {refunds[booking.id]?.map((refund) => (
+                        <div key={refund.id}>
+                          <AgendaRefundStatus refund={refund} compact />
+                          {refund.status === "manual_pending" && refund.method === "cash" ? (
+                            <button type="button" className="mt-2 rounded-xl bg-[#168e00] px-4 py-2 text-sm font-bold text-white focus-visible:outline-2" onClick={() => { setRefundAction({ booking, refund, kind: "manual" }); setReference(""); setRefundActionError(null); }}>Confirmar devolución</button>
+                          ) : refund.method === "online" && (refund.status === "failed" || refund.status === "pending") ? (
+                            <button type="button" className="mt-2 rounded-xl border border-[#168e00] px-4 py-2 text-sm font-bold text-[#168e00] focus-visible:outline-2" onClick={() => { setRefundAction({ booking, refund, kind: "retry" }); setRefundActionError(null); }}>Reintentar reembolso</button>
+                          ) : null}
                         </div>
-                      </details>
-                    ) : null}
-                    {refundErrors[booking.id] ? <p role="alert" className="text-sm text-amber-800">{refundErrors[booking.id]}</p> : null}
-                    <button type="button" className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-[#004e28]" onClick={() => void refreshAppointment(booking.id, true).catch((error: unknown) => setRefundErrors((current) => ({ ...current, [booking.id]: error instanceof Error ? error.message : "No se pudo actualizar el estado." })))}>Actualizar estado</button>
-                  </div>
-                ) : null}
+                      ))}
+                      {refunds[booking.id]?.length === 0 ? <p className="text-sm text-gray-600">Esta reservación no tiene devoluciones registradas.</p> : null}
+                      <button type="button" disabled={refundLoading[booking.id]} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-[#004e28] disabled:opacity-50" onClick={() => void loadRefunds(booking.id, true)}>Actualizar estado</button>
+                    </div>
+                  ) : null}
+                </div>
 
                 <div className="mt-5 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
                   {booking.status === "pending" ? (

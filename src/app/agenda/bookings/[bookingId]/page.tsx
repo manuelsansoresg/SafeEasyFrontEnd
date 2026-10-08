@@ -876,7 +876,7 @@ export default function AgendaBookingManagementPage() {
           </p>
         ) : null}
         <div className="mt-4">
-          <AgendaPaymentStatus payment={payment} cancelled={booking.status === "cancelled"} />
+          <AgendaPaymentStatus payment={payment} cancelled={booking.status === "cancelled"} primaryRefundConfirmed={refunds.some((refund) => refund.refund_type === "primary" && refund.status === "confirmed")} />
         </div>
       </section>
 

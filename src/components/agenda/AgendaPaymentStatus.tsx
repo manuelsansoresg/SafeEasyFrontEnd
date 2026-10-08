@@ -12,6 +12,7 @@ type AgendaPaymentStatusProps = {
   markingPaid?: boolean;
   onMarkPaid?: () => void;
   cancelled?: boolean;
+  primaryRefundConfirmed?: boolean;
 };
 
 const statusCopy: Record<PaymentStatus, { label: string; classes: string }> = {
@@ -44,6 +45,7 @@ export default function AgendaPaymentStatus({
   markingPaid = false,
   onMarkPaid,
   cancelled = false,
+  primaryRefundConfirmed = false,
 }: AgendaPaymentStatusProps) {
   if (loading || payment === undefined) {
     return (
@@ -82,7 +84,7 @@ export default function AgendaPaymentStatus({
             )}
           </span>
           <div>
-            <p className="text-xs font-black uppercase tracking-wide text-gray-400">Pago</p>
+            <p className="text-xs font-black uppercase tracking-wide text-gray-400">Pago principal</p>
             <p className="mt-1 font-bold text-gray-900">{paymentMethodLabel(payment)}</p>
           </div>
         </div>
@@ -128,6 +130,12 @@ export default function AgendaPaymentStatus({
             dateStyle: "medium",
             timeStyle: "short",
           }).format(new Date(payment.paid_at))}
+        </p>
+      ) : null}
+
+      {payment.payment_status === "paid" && primaryRefundConfirmed ? (
+        <p className="mt-3 text-sm text-green-700">
+          El reembolso del servicio está confirmado; el estado del pago puede tardar en actualizarse.
         </p>
       ) : null}
 

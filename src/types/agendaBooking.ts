@@ -150,11 +150,14 @@ export interface AgendaStatusPayload {
 }
 
 export type AgendaRefundStatus = "pending" | "processing" | "failed" | "confirmed" | "manual_pending";
+export type AgendaRefundType = "primary" | "additional" | "unknown";
 
 export interface AgendaRefund {
   id: number;
   booking_id: number;
   payment_id: number;
+  readonly mp_payment_id: string | null;
+  readonly refund_type: AgendaRefundType;
   amount: number;
   currency: string;
   method: string;
