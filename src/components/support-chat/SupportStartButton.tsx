@@ -77,7 +77,7 @@ export function SupportStartButton({
 
       {open ? (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 px-4 py-6">
-          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl">
+          <div className="max-h-[calc(100dvh-3rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-[family-name:var(--font-varela-round)] text-sm text-secondary">Soporte Drooopy</p>

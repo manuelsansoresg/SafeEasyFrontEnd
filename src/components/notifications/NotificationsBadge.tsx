@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Search } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { notificationService, NotificationItem } from "@/services/notificationService";
+import { isNotificationRead, NOTIFICATIONS_CHANGED_EVENT, notificationService, NotificationItem } from "@/services/notificationService";
 import { createPortal } from "react-dom";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
@@ -41,7 +42,9 @@ export default function NotificationsBadge() {
         unreadQueued.current = false;
         try {
           const list = await notificationService.getNotifications({ unreadOnly: true });
-          if (sequence === sessionSequence.current) setCount(list.length);
+          if (sequence === sessionSequence.current) {
+            setCount(list.filter((notification) => !isNotificationRead(notification)).length);
+          }
         } catch (e) {
           if (!silent && sequence === sessionSequence.current) {
             setError(e instanceof Error ? e.message : "No se pudieron cargar las notificaciones.");
@@ -82,15 +85,35 @@ export default function NotificationsBadge() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!enabled) return;
+    const handleNotificationsChanged = () => void refreshUnreadCount(true);
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, handleNotificationsChanged);
+    window.addEventListener("focus", handleNotificationsChanged);
+    return () => {
+      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, handleNotificationsChanged);
+      window.removeEventListener("focus", handleNotificationsChanged);
+    };
+  }, [enabled, refreshUnreadCount]);
+
   const loadLatest = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!enabled) return;
     const sequence = sessionSequence.current;
     if (!silent) setLoading(true);
     if (!silent) setError(null);
     try {
-      const list = await notificationService.getNotifications({ limit: 10 });
+      const [recent, unread] = await Promise.all([
+        notificationService.getNotifications({ limit: 10 }),
+        notificationService.getNotifications({ unreadOnly: true }),
+      ]);
       if (sequence !== sessionSequence.current) return;
-      setItems(list);
+      const unreadItems = unread.filter((notification) => !isNotificationRead(notification));
+      const unreadIds = new Set(unreadItems.map((notification) => String(notification.id)));
+      setItems([
+        ...unreadItems,
+        ...recent.filter((notification) => !unreadIds.has(String(notification.id))),
+      ].slice(0, 10));
+      setCount(unreadItems.length);
       setError(null);
     } catch (e) {
       if (sequence !== sessionSequence.current) return;
@@ -104,15 +127,15 @@ export default function NotificationsBadge() {
     if (!enabled) return;
     const unsubscribe = subscribeToInboxEvents((event) => {
       if (event.type !== "notification.created") return;
-      void refreshUnreadCount(true);
       if (isOpen) void loadLatest({ silent: true });
+      else void refreshUnreadCount(true);
     });
     return unsubscribe;
   }, [enabled, isOpen, loadLatest, refreshUnreadCount, subscribeToInboxEvents]);
 
   const resyncAfterReconnect = useCallback(() => {
-    void refreshUnreadCount(true);
     if (isOpen) void loadLatest({ silent: true });
+    else void refreshUnreadCount(true);
   }, [isOpen, loadLatest, refreshUnreadCount]);
   useInboxReconnect(inboxStatus, enabled, resyncAfterReconnect);
 
@@ -134,7 +157,6 @@ export default function NotificationsBadge() {
           String(n.id) === String(id) ? { ...n, is_read: true, read: true } : n
         )
       );
-      void refreshUnreadCount();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo marcar la notificación como leída.");
     }
@@ -175,16 +197,15 @@ export default function NotificationsBadge() {
       </button>
 
       {isOpen && (typeof document !== "undefined" ? createPortal(
-        <div ref={panelRef} id="notifications-panel" className="fixed left-4 right-4 top-20 md:left-auto md:right-4 md:w-96 xl:top-24 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-[10050] animate-in fade-in zoom-in-95 duration-100 origin-top-left md:origin-top-right">
+        <div ref={panelRef} id="notifications-panel" className="fixed left-4 right-4 top-[calc(5rem+0.75rem)] max-h-[calc(100dvh-6.5rem)] overflow-y-auto md:left-auto md:right-4 md:w-96 xl:top-[calc(6rem+0.75rem)] xl:max-h-[calc(100dvh-7.5rem)] bg-white rounded-xl shadow-lg border border-gray-100 z-[10050] animate-in fade-in zoom-in-95 duration-100 origin-top-left md:origin-top-right">
           <div className="p-4 flex items-center justify-between border-b border-gray-50">
             <div>
               <h3 className="font-bold text-xl text-gray-900">Notificaciones</h3>
-              <p className="text-xs text-gray-500">Últimas 10 alertas</p>
+              <p className="text-xs text-gray-500">No leídas y recientes</p>
             </div>
             <button
               onClick={() => {
                 loadLatest();
-                refreshUnreadCount();
               }}
               className="inline-flex items-center px-3 py-1 text-xs rounded-full border border-[#168E00] text-[#168E00] hover:bg-[#168E00]/10"
             >
@@ -222,7 +243,7 @@ export default function NotificationsBadge() {
             ) : (
               <div className="space-y-2 px-2 py-2">
                 {filtered.map((n) => {
-                const isRead = (n.is_read ?? n.read) === true;
+                const isRead = isNotificationRead(n);
                 return (
                   <div
                     key={String(n.id)}
@@ -256,6 +277,13 @@ export default function NotificationsBadge() {
               </div>
             )}
           </div>
+          <Link
+            href="/client/notifications"
+            onClick={() => setIsOpen(false)}
+            className="block border-t border-gray-100 px-4 py-3 text-center text-sm font-semibold text-[#168e00] hover:bg-[#f2f3f4]"
+          >
+            Ver todas las notificaciones
+          </Link>
         </div>,
         document.body
       ) : null)}

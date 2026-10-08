@@ -1332,13 +1332,13 @@ export default function ClientOrdersPage() {
 
       {selectedOrder ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={closeModal}
           role="dialog"
           aria-modal="true"
         >
           <div
-            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-xl"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative px-8 pt-7 pb-5 border-b border-gray-100">
@@ -1742,13 +1742,13 @@ export default function ClientOrdersPage() {
 
       {selectedOrder && isRefundModalOpen ? (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
           onClick={closeRefundModal}
           role="dialog"
           aria-modal="true"
         >
           <div
-            className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative px-6 pt-6 pb-4 border-b border-gray-100">
@@ -1846,13 +1846,13 @@ export default function ClientOrdersPage() {
 
       {previewUrl ? (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
           onClick={() => setPreviewUrl(null)}
           role="dialog"
           aria-modal="true"
         >
           <div
-            className="w-full max-w-3xl rounded-2xl bg-white shadow-xl overflow-hidden"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative px-5 py-4 border-b border-gray-100">

@@ -1252,13 +1252,13 @@ export default function AdminOrdersPage() {
 
       {selectedOrder && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={closeManageModal}
           role="dialog"
           aria-modal="true"
         >
           <div
-            className="w-full max-w-5xl rounded-2xl bg-white shadow-xl overflow-hidden"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
             style={{ backgroundColor: "#ffffff" }}
           >
@@ -1763,13 +1763,13 @@ export default function AdminOrdersPage() {
 
           {isRejectModalOpen ? (
             <div
-              className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4"
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
               onClick={closeRejectModal}
               role="dialog"
               aria-modal="true"
             >
               <div
-                className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden border border-gray-100"
+                className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-100 bg-white shadow-xl"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -1837,13 +1837,13 @@ export default function AdminOrdersPage() {
 
           {isRefundApproveModalOpen ? (
             <div
-              className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
+              className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
               onClick={closeRefundApproveModal}
               role="dialog"
               aria-modal="true"
             >
               <div
-                className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden border border-gray-100"
+                className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-100 bg-white shadow-xl"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -1910,13 +1910,13 @@ export default function AdminOrdersPage() {
 
           {isRefundRejectModalOpen ? (
             <div
-              className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
+              className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
               onClick={closeRefundRejectModal}
               role="dialog"
               aria-modal="true"
             >
               <div
-                className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden border border-gray-100"
+                className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-100 bg-white shadow-xl"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -1983,13 +1983,13 @@ export default function AdminOrdersPage() {
 
           {isRefundFinalizeModalOpen ? (
             <div
-              className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4"
+              className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
               onClick={closeRefundFinalizeModal}
               role="dialog"
               aria-modal="true"
             >
               <div
-                className="w-full max-w-xl rounded-2xl bg-white shadow-xl overflow-hidden border border-gray-100"
+                className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-gray-100 bg-white shadow-xl"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">

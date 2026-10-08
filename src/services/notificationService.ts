@@ -11,6 +11,11 @@ export type NotificationItem = {
   order_id?: number | string | null;
 };
 
+export const NOTIFICATIONS_CHANGED_EVENT = "notifications:changed";
+
+export const isNotificationRead = (notification: NotificationItem) =>
+  (notification.is_read ?? notification.read) === true;
+
 const extractNotifications = (data: unknown): NotificationItem[] => {
   if (Array.isArray(data)) return data as NotificationItem[];
   if (!data || typeof data !== "object") return [];
@@ -64,5 +69,8 @@ export const notificationService = {
 
   async markRead(id: number | string) {
     await requestJson(`/proxy/notifications/${encodeURIComponent(String(id))}/read`, { method: "PATCH" });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT));
+    }
   },
 };

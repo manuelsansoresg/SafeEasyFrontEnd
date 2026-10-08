@@ -219,7 +219,7 @@ export function MercadoPagoCardModal({
   const closeDisabled = phase === "submitting";
 
   return (
-    <div className="fixed inset-0 z-[10050] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="card-payment-title">
+    <div className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm sm:p-4" role="dialog" aria-modal="true" aria-labelledby="card-payment-title">
       <Script
         src="https://sdk.mercadopago.com/js/v2"
         strategy="afterInteractive"
@@ -231,7 +231,7 @@ export function MercadoPagoCardModal({
       />
       <button type="button" aria-label="Cerrar pago" className="absolute inset-0 cursor-default" disabled={closeDisabled} onClick={onClose} />
 
-      <div className="relative flex max-h-[96dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl">
+      <div className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
         <div className="shrink-0 border-b border-gray-100 bg-[#004e28] px-5 py-5 text-white sm:px-7">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">

@@ -199,7 +199,7 @@ export default function ClientAppointmentsPage() {
 
   if (!auth.isAuthenticated) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-10">
+      <main className="mx-auto max-w-3xl px-4 pb-24 pt-28 sm:pb-12 sm:pt-32">
         <div className="rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-sm">
           <CalendarDays className="mx-auto text-[#168e00]" size={42} />
           <h1 className="mt-4 text-2xl font-bold text-gray-900">
@@ -221,7 +221,7 @@ export default function ClientAppointmentsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:py-10">
+    <main className="mx-auto max-w-5xl space-y-6 px-4 pb-24 pt-28 sm:pb-12 sm:pt-32">
       <section className="rounded-3xl bg-[#004e28] p-6 text-white sm:p-8">
         <p className="text-sm font-semibold text-white/70">
           Cuenta

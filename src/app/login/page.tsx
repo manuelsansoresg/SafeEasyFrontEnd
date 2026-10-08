@@ -48,7 +48,7 @@ function PendingDeletionModal({
 }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="p-6 sm:p-8 space-y-5">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-amber-50 rounded-xl">

@@ -1141,8 +1141,8 @@ export default function ChatWindow({ initialConversation, productId, supplierId,
   const isModal = mode === 'modal';
 
   return (
-    <div className={isModal ? "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4" : "h-full w-full"}>
-      <div className={isModal ? "bg-white w-full h-full sm:max-w-5xl sm:h-[80vh] sm:rounded-2xl shadow-2xl flex overflow-hidden border border-gray-100" : "flex h-full flex-col bg-white"}>
+    <div className={isModal ? "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4" : "h-full w-full"}>
+      <div className={isModal ? "bg-white w-full h-[calc(100dvh-1.5rem)] max-w-5xl max-h-[calc(100dvh-1.5rem)] sm:h-[80vh] sm:max-h-[calc(100dvh-2rem)] rounded-2xl shadow-2xl flex overflow-hidden border border-gray-100" : "flex h-full flex-col bg-white"}>
         
         {/* Left: Conversations List (Visible for Vendor or if multiple chats exist) */}
         {isModal && (isVendorMode || conversations.length > 0) && (

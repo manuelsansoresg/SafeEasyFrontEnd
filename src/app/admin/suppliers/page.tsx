@@ -732,7 +732,7 @@ export default function AdminSuppliersPage() {
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       {subscriptionSupplier ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl">
             <div className="flex items-start justify-between gap-4 border-b border-gray-100 p-5">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#168e00]">Suscripción</p>

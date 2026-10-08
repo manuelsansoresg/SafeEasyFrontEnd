@@ -812,11 +812,11 @@ export default function AdminOrderDetailPage() {
         </div>
       </div>
 
-      {cancelOpen ? <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-lg rounded-2xl bg-white p-5"><h2 className="text-lg font-bold">Cancelar pedido</h2><p className="mt-2 text-sm text-gray-600">Si el pago ya fue aprobado, el cliente recibirá el reembolso total.</p><textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Motivo obligatorio" className="mt-4 min-h-24 w-full rounded-xl border p-3" /><div className="mt-4 flex justify-end gap-2"><button disabled={actionLoading !== null} onClick={() => setCancelOpen(false)} className="rounded-xl border px-4 py-2">Volver</button><button disabled={actionLoading !== null || !cancelReason.trim()} onClick={() => void cancelOrder()} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-white disabled:opacity-50">{actionLoading === "cancel" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Cancelar pedido</button></div></div></div> : null}
-      {noShowOpen ? <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-lg rounded-2xl bg-white p-5"><h2 className="text-lg font-bold">Marcar como no recogido</h2><p className="mt-2 text-sm text-gray-600">El producto regresará al inventario y, si el pago fue realizado con Mercado Pago, se procesará el reembolso total.</p><div className="mt-4 flex justify-end gap-2"><button disabled={actionLoading !== null} onClick={() => setNoShowOpen(false)} className="rounded-xl border px-4 py-2">Volver</button><button disabled={actionLoading !== null} onClick={() => void markNoShow()} className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-white disabled:opacity-50">{actionLoading === "no-show" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Confirmar no recogido</button></div></div></div> : null}
+      {cancelOpen ? <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"><div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5"><h2 className="text-lg font-bold">Cancelar pedido</h2><p className="mt-2 text-sm text-gray-600">Si el pago ya fue aprobado, el cliente recibirá el reembolso total.</p><textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Motivo obligatorio" className="mt-4 min-h-24 w-full rounded-xl border p-3" /><div className="mt-4 flex justify-end gap-2"><button disabled={actionLoading !== null} onClick={() => setCancelOpen(false)} className="rounded-xl border px-4 py-2">Volver</button><button disabled={actionLoading !== null || !cancelReason.trim()} onClick={() => void cancelOrder()} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-white disabled:opacity-50">{actionLoading === "cancel" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Cancelar pedido</button></div></div></div> : null}
+      {noShowOpen ? <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"><div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5"><h2 className="text-lg font-bold">Marcar como no recogido</h2><p className="mt-2 text-sm text-gray-600">El producto regresará al inventario y, si el pago fue realizado con Mercado Pago, se procesará el reembolso total.</p><div className="mt-4 flex justify-end gap-2"><button disabled={actionLoading !== null} onClick={() => setNoShowOpen(false)} className="rounded-xl border px-4 py-2">Volver</button><button disabled={actionLoading !== null} onClick={() => void markNoShow()} className="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2 text-white disabled:opacity-50">{actionLoading === "no-show" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Confirmar no recogido</button></div></div></div> : null}
       {refundApproveOpen ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5">
             <div className="flex items-center justify-between">
               <div className="font-bold">Aprobar reembolso</div>
               <button onClick={() => setRefundApproveOpen(false)}><X className="h-4 w-4" /></button>
@@ -837,7 +837,7 @@ export default function AdminOrderDetailPage() {
 
       {refundRejectOpen ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5">
             <div className="flex items-center justify-between">
               <div className="font-bold">Rechazar reembolso</div>
               <button onClick={() => setRefundRejectOpen(false)}><X className="h-4 w-4" /></button>
@@ -861,7 +861,7 @@ export default function AdminOrderDetailPage() {
 
       {refundFinalizeOpen ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5">
             <div className="flex items-center justify-between">
               <div className="font-bold">Finalizar reembolso</div>
               <button onClick={() => setRefundFinalizeOpen(false)}><X className="h-4 w-4" /></button>

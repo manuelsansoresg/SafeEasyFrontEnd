@@ -740,7 +740,7 @@ export default function AgendaBookingManagementPage() {
 
   if (!booking) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-10">
+      <main className="mx-auto max-w-3xl px-4 pb-24 pt-28 sm:pb-12 sm:pt-32">
         <div className="rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-sm">
           <XCircle
             className="mx-auto text-red-500"
@@ -773,14 +773,14 @@ export default function AgendaBookingManagementPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:py-10">
+    <main className="mx-auto max-w-4xl space-y-6 px-4 pb-24 pt-28 sm:pb-12 sm:pt-32">
       <section className="rounded-3xl bg-[#004e28] p-6 text-white sm:p-8">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-white/70">
               Cita #{booking.id}
             </p>
-            <h1 className="mt-1 text-3xl font-bold">
+            <h1 className="mt-1 break-words text-3xl font-bold">
               {service?.name || "Tu cita"}
             </h1>
             <p className="mt-2 text-white/80">
@@ -792,7 +792,7 @@ export default function AgendaBookingManagementPage() {
           </div>
 
           <span
-            className={`self-start rounded-full px-3 py-1.5 text-sm font-bold ${statusClass(
+            className={`shrink-0 self-start rounded-full px-3 py-1.5 text-sm font-bold ${statusClass(
               booking.status,
             )}`}
           >

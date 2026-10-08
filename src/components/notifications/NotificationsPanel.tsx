@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { notificationService, NotificationItem } from "@/services/notificationService";
+import { isNotificationRead, notificationService, NotificationItem } from "@/services/notificationService";
 import { PageHero } from "@/components/ui/PageHero";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
@@ -103,12 +103,12 @@ export default function NotificationsPanel() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((n) => {
+    const matches = q ? items.filter((n) => {
       const t = String(n.title || "").toLowerCase();
       const m = String(n.message || "").toLowerCase();
       return t.includes(q) || m.includes(q);
-    });
+    }) : items;
+    return [...matches].sort((a, b) => Number(isNotificationRead(a)) - Number(isNotificationRead(b)));
   }, [items, query]);
 
   return (
@@ -159,7 +159,7 @@ export default function NotificationsPanel() {
           ) : (
             <div className="space-y-2 px-2 py-2">
               {filtered.map((n) => {
-                const isRead = (n.is_read ?? n.read) === true;
+                const isRead = isNotificationRead(n);
                 return (
                   <div
                     key={String(n.id)}

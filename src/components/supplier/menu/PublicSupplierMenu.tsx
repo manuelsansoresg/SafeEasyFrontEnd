@@ -1313,14 +1313,14 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
       {cartOpen ? (
         <div
-          className="fixed inset-0 z-[21000] flex justify-end bg-black/45 backdrop-blur-sm"
+          className="fixed inset-0 z-[21000] flex justify-end bg-black/45 p-3 backdrop-blur-sm sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Tu pedido"
           onClick={() => setCartOpen(false)}
         >
           <div
-            className="flex h-full w-full max-w-lg flex-col bg-white shadow-2xl"
+            className="flex h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">

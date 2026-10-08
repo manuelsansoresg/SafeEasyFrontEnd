@@ -10,8 +10,8 @@ type Props = {
 export default function ExistingOrderModal({ open, onClose, onGo }: PropsWithChildren<Props>) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-black/40 p-4">
+      <div className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 rounded-full bg-[#E8F5E9] flex items-center justify-center">
             <Package className="text-[#168E00] animate-pulse" size={22} />

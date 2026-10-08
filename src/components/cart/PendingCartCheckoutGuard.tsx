@@ -184,8 +184,8 @@ export default function PendingCartCheckoutGuard() {
   if (!checking) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/90 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/90 p-4 backdrop-blur-sm">
+      <div className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-xl">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#004e28]/10">
           <Clock3 className="h-6 w-6 text-[#004e28]" />
         </div>

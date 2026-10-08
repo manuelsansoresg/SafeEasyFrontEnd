@@ -47,7 +47,7 @@ function ModalShell({ title, subtitle, saving, error, onClose, onSubmit, childre
 }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-label={title} className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <section role="dialog" aria-modal="true" aria-label={title} className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
           <div><h2 className="font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">{title}</h2><p className="mt-1 text-sm text-gray-500">{subtitle}</p></div>
           <button type="button" onClick={onClose} disabled={saving} aria-label="Cerrar" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-50"><X size={19} /></button>
