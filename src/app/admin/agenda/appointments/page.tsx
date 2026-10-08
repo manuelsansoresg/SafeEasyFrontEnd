@@ -111,9 +111,11 @@ export default function ProviderAgendaAppointmentsPage() {
   const [refundErrors, setRefundErrors] = useState<Record<number, string>>({});
   const [cancelBooking, setCancelBooking] = useState<AgendaProviderBooking | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [refundAction, setRefundAction] = useState<{ booking: AgendaProviderBooking; refund: AgendaRefund; kind: "manual" | "retry" } | null>(null);
   const [reference, setReference] = useState("");
   const [refundWorking, setRefundWorking] = useState(false);
+  const [refundActionError, setRefundActionError] = useState<string | null>(null);
   const lastAgendaEvent = useRef<Map<string, number>>(new Map());
   const [toast, setToast] = useState<ToastState>(null);
 
@@ -279,7 +281,7 @@ export default function ProviderAgendaAppointmentsPage() {
     booking: AgendaProviderBooking,
     status: AgendaBookingStatus,
   ) => {
-    if (status === "cancelled") { setCancelBooking(booking); setCancelReason(""); return; }
+    if (status === "cancelled") { setCancelBooking(booking); setCancelReason(""); setCancelError(null); return; }
     const note = window.prompt(
       "Nota interna del proveedor (opcional):",
       booking.provider_notes || "",
@@ -321,6 +323,7 @@ export default function ProviderAgendaAppointmentsPage() {
     if (!cancelBooking || !cancelReason.trim() || workingId !== null) return;
     const bookingId = cancelBooking.id;
     setWorkingId(bookingId);
+    setCancelError(null);
     try {
       const updated = await agendaBookingService.updateProviderStatus(bookingId, { status: "cancelled", cancellation_reason: cancelReason.trim(), provider_notes: cancelBooking.provider_notes });
       replaceAppointment(updated);
@@ -328,7 +331,7 @@ export default function ProviderAgendaAppointmentsPage() {
       setToast({ type: "success", message: "Reservación cancelada. Consulta el estado de la devolución." });
       void refreshAppointment(bookingId, true).catch(() => setToast({ type: "info", message: "Reservación cancelada. Usa Actualizar estado para consultar la devolución." }));
     } catch (error) {
-      setToast({ type: "error", message: error instanceof Error ? error.message : "No se pudo cancelar la reservación." });
+      setCancelError(error instanceof Error ? error.message : "No se pudo cancelar la reservación. Intenta nuevamente.");
     } finally { setWorkingId(null); }
   };
 
@@ -336,18 +339,24 @@ export default function ProviderAgendaAppointmentsPage() {
     if (!refundAction || refundWorking) return;
     if (refundAction.kind === "manual" && (reference.trim().length < 3 || reference.trim().length > 255)) return;
     setRefundWorking(true);
+    setRefundActionError(null);
     try {
       const { booking, refund, kind } = refundAction;
       const updated = kind === "manual"
         ? await agendaBookingService.confirmManualRefund(booking.id, refund.id, reference.trim())
         : await agendaBookingService.retryRefund(booking.id, refund.id);
       setRefunds((current) => ({ ...current, [booking.id]: (current[booking.id] ?? []).map((item) => item.id === updated.id ? updated : item) }));
+      if (updated.status === "failed") {
+        setRefundActionError("No se pudo completar el reembolso. Intenta nuevamente o revisa tu cuenta de Mercado Pago.");
+        void refreshAppointment(booking.id, true).catch(() => {});
+        return;
+      }
       setRefundAction(null);
       setReference("");
-      setToast({ type: updated.status === "failed" ? "error" : "success", message: updated.status === "confirmed" ? "Devolución confirmada." : updated.status === "failed" ? "No se pudo completar el reembolso. Intenta nuevamente o revisa tu cuenta de Mercado Pago." : "La devolución sigue en proceso. Actualiza el estado para consultarla." });
+      setToast({ type: "success", message: updated.status === "confirmed" ? "Devolución confirmada." : "La devolución sigue en proceso. Actualiza el estado para consultarla." });
       void refreshAppointment(booking.id, true).catch(() => setToast({ type: "info", message: "Operación registrada. Usa Actualizar estado para consultar el pago." }));
     } catch (error) {
-      setToast({ type: "error", message: error instanceof Error ? error.message : "No se pudo completar la operación." });
+      setRefundActionError(error instanceof Error ? error.message : refundAction.kind === "manual" ? "No se pudo confirmar la devolución. Verifica la referencia e intenta nuevamente." : "Mercado Pago no pudo completar la devolución. Puedes intentarlo nuevamente más tarde.");
     } finally { setRefundWorking(false); }
   };
 
@@ -547,9 +556,9 @@ export default function ProviderAgendaAppointmentsPage() {
                             <div key={refund.id}>
                               <AgendaRefundStatus refund={refund} compact />
                               {refund.status === "manual_pending" && refund.method === "cash" ? (
-                                <button type="button" className="mt-2 rounded-xl bg-[#168e00] px-4 py-2 text-sm font-bold text-white focus-visible:outline-2" onClick={() => { setRefundAction({ booking, refund, kind: "manual" }); setReference(""); }}>Confirmar devolución</button>
+                                <button type="button" className="mt-2 rounded-xl bg-[#168e00] px-4 py-2 text-sm font-bold text-white focus-visible:outline-2" onClick={() => { setRefundAction({ booking, refund, kind: "manual" }); setReference(""); setRefundActionError(null); }}>Confirmar devolución</button>
                               ) : refund.method === "online" && (refund.status === "failed" || refund.status === "pending") ? (
-                                <button type="button" className="mt-2 rounded-xl border border-[#168e00] px-4 py-2 text-sm font-bold text-[#168e00] focus-visible:outline-2" onClick={() => setRefundAction({ booking, refund, kind: "retry" })}>Reintentar reembolso</button>
+                                <button type="button" className="mt-2 rounded-xl border border-[#168e00] px-4 py-2 text-sm font-bold text-[#168e00] focus-visible:outline-2" onClick={() => { setRefundAction({ booking, refund, kind: "retry" }); setRefundActionError(null); }}>Reintentar reembolso</button>
                               ) : null}
                             </div>
                           ))}
@@ -632,7 +641,7 @@ export default function ProviderAgendaAppointmentsPage() {
         </div>
       )}
 
-      <AgendaModalShell open={Boolean(cancelBooking)} title="Cancelar reservación" saving={workingId !== null} cancelLabel="Volver" submitDisabled={!cancelReason.trim()} submitLabel="Confirmar cancelación" onClose={() => setCancelBooking(null)} onSubmit={(event) => { event.preventDefault(); void confirmCancellation(); }}>
+      <AgendaModalShell open={Boolean(cancelBooking)} title="Cancelar reservación" saving={workingId !== null} cancelLabel="Volver" submitDisabled={!cancelReason.trim()} submitLabel="Confirmar cancelación" onClose={() => { setCancelBooking(null); setCancelError(null); }} onSubmit={(event) => { event.preventDefault(); void confirmCancellation(); }}>
         {cancelBooking ? <>
           <div className="space-y-1 rounded-2xl bg-[#f2f3f4] p-4 text-sm">
             <p><strong>Cliente:</strong> {cancelBooking.customer_name}</p>
@@ -645,10 +654,11 @@ export default function ProviderAgendaAppointmentsPage() {
           <label className="block text-sm font-semibold">Motivo de cancelación *
             <textarea required maxLength={5000} rows={4} className={`${inputClass} mt-2`} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Explica el motivo real de la cancelación" />
           </label>
+          {cancelError ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{cancelError}</p> : null}
         </> : null}
       </AgendaModalShell>
 
-      <AgendaModalShell open={Boolean(refundAction)} title={refundAction?.kind === "manual" ? "Confirmar devolución al cliente" : "Reintentar devolución"} saving={refundWorking} cancelLabel="Volver" submitDisabled={refundAction?.kind === "manual" && (reference.trim().length < 3 || reference.trim().length > 255)} submitLabel={refundAction?.kind === "manual" ? "Confirmar devolución" : "Reintentar reembolso"} onClose={() => setRefundAction(null)} onSubmit={(event) => { event.preventDefault(); void submitRefundAction(); }}>
+      <AgendaModalShell open={Boolean(refundAction)} title={refundAction?.kind === "manual" ? "Confirmar devolución al cliente" : "Reintentar devolución"} saving={refundWorking} cancelLabel="Volver" submitDisabled={refundAction?.kind === "manual" && (reference.trim().length < 3 || reference.trim().length > 255)} submitLabel={refundAction?.kind === "manual" ? "Confirmar devolución" : "Reintentar reembolso"} onClose={() => { setRefundAction(null); setRefundActionError(null); }} onSubmit={(event) => { event.preventDefault(); void submitRefundAction(); }}>
         {refundAction ? refundAction.kind === "manual" ? <>
           <div className="space-y-1 rounded-2xl bg-[#f2f3f4] p-4 text-sm">
             <p><strong>Cliente:</strong> {refundAction.booking.customer_name}</p>
@@ -661,6 +671,7 @@ export default function ProviderAgendaAppointmentsPage() {
             <input required minLength={3} maxLength={255} className={`${inputClass} mt-2`} value={reference} onChange={(event) => setReference(event.target.value)} />
           </label>
         </> : <p className="text-sm text-gray-700">Volveremos a consultar y procesar la devolución mediante Mercado Pago. No se generará una nueva reservación ni un nuevo cobro.</p> : null}
+        {refundActionError ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{refundActionError}</p> : null}
       </AgendaModalShell>
 
       <ProviderCreateModal
