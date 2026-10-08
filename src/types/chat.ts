@@ -85,7 +85,12 @@ export type AgendaInboxEventType =
   | "agenda.reschedule_requested"
   | "agenda.reschedule_decided"
   | "agenda.booking_status_changed"
-  | "agenda.payment_received";
+  | "agenda.payment_received"
+  | "agenda.refund_pending"
+  | "agenda.refund_confirmed"
+  | "agenda.refund_failed"
+  | "agenda.manual_refund_pending"
+  | "agenda.manual_refund_confirmed";
 
 export type AgendaInboxEvent = {
   type: AgendaInboxEventType;
@@ -103,6 +108,11 @@ const agendaInboxEventTypes = new Set<AgendaInboxEventType>([
   "agenda.reschedule_decided",
   "agenda.booking_status_changed",
   "agenda.payment_received",
+  "agenda.refund_pending",
+  "agenda.refund_confirmed",
+  "agenda.refund_failed",
+  "agenda.manual_refund_pending",
+  "agenda.manual_refund_confirmed",
 ]);
 
 export function isAgendaInboxEvent(event: ChatInboxEvent): event is AgendaInboxEvent {

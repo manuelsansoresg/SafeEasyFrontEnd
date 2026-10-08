@@ -16,6 +16,7 @@ type AgendaModalShellProps = {
   saving: boolean;
   submitLabel?: string;
   submitDisabled?: boolean;
+  cancelLabel?: string;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   children: ReactNode;
@@ -37,6 +38,7 @@ export default function AgendaModalShell({
   saving,
   submitLabel = "Guardar",
   submitDisabled = false,
+  cancelLabel = "Cancelar",
   onClose,
   onSubmit,
   children,
@@ -142,7 +144,7 @@ export default function AgendaModalShell({
               onClick={onClose}
               className="min-h-12 rounded-xl border border-gray-200 px-5 py-3 font-semibold text-gray-700 transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Cancelar
+              {cancelLabel}
             </button>
             <button
               type="submit"

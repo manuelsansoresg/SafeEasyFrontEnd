@@ -15,6 +15,7 @@ import type {
   AgendaReschedulePayload,
   AgendaRescheduleRequest,
   AgendaStatusPayload,
+  AgendaRefund,
 } from "@/types/agendaBooking";
 
 // `/api/*` apunta al backend FastAPI en producción, por lo que una ruta de
@@ -197,6 +198,13 @@ async function request<T>(
     );
   }
 
+  if (response.status >= 500) {
+    throw new AgendaBookingRequestError(
+      "El servicio no está disponible en este momento. Intenta de nuevo más tarde.",
+      response.status,
+    );
+  }
+
   throw new AgendaBookingRequestError(
     detail ||
       `No se pudo completar la solicitud (${response.status}).`,
@@ -302,6 +310,13 @@ export const agendaBookingService = {
     }
   },
 
+  async getBookingRefunds(bookingId: number, managementToken?: string | null, signal?: AbortSignal): Promise<AgendaRefund[]> {
+    return request<AgendaRefund[]>(
+      `${publicAgendaGateway}/bookings/${bookingId}/refunds${queryString({ management_token: managementToken })}`,
+      { signal, retryOnAuthFailure: false },
+    );
+  },
+
   async myBookings(
     status?: AgendaBookingStatus,
     signal?: AbortSignal,
@@ -387,6 +402,20 @@ export const agendaBookingService = {
       }
       throw error;
     }
+  },
+
+  async providerBookingRefunds(bookingId: number, signal?: AbortSignal): Promise<AgendaRefund[]> {
+    return request<AgendaRefund[]>(`${agendaGateway}/appointments/${bookingId}/refunds`, { signal });
+  },
+
+  async confirmManualRefund(bookingId: number, refundId: number, reference: string): Promise<AgendaRefund> {
+    return request<AgendaRefund>(`${agendaGateway}/appointments/${bookingId}/refunds/${refundId}/confirm-manual`, {
+      method: "POST", body: JSON.stringify({ reference }),
+    });
+  },
+
+  async retryRefund(bookingId: number, refundId: number): Promise<AgendaRefund> {
+    return request<AgendaRefund>(`${agendaGateway}/appointments/${bookingId}/refunds/${refundId}/retry`, { method: "POST" });
   },
 
   async markBookingPaymentPaid(

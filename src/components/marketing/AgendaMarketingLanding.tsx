@@ -6,7 +6,7 @@ import {
   CalendarDays,
   Check,
   Clock3,
-  Link2,
+  CreditCard,
   MessageCircle,
   Settings2,
 } from "lucide-react";
@@ -49,52 +49,56 @@ const agendaCtaLabel = "Quiero recibir citas";
 
 const benefits = [
   {
-    icon: Settings2,
-    title: "Define cuándo atiendes",
-    text: "Configura los servicios y horarios disponibles para reservar.",
+    icon: CalendarCheck2,
+    title: "Recibe reservaciones",
+    text: "Tus clientes eligen servicio, fecha y horario desde tu enlace.",
   },
   {
-    icon: Link2,
-    title: "Comparte un enlace",
-    text: "Tus clientes encuentran dónde consultar tus servicios y horarios.",
+    icon: CreditCard,
+    title: "Reservaciones y pagos en línea",
+    text: "Tus clientes pueden reservar y pagar sus servicios en línea cuando habilitas esta opción.",
+  },
+  {
+    icon: Settings2,
+    title: "Configura servicios y disponibilidad",
+    text: "Define tus servicios, precios y horarios de atención.",
   },
   {
     icon: CalendarDays,
-    title: "Menos coordinación por chat",
-    text: "Pueden elegir entre las opciones disponibles sin preguntarte cada horario.",
-  },
-  {
-    icon: CalendarCheck2,
-    title: "Citas en un solo lugar",
-    text: "Revisa y administra las reservaciones desde Drooopy.",
+    title: "Administra tus citas",
+    text: "Consulta y organiza tus reservaciones desde Drooopy.",
   },
 ];
 
 const faqs = [
   {
-    question: "¿Mis clientes pueden elegir servicio y horario?",
+    question: "¿Mis clientes necesitan registrarse para reservar?",
     answer:
-      "Sí. Pueden consultar los servicios y elegir entre las fechas y horarios disponibles.",
+      "Puedes permitir reservas como invitado. Si desactivas esa opción, deberán iniciar sesión.",
   },
   {
-    question: "¿Puedo modificar mis horarios?",
+    question: "¿Puedo cambiar los horarios de atención?",
     answer:
-      "Sí. La configuración de Agenda te permite ajustar la disponibilidad de tu negocio.",
+      "Sí. Puedes ajustar la disponibilidad desde la configuración de Agenda.",
   },
   {
-    question: "¿Dónde consulto mis reservaciones?",
+    question: "¿Puedo configurar diferentes servicios y precios?",
     answer:
-      "Las reservaciones se administran desde el espacio correspondiente de tu negocio en Drooopy.",
+      "Sí. Puedes definir los servicios, sus precios y horarios disponibles.",
   },
   {
-    question: "¿Qué plan necesito para utilizar Agenda?",
+    question: "¿Mis clientes pueden pagar en línea?",
     answer:
-      "Agenda está disponible según el plan y la configuración de módulos de tu negocio. Déjanos tus datos y te explicamos las opciones vigentes.",
+      "Puedes ofrecer esa opción al vincular Mercado Pago y habilitar pagos en Agenda.",
   },
   {
-    question: "¿Tengo que pagar para solicitar información?",
+    question: "¿Agenda tiene algún costo adicional?",
     answer:
-      "No. Este formulario solo sirve para contactarte y explicarte cómo funciona Agenda para tu negocio.",
+      "Está incluida en los planes que la ofrecen, sin cargo adicional por activarla. Mercado Pago puede cobrar comisiones por transacción.",
+  },
+  {
+    question: "¿Cómo consulto mis reservaciones?",
+    answer: "Desde Agenda en tu panel de Drooopy.",
   },
 ];
 
@@ -431,8 +435,8 @@ export function AgendaMarketingLanding({
                 Conoce el plan para recibir reservaciones con Drooopy.
               </h2>
               <p className="mt-4 max-w-md text-base leading-7 text-white/85">
-                El precio corresponde al plan mostrado. Te explicamos cómo se
-                habilita Agenda según la configuración de tu negocio.
+                Agenda está incluida en los planes que la ofrecen, sin costo
+                adicional por activarla.
               </p>
             </div>
             <div className="rounded-[1.65rem] bg-white p-6 text-[#17251c] shadow-[0_24px_60px_-40px_rgba(0,0,0,0.25)] sm:p-8">
@@ -450,8 +454,8 @@ export function AgendaMarketingLanding({
                         MXN / {plan.duration === "monthly" ? "mes" : "año"}
                       </span>
                     </div>
-                    <p className="mt-3 text-sm text-[#40554a]">
-                      Precio del plan {plan.title}.
+                    <p className="mt-3 text-sm font-semibold text-[#004e28]">
+                      Agenda incluida en este plan, sin costo adicional de activación.
                     </p>
                   </>
                 ) : (
@@ -463,9 +467,13 @@ export function AgendaMarketingLanding({
                 )}
               </div>
               <div className="mt-5 border-t border-[#004e28]/10 pt-4">
-                <p className="text-xs leading-5 text-[#5f7164]">
-                  El precio corresponde a la suscripción del plan. La activación
-                  de Agenda depende de los módulos disponibles para tu negocio.
+                <p className="text-sm leading-6 text-[#40554a]">
+                  Recibe reservaciones, organiza tus servicios y habilita pagos
+                  en línea cuando vincules Mercado Pago.
+                </p>
+                <p className="mt-2 text-xs leading-5 text-[#5f7164]">
+                  El importe mostrado corresponde a la suscripción. Mercado Pago
+                  puede cobrar comisiones por transacción.
                 </p>
               </div>
               <MarketingCta
@@ -503,6 +511,7 @@ export function AgendaMarketingLanding({
             </div>
             <MarketingLeadForm
               kind="agenda"
+              submitLabel="Quiero recibir información de Agenda"
               onLeadCreated={() => emitCampaignEvent("agenda", "lead_created", "lead_form")}
             />
           </div>

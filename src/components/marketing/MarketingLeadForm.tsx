@@ -9,7 +9,7 @@ const CAMPAIGN_PARAMETERS = ["utm_source", "utm_medium", "utm_campaign", "utm_co
 const inputClass = "mt-2 min-h-12 w-full rounded-xl border border-[#004e28]/20 bg-white px-4 py-3 text-base text-[#17251c] outline-none placeholder:text-[#67796c] focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/20";
 type LeadCreatedResponse = { success: boolean; created?: boolean };
 
-export function MarketingLeadForm({ kind, onLeadCreated }: { kind: CampaignKind; onLeadCreated: () => void }) {
+export function MarketingLeadForm({ kind, onLeadCreated, submitLabel = "Quiero información" }: { kind: CampaignKind; onLeadCreated: () => void; submitLabel?: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -95,7 +95,7 @@ export function MarketingLeadForm({ kind, onLeadCreated }: { kind: CampaignKind;
           <input className={inputClass} type="text" name="business_name" autoComplete="organization" maxLength={150} value={businessName} onChange={(event) => setBusinessName(event.target.value)} />
         </label>
       </div>
-      <button type="submit" disabled={sending} className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#158900] px-6 py-3 text-sm font-bold text-white hover:bg-[#116f04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004e28] disabled:cursor-wait disabled:opacity-65 sm:text-base">{sending ? "Enviando..." : "Quiero información"}</button>
+      <button type="submit" disabled={sending} className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#158900] px-6 py-3 text-sm font-bold text-white hover:bg-[#116f04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004e28] disabled:cursor-wait disabled:opacity-65 sm:text-base">{sending ? "Enviando..." : submitLabel}</button>
       {error ? <p role="alert" aria-live="assertive" className="mt-3 text-sm font-medium text-[#a52717]">{error}</p> : null}
       <p className="mt-3 text-center text-xs text-[#5f7164]">Usaremos tus datos para contactarte sobre Drooopy.</p>
     </form>

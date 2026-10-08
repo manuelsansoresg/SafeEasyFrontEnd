@@ -9,7 +9,8 @@ export type AgendaPaymentStatus =
   | "pending"
   | "paid"
   | "failed"
-  | "expired";
+  | "expired"
+  | "refunded";
 
 export interface AgendaPaymentSettings {
   supplier_id: number;

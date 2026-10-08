@@ -75,6 +75,9 @@ export interface AgendaBooking {
   notes: string | null;
   cancelled_at: string | null;
   cancellation_reason: string | null;
+  cancellation_allowed_snapshot?: boolean | null;
+  cancellation_notice_hours_snapshot?: number | null;
+  cancellation_deadline_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -143,6 +146,27 @@ export interface AgendaRescheduleDecisionPayload {
 export interface AgendaStatusPayload {
   status: AgendaBookingStatus;
   provider_notes?: string | null;
+  cancellation_reason?: string | null;
+}
+
+export type AgendaRefundStatus = "pending" | "processing" | "failed" | "confirmed" | "manual_pending";
+
+export interface AgendaRefund {
+  id: number;
+  booking_id: number;
+  payment_id: number;
+  amount: number;
+  currency: string;
+  method: string;
+  status: AgendaRefundStatus;
+  reason: string | null;
+  initiated_by: string;
+  requested_at: string;
+  confirmed_at: string | null;
+  last_checked_at: string | null;
+  last_error: string | null;
+  manual_reference: string | null;
+  confirmed_by_user_id: number | null;
 }
 
 export interface AgendaBookingWithService {

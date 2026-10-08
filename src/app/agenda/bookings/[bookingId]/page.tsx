@@ -12,11 +12,12 @@ import {
   ShieldAlert,
   XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AgendaPaymentStatus from "@/components/agenda/AgendaPaymentStatus";
+import AgendaRefundStatus from "@/components/agenda/AgendaRefundStatus";
+import AgendaModalShell from "@/components/agenda/AgendaModalShell";
 import {
   canStillCancel,
-  humanizeHours,
   humanizeMinutes,
 } from "@/lib/agendaTime";
 import {
@@ -35,6 +36,7 @@ import type {
   AgendaAvailabilitySlot,
   AgendaBooking,
   AgendaBookingPayment,
+  AgendaRefund,
 } from "@/types/agendaBooking";
 
 const inputClass =
@@ -136,6 +138,7 @@ export default function AgendaBookingManagementPage() {
   const [managementToken, setManagementToken] =
     useState(tokenFromUrl);
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
+  const lastAgendaEvent = useRef<Map<string, number>>(new Map());
   const registeredClient = hydrated && auth.isAuthenticated && !managementToken;
   const { status: inboxStatus } = useChatInboxWebSocket(registeredClient);
 
@@ -150,6 +153,9 @@ export default function AgendaBookingManagementPage() {
   const [payment, setPayment] =
     useState<AgendaBookingPayment | null | undefined>(undefined);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [refunds, setRefunds] = useState<AgendaRefund[]>([]);
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -180,16 +186,23 @@ export default function AgendaBookingManagementPage() {
     [booking],
   );
 
-  const cancellationAllowed =
-    !rules || rules.allow_customer_cancellation;
+  const cancellationAllowed = booking?.cancellation_allowed_snapshot ?? rules?.allow_customer_cancellation ?? true;
+  const noticeHours = booking?.cancellation_notice_hours_snapshot ?? rules?.cancellation_notice_hours;
+  const deadline = booking?.cancellation_deadline_at ?? (booking && noticeHours !== undefined
+    ? new Date(new Date(booking.start_at).getTime() - noticeHours * 3600000).toISOString()
+    : null);
+  const cancellationPolicy = !cancellationAllowed
+    ? "Este negocio no permite cancelar reservaciones desde la plataforma."
+    : deadline
+      ? `Puedes cancelar hasta el ${formatDateTime(deadline, timezone)}.`
+      : "La cancelación está sujeta a las condiciones aceptadas al reservar.";
 
   const cancellationWithinTime =
     !booking ||
-    !rules ||
-    canStillCancel(
+    (deadline ? Date.now() <= new Date(deadline).getTime() : !rules || canStillCancel(
       booking.start_at,
-      rules.cancellation_notice_hours,
-    );
+      booking.cancellation_notice_hours_snapshot ?? rules.cancellation_notice_hours,
+    ));
 
   const canCancel =
     isActive &&
@@ -322,6 +335,12 @@ export default function AgendaBookingManagementPage() {
               : "No se pudo consultar el estado del pago.",
           );
         }
+        try {
+          setRefunds(await agendaBookingService.getBookingRefunds(bookingId, managementToken || null, controller.signal));
+          setRefundError(null);
+        } catch (refundRequestError) {
+          setRefundError(refundRequestError instanceof Error ? refundRequestError.message : "No se pudieron consultar las devoluciones.");
+        }
       } catch (err) {
         setError(
           err instanceof Error
@@ -345,19 +364,40 @@ export default function AgendaBookingManagementPage() {
 
   const refreshRegisteredBooking = useCallback(async (signal?: AbortSignal) => {
     try {
-      const [mine, paymentData] = await Promise.all([
+      const [mine, paymentResult, refundResult] = await Promise.all([
         agendaBookingService.myBookings(undefined, signal),
-        agendaBookingService.getBookingPayment(bookingId, null, signal),
+        agendaBookingService.getBookingPayment(bookingId, null, signal).then(
+          (value) => ({ value, error: "" }),
+          (error: unknown) => ({ value: null, error: error instanceof Error ? error.message : "No se pudo consultar el pago." }),
+        ),
+        agendaBookingService.getBookingRefunds(bookingId, null, signal).then(
+          (value) => ({ value, error: "" }),
+          (error: unknown) => ({ value: null, error: error instanceof Error ? error.message : "No se pudieron consultar las devoluciones." }),
+        ),
       ]);
       if (signal?.aborted) return;
       const updated = mine.find((item) => item.id === bookingId);
       if (updated) setBooking(updated);
-      setPayment(paymentData);
-      setPaymentError(null);
+      if (!paymentResult.error) setPayment(paymentResult.value);
+      setPaymentError(paymentResult.error || null);
+      if (refundResult.value) setRefunds(refundResult.value);
+      setRefundError(refundResult.error || null);
     } catch {
       // Una actualización automática fallida no interrumpe la gestión de la cita.
     }
   }, [bookingId]);
+
+  const refreshFinancials = useCallback(async () => {
+    if (!booking) return;
+    const results = await Promise.allSettled([
+      agendaBookingService.getBookingPayment(booking.id, managementToken || null),
+      agendaBookingService.getBookingRefunds(booking.id, managementToken || null),
+    ]);
+    if (results[0].status === "fulfilled") { setPayment(results[0].value); setPaymentError(null); }
+    else setPaymentError(results[0].reason instanceof Error ? results[0].reason.message : "No se pudo consultar el pago.");
+    if (results[1].status === "fulfilled") { setRefunds(results[1].value); setRefundError(null); }
+    else setRefundError(results[1].reason instanceof Error ? results[1].reason.message : "No se pudieron consultar las devoluciones.");
+  }, [booking, managementToken]);
 
   const resyncAfterReconnect = useCallback(() => {
     void refreshRegisteredBooking();
@@ -369,6 +409,9 @@ export default function AgendaBookingManagementPage() {
     const controller = new AbortController();
     const unsubscribe = subscribeToInboxEvents((event) => {
       if (!isAgendaInboxEvent(event) || event.booking_id !== bookingId) return;
+      const now = Date.now();
+      if (now - (lastAgendaEvent.current.get(event.type) ?? 0) < 500) return;
+      lastAgendaEvent.current.set(event.type, now);
       void refreshRegisteredBooking(controller.signal);
     });
     return () => {
@@ -469,27 +512,15 @@ export default function AgendaBookingManagementPage() {
   const cancel = async () => {
     if (!booking) return;
 
-    if (!cancellationAllowed && rules) {
+    if (!cancellationAllowed) {
       setError(
         "Este negocio no permite que el cliente cancele la cita.",
       );
       return;
     }
 
-    if (!cancellationWithinTime && rules) {
-      setError(
-        `La cancelación sólo está permitida hasta ${humanizeHours(
-          rules.cancellation_notice_hours,
-        )} antes de la cita. Ese plazo ya terminó.`,
-      );
-      return;
-    }
-
-    if (
-      !window.confirm(
-        "¿Seguro que deseas cancelar esta cita?",
-      )
-    ) {
+    if (!cancellationWithinTime) {
+      setError("El plazo para cancelar esta reservación ya terminó.");
       return;
     }
 
@@ -510,7 +541,9 @@ export default function AgendaBookingManagementPage() {
         );
 
       setBooking(updated);
-      setSuccess("La cita fue cancelada.");
+      setCancelOpen(false);
+      await refreshFinancials();
+      setSuccess("La reservación fue cancelada. Consulta el estado de la devolución abajo.");
     } catch (err) {
       setError(
         err instanceof Error
@@ -666,18 +699,18 @@ export default function AgendaBookingManagementPage() {
       ) : null}
 
       {error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {error}
         </div>
       ) : null}
 
       {success ? (
-        <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+        <div role="status" className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
           {success}
         </div>
       ) : null}
 
-      {rules && isActive ? (
+      {booking && isActive ? (
         <section className="rounded-3xl border border-[#168e00]/15 bg-[#168e00]/5 p-5">
           <div className="flex items-start gap-3">
             <Info
@@ -689,24 +722,9 @@ export default function AgendaBookingManagementPage() {
                 Reglas para administrar esta cita
               </p>
 
-              {rules.allow_customer_cancellation ? (
-                <p>
-                  Puedes cancelar hasta{" "}
-                  <strong>
-                    {humanizeHours(
-                      rules.cancellation_notice_hours,
-                    )}
-                  </strong>{" "}
-                  antes de la cita.
-                </p>
-              ) : (
-                <p>
-                  Este negocio no permite cancelaciones realizadas por
-                  el cliente.
-                </p>
-              )}
+              <p>{cancellationWithinTime ? cancellationPolicy : "El plazo para cancelar esta reservación ya terminó."}</p>
 
-              {rules.allow_reschedule_requests ? (
+              {rules?.allow_reschedule_requests ? (
                 <p>
                   Los nuevos horarios disponibles respetan una
                   anticipación mínima de{" "}
@@ -783,9 +801,21 @@ export default function AgendaBookingManagementPage() {
           </p>
         ) : null}
         <div className="mt-4">
-          <AgendaPaymentStatus payment={payment} />
+          <AgendaPaymentStatus payment={payment} cancelled={booking.status === "cancelled"} />
         </div>
       </section>
+
+      {(refunds.length > 0 || refundError || booking.status === "cancelled") ? (
+        <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-bold text-[#004e28]">Devoluciones de esta reservación</h2>
+            <button type="button" onClick={() => void refreshFinancials()} className="rounded-xl border border-[#168e00] px-3 py-2 text-sm font-semibold text-[#168e00] focus-visible:outline-2">Actualizar estado</button>
+          </div>
+          {refundError ? <p role="alert" className="mt-3 text-sm text-amber-800">{refundError}</p> : null}
+          {refunds.length ? <div className="mt-4 grid gap-3">{refunds.map((refund) => <AgendaRefundStatus key={refund.id} refund={refund} />)}</div>
+            : !refundError ? <p className="mt-3 text-sm text-gray-600">No hay devoluciones registradas.</p> : null}
+        </section>
+      ) : null}
 
       {isActive ? (
         <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
@@ -848,57 +878,34 @@ export default function AgendaBookingManagementPage() {
                 </h3>
               </div>
 
-              {rules && !rules.allow_customer_cancellation ? (
+              {!cancellationAllowed ? (
                 <div className="mt-3 flex items-start gap-2 text-sm text-red-700">
                   <ShieldAlert
                     className="mt-0.5 shrink-0"
                     size={17}
                   />
-                  Este negocio no permite que el cliente cancele la cita.
+                  Este negocio no permite cancelar reservaciones desde la plataforma.
                 </div>
-              ) : rules && !cancellationWithinTime ? (
+              ) : !cancellationWithinTime ? (
                 <div className="mt-3 flex items-start gap-2 text-sm text-red-700">
                   <ShieldAlert
                     className="mt-0.5 shrink-0"
                     size={17}
                   />
                   <span>
-                    Sólo se puede cancelar hasta{" "}
-                    <strong>
-                      {humanizeHours(
-                        rules.cancellation_notice_hours,
-                      )}
-                    </strong>{" "}
-                    antes de la cita. Ese plazo ya terminó.
+                    El plazo para cancelar esta reservación ya terminó.
                   </span>
                 </div>
               ) : (
                 <p className="mt-2 text-sm text-gray-500">
-                  {rules
-                    ? `Puedes cancelar mientras falten al menos ${humanizeHours(
-                        rules.cancellation_notice_hours,
-                      )} para la cita.`
-                    : "La cancelación se realizará si todavía estás dentro del tiempo permitido por el negocio."}
+                  {cancellationPolicy}
                 </p>
               )}
-
-              <input
-                className={`${inputClass} mt-4`}
-                maxLength={5000}
-                value={cancelReason}
-                disabled={!canCancel}
-                onChange={(event) =>
-                  setCancelReason(
-                    event.target.value,
-                  )
-                }
-                placeholder="Motivo opcional"
-              />
 
               <button
                 type="button"
                 disabled={working || !canCancel}
-                onClick={() => void cancel()}
+                onClick={() => setCancelOpen(true)}
                 className="mt-3 rounded-xl bg-red-600 px-4 py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Cancelar cita
@@ -1061,6 +1068,26 @@ export default function AgendaBookingManagementPage() {
           </div>
         </section>
       ) : null}
+
+      <AgendaModalShell open={cancelOpen} title="¿Cancelar tu reservación?" saving={working} cancelLabel="Volver" submitLabel="Confirmar cancelación" onClose={() => setCancelOpen(false)} onSubmit={(event) => { event.preventDefault(); void cancel(); }}>
+        <div className="space-y-2 rounded-2xl bg-[#f2f3f4] p-4 text-sm text-gray-700">
+          <p><strong>Servicio:</strong> {service?.name ?? `Servicio #${booking.service_id}`}</p>
+          <p><strong>Cita:</strong> {formatDateTime(booking.start_at, timezone)}</p>
+          <p><strong>Pago:</strong> {payment?.payment_method === "online" ? "Mercado Pago" : payment?.payment_method === "cash" ? "Pago directo" : "Sin cobro"}</p>
+          {payment?.payment_status === "paid" ? <p><strong>Importe pagado:</strong> {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(payment.amount)}</p> : null}
+          <p>{cancellationPolicy}</p>
+        </div>
+        <p className="text-sm text-gray-700">{payment?.payment_method === "online" && payment.payment_status === "paid"
+          ? "Si cancelas dentro del plazo permitido, se gestionará la devolución completa del importe pagado."
+          : payment?.payment_method === "cash" && payment.payment_status === "paid"
+            ? "La devolución del pago deberá ser confirmada por el negocio."
+            : payment?.payment_method !== "none" && payment?.payment_status === "pending"
+              ? "La reservación se cancelará sin generar un reembolso."
+              : "La reservación será cancelada."}</p>
+        <label className="block text-sm font-semibold text-gray-700">Motivo de cancelación (opcional)
+          <textarea className={`${inputClass} mt-2`} maxLength={5000} rows={3} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} />
+        </label>
+      </AgendaModalShell>
 
       <div className="flex flex-wrap gap-3">
         {auth.isAuthenticated ? (

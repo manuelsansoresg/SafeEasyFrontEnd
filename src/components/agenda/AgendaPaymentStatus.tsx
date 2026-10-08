@@ -11,6 +11,7 @@ type AgendaPaymentStatusProps = {
   compact?: boolean;
   markingPaid?: boolean;
   onMarkPaid?: () => void;
+  cancelled?: boolean;
 };
 
 const statusCopy: Record<PaymentStatus, { label: string; classes: string }> = {
@@ -19,6 +20,7 @@ const statusCopy: Record<PaymentStatus, { label: string; classes: string }> = {
   paid: { label: "Pagado", classes: "bg-green-50 text-green-700" },
   failed: { label: "Pago no completado", classes: "bg-red-50 text-red-700" },
   expired: { label: "Pago expirado", classes: "bg-gray-200 text-gray-700" },
+  refunded: { label: "Reembolsado", classes: "bg-green-50 text-green-700" },
 };
 
 function formatMoney(value: number) {
@@ -41,6 +43,7 @@ export default function AgendaPaymentStatus({
   compact = false,
   markingPaid = false,
   onMarkPaid,
+  cancelled = false,
 }: AgendaPaymentStatusProps) {
   if (loading || payment === undefined) {
     return (
@@ -103,7 +106,7 @@ export default function AgendaPaymentStatus({
         <p className="mt-3 text-sm font-bold text-[#004e28]">{formatMoney(payment.amount)} MXN</p>
       ) : null}
 
-      {pendingOnline && !compact ? (
+      {pendingOnline && !compact && !cancelled ? (
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
           <p className="font-bold">Tu horario está reservado temporalmente mientras completas el pago.</p>
           {payment.payment_expires_at ? (
@@ -129,7 +132,7 @@ export default function AgendaPaymentStatus({
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {pendingOnline && safeCheckout && !compact ? (
+        {pendingOnline && safeCheckout && !compact && !cancelled ? (
           <button
             type="button"
             onClick={() => window.location.assign(safeCheckout)}
@@ -142,6 +145,7 @@ export default function AgendaPaymentStatus({
 
         {payment.payment_method === "cash" &&
         payment.payment_status === "pending" &&
+        !cancelled &&
         onMarkPaid ? (
           <button
             type="button"
