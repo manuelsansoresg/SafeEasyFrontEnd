@@ -17,6 +17,7 @@ export default function NotificationsBadge() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const token = useAuthStore((state) => state.token);
@@ -70,7 +71,10 @@ export default function NotificationsBadge() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        !dropdownRef.current?.contains(event.target as Node) &&
+        !panelRef.current?.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -112,7 +116,7 @@ export default function NotificationsBadge() {
   }, [isOpen, loadLatest, refreshUnreadCount]);
   useInboxReconnect(inboxStatus, enabled, resyncAfterReconnect);
 
-  const toggleOpen = async () => {
+  const toggleOpen = () => {
     setIsOpen((prev) => !prev);
   };
 
@@ -155,7 +159,10 @@ export default function NotificationsBadge() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        type="button"
         aria-label="Notificaciones"
+        aria-expanded={isOpen}
+        aria-controls="notifications-panel"
         onClick={toggleOpen}
         className="relative flex items-center justify-center h-10 px-2 text-white hover:text-[#7ed957] transition-all"
       >
@@ -168,7 +175,7 @@ export default function NotificationsBadge() {
       </button>
 
       {isOpen && (typeof document !== "undefined" ? createPortal(
-        <div className="fixed left-4 right-4 top-20 md:left-auto md:right-4 md:top-auto md:w-96 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-[10050] animate-in fade-in zoom-in-95 duration-100 origin-top-left md:origin-top-right">
+        <div ref={panelRef} id="notifications-panel" className="fixed left-4 right-4 top-20 md:left-auto md:right-4 md:w-96 xl:top-24 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-[10050] animate-in fade-in zoom-in-95 duration-100 origin-top-left md:origin-top-right">
           <div className="p-4 flex items-center justify-between border-b border-gray-50">
             <div>
               <h3 className="font-bold text-xl text-gray-900">Notificaciones</h3>
