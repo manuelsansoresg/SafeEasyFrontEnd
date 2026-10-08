@@ -107,6 +107,7 @@ function settingsPayload(settings: AgendaSettings): AgendaSettingsPayload {
     minimum_notice_minutes: settings.minimum_notice_minutes,
     maximum_booking_days: settings.maximum_booking_days,
     cancellation_notice_hours: settings.cancellation_notice_hours,
+    max_simultaneous_bookings: settings.max_simultaneous_bookings,
     automatic_confirmation: settings.automatic_confirmation,
     is_active: settings.is_active,
     allow_guest_bookings: settings.allow_guest_bookings,
@@ -272,6 +273,20 @@ export default function AdminAgendaPage() {
 
   const saveSettings = async (successMessage = "Configuración guardada.") => {
     if (!settings) return false;
+
+    const capacity = settings.max_simultaneous_bookings;
+
+    if (
+      !Number.isSafeInteger(capacity) ||
+      capacity < 1 ||
+      capacity > 1000
+    ) {
+      setToast({
+        type: "error",
+        message: "La capacidad debe ser un número entero entre 1 y 1000.",
+      });
+      return false;
+    }
 
     setSaving(true);
     try {
@@ -816,6 +831,54 @@ export default function AdminAgendaPage() {
                   })
                 }
               />
+            </div>
+
+            {/* DROOOPY_AGENDA_CAPACITY_FIELD */}
+            <div className="mt-6 rounded-2xl border border-[#168e00]/15 bg-[#f2f3f4] p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#168e00]/10 text-[#168e00]">
+                  <CalendarClock aria-hidden="true" size={22} />
+                </span>
+
+                <div>
+                  <h3 className="font-[family-name:var(--font-varela-round)] text-lg text-[#004e28]">
+                    Capacidad de atención simultánea
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-gray-600">
+                    Indica cuántas citas puede atender tu negocio al mismo tiempo.
+                    Esta capacidad se comparte entre todos tus servicios.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 max-w-sm">
+                <NumberField
+                  label="Número máximo de citas simultáneas"
+                  value={settings.max_simultaneous_bookings ?? 1}
+                  min={1}
+                  max={1000}
+                  description="Escribe la cantidad de citas que tu negocio puede atender al mismo tiempo."
+                  onChange={(value) =>
+                    setSettings({
+                      ...settings,
+                      max_simultaneous_bookings: value,
+                    })
+                  }
+                />
+              </div>
+
+              <div className="mt-4 flex items-start gap-2 rounded-xl bg-white p-3 text-sm leading-6 text-gray-600">
+                <Info
+                  aria-hidden="true"
+                  size={18}
+                  className="mt-0.5 shrink-0 text-[#168e00]"
+                />
+                <p>
+                  {settings.max_simultaneous_bookings === 1
+                    ? "Con capacidad 1, solo se permite una cita a la vez entre todos los servicios."
+                    : `Tu negocio podrá atender hasta ${settings.max_simultaneous_bookings} citas simultáneas. Cuando se alcance el límite, los horarios ocupados dejarán de estar disponibles para nuevas reservaciones.`}
+                </p>
+              </div>
             </div>
 
             <div className="mt-6 grid gap-3 md:grid-cols-2">

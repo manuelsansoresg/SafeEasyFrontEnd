@@ -1,9 +1,11 @@
+
 export type AgendaDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export type SlotInterval = 15 | 20 | 30 | 60;
 export type ServiceDuration = 15 | 20 | 30 | 45 | 60 | 90 | 120;
 export type BufferDuration = 0 | 5 | 10 | 15 | 20 | 30 | 45 | 60;
 export type AgendaExceptionType = "closed" | "special_hours" | "blocked";
 export type AgendaPaymentMethod = "none" | "cash" | "online";
+
 export type AgendaPaymentStatus =
   | "not_required"
   | "pending"
@@ -30,24 +32,35 @@ export interface AgendaPaymentSettingsPayload {
 export interface AgendaSettings {
   id: number;
   supplier_id: number;
+
   timezone: string;
   slot_interval_minutes: SlotInterval;
   minimum_notice_minutes: number;
   maximum_booking_days: number;
   cancellation_notice_hours: number;
+
+  // Capacidad compartida entre todos los servicios del proveedor.
+  // Valor predeterminado en backend: 1.
+  max_simultaneous_bookings: number;
+
   automatic_confirmation: boolean;
   is_active: boolean;
+
   allow_guest_bookings: boolean;
   require_guest_email: boolean;
   allow_customer_cancellation: boolean;
   allow_reschedule_requests: boolean;
+
   provider_push_notifications: boolean;
   provider_email_notifications: boolean;
   customer_email_notifications: boolean;
   customer_push_notifications: boolean;
+
   reminder_24_hours: boolean;
   reminder_2_hours: boolean;
+
   notification_email: string | null;
+
   created_at: string;
   updated_at: string;
 }
