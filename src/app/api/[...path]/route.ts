@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const PROXY_VERSION = "2026-09-28-mercadopago-return-path-1";
+const PROXY_VERSION = "2026-10-08-public-leads-path-1";
 const IDEMPOTENCY_TTL_MS = 30_000;
 
 const idempotentMutationResponses = new Map<
@@ -388,6 +388,12 @@ function normalizeBackendPath(pathname: string) {
     segments[0] === "agenda" ||
     (segments[0] === "public" && segments[1] === "agenda");
 
+  // El alta pública de prospectos está registrada sin slash final.
+  const isPublicLeadsEndpoint =
+    segments.length === 2 &&
+    segments[0] === "public" &&
+    segments[1] === "leads";
+
   if (
     resourceEndpoints.has(lastSegment) ||
     hasResourceId ||
@@ -395,7 +401,8 @@ function normalizeBackendPath(pathname: string) {
     isChatEndpoint ||
     isSupplierCategorySubcategories ||
     isMenuOrderEndpoint ||
-    isAgendaEndpoint
+    isAgendaEndpoint ||
+    isPublicLeadsEndpoint
   ) {
     return relativePath.replace(/\/+$/, "");
   }

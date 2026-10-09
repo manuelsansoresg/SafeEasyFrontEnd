@@ -55,7 +55,7 @@ export function MarketingLeadForm({ kind, onLeadCreated, submitLabel = "Quiero i
 
     let created = false;
     try {
-      const response = await fetch("/api/backend/public/leads", {
+      const response = await fetch("/api/backend/public/leads/", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(payload),

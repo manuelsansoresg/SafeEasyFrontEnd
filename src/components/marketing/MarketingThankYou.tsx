@@ -22,7 +22,7 @@ export function MarketingThankYou({ kind }: { kind: CampaignKind }) {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#f2f3f4] px-4 py-8 sm:px-6 sm:py-12">
       <section className="w-full max-w-[650px] rounded-[1.75rem] border border-[#004e28]/10 bg-white px-6 py-8 text-center shadow-[0_24px_70px_-44px_rgba(0,78,40,0.38)] sm:px-12 sm:py-11">
-        <Image src="/LOGO DROOOPY NEGRO.svg" alt="Drooopy" width={148} height={44} priority className="mx-auto h-auto w-32 sm:w-36" />
+        <Image src="/logo-drooopy.svg" alt="Drooopy" width={148} height={44} priority className="mx-auto h-auto w-32 sm:w-36" />
         <div className="mx-auto mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-[#e8f5e5] text-[#168e00] sm:mt-8" aria-hidden="true">
           <Check size={30} strokeWidth={3} />
         </div>
