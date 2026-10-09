@@ -102,6 +102,7 @@ export default function ProviderAgendaAppointmentsPage() {
   const [services, setServices] = useState<AgendaService[]>([]);
   const [filter, setFilter] =
     useState<"all" | AgendaBookingStatus>("all");
+  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [workingId, setWorkingId] = useState<number | null>(null);
   const [paymentWorkingId, setPaymentWorkingId] = useState<number | null>(null);
@@ -122,6 +123,23 @@ export default function ProviderAgendaAppointmentsPage() {
   const [refundActionError, setRefundActionError] = useState<string | null>(null);
   const lastAgendaEvent = useRef<Map<string, number>>(new Map());
   const [toast, setToast] = useState<ToastState>(null);
+
+  useEffect(() => {
+    const id = Number(new URLSearchParams(window.location.search).get("booking_id"));
+    if (Number.isSafeInteger(id) && id > 0) {
+      setSelectedBookingId(id);
+      setFilter("all");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (loading || accessLoading || !hasAccess || selectedBookingId === null) return;
+    if (!appointments.some((booking) => booking.id === selectedBookingId)) {
+      setToast({ type: "info", message: "Esta cita ya no está disponible o no tienes acceso a ella." });
+      return;
+    }
+    document.getElementById(`booking-${selectedBookingId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [accessLoading, appointments, hasAccess, loading, selectedBookingId]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [rescheduleBooking, setRescheduleBooking] =
@@ -503,7 +521,8 @@ export default function ProviderAgendaAppointmentsPage() {
             return (
               <article
                 key={booking.id}
-                className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6"
+                id={`booking-${booking.id}`}
+                className={`rounded-3xl border bg-white p-5 shadow-sm sm:p-6 ${selectedBookingId === booking.id ? "border-[#168e00] ring-2 ring-[#168e00]/20" : "border-gray-100"}`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>

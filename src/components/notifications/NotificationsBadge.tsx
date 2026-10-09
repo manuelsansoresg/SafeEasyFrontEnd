@@ -9,6 +9,7 @@ import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
+import { getNotificationDestination } from "@/lib/notificationDestination";
 
 export default function NotificationsBadge() {
   const [count, setCount] = useState<number>(0);
@@ -16,6 +17,7 @@ export default function NotificationsBadge() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -23,6 +25,7 @@ export default function NotificationsBadge() {
   const hydrated = useAuthHydrated();
   const token = useAuthStore((state) => state.token);
   const userId = useAuthStore((state) => state.user?.id);
+  const userRole = useAuthStore((state) => state.user?.role);
   const enabled = hydrated && Boolean(token) && Boolean(userId);
   const unreadRequest = useRef<Promise<void> | null>(null);
   const unreadQueued = useRef(false);
@@ -148,7 +151,7 @@ export default function NotificationsBadge() {
     void loadLatest();
   }, [enabled, isOpen, loadLatest]);
 
-  const markRead = async (id: number | string) => {
+  const markRead = async (id: number | string): Promise<void> => {
     if (!enabled) return;
     try {
       await notificationService.markRead(id);
@@ -158,7 +161,19 @@ export default function NotificationsBadge() {
         )
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo marcar la notificación como leída.");
+      setActionMessage(e instanceof Error ? e.message : "No se pudo marcar la notificación como leída.");
+    }
+  };
+
+  const openNotification = async (notification: NotificationItem) => {
+    setActionMessage(null);
+    const destination = getNotificationDestination(notification, userRole);
+    if (!isNotificationRead(notification)) await markRead(notification.id);
+    if (destination) {
+      setIsOpen(false);
+      router.push(destination);
+    } else {
+      setActionMessage("Esta notificación no tiene un destino disponible.");
     }
   };
 
@@ -226,6 +241,8 @@ export default function NotificationsBadge() {
             </div>
           </div>
 
+          {actionMessage && <p role="status" className="px-4 py-2 text-xs text-amber-700">{actionMessage}</p>}
+
           <div className="max-h-[400px] overflow-y-auto">
             {loading ? (
               <div className="p-8 text-center text-gray-400">
@@ -245,16 +262,11 @@ export default function NotificationsBadge() {
                 {filtered.map((n) => {
                 const isRead = isNotificationRead(n);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={String(n.id)}
-                    onClick={async () => {
-                      await markRead(n.id);
-                      setIsOpen(false);
-                      if (n.order_id) {
-                        router.push(`/client/orders/${encodeURIComponent(String(n.order_id))}?focus=delivery-code`);
-                      }
-                    }}
-                    className={`flex items-start gap-3 p-3 transition-colors rounded-lg cursor-pointer ${
+                    onClick={() => void openNotification(n)}
+                    className={`w-full text-left flex items-start gap-3 p-3 transition-colors rounded-lg focus-visible:outline-2 focus-visible:outline-[#168E00] ${
                       isRead ? "hover:bg-gray-50" : "bg-[#E8F5E9] hover:bg-[#DCF8C6]"
                     }`}
                   >
@@ -271,7 +283,7 @@ export default function NotificationsBadge() {
                         {truncate(n.message || "", 80) || " "}
                       </p>
                     </div>
-                  </div>
+                  </button>
                 );
                 })}
               </div>

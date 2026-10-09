@@ -8,16 +8,19 @@ import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
+import { getNotificationDestination } from "@/lib/notificationDestination";
 
 export default function NotificationsPanel() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const router = useRouter();
   const hydrated = useAuthHydrated();
   const token = useAuthStore((state) => state.token);
   const userId = useAuthStore((state) => state.user?.id);
+  const userRole = useAuthStore((state) => state.user?.role);
   const enabled = hydrated && Boolean(token) && Boolean(userId);
   const { status: inboxStatus } = useChatInboxWebSocket(enabled);
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
@@ -97,8 +100,16 @@ export default function NotificationsPanel() {
         )
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo marcar la notificación como leída.");
+      setActionMessage(e instanceof Error ? e.message : "No se pudo marcar la notificación como leída.");
     }
+  };
+
+  const openNotification = async (notification: NotificationItem) => {
+    setActionMessage(null);
+    const destination = getNotificationDestination(notification, userRole);
+    if (!isNotificationRead(notification)) await markRead(notification.id);
+    if (destination) router.push(destination);
+    else setActionMessage("Esta notificación no tiene un destino disponible.");
   };
 
   const filtered = useMemo(() => {
@@ -127,6 +138,7 @@ export default function NotificationsPanel() {
         }
       />
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+        {actionMessage && <p role="status" className="px-4 py-2 text-sm text-amber-700">{actionMessage}</p>}
         <div className="px-4 py-3 border-b border-gray-50">
           <div className="relative">
             <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
@@ -161,15 +173,11 @@ export default function NotificationsPanel() {
               {filtered.map((n) => {
                 const isRead = isNotificationRead(n);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={String(n.id)}
-                    onClick={async () => {
-                      await markRead(n.id);
-                      if (n.order_id) {
-                        router.push(`/client/orders/${encodeURIComponent(String(n.order_id))}?focus=delivery-code`);
-                      }
-                    }}
-                    className={`rounded-lg cursor-pointer transition-colors px-3 py-3 flex items-start gap-3 ${
+                    onClick={() => void openNotification(n)}
+                    className={`w-full text-left rounded-lg transition-colors px-3 py-3 flex items-start gap-3 focus-visible:outline-2 focus-visible:outline-[#168E00] ${
                       isRead ? "hover:bg-gray-50" : "bg-[#E8F5E9] hover:bg-[#DCF8C6]"
                     }`}
                   >
@@ -186,7 +194,7 @@ export default function NotificationsPanel() {
                         {truncate(n.message || "") || " "}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

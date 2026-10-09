@@ -9,6 +9,11 @@ export type NotificationItem = {
   is_read?: boolean;
   read?: boolean;
   order_id?: number | string | null;
+  booking_id?: number | string | null;
+  appointment_id?: number | string | null;
+  menu_order_id?: number | string | null;
+  order_number?: string | null;
+  data?: Record<string, unknown> | null;
 };
 
 export const NOTIFICATIONS_CHANGED_EVENT = "notifications:changed";

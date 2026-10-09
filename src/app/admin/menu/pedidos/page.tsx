@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Banknote,
@@ -65,6 +66,7 @@ function paymentStatusClass(status: MenuOrderPaymentStatus) {
 }
 
 export default function AdminMenuOrdersPage() {
+  const router = useRouter();
   const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
   const hasAccess = hasModule("menu");
   const token = useAuthStore((state) => state.token);
@@ -75,6 +77,19 @@ export default function AdminMenuOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | MenuOrderStatus>("all");
   const [search, setSearch] = useState("");
+  const [linkedOrderNumber, setLinkedOrderNumber] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLinkedOrderNumber(new URLSearchParams(window.location.search).get("order_number"));
+  }, []);
+
+  useEffect(() => {
+    if (!linkedOrderNumber || loading || accessLoading || !hasAccess) return;
+    const order = orders.find((item) => item.order_number === linkedOrderNumber);
+    if (order) router.replace(`/admin/menu/pedidos/${order.id}`);
+    else setError("Este pedido ya no está disponible o no tienes acceso a él.");
+    setLinkedOrderNumber(null);
+  }, [accessLoading, hasAccess, linkedOrderNumber, loading, orders, router]);
 
   const loadOrders = useCallback(async (signal?: AbortSignal, silent = false) => {
     if (!hasAccess) {
