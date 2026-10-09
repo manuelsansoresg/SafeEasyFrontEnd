@@ -6,6 +6,9 @@ import { campaignSettings, type CampaignKind } from "@/lib/marketingCampaign";
 import { saveMarketingLeadConfirmation } from "@/lib/marketingLeadConfirmation";
 
 const CAMPAIGN_PARAMETERS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "fbclid"];
+const LEAD_ENDPOINT = process.env.NODE_ENV === "production"
+  ? "/api/public/leads"
+  : "/api/backend/public/leads/";
 const inputClass = "mt-2 min-h-12 w-full rounded-xl border border-[#004e28]/20 bg-white px-4 py-3 text-base text-[#17251c] outline-none placeholder:text-[#67796c] focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/20";
 type LeadCreatedResponse = { success: boolean; created?: boolean };
 
@@ -55,7 +58,7 @@ export function MarketingLeadForm({ kind, onLeadCreated, submitLabel = "Quiero i
 
     let created = false;
     try {
-      const response = await fetch("/api/backend/public/leads/", {
+      const response = await fetch(LEAD_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(payload),
