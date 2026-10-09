@@ -1,5 +1,10 @@
 import { fetchWithAuth } from "@/lib/api";
 
+function adminLeadsPath(id?: number) {
+  const path = `/api/admin/leads${id === undefined ? "" : `/${id}`}`;
+  return process.env.NODE_ENV === "production" ? path : `${path}/`;
+}
+
 export type LeadStatus = "NEW" | "CONTACTED" | "QUALIFIED" | "WON" | "LOST";
 export type LeadInterest = "DIRECTORY" | "MENU" | "PRODUCTS" | "AGENDA";
 export type LeadPlan = "DIRECTORY" | "STANDARD" | "PROFESSIONAL";
@@ -66,12 +71,12 @@ export const leadsService = {
     if (search) params.set("search", search);
     if (status) params.set("status", status);
     if (interest) params.set("interest", interest);
-    return fetchWithAuth(`/api/backend/admin/leads?${params.toString()}`, { cache: "no-store" })
+    return fetchWithAuth(`${adminLeadsPath()}?${params.toString()}`, { cache: "no-store" })
       .then(readResponse<LeadListResponse>);
   },
-  get: (id: number) => fetchWithAuth(`/api/backend/admin/leads/${id}`, { cache: "no-store" })
+  get: (id: number) => fetchWithAuth(adminLeadsPath(id), { cache: "no-store" })
     .then(readResponse<Lead>),
-  update: (id: number, changes: LeadUpdate) => fetchWithAuth(`/api/backend/admin/leads/${id}`, {
+  update: (id: number, changes: LeadUpdate) => fetchWithAuth(adminLeadsPath(id), {
     method: "PATCH",
     body: JSON.stringify(changes),
   }).then(readResponse<Lead>),

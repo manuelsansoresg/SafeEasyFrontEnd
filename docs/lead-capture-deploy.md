@@ -39,3 +39,12 @@ desplegar el frontend, una petición del formulario a `/api/public/leads` debe
 devolver `201`, `success: true` y `created: true` para un alta nueva. Repetir
 el mismo cuerpo en menos de cinco minutos debe devolver `created: false` y no
 generar otro evento Meta Pixel `Lead`.
+
+## Panel de administración
+
+El listado, el detalle y la edición de prospectos usan directamente
+`/api/admin/leads` y `/api/admin/leads/{id}` en producción. FastAPI exige el
+token de administrador; una consulta sin token debe responder `401`, mientras
+que una sesión de administrador válida debe poder cargar la lista y guardar
+cambios. En desarrollo, Next.js añade la diagonal final externa y su proxy la
+retira antes de enviar la solicitud a FastAPI.
