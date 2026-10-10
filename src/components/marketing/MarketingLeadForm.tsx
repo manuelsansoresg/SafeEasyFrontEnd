@@ -86,13 +86,13 @@ export function MarketingLeadForm({ kind, onLeadCreated, submitLabel = "Quiero i
   };
 
   return (
-    <form onSubmit={submit} className="rounded-[1.5rem] border border-[#004e28]/12 bg-white p-5 shadow-[0_20px_60px_-45px_rgba(0,78,40,0.35)] sm:p-8">
+    <form onSubmit={submit} autoComplete="off" className="rounded-[1.5rem] border border-[#004e28]/12 bg-white p-5 shadow-[0_20px_60px_-45px_rgba(0,78,40,0.35)] sm:p-8">
       <div className="grid gap-4">
         <label className="block text-sm font-semibold text-[#173326]">Nombre <span aria-hidden="true">*</span>
-          <input className={inputClass} type="text" name="name" autoComplete="name" maxLength={150} required value={name} onChange={(event) => setName(event.target.value)} />
+          <input className={inputClass} type="text" name="name" autoComplete="off" maxLength={150} required value={name} onChange={(event) => setName(event.target.value)} />
         </label>
         <label className="block text-sm font-semibold text-[#173326]">WhatsApp <span aria-hidden="true">*</span>
-          <input className={inputClass} type="tel" name="phone" autoComplete="tel" inputMode="tel" required aria-invalid={error.startsWith("Ingresa un WhatsApp válido") || undefined} value={phone} onChange={(event) => setPhone(event.target.value)} />
+          <input className={inputClass} type="tel" name="phone" autoComplete="off" inputMode="tel" required aria-invalid={error.startsWith("Ingresa un WhatsApp válido") || undefined} value={phone} onChange={(event) => setPhone(event.target.value)} />
         </label>
         <label className="block text-sm font-semibold text-[#173326]">Nombre del negocio <span className="font-normal text-[#5f7164]">(opcional)</span>
           <input className={inputClass} type="text" name="business_name" autoComplete="organization" maxLength={150} value={businessName} onChange={(event) => setBusinessName(event.target.value)} />
