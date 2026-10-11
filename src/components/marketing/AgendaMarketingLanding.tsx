@@ -21,7 +21,7 @@ import {
   MarketingFooter,
   MarketingHeader,
 } from "@/components/marketing/MarketingChrome";
-import { MarketingLeadForm } from "@/components/marketing/MarketingLeadForm";
+import { MarketingLeadModal } from "@/components/marketing/MarketingLeadModal";
 import { MarketingAgendaShowcase } from "@/components/marketing/MarketingVisuals";
 import {
   campaignWhatsAppUrl,
@@ -121,9 +121,11 @@ export function AgendaMarketingLanding({
   const [heroVisible, setHeroVisible] = useState(true);
   const [priceVisible, setPriceVisible] = useState(false);
   const [formVisible, setFormVisible] = useState(false);
+  const [isLeadModalOpen, setLeadModalOpen] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
   const priceRef = useRef<HTMLElement>(null);
   const formRef = useRef<HTMLElement>(null);
+  const modalOpener = useRef<HTMLAnchorElement>(null);
   const trackedView = useRef(false);
   const originalParams = useMemo(
     () => new URLSearchParams(campaignParams),
@@ -193,14 +195,8 @@ export function AgendaMarketingLanding({
 
   function scrollTo(
     event: MouseEvent<HTMLAnchorElement>,
-    id: "quiero-informacion" | "como-funciona",
-    placement?: string,
   ) {
-    if (placement) emitCampaignEvent("agenda", "cta_click", placement);
-    const target =
-      id === "quiero-informacion"
-        ? formRef.current
-        : document.getElementById(id);
+    const target = document.getElementById("como-funciona");
     if (!target) return;
     event.preventDefault();
     target.scrollIntoView({
@@ -212,15 +208,19 @@ export function AgendaMarketingLanding({
   }
 
   const cta = (placement: string) =>
-    (event: MouseEvent<HTMLAnchorElement>) =>
-      scrollTo(event, "quiero-informacion", placement);
+    (event: MouseEvent<HTMLAnchorElement>) => {
+      event.preventDefault();
+      emitCampaignEvent("agenda", "cta_click", placement);
+      modalOpener.current = event.currentTarget;
+      setLeadModalOpen(true);
+    };
 
   return (
     <div className="min-h-screen overflow-x-clip bg-white pb-20 text-[#17251c] md:pb-0">
       <MarketingHeader
         contentId="contenido-agenda"
         onCta={cta("header")}
-        onSteps={(event) => scrollTo(event, "como-funciona")}
+        onSteps={scrollTo}
         ctaLabel={agendaCtaLabel}
       />
       <main id="contenido-agenda">
@@ -257,7 +257,7 @@ export function AgendaMarketingLanding({
                 />
                 <a
                   href="#como-funciona"
-                  onClick={(event) => scrollTo(event, "como-funciona")}
+                  onClick={scrollTo}
                   className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-[#004e28] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-[#004e28]"
                 >
                   Ver cómo funciona
@@ -385,6 +385,17 @@ export function AgendaMarketingLanding({
                 </article>
               ))}
             </div>
+            <div className="mt-10 flex flex-col gap-5 border-t border-[#004e28]/15 pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <p className="max-w-xl text-base font-semibold leading-6 text-[#004e28]">
+                Organiza tus horarios y facilita que tus clientes reserven.
+              </p>
+              <MarketingCta
+                href="#quiero-informacion"
+                onClick={cta("benefits")}
+                label="Quiero comenzar"
+                className="w-full shrink-0 sm:w-auto"
+              />
+            </div>
           </div>
         </section>
 
@@ -477,14 +488,14 @@ export function AgendaMarketingLanding({
               <MarketingCta
                 href="#quiero-informacion"
                 onClick={cta("pricing")}
-                label={agendaCtaLabel}
+                label="Solicitar información"
                 className="mt-6 w-full"
               />
             </div>
           </div>
         </section>
 
-        {/* FORMULARIO */}
+        {/* INVITACIÓN A SOLICITAR INFORMACIÓN */}
         <section
           id="quiero-informacion"
           ref={formRef}
@@ -500,18 +511,28 @@ export function AgendaMarketingLanding({
                 Descubre cómo recibir reservaciones con Drooopy.
               </h2>
               <p className="mt-4 text-base leading-7 text-[#40554a]">
-                Déjanos tus datos y te explicamos cómo funciona Agenda para tu negocio.
+                Cuéntanos sobre tu negocio y te explicamos cómo activar Agenda.
               </p>
               <p className="mt-5 flex items-start gap-2 text-sm font-semibold text-[#004e28]">
                 <Check size={18} className="mt-0.5 shrink-0 text-[#158900]" aria-hidden="true" />
                 Sin crear cuenta ni hacer un pago desde esta página.
               </p>
             </div>
-            <MarketingLeadForm
-              kind="agenda"
-              submitLabel="Quiero recibir información de Agenda"
-              onLeadCreated={() => emitCampaignEvent("agenda", "lead_created", "lead_form")}
-            />
+            <div className="rounded-[1.5rem] border border-[#004e28]/10 bg-white p-6 shadow-[0_20px_60px_-45px_rgba(0,78,40,0.35)] sm:p-8">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">Da el siguiente paso</p>
+              <p className={`${heading} mt-3 text-2xl leading-snug`}>
+                Recibe información para comenzar con Agenda.
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[#40554a]">
+                La solicitud es breve. Te contactaremos para orientarte.
+              </p>
+              <MarketingCta
+                href="#quiero-informacion"
+                onClick={cta("lead_section")}
+                label="Solicitar información"
+                className="mt-6 w-full"
+              />
+            </div>
           </div>
         </section>
 
@@ -563,7 +584,7 @@ export function AgendaMarketingLanding({
       <MarketingWhatsappButton
         href={whatsappUrl}
         onClick={() => emitCampaignEvent("agenda", "whatsapp_click", "floating")}
-        className={`fixed right-4 z-30 shadow-md ${showSticky ? "bottom-24 md:bottom-5" : "bottom-5"}`}
+        className={`${isLeadModalOpen ? "hidden" : "fixed"} right-4 z-30 shadow-md ${showSticky ? "bottom-24 md:bottom-5" : "bottom-5"}`}
       />
       <MarketingStickyCta
         visible={showSticky}
@@ -571,6 +592,13 @@ export function AgendaMarketingLanding({
         onClick={cta("sticky_mobile")}
         label={agendaCtaLabel}
       />
+      {isLeadModalOpen ? (
+        <MarketingLeadModal
+          openerRef={modalOpener}
+          onClose={() => setLeadModalOpen(false)}
+          onLeadCreated={() => emitCampaignEvent("agenda", "lead_created", "lead_form")}
+        />
+      ) : null}
     </div>
   );
 }
