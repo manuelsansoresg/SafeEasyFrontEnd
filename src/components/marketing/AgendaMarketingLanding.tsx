@@ -203,8 +203,6 @@ export function AgendaMarketingLanding({
         : document.getElementById(id);
     if (!target) return;
     event.preventDefault();
-    // La URL conserva UTMs, gclid y fbclid; solo cambia la ancla.
-    window.history.pushState(null, "", `#${id}`);
     target.scrollIntoView({
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
         ? "auto"

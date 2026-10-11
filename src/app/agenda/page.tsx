@@ -5,6 +5,23 @@ import { buildMetadata } from "@/lib/seo";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
+const initialScrollGuard = `
+  if (document.readyState === "loading" && !location.hash) {
+    const navigation = performance.getEntriesByType("navigation")[0];
+    if (navigation && navigation.type === "navigate" && "scrollRestoration" in history) {
+      const previous = history.scrollRestoration;
+      history.scrollRestoration = "manual";
+      scrollTo(0, 0);
+      const events = ["pointerdown", "touchstart", "wheel", "keydown", "pagehide"];
+      const restore = () => {
+        history.scrollRestoration = previous;
+        events.forEach((event) => window.removeEventListener(event, restore));
+      };
+      events.forEach((event) => window.addEventListener(event, restore, { once: true }));
+    }
+  }
+`;
+
 export const metadata: Metadata = buildMetadata({
   title: "Agenda de citas y reservaciones para negocios",
   description:
@@ -42,11 +59,14 @@ export default async function AgendaLandingPage({
   ]);
 
   return (
-    <AgendaMarketingLanding
-      initialPlans={plans}
-      campaignParams={campaignParams}
-      today={today}
-      agendaExample={agendaExample}
-    />
+    <>
+      <script dangerouslySetInnerHTML={{ __html: initialScrollGuard }} />
+      <AgendaMarketingLanding
+        initialPlans={plans}
+        campaignParams={campaignParams}
+        today={today}
+        agendaExample={agendaExample}
+      />
+    </>
   );
 }
