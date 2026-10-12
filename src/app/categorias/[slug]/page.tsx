@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { FavoritesSync } from "@/components/FavoritesSync";
@@ -8,25 +9,24 @@ import {
   absoluteMediaUrl,
   absoluteSiteUrl,
   buildMetadata,
-  fetchCategoryForSeo,
   makeDescription,
 } from "@/lib/seo";
+import { getPublicCategory, getPublicCategoryProducts } from "@/lib/publicCatalog";
 
 type CategoryPageProps = {
   params: Promise<{ slug: string }>;
 };
 
-const formatCategoryName = (slug: string) =>
-  slug
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const category = await fetchCategoryForSeo(slug);
-  const name = category?.name || formatCategoryName(slug);
+  const category = await getPublicCategory(slug);
+  if (!category) return buildMetadata({
+    title: "Categoría no disponible",
+    description: "La categoría solicitada no está disponible.",
+    path: `/categorias/${slug}`,
+    noIndex: true,
+  });
+  const name = category.name;
 
   return buildMetadata({
     title: `${name} en México | Tiendas y productos`,
@@ -34,17 +34,19 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
       category?.description,
       `Encuentra ${name.toLowerCase()}, compara productos y descubre tiendas y negocios disponibles en México a través de Drooopy.`,
     ),
-    path: `/categorias/${category?.slug || slug}`,
-    image: absoluteMediaUrl(category?.image || category?.thumbnail_url),
+    path: `/categorias/${category.slug}`,
+    image: absoluteMediaUrl(category.image || category.thumbnail_url),
     imageAlt: `${name}: tiendas y productos en Drooopy`,
   });
 }
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { slug } = await params;
-  const category = await fetchCategoryForSeo(slug);
-  const name = category?.name || formatCategoryName(slug);
-  const categorySlug = category?.slug || slug;
+  const category = await getPublicCategory(slug);
+  if (!category) notFound();
+  const products = await getPublicCategoryProducts(category.slug);
+  const name = category.name;
+  const categorySlug = category.slug;
   const categoryUrl = absoluteSiteUrl(`/categorias/${categorySlug}`);
   const description = makeDescription(
     category?.description,
@@ -108,7 +110,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
 
       <section className="bg-white">
         <FavoritesSync products={[]} />
-        <RecommendationsSection initialCategory={categorySlug} />
+        <RecommendationsSection initialCategory={categorySlug} initialProducts={products} />
       </section>
     </div>
   );

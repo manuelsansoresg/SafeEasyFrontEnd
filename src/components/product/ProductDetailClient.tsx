@@ -66,7 +66,7 @@ interface Rating {
   };
 }
 
-interface ProductDetail {
+export interface ProductDetail {
   id: string;
   title: string;
   description: string;
@@ -145,7 +145,7 @@ import { useChat } from "@/context/ChatContext";
 import { useChatStore } from "@/store/useChatStore";
 import { chatService } from "@/services/chatService";
 
-export default function ProductDetailPage() {
+export default function ProductDetailPage({ initialProduct }: { initialProduct: ProductDetail }) {
   const params = useParams();
   const slug = params?.slug as string;
   const { openChat, openChats, closeChat } = useChat();
@@ -153,8 +153,8 @@ export default function ProductDetailPage() {
   const { toggleFavorite, isFavorite, syncFavorites } = useFavoritesStore();
   const { user, token } = useAuthStore();
   
-  const [product, setProduct] = useState<ProductDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [product, setProduct] = useState<ProductDetail | null>(initialProduct);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
@@ -279,10 +279,14 @@ export default function ProductDetailPage() {
   }, [cartToast]);
 
   useEffect(() => {
-    if (slug) {
+    if (slug && token) {
       fetchProduct();
     }
   }, [slug, token]);
+
+  useEffect(() => {
+    syncFavorites([initialProduct]);
+  }, [initialProduct, syncFavorites]);
 
   const clampQuantity = (value: number) => {
     const max = Math.max(1, Number(product?.stock ?? 0) || 0);

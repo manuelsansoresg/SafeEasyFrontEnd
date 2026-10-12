@@ -228,21 +228,6 @@ const fetchJson = async <T>(path: string): Promise<T | null> => {
   }
 };
 
-export const fetchProductForSeo = async (slug: string) => {
-  const encoded = encodeURIComponent(slug);
-  const direct = await fetchJson<SeoProduct>(`/products/${encoded}`);
-  if (direct?.title) return direct;
-
-  const searchPayload = await fetchJson<SeoListPayload<SeoProduct>>(
-    `/products/?search=${encoded}&limit=5`,
-  );
-  const found = listFromPayload<SeoProduct>(searchPayload).find(
-    (product) => product.slug === slug || String(product.id) === slug,
-  );
-
-  return found || null;
-};
-
 export const fetchSupplierForSeo = async (slug: string) => {
   const encoded = encodeURIComponent(slug);
   const direct =
@@ -291,25 +276,6 @@ export const fetchSupplierProductsForSeo = async (
       );
 
   return products.filter((product) => product.is_active !== false).slice(0, 10);
-};
-
-export const fetchCategoryForSeo = async (slug: string) => {
-  const encoded = encodeURIComponent(slug);
-  const direct =
-    (await fetchJson<SeoCategory>(`/categories/${encoded}/`)) ||
-    (await fetchJson<SeoCategory>(`/categories/${encoded}`));
-  if (direct?.name) return direct;
-
-  const listPayload = await fetchJson<SeoListPayload<SeoCategory>>(
-    `/categories/?skip=0&limit=1000`,
-  );
-  const found = listFromPayload<SeoCategory>(listPayload).find(
-    (category) =>
-      typeof category.slug === "string" &&
-      category.slug.toLowerCase() === slug.toLowerCase(),
-  );
-
-  return found || null;
 };
 
 export const fetchSeoList = async <T>(path: string) => {

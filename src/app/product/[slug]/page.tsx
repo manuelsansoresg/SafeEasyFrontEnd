@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import ProductDetailClient from "@/components/product/ProductDetailClient";
 import { JsonLd } from "@/components/JsonLd";
+import { getPublicProduct } from "@/lib/publicCatalog";
 import {
   absoluteMediaUrl,
   absoluteSiteUrl,
   buildMetadata,
-  fetchProductForSeo,
   makeDescription,
   SITE_NAME,
   truncateText,
@@ -15,8 +16,7 @@ type ProductPageProps = {
   params: Promise<{ slug: string }>;
 };
 
-const getProductImage = (product: Awaited<ReturnType<typeof fetchProductForSeo>>) => {
-  if (!product) return null;
+const getProductImage = (product: NonNullable<Awaited<ReturnType<typeof getPublicProduct>>>) => {
   const primaryMedia = product.media?.find((item) => item.is_primary && item.type !== "video");
   const firstMedia = product.media?.find((item) => item.type !== "video");
   return absoluteMediaUrl(
@@ -33,13 +33,14 @@ const getProductImage = (product: Awaited<ReturnType<typeof fetchProductForSeo>>
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const product = await fetchProductForSeo(slug);
+  const product = await getPublicProduct(slug);
 
   if (!product) {
     return buildMetadata({
       title: "Producto",
       description: "Consulta productos disponibles en Drooopy.",
       path: `/product/${slug}`,
+      noIndex: true,
     });
   }
 
@@ -63,17 +64,19 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
-  const product = await fetchProductForSeo(slug);
-  const productSlug = product?.slug || slug;
+  const product = await getPublicProduct(slug);
+  if (!product) notFound();
+  const productSlug = product.slug || slug;
   const productUrl = absoluteSiteUrl(`/product/${productSlug}`);
   const image = getProductImage(product);
-  const price = product?.price != null ? Number(product.price) : null;
-  const reviewCount = Array.isArray(product?.ratings) ? product.ratings.length : 0;
+  const price = product.price != null ? Number(product.price) : null;
+  const reviewCount = Array.isArray(product.ratings)
+    ? product.ratings.filter((rating) => rating.is_approved === true).length
+    : 0;
   const hasValidOffer = price != null && Number.isFinite(price) && price >= 0;
-  const hasValidRating = Number(product?.average_rating) > 0 && reviewCount > 0;
+  const hasValidRating = Number(product.average_rating) > 0 && reviewCount > 0;
 
-  const jsonLd = product
-    ? [
+  const jsonLd = [
         ...(hasValidOffer || hasValidRating ? [
           {
             "@context": "https://schema.org",
@@ -144,13 +147,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
             },
           ],
         },
-      ]
-    : null;
+      ];
 
   return (
     <>
-      {jsonLd ? <JsonLd data={jsonLd} /> : null}
-      <ProductDetailClient />
+      <JsonLd data={jsonLd} />
+      <ProductDetailClient key={product.id} initialProduct={product} />
     </>
   );
 }

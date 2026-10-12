@@ -95,25 +95,27 @@ function ServiceCard({ service }: { service: SearchService }) {
 export function RecommendationsSection({
   initialSearch = "",
   initialCategory,
+  initialProducts = [],
   initialSubcategory,
   initialBusinessType,
   initialIsDirectory,
 }: {
   initialSearch?: string;
   initialCategory?: string;
+  initialProducts?: Product[];
   initialSubcategory?: string;
   initialBusinessType?: string;
   initialIsDirectory?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(initialProducts);
   const [services, setServices] = useState<SearchService[]>([]);
   const [directories, setDirectories] = useState<SearchDirectory[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [skip, setSkip] = useState(0);
-  const [productCount, setProductCount] = useState(0);
+  const [productCount, setProductCount] = useState(initialProducts.length);
   const [serviceCount, setServiceCount] = useState(0);
   const [directoryCount, setDirectoryCount] = useState(0);
   const limit = 20;
