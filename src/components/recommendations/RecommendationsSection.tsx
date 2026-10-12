@@ -50,7 +50,7 @@ function ServiceCard({ service }: { service: SearchService }) {
 
   return (
     <Link
-      href={`/services/${service.id}`}
+      href={`/servicios/${service.id}`}
       className="group block h-full relative bg-white rounded-[2rem] overflow-hidden border border-[#004e28]/10 transition-all duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,78,40,0.2)] hover:-translate-y-2"
     >
       <div className="relative aspect-[4/5] bg-[#f2f3f4] overflow-hidden">

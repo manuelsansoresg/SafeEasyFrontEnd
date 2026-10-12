@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { getApiBaseUrl, type SeoCategory } from "@/lib/seo";
+import { getApiBaseUrl, type SeoCategory, type SeoSupplier } from "@/lib/seo";
 import type { ProductDetail } from "@/components/product/ProductDetailClient";
 import type { Product } from "@/lib/products";
 import type { SupplierService } from "@/types/services";
@@ -24,7 +24,9 @@ export const getPublicProduct = cache(async (slug: string) => {
 export const getPublicService = cache(async (id: string) => {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
   const service = await readPublicApi<SupplierService>(`/services/${encodeURIComponent(id)}`);
-  return service?.is_active === false || service?.is_agenda_only === true ? null : service;
+  if (!service || service.is_active === false || service.is_agenda_only === true) return null;
+  const supplier = await readPublicApi<SeoSupplier>(`/suppliers/${service.supplier_id}`);
+  return supplier?.is_active === true && supplier.is_directory === true ? service : null;
 });
 
 // FastAPI exposes categories through its paginated list, without a slug detail route.

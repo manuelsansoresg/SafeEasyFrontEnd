@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import Link from "next/link";
 import { FavoritesSync } from "@/components/FavoritesSync";
 import { AdsCarousel } from "@/components/AdsCarousel";
 import { HomeBusinessTypes } from "@/components/home/HomeBusinessTypes";
@@ -9,7 +10,9 @@ import { RecommendationsSection } from "@/components/recommendations/Recommendat
 import { HomeBusinessSupport } from "@/components/home/HomeBusinessSupport";
 import { HomeRegisterBanner } from "@/components/home/HomeRegisterBanner";
 import { JsonLd } from "@/components/JsonLd";
-import { absoluteSiteUrl, buildMetadata } from "@/lib/seo";
+import { absoluteSiteUrl, buildMetadata, fetchSeoList, type SeoCategory } from "@/lib/seo";
+import type { FeaturedProduct, FeaturedSupplier } from "@/services/homeService";
+import type { Product } from "@/lib/products";
 
 export const metadata: Metadata = {
   ...buildMetadata({
@@ -48,6 +51,16 @@ export default async function Home({
         ? false
         : undefined;
 
+  const typeQuery = businessTypeSlug ? `&business_type_slug=${encodeURIComponent(businessTypeSlug)}` : "";
+  const [featuredSuppliers, featuredProducts, initialProducts, categories] = await Promise.all([
+    fetchSeoList<FeaturedSupplier>(`/suppliers/featured?skip=0&limit=3${typeQuery}`),
+    isDirectory === true ? Promise.resolve([]) : fetchSeoList<FeaturedProduct>(`/products/featured?skip=0&limit=3${typeQuery}`),
+    query || categorySlug || subcategorySlug || businessTypeSlug || isDirectory !== undefined
+      ? Promise.resolve([])
+      : fetchSeoList<Product>("/products/?skip=0&limit=20"),
+    fetchSeoList<SeoCategory>("/categories/?skip=0&limit=100"),
+  ]);
+
   return (
     <div className="flex flex-col w-full pt-24 md:pt-28">
       <h1 className="sr-only">Drooopy: tiendas, negocios y servicios en México</h1>
@@ -67,6 +80,11 @@ export default async function Home({
           },
         }}
       />
+      <nav aria-label="Categorías públicas" className="sr-only focus-within:not-sr-only">
+        {categories.filter((item) => item.is_active === true && item.slug).map((item) => (
+          <Link key={item.id} href={`/categorias/${item.slug}`}>{item.name}</Link>
+        ))}
+      </nav>
       {/* Banner & Categories - White Background */}
       <div className="bg-white w-full pb-8">
          <div className="container mx-auto px-4 pt-6">
@@ -79,8 +97,8 @@ export default async function Home({
       {/* Featured - Gray Background */}
       <div className="bg-[#f2f3f4] w-full pb-8">
          <div className="container mx-auto px-4 pt-6">
-            <Suspense fallback={<div className="h-80 animate-pulse rounded-2xl bg-white/70" />}><HomeFeaturedSuppliers businessTypeSlug={businessTypeSlug} /></Suspense>
-            {isDirectory !== true ? <HomeFeaturedProducts businessTypeSlug={businessTypeSlug} /> : null}
+            <Suspense fallback={<div className="h-80 animate-pulse rounded-2xl bg-white/70" />}><HomeFeaturedSuppliers businessTypeSlug={businessTypeSlug} initialSuppliers={featuredSuppliers.filter((item) => Boolean(item.slug)).slice(0, 3)} /></Suspense>
+            {isDirectory !== true ? <HomeFeaturedProducts businessTypeSlug={businessTypeSlug} initialProducts={featuredProducts.filter((item) => Boolean(item.slug)).slice(0, 3)} /> : null}
          </div>
       </div>
 
@@ -92,6 +110,7 @@ export default async function Home({
             initialSubcategory={subcategorySlug}
             initialBusinessType={businessTypeSlug}
             initialIsDirectory={isDirectory}
+            initialProducts={initialProducts.filter((item) => item.is_active === true && Boolean(item.slug))}
          />
       </div>
 

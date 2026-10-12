@@ -6,10 +6,10 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { getActiveBusinessTypes, getFeaturedProducts, FeaturedProduct } from "@/services/homeService";
 
-export function HomeFeaturedProducts({ businessTypeSlug }: { businessTypeSlug?: string }) {
-  const [products, setProducts] = useState<FeaturedProduct[]>([]);
+export function HomeFeaturedProducts({ businessTypeSlug, initialProducts = [] }: { businessTypeSlug?: string; initialProducts?: FeaturedProduct[] }) {
+  const [products, setProducts] = useState<FeaturedProduct[]>(initialProducts);
   const [businessTypeName, setBusinessTypeName] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialProducts.length === 0);
   const [skip, setSkip] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const requestVersion = useRef(0);

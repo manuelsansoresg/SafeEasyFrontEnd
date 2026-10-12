@@ -1,3 +1,5 @@
+import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/seo';
 import SellHero from '@/components/sell/SellHero';
 import SellBenefits from '@/components/sell/SellBenefits';
 import SellPlans from '@/components/sell/SellPlans';
@@ -5,6 +7,12 @@ import SellTestimonials from '@/components/sell/SellTestimonials';
 import SellFAQ from '@/components/sell/SellFAQ';
 
 type SearchParams = { [key: string]: string | string[] | undefined };
+
+export const metadata: Metadata = buildMetadata({
+  title: 'Vende en Drooopy',
+  description: 'Conoce las opciones para publicar tu negocio y tus productos en Drooopy.',
+  path: '/sell',
+});
 
 export default async function SellPage({
   searchParams,

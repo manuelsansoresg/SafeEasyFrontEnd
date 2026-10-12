@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import SupplierPageClient from "./SupplierPageClient";
 import { getPublicSupplierProfile } from "@/lib/supplierProfile";
+import Link from "next/link";
 import type { Supplier } from "@/lib/products";
 
 export default async function SupplierPage({ params }: {
@@ -26,5 +27,16 @@ export default async function SupplierPage({ params }: {
     thumbnail_url: product.thumbnail_url || product.image || null,
   }));
 
-  return <SupplierPageClient key={slug} initialSupplier={profile.supplier as unknown as Supplier} initialProducts={products} />;
+  return <>
+    <nav aria-label={`Catálogo público de ${profile.supplier.name}`} className="sr-only focus-within:not-sr-only">
+      {!profile.supplier.is_directory && <Link href={`/empresas/${profile.supplier.slug || profile.supplier.id}/productos`}>Ver catálogo de {profile.supplier.name}</Link>}
+      {profile.products.filter((product) => product.is_active === true && product.slug).map((product) => (
+        <Link key={String(product.id)} href={`/product/${product.slug}`}>{product.title}</Link>
+      ))}
+      {profile.services.filter((service) => service.is_active === true && !service.is_agenda_only).map((service) => (
+        <Link key={service.id} href={`/servicios/${service.id}`}>{service.title}</Link>
+      ))}
+    </nav>
+    <SupplierPageClient key={slug} initialSupplier={profile.supplier as unknown as Supplier} initialProducts={products} />
+  </>;
 }
