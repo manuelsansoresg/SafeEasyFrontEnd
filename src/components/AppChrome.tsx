@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -23,15 +24,27 @@ function isMobileEmbed(searchParams: URLSearchParams) {
   });
 }
 
+function ChromeSection({
+  kind,
+  normalizedPathname,
+  hideForDirectory,
+}: {
+  kind: "header" | "footer";
+  normalizedPathname: string;
+  hideForDirectory: boolean;
+}) {
+  const searchParams = useSearchParams();
+  const isSupplierPage = normalizedPathname.startsWith("/empresas/");
+  const hideForLegalEmbed = legalPaths.has(normalizedPathname) && isMobileEmbed(searchParams);
+  if (hideForLegalEmbed || (isSupplierPage && hideForDirectory)) return null;
+  return kind === "header" ? <Header /> : <><Footer /><MobileNav /></>;
+}
+
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const normalizedPathname = pathname.replace(/\/$/, "");
   const hideForDirectory = useChromeVisibilityStore((state) => state.hideForDirectory);
-  const isSupplierPage = normalizedPathname.startsWith("/empresas/");
   const isMarketingPage = marketingPaths.has(normalizedPathname);
-  const hideForLegalEmbed = legalPaths.has(normalizedPathname) && isMobileEmbed(searchParams);
-  const hideChrome = isMarketingPage || hideForLegalEmbed || (isSupplierPage && hideForDirectory);
   const isCancelAccountPage = normalizedPathname === "/cancel-account";
   const isPortalCustomizer = normalizedPathname === "/admin/my-company/customize";
 
@@ -41,10 +54,13 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      {!hideChrome && <Header />}
+      <Suspense fallback={null}>
+        <ChromeSection kind="header" normalizedPathname={normalizedPathname} hideForDirectory={hideForDirectory} />
+      </Suspense>
       <main className="min-h-screen">{children}</main>
-      {!hideChrome && <Footer />}
-      {!hideChrome && <MobileNav />}
+      <Suspense fallback={null}>
+        <ChromeSection kind="footer" normalizedPathname={normalizedPathname} hideForDirectory={hideForDirectory} />
+      </Suspense>
     </>
   );
 }

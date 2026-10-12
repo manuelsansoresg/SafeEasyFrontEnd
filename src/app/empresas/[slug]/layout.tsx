@@ -284,31 +284,6 @@ export default async function SupplierLayout({ children, params }: SupplierLayou
                   })),
                 }
               : undefined,
-            makesOffer: productOffers.length
-              ? productOffers.map((product) => ({
-                  "@type": "Offer",
-                  url: absoluteSiteUrl(`/product/${product.slug || product.id}`),
-                  price:
-                    Number.isFinite(Number(product.price)) && Number(product.price) >= 0
-                      ? Number(product.price)
-                      : undefined,
-                  priceCurrency:
-                    Number.isFinite(Number(product.price)) && Number(product.price) >= 0
-                      ? "MXN"
-                      : undefined,
-                  availability:
-                    product.stock == null
-                      ? undefined
-                      : Number(product.stock) > 0
-                        ? "https://schema.org/InStock"
-                        : "https://schema.org/OutOfStock",
-                  itemOffered: {
-                    "@type": "Product",
-                    name: product.title,
-                    url: absoluteSiteUrl(`/product/${product.slug || product.id}`),
-                  },
-                }))
-              : undefined,
           },
           {
             "@context": "https://schema.org",

@@ -348,7 +348,7 @@ interface SupplierProductSubcategory extends DrooopySubcategory {
 }
 
 interface SupplierProduct {
-  id: number;
+  id: string | number;
   title: string;
   description: string;
   price: number;

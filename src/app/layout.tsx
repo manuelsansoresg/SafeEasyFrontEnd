@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { Poppins, Varela_Round } from "next/font/google";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import "react-quill-new/dist/quill.snow.css";
@@ -149,11 +148,9 @@ export default function RootLayout({
         <ChatProvider>
           <TokenRefreshProvider>
             <LocationProvider />
-            <Suspense fallback={<main className="min-h-screen">{children}</main>}>
-              <AppChrome>
-                {children}
-              </AppChrome>
-            </Suspense>
+            <AppChrome>
+              {children}
+            </AppChrome>
             <ChatOverlay />
           </TokenRefreshProvider>
         </ChatProvider>

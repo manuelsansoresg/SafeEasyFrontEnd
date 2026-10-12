@@ -11,7 +11,7 @@ export default async function SupplierPage({ params }: {
   if (!profile) notFound();
 
   const products = profile.products.map((product) => ({
-    id: Number(product.id),
+    id: String(product.id),
     title: product.title,
     description: product.description || "",
     price: Number(product.price) || 0,

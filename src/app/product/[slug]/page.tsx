@@ -69,49 +69,55 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const image = getProductImage(product);
   const price = product?.price != null ? Number(product.price) : null;
   const reviewCount = Array.isArray(product?.ratings) ? product.ratings.length : 0;
+  const hasValidOffer = price != null && Number.isFinite(price) && price >= 0;
+  const hasValidRating = Number(product?.average_rating) > 0 && reviewCount > 0;
 
   const jsonLd = product
     ? [
-        {
-          "@context": "https://schema.org",
-          "@type": "Product",
-          name: product.title,
-          description: makeDescription(product.description, `Producto disponible en ${SITE_NAME}.`),
-          image: image ? [image] : undefined,
-          sku: product.sku || undefined,
-          category: product.subcategory?.name || product.category?.name || undefined,
-          offers:
-            price != null && Number.isFinite(price)
-              ? {
-                  "@type": "Offer",
-                  url: productUrl,
-                  price,
-                  priceCurrency: "MXN",
-                  availability:
-                    Number(product.stock ?? 0) > 0
-                      ? "https://schema.org/InStock"
-                      : "https://schema.org/OutOfStock",
-                  itemCondition: "https://schema.org/NewCondition",
-                  seller: product.supplier?.name
-                    ? {
-                        "@type": "Organization",
-                        name: product.supplier.name,
-                        url: product.supplier.slug
-                          ? absoluteSiteUrl(`/empresas/${product.supplier.slug}`)
-                          : undefined,
-                      }
-                    : undefined,
-                }
-              : undefined,
-          aggregateRating:
-            Number(product.average_rating) > 0 && reviewCount > 0
-              ? {
-                  "@type": "AggregateRating",
-                  ratingValue: Number(product.average_rating).toFixed(1),
-                  reviewCount,
-                }
-              : undefined,
-        },
+        ...(hasValidOffer || hasValidRating ? [
+          {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            name: product.title,
+            description: makeDescription(product.description, `Producto disponible en ${SITE_NAME}.`),
+            image: image ? [image] : undefined,
+            sku: product.sku || undefined,
+            category: product.subcategory?.name || product.category?.name || undefined,
+            offers:
+              hasValidOffer
+                ? {
+                    "@type": "Offer",
+                    url: productUrl,
+                    price,
+                    priceCurrency: "MXN",
+                    availability:
+                      product.stock != null && Number.isFinite(Number(product.stock))
+                        ? Number(product.stock) > 0
+                          ? "https://schema.org/InStock"
+                          : "https://schema.org/OutOfStock"
+                        : undefined,
+                    itemCondition: "https://schema.org/NewCondition",
+                    seller: product.supplier?.name
+                      ? {
+                          "@type": "Organization",
+                          name: product.supplier.name,
+                          url: product.supplier.slug
+                            ? absoluteSiteUrl(`/empresas/${product.supplier.slug}`)
+                            : undefined,
+                        }
+                      : undefined,
+                  }
+                : undefined,
+            aggregateRating:
+              hasValidRating
+                ? {
+                    "@type": "AggregateRating",
+                    ratingValue: Number(product.average_rating).toFixed(1),
+                    reviewCount,
+                  }
+                : undefined,
+          },
+        ] : []),
         {
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",

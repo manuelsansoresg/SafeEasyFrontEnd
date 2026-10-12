@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { fetchWithAuth } from '@/lib/api';
-import { Product } from '@/lib/products';
+
+type FavoriteProduct = { id: string | number; is_favorite?: boolean };
 
 interface FavoritesState {
   favorites: Set<string>;
@@ -8,7 +9,7 @@ interface FavoritesState {
   fetchFavorites: () => Promise<void>;
   toggleFavorite: (productId: string) => Promise<boolean>; // Returns true if added, false if removed
   isFavorite: (productId: string) => boolean;
-  syncFavorites: (products: (Product & { is_favorite?: boolean })[]) => void;
+  syncFavorites: (products: FavoriteProduct[]) => void;
   clearFavorites: () => void;
 }
 
@@ -16,7 +17,7 @@ export const useFavoritesStore = create<FavoritesState>((set, get) => ({
   favorites: new Set(),
   isLoading: false,
 
-  syncFavorites: (products: (Product & { is_favorite?: boolean })[]) => {
+  syncFavorites: (products: FavoriteProduct[]) => {
     const { favorites } = get();
     const newFavorites = new Set(favorites);
     let changed = false;
