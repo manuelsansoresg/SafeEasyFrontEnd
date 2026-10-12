@@ -8,5 +8,5 @@ export default async function SupplierTabPage({
 }) {
   const { tab } = await params;
   if (!["menu", "agenda", "productos"].includes(tab)) notFound();
-  return <SupplierPage />;
+  return <SupplierPage params={params} />;
 }

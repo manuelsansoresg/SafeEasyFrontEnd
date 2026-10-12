@@ -5,9 +5,6 @@ import {
   absoluteMediaUrl,
   absoluteSiteUrl,
   buildMetadata,
-  fetchSupplierForSeo,
-  fetchSupplierProductsForSeo,
-  fetchSupplierServicesForSeo,
   makeDescription,
   SITE_NAME,
   stripHtml,
@@ -15,6 +12,7 @@ import {
   type SeoProduct,
   type SeoSupplier,
 } from "@/lib/seo";
+import { getPublicSupplierProfile } from "@/lib/supplierProfile";
 import type { SupplierService } from "@/types/services";
 
 type SupplierLayoutProps = {
@@ -39,18 +37,8 @@ const safeSocialUrl = (value?: string | null) => {
   }
 };
 
-const getSupplierContext = async (slug: string): Promise<SupplierSeoContext> => {
-  const supplier = await fetchSupplierForSeo(slug);
-  if (!supplier || supplier.is_active === false) {
-    return { supplier: null, services: [], products: [] };
-  }
-
-  const [services, products] = await Promise.all([
-    fetchSupplierServicesForSeo(supplier.id),
-    fetchSupplierProductsForSeo(supplier),
-  ]);
-  return { supplier, services, products };
-};
+const getSupplierContext = async (slug: string): Promise<SupplierSeoContext> =>
+  (await getPublicSupplierProfile(slug)) ?? { supplier: null, services: [], products: [] };
 
 const getSupplierImage = (supplier: SeoSupplier) => {
   const carousel = supplier.carousel_images?.find(
