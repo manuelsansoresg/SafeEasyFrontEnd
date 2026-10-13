@@ -13,7 +13,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ par
   return new Response(sitemapUrlsetXml(entries.slice(page * SITEMAP_PAGE_SIZE, (page + 1) * SITEMAP_PAGE_SIZE)), {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=60, stale-while-revalidate=60, stale-if-error=86400",
+      "Cache-Control": "no-store",
     },
   });
 }

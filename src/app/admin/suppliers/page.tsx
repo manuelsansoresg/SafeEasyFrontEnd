@@ -36,6 +36,7 @@ interface Supplier {
   state?: string;
   country: string;
   is_active: boolean;
+  is_demo?: boolean;
   is_verified?: boolean;
   user_id: number;
   userId?: number;
@@ -917,6 +918,7 @@ export default function AdminSuppliersPage() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="font-medium text-gray-800">{supplier.name}</div>
+                          {supplier.is_demo === true && <span className="mt-1 inline-flex rounded-full bg-[#eaf7e8] px-2 py-0.5 text-xs font-semibold text-[#004e28]">Demostración</span>}
                           {supplier.short_name && (
                             <div className="text-xs text-gray-400">{supplier.short_name}</div>
                           )}
@@ -1071,6 +1073,7 @@ export default function AdminSuppliersPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h3 className="break-words text-sm font-semibold text-gray-900">{supplier.name}</h3>
+                          {supplier.is_demo === true && <span className="inline-flex rounded-full bg-[#eaf7e8] px-2 py-0.5 text-xs font-semibold text-[#004e28]">Demostración</span>}
                           {supplier.short_name ? <p className="mt-1 text-xs text-gray-400">{supplier.short_name}</p> : null}
                           {supplier.profile_pending ? (
                             <p className="mt-1 text-xs font-medium text-amber-700">

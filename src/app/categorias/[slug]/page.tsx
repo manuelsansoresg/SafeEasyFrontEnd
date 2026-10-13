@@ -20,12 +20,7 @@ type CategoryPageProps = {
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const { slug } = await params;
   const category = await getPublicCategory(slug);
-  if (!category) return buildMetadata({
-    title: "Categoría no disponible",
-    description: "La categoría solicitada no está disponible.",
-    path: `/categorias/${slug}`,
-    noIndex: true,
-  });
+  if (!category) notFound();
   const name = category.name;
 
   return buildMetadata({

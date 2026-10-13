@@ -41,6 +41,10 @@ const nextConfig: NextConfig = {
 
     return [
       {
+        source: "/demos/:slug",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+      {
         source: "/:path*",
         headers: securityHeaders,
       },

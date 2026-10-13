@@ -25,14 +25,7 @@ async function getSupplierSummary(supplierId: number): Promise<ServiceSupplierSu
 export async function generateMetadata({ params }: ServicePageProps): Promise<Metadata> {
   const { id } = await params;
   const service = await getPublicService(id);
-  if (!service) {
-    return buildMetadata({
-      title: "Servicio no disponible",
-      description: "El servicio solicitado no está disponible.",
-      path: `/servicios/${id}`,
-      noIndex: true,
-    });
-  }
+  if (!service) notFound();
 
   return buildMetadata({
     title: truncateText(service.title, 58),

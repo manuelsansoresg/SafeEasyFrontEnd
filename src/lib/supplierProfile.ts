@@ -12,7 +12,7 @@ export type PublicSupplierProfile = {
 // The public detail endpoint is the source of truth for the profile. A missing
 // subscription field is not evidence that a public supplier has expired.
 const isPublic = (supplier: SeoSupplier) => {
-  if (supplier.is_active === false) return false;
+  if (supplier.is_active === false || supplier.is_demo === true) return false;
   const record = supplier as unknown as Record<string, unknown>;
   const subscriptionKeys = [
     "has_active_subscription", "hasActiveSubscription", "subscription_active",

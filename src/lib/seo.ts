@@ -93,6 +93,7 @@ export interface SeoSupplier {
     is_closed?: boolean;
   }>;
   is_active?: boolean;
+  is_demo?: boolean;
   is_directory?: boolean;
   is_verified?: boolean;
   average_rating?: number | null;

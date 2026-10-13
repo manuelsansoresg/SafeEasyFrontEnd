@@ -1,4 +1,3 @@
-import { unstable_cache } from "next/cache";
 import { absoluteSiteUrl, getApiBaseUrl, type SeoCategory, type SeoProduct, type SeoSupplier } from "@/lib/seo";
 import type { SupplierService } from "@/types/services";
 
@@ -58,8 +57,8 @@ export async function loadSitemapSnapshot(): Promise<SitemapSnapshot> {
     allPages<SeoCategory>("/categories/"),
     allPages<SupplierService>("/services/", SERVICE_PAGE_SIZE),
   ]);
-  const publicSuppliers = new Set(suppliers.filter((item) => item.is_active === true).map((item) => item.id));
-  const directorySuppliers = new Set(suppliers.filter((item) => item.is_active === true && item.is_directory === true).map((item) => item.id));
+  const publicSuppliers = new Set(suppliers.filter((item) => item.is_active === true && item.is_demo !== true).map((item) => item.id));
+  const directorySuppliers = new Set(suppliers.filter((item) => item.is_active === true && item.is_demo !== true && item.is_directory === true).map((item) => item.id));
   return {
     pages: fixedPaths.map((path) => ({ url: absoluteSiteUrl(path) })),
     categories: unique(categories.flatMap((item) => {
@@ -83,7 +82,9 @@ export async function loadSitemapSnapshot(): Promise<SitemapSnapshot> {
   };
 }
 
-export const getSitemapSnapshot = unstable_cache(loadSitemapSnapshot, ["public-sitemap-v1"], { revalidate: 900 });
+// Read current backend visibility on every XML request. A cached snapshot could
+// keep a newly converted demo in the sitemap after the admin toggles it.
+export const getSitemapSnapshot = loadSitemapSnapshot;
 
 export function sitemapParts(snapshot: SitemapSnapshot) {
   return (Object.keys(snapshot) as Array<keyof SitemapSnapshot>).flatMap((kind) =>

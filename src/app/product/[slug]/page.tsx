@@ -35,14 +35,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const { slug } = await params;
   const product = await getPublicProduct(slug);
 
-  if (!product) {
-    return buildMetadata({
-      title: "Producto",
-      description: "Consulta productos disponibles en Drooopy.",
-      path: `/product/${slug}`,
-      noIndex: true,
-    });
-  }
+  if (!product) notFound();
 
   const category = product.subcategory?.name || product.category?.name;
   const supplier = product.supplier?.name;
