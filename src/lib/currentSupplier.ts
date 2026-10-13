@@ -138,6 +138,11 @@ async function fetchSuppliersPage(skip: number, limit: number, options?: Supplie
 export async function resolveCurrentSupplier(user: AuthUser, options?: SupplierLookupOptions) {
   if (!user?.id) return null;
 
+  // The authenticated endpoint includes the owner's demo supplier. Public
+  // supplier detail and list endpoints intentionally hide demo profiles.
+  const mySupplier = asSupplier(await readJson("/api/suppliers/me", options));
+  if (mySupplier) return mySupplier;
+
   const subscription = asRecord(await readJson("/api/subscriptions/my", options));
   const subscriptionSupplier = asSupplier(subscription?.supplier);
   if (subscriptionSupplier) {

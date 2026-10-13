@@ -8,6 +8,7 @@ import type { SupplierGalleryImage } from "@/types/supplierGallery";
 
 interface DirectoryGallerySectionProps {
   supplierId: number;
+  initialImages?: SupplierGalleryImage[];
 }
 
 const buildImageUrl = (path: string | null | undefined): string => {
@@ -18,13 +19,14 @@ const buildImageUrl = (path: string | null | undefined): string => {
   return `${baseUrl}${cleanPath}`.replace(/([^:])\/{2,}/g, "$1/");
 };
 
-export function DirectoryGallerySection({ supplierId }: DirectoryGallerySectionProps) {
-  const [images, setImages] = useState<SupplierGalleryImage[]>([]);
-  const [loading, setLoading] = useState(true);
+export function DirectoryGallerySection({ supplierId, initialImages }: DirectoryGallerySectionProps) {
+  const [images, setImages] = useState<SupplierGalleryImage[]>(initialImages || []);
+  const [loading, setLoading] = useState(!initialImages);
   const [error, setError] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
+    if (initialImages) return;
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
@@ -50,7 +52,7 @@ export function DirectoryGallerySection({ supplierId }: DirectoryGallerySectionP
     return () => {
       cancelled = true;
     };
-  }, [supplierId]);
+  }, [supplierId, initialImages]);
 
   const closeLightbox = useCallback(() => setLightboxIndex(null), []);
 

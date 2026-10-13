@@ -73,44 +73,16 @@ export default async function DemoSupplierPage({ params }: Props) {
     supplier_category_id: null,
     supplier_subcategory_id: null,
   }));
-  const supplierMenus: Menu[] = menus.map((menu, menuIndex) => ({
+  const supplierMenus: Menu[] = menus.map((menu) => ({
     ...menu,
-    supplier_id: demo.id,
-    is_active: true,
-    display_order: menuIndex,
-    image_url: absoluteMediaUrl((menu as { image_url?: string | null }).image_url),
-    image_thumbnail_url: absoluteMediaUrl((menu as { image_thumbnail_url?: string | null }).image_thumbnail_url),
-    date_start: null,
-    date_end: null,
-    days_of_week: null,
-    time_start: null,
-    time_end: null,
-    setup_step: 0,
-    setup_completed: true,
-    created_at: "",
-    updated_at: "",
-    sections: menu.sections.map((section, sectionIndex) => ({
+    image_url: absoluteMediaUrl(menu.image_url),
+    image_thumbnail_url: absoluteMediaUrl(menu.image_thumbnail_url),
+    sections: menu.sections.map((section) => ({
       ...section,
-      id: (section as { id?: number }).id ?? sectionIndex + 1,
-      menu_id: menu.id,
-      is_active: true,
-      display_order: sectionIndex,
-      created_at: "",
-      updated_at: "",
-      items: section.items.map((item, itemIndex) => ({
+      items: section.items.map((item) => ({
         ...item,
-        id: (item as { id?: number }).id ?? (menu.id * 10000 + sectionIndex * 100 + itemIndex + 1),
-        section_id: (section as { id?: number }).id ?? sectionIndex + 1,
         image_url: absoluteMediaUrl(item.image_url),
-        image_thumbnail_url: absoluteMediaUrl(item.image_url),
-        is_active: true,
-        is_available: true,
-        display_order: itemIndex,
-        old_price: null,
-        label: null,
-        created_at: "",
-        updated_at: "",
-        variants: [],
+        image_thumbnail_url: absoluteMediaUrl(item.image_thumbnail_url),
       })),
     })),
   }));
@@ -121,6 +93,7 @@ export default async function DemoSupplierPage({ params }: Props) {
     initialProducts={supplierProducts}
     demoMenus={supplierMenus}
     demoServices={supplierServices}
+    demoGalleryImages={demo.gallery_images || []}
     isDemo
   />;
 }

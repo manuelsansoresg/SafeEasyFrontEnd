@@ -39,6 +39,7 @@ import { DirectoryRatingsSection } from "@/components/supplier/DirectoryRatingsS
 import { DirectoryContactButton } from "@/components/supplier/DirectoryContactButton";
 import { DirectoryTopNav } from "@/components/supplier/DirectoryTopNav";
 import { DirectoryGallerySection } from "@/components/supplier/DirectoryGallerySection";
+import type { SupplierGalleryImage } from "@/types/supplierGallery";
 import { SupplierModuleNavigation } from "@/components/supplier/SupplierModuleNavigation";
 import { PublicSupplierMenu } from "@/components/supplier/menu/PublicSupplierMenu";
 import { PublicSupplierAgendaTab } from "@/components/agenda/PublicSupplierAgendaTab";
@@ -481,11 +482,12 @@ const mergeById = <T extends { id: number | string }>(items: T[]) =>
 
 import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCarousel";
 
-export default function SupplierPage({ initialSupplier, initialProducts, demoMenus = [], demoServices = [], isDemo = false }: {
+export default function SupplierPage({ initialSupplier, initialProducts, demoMenus = [], demoServices = [], demoGalleryImages = [], isDemo = false }: {
   initialSupplier: Supplier;
   initialProducts: SupplierProduct[];
   demoMenus?: Menu[];
   demoServices?: SupplierService[];
+  demoGalleryImages?: SupplierGalleryImage[];
   isDemo?: boolean;
 }) {
   const { slug, tab } = useParams<{ slug: string; tab?: string }>();
@@ -1137,7 +1139,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
 
   const sanitizeHtml = (html: string) => {
     if (!html) return "";
-    return DOMPurify.sanitize(html);
+    return DOMPurify.sanitize(html.replace(/&nbsp;|&#160;|&#x[aA]0;|\u00a0/gi, " "));
   };
 
   const sanitizeDescriptionHtml = (html: string) => {
@@ -2160,7 +2162,7 @@ const contactHref = supplier?.phone
 
       {/* --- GALLERY SECTION (Directory) --- */}
       {isDirectory ? (
-        <DirectoryGallerySection supplierId={supplier.id} />
+        <DirectoryGallerySection supplierId={supplier.id} initialImages={isDemo ? demoGalleryImages : undefined} />
       ) : null}
 
       {/* --- CONTACT & MAP (Dark Mode / Expert UI) --- */}

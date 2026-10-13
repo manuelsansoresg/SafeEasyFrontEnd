@@ -1,6 +1,8 @@
 import { cache } from "react";
 import { getApiBaseUrl } from "@/lib/seo";
 import type { Supplier } from "@/lib/products";
+import type { SupplierGalleryImage } from "@/types/supplierGallery";
+import type { Menu } from "@/types/menu";
 
 export type DemoSupplier = Partial<Supplier> & {
   id: number;
@@ -13,6 +15,7 @@ export type DemoSupplier = Partial<Supplier> & {
   description: string | null;
   about: string | null;
   primary_color: string | null;
+  gallery_images?: SupplierGalleryImage[];
 };
 
 export type DemoProduct = {
@@ -33,17 +36,7 @@ export type DemoService = {
   images: string[];
 };
 
-export type DemoMenu = {
-  id: number;
-  name: string;
-  description: string | null;
-  price: number | null;
-  sections: Array<{
-    name: string;
-    description: string | null;
-    items: Array<{ name: string; description: string | null; price: number | null; image_url: string | null }>;
-  }>;
-};
+export type DemoMenu = Menu;
 
 async function readDemo<T>(path: string): Promise<T | null> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, {

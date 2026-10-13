@@ -84,7 +84,7 @@ function MyCompanyContent() {
   }
 
   const slug = getSupplierSlug(supplier);
-  const profileUrl = slug ? `/empresas/${encodeURIComponent(slug)}` : null;
+  const profileUrl = slug ? `/${supplier.is_demo === true ? "demos" : "empresas"}/${encodeURIComponent(slug)}` : null;
   const completion = getCompanyProfileCompletion(supplier, { isDirectory });
 
   return (

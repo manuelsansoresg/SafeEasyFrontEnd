@@ -163,7 +163,7 @@ export default function SiteBuilder() {
     try {
       const resolved = await resolveCurrentSupplier(user);
       if (!resolved) throw new Error("No encontramos un negocio asociado a esta cuenta.");
-      const response = await fetchWithAuth(`/api/suppliers/${resolved.id}`, { cache: "no-store" });
+      const response = await fetchWithAuth(`/api/suppliers/me`, { cache: "no-store" });
       const full = response.ok ? readSupplierPayload(await response.json().catch(() => null)) : {};
       const supplier = { ...resolved, ...full } as SiteBuilderDraft;
       const hours = normalizeHours(supplier.business_hours);
@@ -363,7 +363,7 @@ export default function SiteBuilder() {
   if (loadError || !draftData) return <BuilderError message={loadError || "No se encontró el negocio."} onRetry={loadSupplier} />;
 
   const slug = String(draftData.slug || draftData.short_name || draftData.name || draftData.id).trim();
-  const publicUrl = `/empresas/${encodeURIComponent(slug)}`;
+  const publicUrl = `/${draftData.is_demo ? "demos" : "empresas"}/${encodeURIComponent(slug)}`;
   const previewUrl = `${publicUrl}?builderPreview=1`;
   const filteredNav = NAV_ITEMS.filter((item) => `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(query.trim().toLowerCase()));
   const viewport = DEVICE_VIEWPORTS[device];

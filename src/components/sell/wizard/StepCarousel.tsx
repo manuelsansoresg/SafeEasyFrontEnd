@@ -152,6 +152,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
     setFetching(true);
     try {
       const urls = [
+        `/api/suppliers/me`,
         `/api/suppliers/${supplierId}`,
         `/api/suppliers/${supplierId}/`,
         `/api/backend/suppliers/${supplierId}`,
@@ -171,6 +172,7 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
         if (!res.ok) continue;
 
         const data: unknown = await res.json().catch(() => null);
+        if (url === "/api/suppliers/me" && Number(toRecord(data)?.id) !== supplierId) continue;
         const carouselItems = parseCarouselItems(data);
         setItems(carouselItems);
 
