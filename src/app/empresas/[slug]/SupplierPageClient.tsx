@@ -481,9 +481,12 @@ const mergeById = <T extends { id: number | string }>(items: T[]) =>
 
 import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCarousel";
 
-export default function SupplierPage({ initialSupplier, initialProducts }: {
+export default function SupplierPage({ initialSupplier, initialProducts, demoMenus = [], demoServices = [], isDemo = false }: {
   initialSupplier: Supplier;
   initialProducts: SupplierProduct[];
+  demoMenus?: Menu[];
+  demoServices?: SupplierService[];
+  isDemo?: boolean;
 }) {
   const { slug, tab } = useParams<{ slug: string; tab?: string }>();
   const router = useRouter();
@@ -492,7 +495,7 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
   const [builderSection, setBuilderSection] = useState<SiteBuilderSection | null>(null);
   const lastBuilderScrollRef = useRef<SiteBuilderSection | null>(null);
   const activeTab = tab === "menu" ? "menu" : tab === "agenda" ? "agenda" : tab === "productos" ? "products" : "main";
-  const supplierBasePath = `/empresas/${encodeURIComponent(String(slug))}/`;
+  const supplierBasePath = `/${isDemo ? "demos" : "empresas"}/${encodeURIComponent(String(slug))}/`;
   const navigateTab = useCallback((nextTab: 'main' | 'menu' | 'agenda' | 'products', replace = false) => {
     const basePath = nextTab === 'main' ? supplierBasePath : `${supplierBasePath}${nextTab === 'products' ? 'productos' : nextTab}/`;
     const path = isBuilderPreview ? `${basePath}?builderPreview=1` : basePath;
@@ -500,8 +503,8 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
     else router.push(path, { scroll: false });
   }, [isBuilderPreview, router, supplierBasePath]);
   const [supplier, setSupplier] = useState<Supplier | null>(initialSupplier);
-  const [publicMenus, setPublicMenus] = useState<Menu[]>([]);
-  const [publicMenusLoading, setPublicMenusLoading] = useState(true);
+  const [publicMenus, setPublicMenus] = useState<Menu[]>(demoMenus);
+  const [publicMenusLoading, setPublicMenusLoading] = useState(!isDemo);
   const headerVideoRef = useRef<HTMLVideoElement>(null);
   const supplierViewSentRef = useRef<Set<string>>(new Set());
   const [isHeaderVideoPlaying, setIsHeaderVideoPlaying] = useState(false);
@@ -638,9 +641,9 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
   }, []);
 
   const [products, setProducts] = useState<SupplierProduct[]>(initialProducts);
-  const [productCatalog, setProductCatalog] = useState<SupplierProduct[]>([]);
-  const [services, setServices] = useState<SupplierService[]>([]);
-  const [serviceCatalog, setServiceCatalog] = useState<SupplierService[]>([]);
+  const [productCatalog, setProductCatalog] = useState<SupplierProduct[]>(isDemo ? initialProducts : []);
+  const [services, setServices] = useState<SupplierService[]>(demoServices);
+  const [serviceCatalog, setServiceCatalog] = useState<SupplierService[]>(demoServices);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [servicesError, setServicesError] = useState<string | null>(null);
   const [productsLoading, setProductsLoading] = useState(false);
@@ -715,6 +718,7 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
   }, [hasMore, productsLoading]);
 
   useEffect(() => {
+    if (isDemo) return;
     if (slug) {
       setPage(1);
       setProducts(initialProducts);
@@ -729,10 +733,10 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
       setSelectedServiceSubcategory(null);
       setServiceSearchQuery("");
     }
-  }, [slug, initialProducts]);
+  }, [slug, initialProducts, isDemo]);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!slug || isDemo) return;
 
     const controller = new AbortController();
     setPublicMenusLoading(true);
@@ -748,7 +752,7 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
       .finally(() => { if (!controller.signal.aborted) setPublicMenusLoading(false); });
 
     return () => controller.abort();
-  }, [slug]);
+  }, [slug, isDemo]);
 
   useEffect(() => {
     if (activeTab === "menu" && !publicMenusLoading && publicMenus.length === 0) {
@@ -763,6 +767,7 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
   }, [activeTab, navigateTab, supplierId, supplierIsDirectory]);
 
   useEffect(() => {
+    if (isDemo) return;
     if (supplierId) {
       // Robust Identifier Logic: Prefer URL slug -> Supplier Slug -> Supplier ID
       const identifier = (slug as string) || supplierSlug || String(supplierId);
@@ -780,10 +785,10 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
         setServicesError(null);
       }
     }
-  }, [slug, supplierId, supplierIsDirectory, supplierSlug]);
+  }, [slug, supplierId, supplierIsDirectory, supplierSlug, isDemo]);
 
   useEffect(() => {
-    if (isBuilderPreview) return;
+    if (isBuilderPreview || isDemo) return;
     const id = supplier?.id;
     if (!id) return;
     const key = String(id);
@@ -810,7 +815,7 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
         }
       }
     })();
-  }, [isBuilderPreview, supplier?.id]);
+  }, [isBuilderPreview, isDemo, supplier?.id]);
 
   const fetchProducts = useCallback(async (
     supplierSlug: string,
@@ -975,7 +980,7 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
   };
 
   useEffect(() => {
-    if (!supplierId || supplierIsDirectory) return;
+    if (!supplierId || supplierIsDirectory || isDemo) return;
     const controller = new AbortController();
     const identifier = String(slug || supplierSlug || supplierId);
     const params = new URLSearchParams({ skip: "0", limit: "500" });
@@ -1002,10 +1007,10 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
       });
 
     return () => controller.abort();
-  }, [slug, supplierId, supplierIsDirectory, supplierSlug]);
+  }, [slug, supplierId, supplierIsDirectory, supplierSlug, isDemo]);
 
   useEffect(() => {
-    if (!supplierId || supplierIsDirectory) return;
+    if (!supplierId || supplierIsDirectory || isDemo) return;
     const controller = new AbortController();
     const identifier = String(slug || supplierSlug || supplierId);
     setPage(1);
@@ -1032,10 +1037,11 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
     supplierId,
     supplierIsDirectory,
     supplierSlug,
+    isDemo,
   ]);
 
   useEffect(() => {
-    if (!slug || !supplierId || supplierIsDirectory || page === 1) return;
+    if (!slug || !supplierId || supplierIsDirectory || page === 1 || isDemo) return;
     const controller = new AbortController();
     const identifier = String(slug || supplierSlug || supplierId);
     void fetchProducts(
@@ -1060,10 +1066,11 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
     supplierId,
     supplierIsDirectory,
     supplierSlug,
+    isDemo,
   ]);
 
   useEffect(() => {
-    if (!supplierId || !supplierIsDirectory) return;
+    if (!supplierId || !supplierIsDirectory || isDemo) return;
     let active = true;
     const variants = catalogRequestVariants(
       selectedServiceCategory,
@@ -1113,6 +1120,7 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
     supplierId,
     supplierIsDirectory,
     supplierSlug,
+    isDemo,
   ]);
 
     const [logoError, setLogoError] = useState(false);
@@ -1244,13 +1252,16 @@ export default function SupplierPage({ initialSupplier, initialProducts }: {
   const groupedHours = groupBusinessHours();
   const isDirectory = supplierIsDirectory;
 
-  const filteredServices = services.filter((service) =>
-    serviceSearchQuery
-      ? service.title.toLocaleLowerCase("es").includes(
-          serviceSearchQuery.toLocaleLowerCase("es"),
-        )
-      : true,
+  const filteredServices = (isDemo ? demoServices : services).filter((service) =>
+    (!isDemo || matchesCatalogFilters(service, selectedServiceCategory, selectedServiceSubcategory)) &&
+    (!serviceSearchQuery || service.title.toLocaleLowerCase("es").includes(serviceSearchQuery.toLocaleLowerCase("es"))),
   );
+  const visibleProducts = isDemo
+    ? initialProducts.filter((product) =>
+        matchesCatalogFilters(product, selectedProductCategory, selectedProductSubcategory) &&
+        (!debouncedProductSearch || product.title.toLocaleLowerCase("es").includes(debouncedProductSearch.toLocaleLowerCase("es"))),
+      )
+    : products;
   const changeProductCategory = (category: CatalogFilterOption | null) => {
     setSelectedProductCategory(category);
     setSelectedProductSubcategory(null);
@@ -1479,7 +1490,7 @@ const contactHref = supplier?.phone
 
                 <div className="mb-6 flex w-full flex-col flex-wrap items-stretch justify-center gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4 md:justify-start">
                       {!isDirectory ? (
-                        <Link href={`/empresas/${supplier.slug || supplier.id}/productos`} onClick={(event) => { event.preventDefault(); handleShowProducts(); }} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#168e00] px-7 py-3 text-base font-bold text-white shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] transition-all hover:-translate-y-1 hover:bg-[#137a00] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
+                        <Link href={`${supplierBasePath}productos/`} onClick={(event) => { event.preventDefault(); handleShowProducts(); }} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#168e00] px-7 py-3 text-base font-bold text-white shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] transition-all hover:-translate-y-1 hover:bg-[#137a00] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
                             Ver Catálogo <ArrowDown size={20} />
                         </Link>
                       ) : null}
@@ -1489,7 +1500,7 @@ const contactHref = supplier?.phone
                           supplierName={supplier.name}
                           supplierSlug={supplier.slug}
                           supplierImage={supplierLogo}
-                          returnPath={`/empresas/${supplier.slug || supplier.id}`}
+                          returnPath={supplierBasePath}
                         />
                       ) : null}
                       {hasContactSection ? (
@@ -1546,7 +1557,7 @@ const contactHref = supplier?.phone
       />
 
       {activeTab === "menu" && publicMenus.length > 0 ? (
-        <PublicSupplierMenu menus={publicMenus} supplierName={supplier.name} />
+        <PublicSupplierMenu menus={publicMenus} supplierName={supplier.name} isDemo={isDemo} />
       ) : null}
 
       {activeTab === "agenda" ? (
@@ -1791,7 +1802,7 @@ const contactHref = supplier?.phone
                         Reintentar Carga
                     </button>
                 </div>
-            ) : !isDirectory && products.length === 0 ? (
+            ) : !isDirectory && visibleProducts.length === 0 ? (
                 <div className="rounded-[3rem] bg-white py-20 text-center shadow-sm">
                     <p className="text-xl font-bold text-gray-400">
                       {productSearchQuery
@@ -1803,7 +1814,7 @@ const contactHref = supplier?.phone
                 </div>
             ) : (
                 <div className={`grid gap-8 md:gap-10 ${isDirectory ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"}`}>
-                    {products.map((product) => (
+                    {visibleProducts.map((product) => (
                       <div key={product.id} className="h-full">
                         <ProductCard
                           id={String(product.id)}
@@ -2332,7 +2343,7 @@ const contactHref = supplier?.phone
                             supplierName={supplier.name}
                             supplierSlug={supplier.slug}
                             supplierImage={supplierLogo}
-                            returnPath={`/empresas/${supplier.slug || supplier.id}`}
+                            returnPath={supplierBasePath}
                             className="inline-flex min-h-14 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/20 bg-[#004e28] px-8 py-4 text-base font-bold text-white shadow-xl transition-all hover:-translate-y-1 hover:bg-[#003b1f] disabled:cursor-wait disabled:opacity-70"
                           />
                         </div>

@@ -1,7 +1,8 @@
 import { cache } from "react";
 import { getApiBaseUrl } from "@/lib/seo";
+import type { Supplier } from "@/lib/products";
 
-export type DemoSupplier = {
+export type DemoSupplier = Partial<Supplier> & {
   id: number;
   slug: string;
   name: string;
@@ -15,6 +16,7 @@ export type DemoSupplier = {
 };
 
 export type DemoProduct = {
+  id?: number | string;
   slug: string;
   title: string;
   description: string;
@@ -24,6 +26,7 @@ export type DemoProduct = {
 };
 
 export type DemoService = {
+  id?: string;
   title: string;
   description: string;
   price: number;

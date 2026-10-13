@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
-import { DemoActionButton } from "@/components/supplier/DemoActionButton";
+import SupplierPageClient from "@/app/empresas/[slug]/SupplierPageClient";
+import type { Supplier, CarouselImage } from "@/lib/products";
 import { getDemoContent, getDemoSupplier } from "@/lib/demoProfile";
 import { absoluteMediaUrl, absoluteSiteUrl, stripHtml } from "@/lib/seo";
+import type { Menu } from "@/types/menu";
+import type { SupplierService } from "@/types/services";
 
 type Props = { params: Promise<{ slug: string }> };
-const money = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -25,72 +25,102 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function DemoSupplierPage({ params }: Props) {
   const { slug } = await params;
-  const supplier = await getDemoSupplier(slug);
-  if (!supplier) notFound();
+  const demo = await getDemoSupplier(slug);
+  if (!demo) notFound();
   const { products, services, menus } = await getDemoContent(slug);
-  const headerImage = absoluteMediaUrl(supplier.header_image);
-  const logo = absoluteMediaUrl(supplier.logo);
 
-  return (
-    <main className="min-h-screen bg-[#f2f3f4] pt-24 font-[family-name:var(--font-poppins)] md:pt-28">
-      <section className="relative overflow-hidden bg-[#004e28] text-white">
-        {headerImage && <Image src={headerImage} alt="" fill priority sizes="100vw" className="object-cover opacity-30" />}
-        <div className="relative mx-auto max-w-6xl px-5 py-16 md:py-24">
-          <span className="inline-flex rounded-full border border-white/40 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider">Demostración</span>
-          {logo && <Image src={logo} alt={`Logo de ${supplier.name}`} width={88} height={88} className="mt-7 h-20 w-20 rounded-2xl bg-white object-contain p-2" />}
-          <h1 className="mt-5 max-w-3xl font-[family-name:var(--font-varela-round)] text-4xl leading-tight md:text-6xl">{supplier.name}</h1>
-          {supplier.short_description && <p className="mt-5 max-w-2xl text-lg leading-8 text-white/90">{stripHtml(supplier.short_description)}</p>}
-          <p className="mt-6 max-w-2xl text-sm text-white/80">Este espacio muestra cómo podría verse un negocio en Drooopy. Sus productos y servicios son ejemplos y no admiten operaciones reales.</p>
-          <Link href="/sell" className="mt-8 inline-flex rounded-full bg-[#168e00] px-7 py-3 font-semibold text-white transition hover:bg-[#137a00]">Quiero mi negocio en Drooopy</Link>
-        </div>
-      </section>
+  // The demo has the same supplier presentation; its data comes from /demos.
+  const carouselImages: CarouselImage[] = demo.carousel_images?.length
+    ? demo.carousel_images
+    : demo.header_image
+      ? [{ id: demo.id, title: demo.name, description: "", image: demo.header_image, thumbnail: demo.header_image, supplier_id: demo.id }]
+      : [];
+  const supplier = {
+    ...demo,
+    slug,
+    is_active: true,
+    carousel_images: carouselImages,
+    certificates: demo.certificates || [],
+    business_hours: demo.business_hours || [],
+  } as Supplier;
+  const supplierProducts = products.map((product, index) => ({
+    id: product.id ?? product.slug ?? index,
+    title: product.title,
+    description: product.description || "",
+    price: Number(product.price) || 0,
+    stock: Number((product as { stock?: number }).stock) || 0,
+    sku: String((product as { sku?: string }).sku || ""),
+    is_active: true,
+    supplier_id: demo.id,
+    category_id: 0,
+    subcategory_id: 0,
+    slug: product.slug,
+    thumbnail_url: absoluteMediaUrl(product.thumbnail_url || product.image),
+  }));
+  const supplierServices: SupplierService[] = services.map((service, index) => ({
+    ...service,
+    id: service.id || String(index),
+    supplier_id: demo.id,
+    is_active: true,
+    is_agenda_only: false,
+    cover_image_url: absoluteMediaUrl(service.images?.[0]),
+    cover_thumbnail_url: absoluteMediaUrl(service.images?.[0]),
+    images: [],
+    created_at: "",
+    updated_at: "",
+    category_id: null,
+    subcategory_id: null,
+    supplier_category_id: null,
+    supplier_subcategory_id: null,
+  }));
+  const supplierMenus: Menu[] = menus.map((menu, menuIndex) => ({
+    ...menu,
+    supplier_id: demo.id,
+    is_active: true,
+    display_order: menuIndex,
+    image_url: absoluteMediaUrl((menu as { image_url?: string | null }).image_url),
+    image_thumbnail_url: absoluteMediaUrl((menu as { image_thumbnail_url?: string | null }).image_thumbnail_url),
+    date_start: null,
+    date_end: null,
+    days_of_week: null,
+    time_start: null,
+    time_end: null,
+    setup_step: 0,
+    setup_completed: true,
+    created_at: "",
+    updated_at: "",
+    sections: menu.sections.map((section, sectionIndex) => ({
+      ...section,
+      id: (section as { id?: number }).id ?? sectionIndex + 1,
+      menu_id: menu.id,
+      is_active: true,
+      display_order: sectionIndex,
+      created_at: "",
+      updated_at: "",
+      items: section.items.map((item, itemIndex) => ({
+        ...item,
+        id: (item as { id?: number }).id ?? (menu.id * 10000 + sectionIndex * 100 + itemIndex + 1),
+        section_id: (section as { id?: number }).id ?? sectionIndex + 1,
+        image_url: absoluteMediaUrl(item.image_url),
+        image_thumbnail_url: absoluteMediaUrl(item.image_url),
+        is_active: true,
+        is_available: true,
+        display_order: itemIndex,
+        old_price: null,
+        label: null,
+        created_at: "",
+        updated_at: "",
+        variants: [],
+      })),
+    })),
+  }));
 
-      {(supplier.description || supplier.about) && <section className="mx-auto max-w-6xl px-5 py-12 md:py-16" aria-labelledby="demo-about">
-        <h2 id="demo-about" className="font-[family-name:var(--font-varela-round)] text-3xl text-[#004e28]">Conoce el negocio</h2>
-        <p className="mt-5 max-w-3xl whitespace-pre-line leading-8 text-black">{stripHtml(supplier.about || supplier.description)}</p>
-      </section>}
-
-      {products.length > 0 && <section className="bg-white py-12 md:py-16" aria-labelledby="demo-products">
-        <div className="mx-auto max-w-6xl px-5"><h2 id="demo-products" className="font-[family-name:var(--font-varela-round)] text-3xl text-[#004e28]">Productos</h2>
-          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{products.map((product) => {
-            const image = absoluteMediaUrl(product.thumbnail_url || product.image);
-            return <article key={product.slug} className="overflow-hidden rounded-[2rem] bg-white shadow-[0_15px_35px_-20px_rgba(0,78,40,0.35)]">
-              <div className="relative aspect-[4/3] bg-[#f2f3f4]">{image && <Image src={image} alt={product.title} fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover" />}</div>
-              <div className="space-y-3 p-6"><h3 className="font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">{product.title}</h3><p className="line-clamp-3 text-sm text-gray-600">{stripHtml(product.description)}</p><p className="text-xl font-bold text-[#004e28]">{money.format(product.price)}</p><DemoActionButton label="Ver opciones" /></div>
-            </article>;
-          })}</div>
-        </div>
-      </section>}
-
-      {services.length > 0 && <section className="mx-auto max-w-6xl px-5 py-12 md:py-16" aria-labelledby="demo-services">
-        <h2 id="demo-services" className="font-[family-name:var(--font-varela-round)] text-3xl text-[#004e28]">Servicios</h2>
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{services.map((service, index) => {
-          const image = absoluteMediaUrl(service.images[0]);
-          return <article key={`${service.title}-${index}`} className="overflow-hidden rounded-2xl bg-white shadow-sm">
-            {image && <div className="relative aspect-[4/3]"><Image src={image} alt={service.title} fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover" /></div>}
-            <div className="space-y-3 p-6"><h3 className="font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">{service.title}</h3><p className="text-sm leading-6 text-gray-600">{stripHtml(service.description)}</p><p className="text-xl font-bold text-[#004e28]">{money.format(service.price)}</p><DemoActionButton label="Solicitar servicio" /></div>
-          </article>;
-        })}</div>
-      </section>}
-
-      {menus.length > 0 && <section className="bg-white py-12 md:py-16" aria-labelledby="demo-menus"><div className="mx-auto max-w-6xl px-5">
-        <h2 id="demo-menus" className="font-[family-name:var(--font-varela-round)] text-3xl text-[#004e28]">Menú</h2>
-        <div className="mt-8 space-y-8">{menus.map((menu) => <article key={menu.id} className="rounded-2xl border border-gray-200 p-6">
-          <h3 className="font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28]">{menu.name}</h3>
-          {menu.description && <p className="mt-2 text-gray-600">{stripHtml(menu.description)}</p>}
-          <div className="mt-6 space-y-6">{menu.sections.map((section, index) => <div key={`${section.name}-${index}`}>
-            <h4 className="font-semibold text-[#168e00]">{section.name}</h4>
-            {section.description && <p className="text-sm text-gray-600">{stripHtml(section.description)}</p>}
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">{section.items.map((item, itemIndex) => <div key={`${item.name}-${itemIndex}`} className="flex gap-4 rounded-xl bg-[#f2f3f4] p-4">
-              {item.image_url && <Image src={absoluteMediaUrl(item.image_url) || ""} alt={item.name} width={72} height={72} className="h-18 w-18 rounded-lg object-cover" />}
-              <div><h5 className="font-semibold text-[#004e28]">{item.name}</h5>{item.description && <p className="mt-1 text-sm text-gray-600">{stripHtml(item.description)}</p>}{item.price != null && <p className="mt-2 font-bold text-[#004e28]">{money.format(item.price)}</p>}</div>
-            </div>)}</div>
-          </div>)}</div>
-          <div className="mt-6"><DemoActionButton label="Hacer pedido" /></div>
-        </article>)}</div>
-      </div></section>}
-
-      <section className="mx-auto max-w-6xl px-5 py-12 text-center text-sm text-gray-600">La galería de este proveedor aún no está disponible en la vista de demostración.</section>
-    </main>
-  );
+  return <SupplierPageClient
+    key={slug}
+    initialSupplier={supplier}
+    initialProducts={supplierProducts}
+    demoMenus={supplierMenus}
+    demoServices={supplierServices}
+    isDemo
+  />;
 }

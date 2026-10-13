@@ -34,7 +34,7 @@ function ChromeSection({
   hideForDirectory: boolean;
 }) {
   const searchParams = useSearchParams();
-  const isSupplierPage = normalizedPathname.startsWith("/empresas/");
+  const isSupplierPage = normalizedPathname.startsWith("/empresas/") || normalizedPathname.startsWith("/demos/");
   const hideForLegalEmbed = legalPaths.has(normalizedPathname) && isMobileEmbed(searchParams);
   if (hideForLegalEmbed || (isSupplierPage && hideForDirectory)) return null;
   return kind === "header" ? <Header /> : <><Footer /><MobileNav /></>;

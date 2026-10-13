@@ -27,6 +27,7 @@ export interface BusinessHour {
 
 export interface Supplier {
   id: number;
+  is_demo?: boolean;
   name: string;
   slug: string | null;
   short_name: string | null;

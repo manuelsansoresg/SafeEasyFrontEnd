@@ -69,7 +69,7 @@ export function ProductCard({
       ? supplier.slug
       : (supplier.name ? slugify(supplier.name, { lower: true, strict: true }) : ""));
 
-  const supplierHref = supplierSlug ? `/empresas/${supplierSlug}` : null;
+  const supplierHref = supplierSlug ? `/${supplier?.is_demo ? "demos" : "empresas"}/${supplierSlug}` : null;
   const showSupplierVerified = supplier && supplier.is_verified === true;
 
   const getImageUrl = (path: string) => {

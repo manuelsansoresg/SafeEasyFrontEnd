@@ -545,7 +545,7 @@ function MenuItemDetailModal({
   );
 }
 
-export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; supplierName: string }) {
+export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { menus: Menu[]; supplierName: string; isDemo?: boolean }) {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
@@ -570,6 +570,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
   const [detailItem, setDetailItem] = useState<MenuItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [demoOrderComplete, setDemoOrderComplete] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [customerFieldErrors, setCustomerFieldErrors] = useState<CustomerFieldErrors>({});
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -641,6 +642,23 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
   useEffect(() => {
     if (!supplierSlug || menus.length === 0) return;
 
+    if (isDemo) {
+      setSettingsByMenu(Object.fromEntries(menus.map((menu) => [menu.id, {
+        menu_id: menu.id,
+        supplier_id: menu.supplier_id,
+        accepts_orders: true,
+        allows_pickup: true,
+        allows_delivery: false,
+        allow_guest_orders: true,
+        allows_cash: true,
+        allows_online_payment: false,
+        mercadopago_linked: false,
+        online_payment_available: false,
+      } satisfies MenuOrderSettings])));
+      setSettingsLoading(false);
+      return;
+    }
+
     const controller = new AbortController();
     setSettingsLoading(true);
 
@@ -685,7 +703,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
       });
 
     return () => controller.abort();
-  }, [menus, supplierSlug]);
+  }, [menus, supplierSlug, isDemo]);
 
   useEffect(() => {
     setCartOpen(false);
@@ -902,6 +920,7 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
   function openCheckout() {
     if (!cartItems.length || !orderSettings?.accepts_orders) return;
+    setDemoOrderComplete(false);
 
     if (!isAuthenticated && !orderSettings.allow_guest_orders) {
       goToLoginForOrder();
@@ -1033,6 +1052,13 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
       return;
     }
 
+    if (isDemo) {
+      clearStoredCart(currentCartKey);
+      setCheckoutOpen(false);
+      setDemoOrderComplete(true);
+      return;
+    }
+
     submittingRef.current = true;
     setSubmitting(true);
     setCheckoutError(null);
@@ -1128,6 +1154,11 @@ export function PublicSupplierMenu({ menus, supplierName }: { menus: Menu[]; sup
 
   return (
     <section id="menu" className="bg-[#f7f9f8] py-8 md:py-12">
+      {demoOrderComplete ? (
+        <div role="status" className="mx-auto mb-6 max-w-6xl rounded-2xl border border-[#168e00]/30 bg-white px-5 py-4 text-sm font-semibold text-[#004e28]">
+          Pedido de demostración completado. Así termina el recorrido de compra; no se generó un pedido real.
+        </div>
+      ) : null}
       <div className="mx-auto max-w-6xl px-5 md:px-8">
         <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
