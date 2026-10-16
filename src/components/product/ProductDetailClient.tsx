@@ -31,7 +31,7 @@ import Link from "next/link";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
-import { productHasActiveSupplierSubscription } from "@/lib/subscriptionAccess";
+import { productHasActiveSupplierSubscription, supplierHasDirectorySubscription } from "@/lib/subscriptionAccess";
 import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
 import DOMPurify from "isomorphic-dompurify";
 
@@ -97,6 +97,7 @@ export interface ProductDetail {
     transfer_name?: string | null;
     transfer_accepted?: boolean;
     has_store?: boolean | number | string | null;
+    is_directory?: boolean;
   };
   category_id: number;
   subcategory_id: number;
@@ -257,6 +258,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
     readOptionalBoolean(product?.supplier?.has_store) ??
     true;
   const supplierSubscriptionActive = productHasActiveSupplierSubscription(product);
+  const isDirectory = supplierHasDirectorySubscription(product?.supplier);
   const isOwnProduct = Boolean(
     user &&
       product &&
@@ -295,6 +297,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
   };
 
   const handleAddToCart = async () => {
+    if (isDirectory) return;
     if (!token) {
       setIsLoginModalOpen(true);
       return;
@@ -829,7 +832,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                   </div>
                 ) : null}
 
-                {supplierHasStore ? (
+                {supplierHasStore && !isDirectory ? (
                   <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mb-8">
                     <div className="flex flex-col gap-4">
                       <div className="flex justify-between items-center">
@@ -935,7 +938,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                 ) : null}
 
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                  {supplierHasStore ? (
+                  {supplierHasStore && !isDirectory ? (
                     <button 
                       onClick={handleAddToCart}
                       disabled={isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive}
@@ -959,14 +962,14 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                     onClick={handleChatOpen}
                     className={cn(
                       "px-6 py-4 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 font-semibold",
-                      supplierHasStore
+                      supplierHasStore && !isDirectory
                         ? "border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 text-gray-700"
                         : "flex-1 bg-[#168e00] text-white shadow-lg shadow-[#168e00]/15 hover:bg-[#137500]"
                     )}
                     title="Chat con la tienda"
                   >
-                    <MessageCircle size={22} className={supplierHasStore ? "text-primary" : "text-white"} />
-                    {supplierHasStore ? "Chat" : "Contactar"}
+                    <MessageCircle size={22} className={supplierHasStore && !isDirectory ? "text-primary" : "text-white"} />
+                    {supplierHasStore && !isDirectory ? "Chat" : "Contactar"}
                   </button>
 
                   <button 
@@ -985,7 +988,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                 </div>
 
                 {/* Safety Badges */}
-                {supplierHasStore ? (
+                {supplierHasStore && !isDirectory ? (
                   <div className="grid grid-cols-2 gap-4 pt-6 border-t border-gray-100">
                     <div className="flex items-start gap-3">
                       <ShieldCheck className="text-green-600 shrink-0" size={20} />

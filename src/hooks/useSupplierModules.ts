@@ -12,8 +12,8 @@ export function useSupplierModules(enabled = true) {
     queryKey: ["supplier-modules", user?.id, token],
     queryFn: ({ signal }) => moduleService.mine(signal),
     enabled: enabled && user?.role === "supplier" && Boolean(token),
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
     retry: false,
   });
 
@@ -23,7 +23,7 @@ export function useSupplierModules(enabled = true) {
 
   return {
     modules,
-    loading: query.isPending && query.fetchStatus !== "idle",
+    loading: query.isFetching,
     error: query.error,
     hasModule: (code: string) => !query.error && getModule(code)?.has_access === true,
     getModule,

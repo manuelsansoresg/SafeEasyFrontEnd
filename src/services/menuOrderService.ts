@@ -124,6 +124,7 @@ function defaultPublicSettings(menuId: number): MenuOrderSettings {
   return {
     menu_id: menuId,
     supplier_id: 0,
+    orders_enabled_by_plan: false,
     accepts_orders: false,
     allows_pickup: true,
     allows_delivery: false,
@@ -149,14 +150,15 @@ function normalizeSettings(
     menu_id: typeof settings.menu_id === "number" ? settings.menu_id : menuId,
     supplier_id:
       typeof settings.supplier_id === "number" ? settings.supplier_id : 0,
-    accepts_orders: settings.accepts_orders === true,
+    orders_enabled_by_plan: settings.orders_enabled_by_plan === true,
+    accepts_orders: settings.orders_enabled_by_plan === true && settings.accepts_orders === true,
     allows_pickup: settings.allows_pickup !== false,
     allows_delivery: settings.allows_delivery === true,
     allow_guest_orders: settings.allow_guest_orders !== false,
     allows_cash: settings.allows_cash !== false,
-    allows_online_payment: settings.allows_online_payment === true,
+    allows_online_payment: settings.orders_enabled_by_plan === true && settings.allows_online_payment === true,
     mercadopago_linked: settings.mercadopago_linked === true,
-    online_payment_available: settings.online_payment_available === true,
+    online_payment_available: settings.orders_enabled_by_plan === true && settings.online_payment_available === true,
   };
 }
 

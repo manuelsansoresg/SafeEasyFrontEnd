@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMenuCartPermissions } from "@/hooks/useMenuCartPermissions";
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import {
   menuCartKey,
@@ -20,6 +21,7 @@ export function MenuCartSection() {
   const updateNotes = useMenuCartStore((state) => state.updateNotes);
   const removeItem = useMenuCartStore((state) => state.removeItem);
   const clearCart = useMenuCartStore((state) => state.clearCart);
+  const permissions = useMenuCartPermissions();
   const visibleCarts = hydrated ? Object.values(carts) : [];
 
   return (
@@ -40,6 +42,13 @@ export function MenuCartSection() {
             const key = menuCartKey(cart.supplierId, cart.menuId);
             const quantity = menuCartQuantity(cart);
             const href = `/empresas/${encodeURIComponent(cart.supplierSlug)}/menu/?menuCart=${cart.menuId}`;
+            const permission = permissions[key];
+            if (permission !== "enabled") return <article key={key} className="rounded-2xl border border-[#004e28]/15 bg-white p-5 shadow-sm">
+              <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-bold text-[#004e28]">{cart.supplierName}</h3>
+              <p className="mt-1 text-sm text-gray-600">{cart.menuName}</p>
+              {permission === "catalog" ? <p className="mt-4 rounded-xl bg-[#f2f3f4] p-4 text-sm text-[#004e28]">Este negocio actualmente solo permite consultar su menú</p> : <p className="mt-4 text-sm text-gray-500">{permission === "unavailable" ? "Este negocio no acepta pedidos por ahora." : "Consultando disponibilidad de pedidos."}</p>}
+              <button type="button" onClick={() => clearCart(key)} className="mt-4 text-sm font-semibold text-red-600 hover:underline">Vaciar carrito</button>
+            </article>;
             return (
               <article key={key} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#004e28]/15 bg-white shadow-sm">
                 <div className="border-b border-gray-100 bg-[#f2f3f4] px-5 py-4">

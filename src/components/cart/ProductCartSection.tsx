@@ -11,6 +11,7 @@ import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
 import { distanceKmDriving, LatLngLiteral, parseMapLocation } from "@/lib/googleMaps";
 import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
+import { readSupplierDirectoryStatus } from "@/lib/supplierDirectory";
 import { Loader2, Minus, Plus, ShieldCheck, Trash2 } from "lucide-react";
 
 type ProductLite = {
@@ -37,6 +38,7 @@ type SupplierCart = {
   supplier_user_id: number | null;
   supplier_name: string;
   supplier_is_verified: boolean;
+  is_directory: boolean | null;
   supplier_map_location: LatLngLiteral | null;
   has_store: boolean;
   accepts_delivery: boolean;
@@ -224,6 +226,7 @@ function parseSupplierCarts(data: unknown): SupplierCart[] {
       supplier_user_id: Number.isFinite(supplierUserId) && supplierUserId > 0 ? supplierUserId : null,
       supplier_name: supplierName,
       supplier_is_verified: supplierIsVerified,
+      is_directory: null,
       supplier_map_location: supplierMapLoc,
       has_store: hasStore,
       accepts_delivery: hasStore && acceptsDelivery,
@@ -258,6 +261,7 @@ export default function ProductCartSection() {
   const [quoteRetryCount, setQuoteRetryCount] = useState(0);
   const [addressLocked, setAddressLocked] = useState(false);
   const checkoutOpeningRef = useRef(false);
+  const loadRequestRef = useRef(0);
 
   const closeToast = () => setToast(null);
 
@@ -276,6 +280,7 @@ export default function ProductCartSection() {
 
   const load = async () => {
     if (isRedirectingRef.current || isUnmountedRef.current) return;
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     try {
       let res = await tryFetch(["/api/cart/", "/api/cart"]);
@@ -284,21 +289,26 @@ export default function ProductCartSection() {
         res = await tryFetch(["/api/cart/", "/api/cart"]);
       }
       if (!res || !res.ok) {
-        if (isRedirectingRef.current || isUnmountedRef.current) return;
+        if (isRedirectingRef.current || isUnmountedRef.current || requestId !== loadRequestRef.current) return;
         setCarts([]);
         setToast({ type: "error", message: "No se pudo cargar el carrito." });
         return;
       }
       const data: unknown = await res.json().catch(() => null);
-      if (isRedirectingRef.current || isUnmountedRef.current) return;
+      if (isRedirectingRef.current || isUnmountedRef.current || requestId !== loadRequestRef.current) return;
       const parsed = parseSupplierCarts(data);
-      setCarts(parsed);
+      const checked = await Promise.all(parsed.map(async (cart) => ({
+        ...cart,
+        is_directory: await readSupplierDirectoryStatus(cart.items[0]?.product?.slug),
+      })));
+      if (isRedirectingRef.current || isUnmountedRef.current || requestId !== loadRequestRef.current) return;
+      setCarts(checked);
     } catch {
-      if (isRedirectingRef.current || isUnmountedRef.current) return;
+      if (isRedirectingRef.current || isUnmountedRef.current || requestId !== loadRequestRef.current) return;
       setCarts([]);
       setToast({ type: "error", message: "Error de conexión al cargar el carrito." });
     } finally {
-      if (isRedirectingRef.current || isUnmountedRef.current) return;
+      if (isRedirectingRef.current || isUnmountedRef.current || requestId !== loadRequestRef.current) return;
       setLoading(false);
     }
   };
@@ -453,6 +463,7 @@ export default function ProductCartSection() {
   const startCheckout = async (supplierId: number) => {
     const supplier = carts.find((c) => c.supplier_id === supplierId) || null;
     if (!supplier) return;
+    if (supplier.is_directory !== false) return;
     if (!supplier.accepts_pickup && !supplier.accepts_delivery) {
       setToast({ type: "error", message: "Este proveedor no tiene métodos de entrega disponibles por el momento." });
       return;
@@ -623,6 +634,10 @@ export default function ProductCartSection() {
         setToast({ type: "error", message: "No se encontró el proveedor de este carrito." });
         return;
       }
+      if (await readSupplierDirectoryStatus(selectedSupplier.items[0]?.product?.slug) !== false) {
+        setToast({ type: "info", message: "Este negocio actualmente funciona como catálogo." });
+        return;
+      }
       if (selectedSupplier?.supplier_user_id && meUserId && Number(selectedSupplier.supplier_user_id) === Number(meUserId)) {
         setToast({ type: "error", message: "No puedes comprar productos de tu propia cuenta." });
         return;
@@ -768,6 +783,11 @@ export default function ProductCartSection() {
         ) : (
           <div className="space-y-6">
             {carts.map((c) => {
+              if (c.is_directory !== false) return <div key={c.supplier_id} className="rounded-2xl bg-white p-5 shadow-sm">
+                <h3 className="font-bold text-[#004e28]">{c.supplier_name}</h3>
+                <p className="mt-2 text-sm text-gray-600">{c.is_directory ? "Este negocio actualmente funciona como catálogo." : "Consultando disponibilidad de compra."}</p>
+                <div className="mt-4 space-y-2">{c.items.map((item) => <p key={item.id} className="text-sm text-gray-700">{item.product?.title ?? "Producto"} · {item.quantity}</p>)}</div>
+              </div>;
               const supplierSubtotal = c.items.reduce((sum, it) => {
                 const priceRaw = it.product?.price ?? 0;
                 const price =

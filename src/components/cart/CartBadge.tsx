@@ -6,6 +6,9 @@ import { ShoppingCart } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
 import { menuCartQuantity, useMenuCartHydrated, useMenuCartStore } from "@/store/useMenuCartStore";
+import { menuCartKey } from "@/store/useMenuCartStore";
+import { useMenuCartPermissions } from "@/hooks/useMenuCartPermissions";
+import { readSupplierDirectoryStatus } from "@/lib/supplierDirectory";
 
 type CartBadgeState = {
   count: number;
@@ -13,16 +16,17 @@ type CartBadgeState = {
 
 export function CartBadge() {
   const [state, setState] = useState<CartBadgeState>({ count: 0 });
-  const inflight = useRef(false);
+  const requestId = useRef(0);
   const authHydrated = useAuthHydrated();
   const isAuthenticated = useAuthStore((value) => value.isAuthenticated);
   const menuHydrated = useMenuCartHydrated();
   const menuCarts = useMenuCartStore((value) => value.carts);
-  const menuCount = menuHydrated ? Object.values(menuCarts).reduce((sum, cart) => sum + menuCartQuantity(cart), 0) : 0;
+  const menuPermissions = useMenuCartPermissions();
+  const menuCount = menuHydrated ? Object.values(menuCarts).reduce((sum, cart) => sum + (menuPermissions[menuCartKey(cart.supplierId, cart.menuId)] === "enabled" ? menuCartQuantity(cart) : 0), 0) : 0;
 
   const refresh = async () => {
-    if (inflight.current) return;
-    inflight.current = true;
+    const currentRequest = ++requestId.current;
+    setState({ count: 0 });
     try {
       const tryUrls = ["/api/cart/", "/api/cart", "/api/v1/cart/", "/api/v1/cart"];
       let res: Response | null = null;
@@ -34,7 +38,7 @@ export function CartBadge() {
         break;
       }
       if (!res || !res.ok) {
-        setState({ count: 0 });
+        if (currentRequest === requestId.current) setState({ count: 0 });
         return;
       }
 
@@ -52,25 +56,28 @@ export function CartBadge() {
 
       const carts = Array.isArray(list) ? list : [];
 
-      const count = carts.reduce((sum, cart) => {
+      const orderable = await Promise.all(carts.map(async (cart) => {
         const c = cart && typeof cart === "object" ? (cart as Record<string, unknown>) : {};
         const items =
           (Array.isArray(c.items) ? c.items : null) ||
           (Array.isArray(c.cart_items) ? c.cart_items : null) ||
           (Array.isArray(c.lines) ? c.lines : null) ||
           null;
-        if (!items) return sum;
-        return sum + items.reduce((s, it) => {
+        if (!items) return 0;
+        const firstItem = items[0] && typeof items[0] === "object" ? items[0] as Record<string, unknown> : {};
+        const product = firstItem.product && typeof firstItem.product === "object" ? firstItem.product as Record<string, unknown> : {};
+        const slug = typeof product.slug === "string" ? product.slug : null;
+        if (await readSupplierDirectoryStatus(slug) !== false) return 0;
+        return items.reduce((s, it) => {
           const line = it && typeof it === "object" ? it as Record<string, unknown> : {};
           return s + (Number(line.quantity ?? 0) || 0);
         }, 0);
-      }, 0);
+      }));
+      const count = orderable.reduce((sum, value) => sum + value, 0);
 
-      setState({ count });
+      if (currentRequest === requestId.current) setState({ count });
     } catch {
-      setState({ count: 0 });
-    } finally {
-      inflight.current = false;
+      if (currentRequest === requestId.current) setState({ count: 0 });
     }
   };
 
@@ -80,9 +87,11 @@ export function CartBadge() {
     const id = window.setInterval(refresh, 30000);
     const onEvent = () => refresh();
     window.addEventListener("cart:changed", onEvent as EventListener);
+    window.addEventListener("focus", onEvent);
     return () => {
       window.clearInterval(id);
       window.removeEventListener("cart:changed", onEvent as EventListener);
+      window.removeEventListener("focus", onEvent);
     };
   }, [authHydrated, isAuthenticated]);
 

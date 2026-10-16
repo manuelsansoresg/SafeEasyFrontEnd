@@ -29,6 +29,7 @@ export type MenuOrderPaymentFlow = "preference" | "card_authorization";
 export interface MenuOrderSettings {
   menu_id: number;
   supplier_id: number;
+  orders_enabled_by_plan: boolean;
   accepts_orders: boolean;
   allows_pickup: boolean;
   allows_delivery: boolean;

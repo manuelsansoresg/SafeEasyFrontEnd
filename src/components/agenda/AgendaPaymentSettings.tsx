@@ -6,6 +6,7 @@ import type { AgendaPaymentSettings } from "@/types/agenda";
 type AgendaPaymentSettingsProps = {
   value: AgendaPaymentSettings;
   linking: boolean;
+  onlinePaymentsEnabled: boolean;
   onChange: (value: AgendaPaymentSettings) => void;
   onLinkMercadoPago: () => void;
   onRequireMercadoPago: () => void;
@@ -43,6 +44,7 @@ function Switch({
 export default function AgendaPaymentSettingsSection({
   value,
   linking,
+  onlinePaymentsEnabled,
   onChange,
   onLinkMercadoPago,
   onRequireMercadoPago,
@@ -86,7 +88,7 @@ export default function AgendaPaymentSettingsSection({
       </div>
 
       <div
-        className={`grid gap-4 md:grid-cols-2 ${methodsEnabled ? "" : "opacity-60"}`}
+        className={`grid gap-4 ${onlinePaymentsEnabled ? "md:grid-cols-2" : ""} ${methodsEnabled ? "" : "opacity-60"}`}
         aria-disabled={!methodsEnabled}
       >
         <article className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
@@ -119,7 +121,7 @@ export default function AgendaPaymentSettingsSection({
           </span>
         </article>
 
-        <article className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
+        {onlinePaymentsEnabled ? <article className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-[#004e28]/10 text-[#004e28]">
               <CreditCard aria-hidden="true" size={24} />
@@ -166,7 +168,7 @@ export default function AgendaPaymentSettingsSection({
               </button>
             </div>
           )}
-        </article>
+        </article> : null}
       </div>
     </section>
   );

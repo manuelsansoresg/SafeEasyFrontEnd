@@ -38,6 +38,7 @@ import { distanceKmDriving, type LatLngLiteral } from "@/lib/googleMaps";
 import { fetchSupplierLocation } from "@/lib/orderLocation";
 import { useDeliveryAddress } from "@/hooks/useDeliveryAddress";
 import { menuOrderService } from "@/services/menuOrderService";
+import { readSupplierDirectoryStatusBySlug } from "@/lib/supplierDirectory";
 import { useAuthStore } from "@/store/useAuthStore";
 import { menuCartKey, menuLineKey, useMenuCartHydrated, useMenuCartStore, type MenuCartLine as CartLine } from "@/store/useMenuCartStore";
 import type {
@@ -290,7 +291,7 @@ function MenuItemCard({
                           Agregar
                         </button>
                       )
-                    ) : (
+                    ) : item.is_available && variant.is_available ? null : (
                       <span className="text-xs text-gray-400">
                         No disponible
                       </span>
@@ -495,7 +496,7 @@ function MenuItemDetailModal({
                                 <Plus size={16} /> Agregar
                               </button>
                             )
-                          ) : (
+                          ) : item.is_available && variant.is_available ? null : (
                             <span className="w-fit rounded-full bg-gray-200 px-3 py-1.5 text-xs font-bold text-gray-500">
                               No disponible
                             </span>
@@ -558,6 +559,8 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
     Record<number, MenuOrderSettings>
   >({});
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [directoryResult, setDirectoryResult] = useState<{ slug: string; status: boolean | null } | null>(null);
+  const directoryStatus = directoryResult?.slug === supplierSlug ? directoryResult.status : null;
   const hydrated = useMenuCartHydrated();
   const [requestedCartMenuId, setRequestedCartMenuId] = useState<number | null>(null);
   const storedCarts = useMenuCartStore((state) => state.carts);
@@ -612,7 +615,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
   const formattedDeliveryAddress = formatDeliveryAddress(delivery.address).trim();
   const currentCartKey = selectedMenu ? menuCartKey(selectedMenu.supplier_id, selectedMenu.id) : "";
   const cart = hydrated ? storedCarts[currentCartKey]?.items ?? EMPTY_CART : EMPTY_CART;
-  const orderSettings = selectedMenu
+  const orderSettings = selectedMenu && !settingsLoading
     ? settingsByMenu[selectedMenu.id] ?? null
     : null;
 
@@ -642,25 +645,9 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
   useEffect(() => {
     if (!supplierSlug || menus.length === 0) return;
 
-    if (isDemo) {
-      setSettingsByMenu(Object.fromEntries(menus.map((menu) => [menu.id, {
-        menu_id: menu.id,
-        supplier_id: menu.supplier_id,
-        accepts_orders: true,
-        allows_pickup: true,
-        allows_delivery: false,
-        allow_guest_orders: true,
-        allows_cash: true,
-        allows_online_payment: false,
-        mercadopago_linked: false,
-        online_payment_available: false,
-      } satisfies MenuOrderSettings])));
-      setSettingsLoading(false);
-      return;
-    }
-
     const controller = new AbortController();
     setSettingsLoading(true);
+    setSettingsByMenu({});
 
     Promise.all(
       menus.map(async (menu) => {
@@ -680,6 +667,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
             {
               menu_id: menu.id,
               supplier_id: menu.supplier_id,
+              orders_enabled_by_plan: false,
               accepts_orders: false,
               allows_pickup: true,
               allows_delivery: false,
@@ -703,7 +691,16 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
       });
 
     return () => controller.abort();
-  }, [menus, supplierSlug, isDemo]);
+  }, [menus, supplierSlug]);
+
+  useEffect(() => {
+    if (!supplierSlug) return;
+    let active = true;
+    void readSupplierDirectoryStatusBySlug(supplierSlug).then((status) => {
+      if (active) setDirectoryResult({ slug: supplierSlug, status });
+    });
+    return () => { active = false; };
+  }, [supplierSlug]);
 
   useEffect(() => {
     setCartOpen(false);
@@ -813,11 +810,11 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
 
   const cartItems = useMemo(() => Object.values(cart), [cart]);
   useEffect(() => {
-    if (hydrated && requestedCartMenuId === selectedMenu?.id && cartItems.length) {
+    if (hydrated && requestedCartMenuId === selectedMenu?.id && cartItems.length && directoryStatus === false && orderSettings?.orders_enabled_by_plan && orderSettings.accepts_orders) {
       setCartOpen(true);
       setRequestedCartMenuId(null);
     }
-  }, [hydrated, requestedCartMenuId, selectedMenu?.id, cartItems.length]);
+  }, [hydrated, requestedCartMenuId, selectedMenu?.id, cartItems.length, directoryStatus, orderSettings]);
   const cartQuantity = useMemo(
     () => cartItems.reduce((sum, line) => sum + line.quantity, 0),
     [cartItems],
@@ -854,7 +851,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
 
   if (!selectedMenu) return null;
 
-  const acceptsOrders = Boolean(orderSettings?.accepts_orders);
+  const acceptsOrders = Boolean(directoryStatus === false && orderSettings?.orders_enabled_by_plan && orderSettings.accepts_orders);
   const canCurrentUserOrder =
     acceptsOrders &&
     (isAuthenticated || Boolean(orderSettings?.allow_guest_orders));
@@ -884,6 +881,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
     delta: number,
     variant: MenuItemVariant | null = null,
   ) {
+    if (!acceptsOrders) return;
     if (!item.is_available) return;
     if (itemHasVariants(item) && !variant) return;
     if (
@@ -919,7 +917,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
   }
 
   function openCheckout() {
-    if (!cartItems.length || !orderSettings?.accepts_orders) return;
+    if (!cartItems.length || !acceptsOrders || !orderSettings) return;
     setDemoOrderComplete(false);
 
     if (!isAuthenticated && !orderSettings.allow_guest_orders) {
@@ -945,7 +943,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
     event.preventDefault();
     if (submittingRef.current) return;
 
-    if (!orderSettings?.accepts_orders || !supplierSlug || !cartItems.length) {
+    if (!acceptsOrders || !orderSettings || !supplierSlug || !cartItems.length) {
       return;
     }
 
@@ -1261,7 +1259,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                 ) : null}
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {acceptsOrders ? <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {orderSettings?.allows_pickup ? (
                   <div className="rounded-2xl bg-gray-50 p-4">
                     <Store size={20} className="text-[#168e00]" />
@@ -1286,7 +1284,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                     <p className="mt-2 text-sm font-bold text-gray-900">Tarjeta</p>
                   </div>
                 ) : null}
-              </div>
+              </div> : null}
             </div>
           </div>
         </article>
@@ -1342,7 +1340,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
         </button>
       ) : null}
 
-      {cartOpen ? (
+      {cartOpen && acceptsOrders ? (
         <div
           className="fixed inset-0 z-[21000] flex justify-end bg-black/45 p-3 backdrop-blur-sm sm:p-4"
           role="dialog"
@@ -1436,7 +1434,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
         </div>
       ) : null}
 
-      {checkoutOpen ? (
+      {checkoutOpen && acceptsOrders ? (
         <div
           className="fixed inset-0 z-[22000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           role="dialog"

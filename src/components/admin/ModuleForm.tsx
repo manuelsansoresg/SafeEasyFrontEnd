@@ -515,7 +515,7 @@ export function ModuleForm({
                             ) : null}
                           </span>
                         </label>
-                        {checked ? (
+                        {checked ? (<>
                           <label className="ml-8 mt-2 flex cursor-pointer items-center gap-2 text-xs font-medium text-gray-600">
                             <input
                               type="checkbox"
@@ -532,9 +532,14 @@ export function ModuleForm({
                               }}
                               className="h-4 w-4 accent-[#168e00]"
                             />
-                            Permitir pagos en línea
+                            {form.code === "menu" ? "Permitir recibir pedidos" : "Permitir pagos en línea"}
                           </label>
-                        ) : null}
+                          {form.code === "menu" ? (
+                            <p className="ml-14 mt-1 text-xs leading-5 text-gray-500">
+                              Permite al proveedor recibir pedidos en efectivo o mediante Mercado Pago. Si se desactiva, el menú funcionará como catálogo
+                            </p>
+                          ) : null}
+                        </>) : null}
                       </div>
                     );
                   })

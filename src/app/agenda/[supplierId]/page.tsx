@@ -148,6 +148,9 @@ export default function PublicAgendaBookingPage() {
   const [notes, setNotes] = useState("");
   const [paymentMethod, setPaymentMethod] =
     useState<AgendaPaymentMethod>("none");
+  const selectedPaymentMethod = availability
+    ? nextPaymentMethod(availability, paymentMethod)
+    : "none";
 
   const [loadingServices, setLoadingServices] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -464,7 +467,7 @@ export default function PublicAgendaBookingPage() {
       return;
     }
 
-    if (availability?.accepts_payments && paymentMethod === "none") {
+    if (availability?.accepts_payments && selectedPaymentMethod === "none") {
       setError("Selecciona una forma de pago para reservar.");
       return;
     }
@@ -495,6 +498,12 @@ export default function PublicAgendaBookingPage() {
         setError("Ese horario acaba de dejar de estar disponible. Elige otro.");
         return;
       }
+      if (selectedPaymentMethod === "online" && !latest.online_payment_available) {
+        setPaymentMethod(latest.allows_cash_payment ? "cash" : "none");
+        setAvailabilityRefresh((current) => current + 1);
+        setError("El pago en línea ya no está disponible. Selecciona otra forma de pago.");
+        return;
+      }
 
       creating = true;
       const booking =
@@ -508,7 +517,7 @@ export default function PublicAgendaBookingPage() {
             customer_phone: phone.trim() || null,
             notes: notes.trim() || null,
             payment_method: availability?.accepts_payments
-              ? paymentMethod
+              ? selectedPaymentMethod
               : "none",
           },
         );
@@ -1009,7 +1018,7 @@ export default function PublicAgendaBookingPage() {
         <AgendaPaymentMethodSelector
           allowsCash={availability.allows_cash_payment}
           onlineAvailable={availability.online_payment_available}
-          value={paymentMethod}
+          value={selectedPaymentMethod}
           onChange={(method) => {
             setError(null);
             setPaymentMethod(method);
@@ -1050,7 +1059,7 @@ export default function PublicAgendaBookingPage() {
               !name.trim() ||
               (guestEmailRequired && !email.trim()) ||
               guestBlocked ||
-              (availability?.accepts_payments === true && paymentMethod === "none")
+              (availability?.accepts_payments === true && selectedPaymentMethod === "none")
             }
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-6 py-3.5 font-bold text-white transition hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -1062,7 +1071,7 @@ export default function PublicAgendaBookingPage() {
             ) : (
               <CalendarDays size={19} />
             )}
-            {paymentMethod === "online" ? "Continuar al pago" : "Confirmar reservación"}
+            {selectedPaymentMethod === "online" ? "Continuar al pago" : "Confirmar reservación"}
           </button>
         </div>
       </section>

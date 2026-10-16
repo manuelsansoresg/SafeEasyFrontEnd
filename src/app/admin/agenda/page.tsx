@@ -135,8 +135,9 @@ function settingsPayload(settings: AgendaSettings): AgendaSettingsPayload {
 
 export default function AdminAgendaPage() {
   const user = useAuthStore((state) => state.user);
-  const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
+  const { loading: accessLoading, error: accessError, hasModule, getModule, retry } = useSupplierModules();
   const hasAccess = hasModule("agenda");
+  const onlinePaymentsEnabled = getModule("agenda")?.online_payments_enabled === true;
   const { isDirectory, loading: directoryLoading } =
     useMyDirectorySubscription(Boolean(user));
 
@@ -376,10 +377,11 @@ export default function AdminAgendaPage() {
 
   const savePaymentSettings = async () => {
     if (!paymentSettings) return false;
+    const onlineAllowed = onlinePaymentsEnabled && paymentSettings.allows_online_payment;
     if (
       paymentSettings.accepts_payments &&
       !paymentSettings.allows_cash_payment &&
-      !paymentSettings.allows_online_payment
+      !onlineAllowed
     ) {
       setToast({
         type: "error",
@@ -393,7 +395,7 @@ export default function AdminAgendaPage() {
       const updated = await agendaService.updatePaymentSettings({
         accepts_payments: paymentSettings.accepts_payments,
         allows_cash_payment: paymentSettings.allows_cash_payment,
-        allows_online_payment: paymentSettings.allows_online_payment,
+        allows_online_payment: onlineAllowed,
       });
       setPaymentSettings(updated);
       setToast({ type: "success", message: "Configuración de pagos guardada." });
@@ -410,6 +412,7 @@ export default function AdminAgendaPage() {
   };
 
   const linkMercadoPago = async () => {
+    if (!onlinePaymentsEnabled) return;
     setLinkingMercadoPago(true);
     try {
       await startMercadoPagoConnect("supplier");
@@ -1367,6 +1370,7 @@ export default function AdminAgendaPage() {
       {section === "payments" && paymentSettings ? (
         <AgendaPaymentSettingsSection
           value={paymentSettings}
+          onlinePaymentsEnabled={onlinePaymentsEnabled}
           linking={linkingMercadoPago}
           onChange={setPaymentSettings}
           onLinkMercadoPago={() => void linkMercadoPago()}

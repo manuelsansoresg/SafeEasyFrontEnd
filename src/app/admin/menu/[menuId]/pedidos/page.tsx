@@ -20,6 +20,7 @@ import { Toast } from "@/components/ui/Toast";
 import { startMercadoPagoConnect } from "@/lib/mercadoPagoConnect";
 import { menuOrderService } from "@/services/menuOrderService";
 import { menuService } from "@/services/menuService";
+import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
 import type { Menu } from "@/types/menu";
 import type { MenuOrderSettings } from "@/types/menuOrder";
 
@@ -59,6 +60,7 @@ export default function AdminMenuOrderSettingsPage() {
   const params = useParams<{ menuId: string }>();
   const searchParams = useSearchParams();
   const menuId = Number(params.menuId);
+  const { isDirectory, loading: directoryLoading } = useMyDirectorySubscription();
 
   const [menu, setMenu] = useState<Menu | null>(null);
   const [settings, setSettings] = useState<MenuOrderSettings | null>(null);
@@ -125,7 +127,7 @@ export default function AdminMenuOrderSettingsPage() {
 
   const setAcceptsOrders = (value: boolean) => {
     setSettings((current) => {
-      if (!current) return current;
+      if (!current?.orders_enabled_by_plan) return current;
       if (!value) return { ...current, accepts_orders: false };
 
       return {
@@ -145,7 +147,7 @@ export default function AdminMenuOrderSettingsPage() {
 
   const toggleDelivery = (key: "allows_pickup" | "allows_delivery") => {
     setSettings((current) => {
-      if (!current) return current;
+      if (!current?.orders_enabled_by_plan) return current;
       const next = { ...current, [key]: !current[key] };
       if (
         next.accepts_orders &&
@@ -160,7 +162,7 @@ export default function AdminMenuOrderSettingsPage() {
 
   const togglePayment = (key: "allows_cash" | "allows_online_payment") => {
     setSettings((current) => {
-      if (!current) return current;
+      if (!current?.orders_enabled_by_plan) return current;
 
       if (
         key === "allows_online_payment" &&
@@ -187,6 +189,7 @@ export default function AdminMenuOrderSettingsPage() {
   };
 
   const connectMercadoPago = async () => {
+    if (!settings?.orders_enabled_by_plan || isDirectory) return;
     setConnecting(true);
     try {
       await startMercadoPagoConnect("supplier");
@@ -203,7 +206,7 @@ export default function AdminMenuOrderSettingsPage() {
   };
 
   const save = async () => {
-    if (!settings) return;
+    if (!settings?.orders_enabled_by_plan || isDirectory) return;
 
     if (
       settings.accepts_orders &&
@@ -256,7 +259,7 @@ export default function AdminMenuOrderSettingsPage() {
     }
   };
 
-  if (loading) {
+  if (loading || directoryLoading) {
     return (
       <div className="flex min-h-[55vh] items-center justify-center">
         <Loader2 size={34} className="animate-spin text-[#168e00]" />
@@ -304,7 +307,7 @@ export default function AdminMenuOrderSettingsPage() {
         subtitle="Configura pedidos, entrega, clientes y formas de pago."
       />
 
-      <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
+      {settings.orders_enabled_by_plan && !isDirectory ? <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-black text-[#004e28]">Recibir pedidos desde Drooopy</h2>
@@ -480,7 +483,15 @@ export default function AdminMenuOrderSettingsPage() {
             Guardar configuración
           </button>
         </div>
-      </section>
+      </section> : <section className="rounded-3xl border border-[#168e00]/20 bg-white p-6 shadow-sm sm:p-8">
+        <div className="flex items-start gap-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#168e00]/10 text-[#168e00]"><Store size={24} /></span>
+          <div>
+            <h2 className="text-xl font-black text-[#004e28]">Tu menú está funcionando como catálogo</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600">Los clientes pueden consultar tus platillos, fotografías y precios. Para recibir pedidos desde Drooopy necesitas un plan que incluya esta función.</p>
+          </div>
+        </div>
+      </section>}
 
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
     </div>

@@ -95,6 +95,8 @@ export interface SupplierModuleCatalogItem {
   payment_required: boolean;
   can_activate: boolean;
   has_access: boolean;
+  online_payments_enabled: boolean;
+  orders_enabled: boolean;
   assignment: SupplierModuleAssignment | null;
 }
 
