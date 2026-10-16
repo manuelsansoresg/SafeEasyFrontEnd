@@ -1563,7 +1563,11 @@ const contactHref = supplier?.phone
       ) : null}
 
       {activeTab === "agenda" ? (
-        <PublicSupplierAgendaTab supplierId={supplier.id} />
+        <PublicSupplierAgendaTab
+          supplierId={supplier.id}
+          businessType={supplier.business_type}
+          initialTitle={supplier.agenda_settings?.public_booking_title}
+        />
       ) : null}
 
       {activeTab === "main" && supplier.description?.trim() ? (

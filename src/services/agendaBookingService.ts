@@ -1,5 +1,5 @@
 import { fetchWithAuth } from "@/lib/api";
-import type { AgendaService } from "@/types/agenda";
+import type { AgendaService, PublicAgendaSettings } from "@/types/agenda";
 import type {
   AgendaAvailability,
   AgendaBooking,
@@ -231,6 +231,16 @@ function queryString(
 }
 
 export const agendaBookingService = {
+  async getPublicSettings(
+    supplierId: number,
+    signal?: AbortSignal,
+  ): Promise<PublicAgendaSettings> {
+    return request<PublicAgendaSettings>(
+      `${publicAgendaGateway}/${supplierId}/settings`,
+      { signal, retryOnAuthFailure: false },
+    );
+  },
+
   async listPublicServices(
     supplierId: number,
     signal?: AbortSignal,

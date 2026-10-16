@@ -28,6 +28,7 @@ export interface ModuleAdminList {
 
 export interface ModuleAdminDetail extends ModuleAdminList {
   plan_ids: number[];
+  plan_payment_settings: Record<number, boolean>;
   specific_supplier_id: number | null;
   allowed_supplier_ids: number[];
 }
@@ -44,6 +45,7 @@ export interface ModuleCreatePayload {
   availability: ModuleAvailability;
   display_order: number;
   plan_ids: number[];
+  plan_payment_settings: Record<number, boolean>;
   specific_supplier_id?: number | null;
 }
 
@@ -57,6 +59,7 @@ export interface ModuleUpdatePayload {
   availability?: ModuleAvailability;
   display_order?: number;
   plan_ids?: number[];
+  plan_payment_settings?: Record<number, boolean>;
   specific_supplier_id?: number | null;
 }
 

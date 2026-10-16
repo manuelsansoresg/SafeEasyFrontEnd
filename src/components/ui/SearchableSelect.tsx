@@ -41,8 +41,10 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   const filteredOptions = useMemo(() => {
     const normalizedQuery = normalizeText(query);
@@ -55,6 +57,11 @@ export function SearchableSelect({
     const id = window.setTimeout(() => inputRef.current?.focus(), 0);
     return () => window.clearTimeout(id);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !filteredOptions[activeIndex]) return;
+    document.getElementById(`${id}-option-${filteredOptions[activeIndex].id}`)?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex, filteredOptions, id, open]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -72,16 +79,19 @@ export function SearchableSelect({
     onChange(option);
     setOpen(false);
     setQuery("");
+    buttonRef.current?.focus();
   };
 
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={buttonRef}
         id={id}
         type="button"
         disabled={disabled}
         onClick={() => {
           if (disabled) return;
+          setActiveIndex(Math.max(0, options.findIndex((option) => option.id === value?.id)));
           setOpen((current) => !current);
         }}
         className={cn(
@@ -98,7 +108,7 @@ export function SearchableSelect({
       </button>
 
       {open ? (
-        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
+        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
           <div className="border-b border-gray-100 p-2">
             <input
               ref={inputRef}
@@ -108,23 +118,52 @@ export function SearchableSelect({
               autoCorrect="off"
               spellCheck={false}
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setActiveIndex(0);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setOpen(false);
+                  setQuery("");
+                  buttonRef.current?.focus();
+                } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  event.preventDefault();
+                  if (filteredOptions.length === 0) return;
+                  setActiveIndex((index) => event.key === "ArrowDown"
+                      ? Math.min(index + 1, filteredOptions.length - 1)
+                      : Math.max(index - 1, 0));
+                } else if (event.key === "Enter" && filteredOptions[activeIndex]) {
+                  event.preventDefault();
+                  selectOption(filteredOptions[activeIndex]);
+                }
+              }}
               placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={open}
+              aria-controls={`${id}-options`}
+              aria-activedescendant={filteredOptions[activeIndex] ? `${id}-option-${filteredOptions[activeIndex].id}` : undefined}
               className="h-10 w-full rounded-md border border-gray-200 px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
             />
           </div>
-          <div className="max-h-56 overflow-y-auto py-1" role="listbox" aria-labelledby={id}>
+          <div id={`${id}-options`} className="max-h-56 overflow-y-auto py-1" role="listbox" aria-labelledby={id}>
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((option) => {
+              filteredOptions.map((option, index) => {
                 const selected = value?.id === option.id;
                 return (
                   <button
                     key={option.id}
+                    id={`${id}-option-${option.id}`}
                     type="button"
                     onClick={() => selectOption(option)}
+                    onMouseEnter={() => setActiveIndex(index)}
                     className={cn(
-                      "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-primary/5",
-                      selected ? "font-semibold text-primary" : "text-gray-700",
+                      "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm hover:bg-primary/5",
+                      selected ? "bg-primary/5 font-semibold text-primary" : "text-gray-700",
+                      activeIndex === index && "bg-primary/10",
                     )}
                     role="option"
                     aria-selected={selected}

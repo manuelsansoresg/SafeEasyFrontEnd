@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { agendaBookingService } from "@/services/agendaBookingService";
+import { publicAgendaTitle } from "@/lib/agendaTitle";
+import type { AgendaBusinessType } from "@/lib/agendaTitle";
 import type { AgendaService } from "@/types/agenda";
 
 const currencyFormatter = new Intl.NumberFormat("es-MX", {
@@ -28,13 +30,32 @@ function formatPrice(value: number | null) {
 
 export function PublicSupplierAgendaTab({
   supplierId,
+  businessType,
+  initialTitle,
 }: {
   supplierId: number;
+  businessType?: AgendaBusinessType | null;
+  initialTitle?: string | null;
 }) {
   const [services, setServices] = useState<AgendaService[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] =
     useState<string | null>(null);
+  const [savedTitle, setSavedTitle] = useState(initialTitle ?? null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void agendaBookingService.getPublicSettings(supplierId, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted && result.public_booking_title?.trim()) {
+          setSavedTitle(result.public_booking_title);
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [supplierId]);
+
+  const title = publicAgendaTitle(savedTitle, businessType);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -156,7 +177,7 @@ export function PublicSupplierAgendaTab({
                 Agenda
               </p>
               <h2 className="mt-1 font-[family-name:var(--font-varela-round)] text-3xl font-black">
-                Reserva tu cita
+                {title}
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">
                 Revisa los servicios disponibles y continúa

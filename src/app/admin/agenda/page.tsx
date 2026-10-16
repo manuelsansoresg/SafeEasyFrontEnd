@@ -28,11 +28,14 @@ import AgendaStoreServiceModal, {
   type AgendaStoreServiceUpdateValues,
 } from "@/components/agenda/AgendaStoreServiceModal";
 import { PageHero } from "@/components/ui/PageHero";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Toast } from "@/components/ui/Toast";
 import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
 import { useSupplierModules } from "@/hooks/useSupplierModules";
 import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
 import { resolveCurrentSupplier } from "@/lib/currentSupplier";
+import type { SupplierBusinessType } from "@/lib/currentSupplier";
+import { AGENDA_TITLE_OPTIONS, suggestedAgendaTitle } from "@/lib/agendaTitle";
 import { startMercadoPagoConnect } from "@/lib/mercadoPagoConnect";
 import { agendaService } from "@/services/agendaService";
 import { servicesService } from "@/services/servicesService";
@@ -74,6 +77,11 @@ const DAYS: { value: AgendaDay; label: string; short: string }[] = [
 ];
 
 const SLOT_INTERVALS: SlotInterval[] = [15, 20, 30, 60];
+const TITLE_OPTIONS = [
+  ...AGENDA_TITLE_OPTIONS.map((name, id) => ({ id, name })),
+  { id: AGENDA_TITLE_OPTIONS.length, name: "Personalizar título…" },
+];
+const CUSTOM_TITLE_ID = AGENDA_TITLE_OPTIONS.length;
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400";
@@ -121,6 +129,7 @@ function settingsPayload(settings: AgendaSettings): AgendaSettingsPayload {
     reminder_24_hours: settings.reminder_24_hours,
     reminder_2_hours: settings.reminder_2_hours,
     notification_email: settings.notification_email?.trim() || null,
+    public_booking_title: settings.public_booking_title?.trim() || null,
   };
 }
 
@@ -140,6 +149,9 @@ export default function AdminAgendaPage() {
     useState<AgendaPaymentSettings | null>(null);
   const [catalog, setCatalog] = useState<AgendaCatalogService[]>([]);
   const [supplierId, setSupplierId] = useState<number | null>(null);
+  const [businessType, setBusinessType] = useState<SupplierBusinessType | null>(null);
+  const [titleChoice, setTitleChoice] = useState(6);
+  const [customTitle, setCustomTitle] = useState("");
   const [exceptions, setExceptions] = useState<AgendaException[]>([]);
   const [toast, setToast] = useState<ToastState>(null);
   const [saving, setSaving] = useState(false);
@@ -188,6 +200,14 @@ export default function AdminAgendaPage() {
         ]);
 
       setSettings(settingsData);
+      const savedTitle = settingsData.public_booking_title?.trim();
+      const suggestion = suggestedAgendaTitle(supplier?.business_type);
+      const presetIndex = AGENDA_TITLE_OPTIONS.findIndex(
+        (title) => title === (savedTitle || suggestion),
+      );
+      setTitleChoice(presetIndex >= 0 ? presetIndex : CUSTOM_TITLE_ID);
+      setCustomTitle(savedTitle && presetIndex < 0 ? savedTitle : "");
+      setBusinessType(supplier?.business_type ?? null);
       setSchedules(
         scheduleData.map((item) => ({
           day_of_week: item.day_of_week,
@@ -274,6 +294,14 @@ export default function AdminAgendaPage() {
   const saveSettings = async (successMessage = "Configuración guardada.") => {
     if (!settings) return false;
 
+    const selectedTitle = titleChoice === CUSTOM_TITLE_ID
+      ? customTitle.trim()
+      : TITLE_OPTIONS[titleChoice].name;
+    if (!selectedTitle || selectedTitle.length > 60) {
+      setToast({ type: "error", message: "Escribe un título de hasta 60 caracteres." });
+      return false;
+    }
+
     const capacity = settings.max_simultaneous_bookings;
 
     if (
@@ -291,7 +319,7 @@ export default function AdminAgendaPage() {
     setSaving(true);
     try {
       const updated = await agendaService.updateSettings(
-        settingsPayload(settings),
+        settingsPayload({ ...settings, public_booking_title: selectedTitle }),
       );
       setSettings(updated);
       setToast({ type: "success", message: successMessage });
@@ -984,6 +1012,79 @@ export default function AdminAgendaPage() {
                   })
                 }
               />
+            </div>
+          </div>
+
+          <div className={panelClass}>
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#168e00]/10 text-[#168e00]">
+                <CalendarDays size={21} aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="font-[family-name:var(--font-varela-round)] text-xl text-[#004e28]">
+                  Personalización de Agenda
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Elige cómo quieres presentar tus reservaciones
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
+              <div>
+                <label htmlFor="agenda-public-title" className="mb-1.5 block text-sm font-semibold text-gray-700">
+                  Título que verán tus clientes
+                </label>
+                <SearchableSelect
+                  id="agenda-public-title"
+                  value={TITLE_OPTIONS[titleChoice]}
+                  options={TITLE_OPTIONS}
+                  onChange={(option) => {
+                    if (!option) return;
+                    setTitleChoice(option.id);
+                    if (option.id !== CUSTOM_TITLE_ID) {
+                      setSettings((current) => current ? { ...current, public_booking_title: option.name } : current);
+                    }
+                  }}
+                  placeholder="Selecciona un título"
+                  searchPlaceholder="Buscar título..."
+                  className="h-12 rounded-xl border-gray-200 px-4 text-sm transition hover:border-[#168e00]/50 focus:ring-[#168e00]/20"
+                />
+                {titleChoice === CUSTOM_TITLE_ID ? (
+                  <div className="mt-4">
+                    <label htmlFor="agenda-custom-title" className="mb-1.5 block text-sm font-semibold text-gray-700">
+                      Tu título
+                    </label>
+                    <input
+                      id="agenda-custom-title"
+                      value={customTitle}
+                      onChange={(event) => setCustomTitle(event.target.value)}
+                      maxLength={60}
+                      placeholder="Escribe el título de tu Agenda"
+                      className={inputClass}
+                    />
+                    <p className="mt-1 text-right text-xs text-gray-500">{customTitle.length}/60</p>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-[#004e28]/10 bg-[#f2f3f4] p-4 sm:p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#168e00]">Vista previa</p>
+                <div className="mt-3 rounded-xl bg-[#004e28] p-5 text-white shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <CalendarDays size={24} className="shrink-0 text-[#b9f1b2]" aria-hidden="true" />
+                    <div>
+                      <p className="text-xs font-semibold text-white/65">Agenda</p>
+                      <p className="mt-1 font-[family-name:var(--font-varela-round)] text-xl leading-snug" aria-live="polite">
+                        {titleChoice === CUSTOM_TITLE_ID
+                          ? customTitle.trim() || "Tu título aparecerá aquí"
+                          : TITLE_OPTIONS[titleChoice]?.name || suggestedAgendaTitle(businessType)}
+                      </p>
+                      <p className="mt-2 text-xs text-white/70">Ver disponibilidad</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

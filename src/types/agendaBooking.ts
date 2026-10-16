@@ -26,6 +26,7 @@ export interface AgendaAvailability {
   supplier_id: number;
   service_id: number;
   timezone: string;
+  public_booking_title?: string | null;
 
   minimum_notice_minutes: number;
   maximum_booking_days: number;

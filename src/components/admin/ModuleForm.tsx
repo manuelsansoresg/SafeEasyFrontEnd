@@ -38,6 +38,7 @@ type FormState = {
   billingPeriod: ModuleBillingPeriod | "";
   displayOrder: string;
   planIds: number[];
+  planPaymentSettings: Record<number, boolean>;
 };
 
 const initialState: FormState = {
@@ -50,6 +51,7 @@ const initialState: FormState = {
   billingPeriod: "",
   displayOrder: "0",
   planIds: [],
+  planPaymentSettings: {},
 };
 
 function normalizeCode(value: string) {
@@ -138,6 +140,12 @@ export function ModuleForm({
           billingPeriod: detail.billing_period ?? "",
           displayOrder: String(detail.display_order),
           planIds: detail.plan_ids ?? [],
+          planPaymentSettings: Object.fromEntries(
+            (detail.plan_ids ?? []).map((planId) => [
+              planId,
+              detail.plan_payment_settings?.[planId] ?? false,
+            ]),
+          ),
         });
       } catch (loadErrorValue) {
         if (!controller.signal.aborted) {
@@ -194,12 +202,23 @@ export function ModuleForm({
   }
 
   function togglePlan(planId: number) {
-    setForm((current) => ({
-      ...current,
-      planIds: current.planIds.includes(planId)
-        ? current.planIds.filter((idValue) => idValue !== planId)
-        : [...current.planIds, planId].sort((a, b) => a - b),
-    }));
+    setForm((current) => {
+      if (current.planIds.includes(planId)) {
+        const planPaymentSettings = { ...current.planPaymentSettings };
+        delete planPaymentSettings[planId];
+        return {
+          ...current,
+          planIds: current.planIds.filter((idValue) => idValue !== planId),
+          planPaymentSettings,
+        };
+      }
+
+      return {
+        ...current,
+        planIds: [...current.planIds, planId].sort((a, b) => a - b),
+        planPaymentSettings: { ...current.planPaymentSettings, [planId]: false },
+      };
+    });
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -268,6 +287,7 @@ export function ModuleForm({
       availability: "selected",
       display_order: displayOrder,
       plan_ids: form.planIds,
+      plan_payment_settings: form.planPaymentSettings,
     };
 
     setSaving(true);
@@ -285,6 +305,7 @@ export function ModuleForm({
           availability: "selected",
           display_order: displayOrder,
           plan_ids: form.planIds,
+          plan_payment_settings: form.planPaymentSettings,
         };
 
         await moduleService.create(payload);
@@ -472,27 +493,49 @@ export function ModuleForm({
                   filteredPlans.map((plan) => {
                     const checked = form.planIds.includes(plan.id);
                     return (
-                      <label key={plan.id} className="flex cursor-pointer items-start gap-3 p-3.5 hover:bg-gray-50">
-                        <span
-                          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
-                            checked ? "border-[#168e00] bg-[#168e00] text-white" : "border-gray-300"
-                          }`}
-                        >
-                          {checked ? <Check size={14} /> : null}
-                        </span>
-                        <input
-                          type="checkbox"
-                          className="sr-only"
-                          checked={checked}
-                          onChange={() => togglePlan(plan.id)}
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-sm font-semibold text-gray-900">{planLabel(plan)}</span>
-                          {plan.description ? (
-                            <span className="mt-0.5 block line-clamp-2 text-xs text-gray-500">{plan.description}</span>
-                          ) : null}
-                        </span>
-                      </label>
+                      <div key={plan.id} className="p-3.5 hover:bg-gray-50">
+                        <label className="flex cursor-pointer items-start gap-3">
+                          <span
+                            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
+                              checked ? "border-[#168e00] bg-[#168e00] text-white" : "border-gray-300"
+                            }`}
+                          >
+                            {checked ? <Check size={14} /> : null}
+                          </span>
+                          <input
+                            type="checkbox"
+                            className="sr-only"
+                            checked={checked}
+                            onChange={() => togglePlan(plan.id)}
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-gray-900">{planLabel(plan)}</span>
+                            {plan.description ? (
+                              <span className="mt-0.5 block line-clamp-2 text-xs text-gray-500">{plan.description}</span>
+                            ) : null}
+                          </span>
+                        </label>
+                        {checked ? (
+                          <label className="ml-8 mt-2 flex cursor-pointer items-center gap-2 text-xs font-medium text-gray-600">
+                            <input
+                              type="checkbox"
+                              checked={form.planPaymentSettings[plan.id] ?? false}
+                              onChange={(event) => {
+                                const allowPayment = event.target.checked;
+                                setForm((current) => ({
+                                  ...current,
+                                  planPaymentSettings: {
+                                    ...current.planPaymentSettings,
+                                    [plan.id]: allowPayment,
+                                  },
+                                }));
+                              }}
+                              className="h-4 w-4 accent-[#168e00]"
+                            />
+                            Permitir pagos en línea
+                          </label>
+                        ) : null}
+                      </div>
                     );
                   })
                 )}

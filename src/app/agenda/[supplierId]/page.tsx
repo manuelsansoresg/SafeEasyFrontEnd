@@ -25,6 +25,8 @@ import {
   humanizeMinutes,
 } from "@/lib/agendaTime";
 import { agendaBookingService } from "@/services/agendaBookingService";
+import { publicAgendaTitle } from "@/lib/agendaTitle";
+import type { AgendaBusinessType } from "@/lib/agendaTitle";
 import { getSafeMercadoPagoUrl } from "@/lib/security";
 import { isExpectedAbort, isHttpConflict } from "@/lib/agendaRequest";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
@@ -124,6 +126,8 @@ export default function PublicAgendaBookingPage() {
   );
 
   const [services, setServices] = useState<AgendaService[]>([]);
+  const [savedPublicTitle, setSavedPublicTitle] = useState<string | null>(null);
+  const [businessType, setBusinessType] = useState<AgendaBusinessType | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(
     null,
   );
@@ -161,6 +165,45 @@ export default function PublicAgendaBookingPage() {
 
   useEffect(() => {
     setLoginReturnTo(getBrowserPathWithSearchAndHash());
+  }, [supplierId]);
+
+  useEffect(() => {
+    if (!Number.isFinite(supplierId) || supplierId <= 0) return;
+    const controller = new AbortController();
+
+    void Promise.allSettled([
+      agendaBookingService.getPublicSettings(supplierId, controller.signal),
+      fetch(`/proxy/suppliers/${supplierId}`, { signal: controller.signal, cache: "no-store" })
+        .then((response) => response.ok ? response.json() : null),
+    ]).then(([settingsResult, supplierResult]) => {
+      if (controller.signal.aborted) return;
+      const supplierPayload = supplierResult.status === "fulfilled" ? supplierResult.value : null;
+      const supplierRecord = supplierPayload && typeof supplierPayload === "object"
+        ? supplierPayload as Record<string, unknown> : null;
+      const supplier = supplierRecord?.supplier && typeof supplierRecord.supplier === "object"
+        ? supplierRecord.supplier as Record<string, unknown> : supplierRecord;
+      const type = supplier?.business_type;
+      if (typeof type === "string") {
+        setBusinessType(type);
+      } else if (type && typeof type === "object") {
+        const candidate = type as Record<string, unknown>;
+        setBusinessType({
+          name: typeof candidate.name === "string" ? candidate.name : null,
+          slug: typeof candidate.slug === "string" ? candidate.slug : null,
+          title: typeof candidate.title === "string" ? candidate.title : null,
+          label: typeof candidate.label === "string" ? candidate.label : null,
+        });
+      }
+      const supplierSettings = supplier?.agenda_settings;
+      const supplierTitle = supplierSettings && typeof supplierSettings === "object"
+        ? (supplierSettings as Record<string, unknown>).public_booking_title : null;
+      const settingsTitle = settingsResult.status === "fulfilled"
+        ? settingsResult.value.public_booking_title : null;
+      const title = settingsTitle || supplierTitle;
+      if (typeof title === "string" && title.trim()) setSavedPublicTitle(title);
+    });
+
+    return () => controller.abort();
   }, [supplierId]);
 
   const selectedService = useMemo(
@@ -315,6 +358,10 @@ export default function PublicAgendaBookingPage() {
             controller.signal,
           );
         if (controller.signal.aborted) return;
+
+        if (data.public_booking_title?.trim()) {
+          setSavedPublicTitle(data.public_booking_title);
+        }
 
         const providerToday =
           dateInputInTimeZone(new Date(), data.timezone) || todayInput();
@@ -571,7 +618,7 @@ export default function PublicAgendaBookingPage() {
               Agenda
             </p>
             <h1 className="mt-1 text-3xl font-bold">
-              Reserva tu cita
+              {publicAgendaTitle(savedPublicTitle, businessType)}
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-white/80">
               Elige el servicio, la fecha y uno de los horarios

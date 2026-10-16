@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getPlanFeatureLines } from '@/components/sell/planText';
-import { ArrowRight, BriefcaseBusiness, Check, ImageIcon, Images, Package, Sparkles } from 'lucide-react';
+import { ArrowRight, Blocks, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ImageIcon, Images, Package, Sparkles, UtensilsCrossed } from 'lucide-react';
 
 type PlanDuration = 'monthly' | 'yearly';
 
@@ -19,6 +19,15 @@ type ApiPlan = {
   max_active_products?: number | null;
   max_images_per_product?: number | null;
   max_gallery_images?: number | null;
+  module_codes?: string[];
+  modules?: unknown;
+};
+
+type IncludedModule = {
+  code: string;
+  name: string;
+  paymentsEnabled?: boolean;
+  limits: [string, string | number][];
 };
 
 type SellPlan = {
@@ -32,6 +41,51 @@ type SellPlan = {
   maxActiveProducts: number | null;
   maxImagesPerProduct: number | null;
   maxGalleryImages: number | null;
+  modules: IncludedModule[];
+};
+
+const moduleNames: Record<string, string> = {
+  menu: 'Menú',
+  agenda: 'Agenda',
+};
+
+const normalizeText = (value: string) =>
+  value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+const moduleName = (code: string) =>
+  moduleNames[code] ?? code.replace(/[_-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+
+const mentionsModule = (text: string, modules: IncludedModule[]) => {
+  const normalized = ` ${normalizeText(text).replace(/[^a-z0-9]+/g, ' ').trim()} `;
+  return modules.some(({ code, name }) => {
+    const terms = [code.replace(/[_-]+/g, ' '), name].map(normalizeText);
+    return terms.some((term) => normalized.includes(` ${term} `));
+  });
+};
+
+const includedModules = (plan: ApiPlan): IncludedModule[] => {
+  const metadata = Array.isArray(plan.modules) ? plan.modules : [];
+  const codes = Array.isArray(plan.module_codes) ? plan.module_codes : [];
+
+  return [...new Set(codes.filter((code): code is string => typeof code === 'string' && code.trim().length > 0))]
+    .map((code) => {
+      const detail = metadata.find((item) =>
+        item && typeof item === 'object' && (item as Record<string, unknown>).code === code,
+      ) as Record<string, unknown> | undefined;
+      const rawLimits = detail?.limits;
+      const limits = rawLimits && typeof rawLimits === 'object' && !Array.isArray(rawLimits)
+        ? Object.entries(rawLimits).filter((entry): entry is [string, string | number] =>
+            typeof entry[1] === 'string' || typeof entry[1] === 'number',
+          )
+        : [];
+
+      return {
+        code,
+        name: moduleName(code),
+        paymentsEnabled: typeof detail?.payments_enabled === 'boolean' ? detail.payments_enabled : undefined,
+        limits,
+      };
+    });
 };
 
 const formatCurrency = (value: number) =>
@@ -60,31 +114,38 @@ const pickArray = (data: unknown): ApiPlan[] => {
   return [];
 };
 
-const mapApiPlan = (plan: ApiPlan): SellPlan => ({
-  id: plan.id,
-  name: plan.title,
-  price: formatCurrency(Number(plan.price || 0)),
-  period: formatPeriod(plan.duration),
-  description: plan.description || 'Plan diseñado para impulsar su negocio.',
-  featureLines: getPlanFeatureLines({
-    features: plan.features,
-    description: plan.description,
-    isDirectory: plan.is_directory,
-  }),
-  isDirectory: Boolean(plan.is_directory),
-  maxActiveProducts:
-    typeof plan.max_active_products === 'number' && Number.isFinite(plan.max_active_products)
-      ? plan.max_active_products
-      : null,
-  maxImagesPerProduct:
-    typeof plan.max_images_per_product === 'number' && Number.isFinite(plan.max_images_per_product)
-      ? plan.max_images_per_product
-      : null,
-  maxGalleryImages:
-    typeof plan.max_gallery_images === 'number' && Number.isFinite(plan.max_gallery_images)
-      ? plan.max_gallery_images
-      : null,
-});
+const mapApiPlan = (plan: ApiPlan): SellPlan => {
+  const modules = includedModules(plan);
+  const description = (plan.description || '').split(/\r?\n|[•;]+/).map((line) => line.trim())
+    .find((line) => line && !mentionsModule(line, modules)) ?? '';
+
+  return {
+    id: plan.id,
+    name: plan.title,
+    price: formatCurrency(Number(plan.price || 0)),
+    period: formatPeriod(plan.duration),
+    description,
+    featureLines: getPlanFeatureLines({
+      features: plan.features,
+      description: plan.description,
+      isDirectory: plan.is_directory,
+    }).filter((line) => !mentionsModule(line, modules) && line !== description),
+    isDirectory: Boolean(plan.is_directory),
+    maxActiveProducts:
+      typeof plan.max_active_products === 'number' && Number.isFinite(plan.max_active_products)
+        ? plan.max_active_products
+        : null,
+    maxImagesPerProduct:
+      typeof plan.max_images_per_product === 'number' && Number.isFinite(plan.max_images_per_product)
+        ? plan.max_images_per_product
+        : null,
+    maxGalleryImages:
+      typeof plan.max_gallery_images === 'number' && Number.isFinite(plan.max_gallery_images)
+        ? plan.max_gallery_images
+        : null,
+    modules,
+  };
+};
 
 const buildRegisterHref = (planId: number, referralCode: string) => {
   const params = new URLSearchParams({
@@ -135,11 +196,59 @@ const LimitStat = ({ icon, value, label, highlight }: LimitStatProps) => (
   </div>
 );
 
+const ModuleBlock = ({ module, highlight }: { module: IncludedModule; highlight: boolean }) => {
+  const Icon = module.code === 'menu' ? UtensilsCrossed : module.code === 'agenda' ? CalendarDays : Blocks;
+
+  return (
+    <div className={`rounded-xl border p-3 ${highlight ? 'border-white/15 bg-white/[0.06]' : 'border-[#004e28]/10 bg-[#f6faf6]'}`}>
+      <div className="flex items-start gap-2.5">
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${highlight ? 'bg-white/10 text-white' : 'bg-[#168e00]/10 text-[#004e28]'}`}>
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className={`text-sm font-semibold ${highlight ? 'text-white' : 'text-[#004e28]'}`}>{module.name}</p>
+          {module.paymentsEnabled !== undefined ? (
+            <p className={`mt-0.5 text-xs ${module.paymentsEnabled
+              ? highlight ? 'text-[#b9f1b2]' : 'font-medium text-[#0b6d00]'
+              : highlight ? 'text-white/55' : 'text-gray-500'}`}>
+              {module.paymentsEnabled ? 'Pagos en línea incluidos' : 'Sin pagos en línea'}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      {module.limits.length > 0 ? (
+        <details className={`group/details mt-2 border-t pt-2 ${highlight ? 'border-white/10' : 'border-[#004e28]/10'}`}>
+          <summary className={`flex cursor-pointer list-none items-center gap-1 text-xs font-semibold [&::-webkit-details-marker]:hidden ${highlight ? 'text-white/75' : 'text-[#0b6d00]'}`}>
+            Ver detalles <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/details:rotate-180" aria-hidden="true" />
+          </summary>
+          <dl className="mt-2 space-y-1.5 text-xs">
+            {module.limits.map(([label, value]) => (
+              <div key={label} className="flex justify-between gap-3">
+                <dt className={highlight ? 'text-white/65' : 'text-gray-500'}>{label.replace(/[_-]+/g, ' ')}</dt>
+                <dd className={`font-semibold ${highlight ? 'text-white' : 'text-gray-800'}`}>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      ) : null}
+    </div>
+  );
+};
+
 type PlanCardProps = {
   plan: SellPlan;
   highlight: boolean;
   registerHref: string;
 };
+
+const BenefitLine = ({ line, highlight }: { line: string; highlight: boolean }) => (
+  <li className="flex items-start gap-2.5">
+    <span className={`mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full ${highlight ? 'bg-white/15 text-white' : 'bg-primary/10 text-primary'}`}>
+      <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />
+    </span>
+    <span className={highlight ? 'text-white/85' : 'text-gray-700'}>{line}</span>
+  </li>
+);
 
 const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
   const productValue = plan.isDirectory ? null : formatLimitValue(plan.maxActiveProducts);
@@ -181,7 +290,7 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
           >
             {plan.name}
           </h3>
-          {!plan.isDirectory && (
+          {plan.description && (
             <p
               className={`mt-2 text-sm leading-6 ${
                 highlight ? 'text-white/75' : 'text-gray-500'
@@ -248,22 +357,43 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
           }`}
         />
 
-        {plan.featureLines.length > 0 && (
-          <ul className="space-y-3.5 text-sm leading-6 md:text-[15px]">
-            {plan.featureLines.map((line, lineIndex) => (
-              <li key={`${line}-${lineIndex}`} className="flex items-start gap-3">
-                <span
-                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
-                    highlight ? 'bg-white/15 text-white' : 'bg-primary/10 text-primary'
-                  }`}
-                >
-                  <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                </span>
-                <span className={highlight ? 'text-white/85' : 'text-gray-700'}>{line}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        {plan.featureLines.length > 0 ? (
+          <section aria-label="Beneficios incluidos">
+            <h4 className={`text-[11px] font-bold uppercase tracking-[0.16em] ${highlight ? 'text-white/65' : 'text-[#004e28]'}`}>
+              Beneficios incluidos
+            </h4>
+            <ul className="mt-3 space-y-2.5 text-sm leading-5">
+              {plan.featureLines.slice(0, 4).map((line, lineIndex) => (
+                <BenefitLine key={`${line}-${lineIndex}`} line={line} highlight={highlight} />
+              ))}
+            </ul>
+            {plan.featureLines.length > 4 ? (
+              <details className="group/benefits mt-3">
+                <summary className={`flex cursor-pointer list-none items-center gap-1 text-xs font-semibold [&::-webkit-details-marker]:hidden ${highlight ? 'text-white/75' : 'text-[#0b6d00]'}`}>
+                  Ver más beneficios <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/benefits:rotate-180" aria-hidden="true" />
+                </summary>
+                <ul className="mt-3 space-y-2.5 text-sm leading-5">
+                  {plan.featureLines.slice(4).map((line, lineIndex) => (
+                    <BenefitLine key={`${line}-${lineIndex}`} line={line} highlight={highlight} />
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </section>
+        ) : null}
+
+        {plan.modules.length > 0 ? (
+          <section aria-label="Módulos incluidos" className={`mt-6 border-t pt-5 ${highlight ? 'border-white/10' : 'border-gray-200'}`}>
+            <h4 className={`text-[11px] font-bold uppercase tracking-[0.16em] ${highlight ? 'text-white/65' : 'text-[#004e28]'}`}>
+              Módulos incluidos
+            </h4>
+            <div className="mt-3 space-y-2">
+              {plan.modules.map((module) => (
+                <ModuleBlock key={module.code} module={module} highlight={highlight} />
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <div className="mt-auto pt-8">
           <Link

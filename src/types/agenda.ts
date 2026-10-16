@@ -32,6 +32,7 @@ export interface AgendaPaymentSettingsPayload {
 export interface AgendaSettings {
   id: number;
   supplier_id: number;
+  public_booking_title: string | null;
 
   timezone: string;
   slot_interval_minutes: SlotInterval;
@@ -63,6 +64,10 @@ export interface AgendaSettings {
 
   created_at: string;
   updated_at: string;
+}
+
+export interface PublicAgendaSettings {
+  public_booking_title?: string | null;
 }
 
 export type AgendaSettingsPayload = Omit<

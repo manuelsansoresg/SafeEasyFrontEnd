@@ -27,6 +27,13 @@ export interface BusinessHour {
 
 export interface Supplier {
   id: number;
+  business_type?: string | {
+    name?: string | null;
+    slug?: string | null;
+    title?: string | null;
+    label?: string | null;
+  } | null;
+  agenda_settings?: { public_booking_title?: string | null } | null;
   is_demo?: boolean;
   name: string;
   slug: string | null;
