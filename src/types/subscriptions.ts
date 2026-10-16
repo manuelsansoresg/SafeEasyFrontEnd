@@ -7,6 +7,18 @@ export type SubscriptionAssignmentType =
   | "support"
   | "other";
 
+export type PlanModuleCapabilities = Record<string, {
+  orders_enabled?: boolean;
+  online_payments_enabled?: boolean;
+  payments_enabled?: boolean;
+}>;
+
+export interface PlanModuleSummary {
+  code: string;
+  name: string;
+  description?: string | null;
+}
+
 export interface Plan {
   id: number;
   title: string;
@@ -14,6 +26,8 @@ export interface Plan {
   price: number;
   features?: string[];
   module_codes?: string[];
+  module_capabilities?: PlanModuleCapabilities;
+  modules?: PlanModuleSummary[];
   display_order?: number;
   duration: PlanDuration;
   is_active: boolean;

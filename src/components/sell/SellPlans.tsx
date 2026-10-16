@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getPlanFeatureLines } from '@/components/sell/planText';
+import type { PlanModuleCapabilities } from '@/types/subscriptions';
 import { ArrowRight, Blocks, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ImageIcon, Images, Package, Sparkles, UtensilsCrossed } from 'lucide-react';
 
 type PlanDuration = 'monthly' | 'yearly';
@@ -20,12 +21,14 @@ type ApiPlan = {
   max_images_per_product?: number | null;
   max_gallery_images?: number | null;
   module_codes?: string[];
+  module_capabilities?: PlanModuleCapabilities;
   modules?: unknown;
 };
 
 type IncludedModule = {
   code: string;
   name: string;
+  description?: string;
   paymentsEnabled?: boolean;
   limits: [string, string | number][];
 };
@@ -67,11 +70,35 @@ const includedModules = (plan: ApiPlan): IncludedModule[] => {
   const metadata = Array.isArray(plan.modules) ? plan.modules : [];
   const codes = Array.isArray(plan.module_codes) ? plan.module_codes : [];
 
-  return [...new Set(codes.filter((code): code is string => typeof code === 'string' && code.trim().length > 0))]
+  return [...new Set(codes.filter((code): code is string => typeof code === 'string').map((code) => code.trim().toLowerCase()).filter(Boolean))]
     .map((code) => {
       const detail = metadata.find((item) =>
         item && typeof item === 'object' && (item as Record<string, unknown>).code === code,
       ) as Record<string, unknown> | undefined;
+      const capability = plan.module_capabilities?.[code];
+      const ordersEnabled = typeof capability?.orders_enabled === 'boolean' ? capability.orders_enabled : undefined;
+      const onlinePaymentsEnabled = typeof capability?.online_payments_enabled === 'boolean' ? capability.online_payments_enabled : undefined;
+      const actualName = typeof detail?.name === 'string' && detail.name.trim() ? detail.name.trim() : moduleName(code);
+      const actualDescription = typeof detail?.description === 'string' && detail.description.trim()
+        ? detail.description.trim()
+        : undefined;
+      let name = actualName;
+      let description = actualDescription;
+      if (code === 'menu') {
+        name = ordersEnabled === true ? 'Menú con pedidos' : ordersEnabled === false ? 'Menú digital' : actualName;
+        description = ordersEnabled === true
+          ? 'Publica tus platillos y recibe pedidos para recoger o entregar.'
+          : ordersEnabled === false
+            ? 'Exhibe tus platillos, fotos y precios. Sin pedidos en línea.'
+            : undefined;
+      } else if (code === 'agenda') {
+        name = 'Agenda';
+        description = onlinePaymentsEnabled === true
+          ? 'Gestiona citas y reservaciones con pagos en línea.'
+          : onlinePaymentsEnabled === false
+            ? 'Gestiona citas y reservaciones.'
+            : undefined;
+      }
       const rawLimits = detail?.limits;
       const limits = rawLimits && typeof rawLimits === 'object' && !Array.isArray(rawLimits)
         ? Object.entries(rawLimits).filter((entry): entry is [string, string | number] =>
@@ -81,8 +108,10 @@ const includedModules = (plan: ApiPlan): IncludedModule[] => {
 
       return {
         code,
-        name: moduleName(code),
-        paymentsEnabled: typeof detail?.payments_enabled === 'boolean' ? detail.payments_enabled : undefined,
+        name,
+        description,
+        paymentsEnabled: code !== 'menu' && code !== 'agenda' && typeof detail?.payments_enabled === 'boolean'
+          ? detail.payments_enabled : undefined,
         limits,
       };
     });
@@ -207,6 +236,9 @@ const ModuleBlock = ({ module, highlight }: { module: IncludedModule; highlight:
         </span>
         <div className="min-w-0 flex-1">
           <p className={`text-sm font-semibold ${highlight ? 'text-white' : 'text-[#004e28]'}`}>{module.name}</p>
+          {module.description ? (
+            <p className={`mt-0.5 text-xs leading-5 ${highlight ? 'text-white/65' : 'text-gray-500'}`}>{module.description}</p>
+          ) : null}
           {module.paymentsEnabled !== undefined ? (
             <p className={`mt-0.5 text-xs ${module.paymentsEnabled
               ? highlight ? 'text-[#b9f1b2]' : 'font-medium text-[#0b6d00]'
