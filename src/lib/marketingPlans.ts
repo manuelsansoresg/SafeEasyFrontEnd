@@ -5,10 +5,17 @@ export type NewLandingKind = "menu" | "products" | "agenda";
 function planOffersAgenda(plan: Plan): boolean {
   if (Array.isArray(plan.module_codes)) return plan.module_codes.includes("agenda");
 
-  // The public plans endpoint currently omits module_codes. Its published
-  // description names included modules, so use only an explicit Agenda line.
+  // Compatibility with older public responses without module_codes:
+  // only an explicit Agenda line can establish that the module is included.
   const lines = [...(plan.features ?? []), ...(plan.description ?? "").split(/\r?\n/)];
   return lines.some((line) => /^m[oó]dulo\s+(?:de\s+)?agenda\b/i.test(line.trim()));
+}
+
+/** Eligible Agenda offers, using the same visibility rules as the landing. */
+export function getAgendaMarketingPlans(plans: Plan[], includeUnlisted = false): Plan[] {
+  return plans.filter((plan) => plan.is_active &&
+    (includeUnlisted || (plan.is_listed === true && plan.is_demo !== true)) && planOffersAgenda(plan))
+    .sort((a, b) => a.price - b.price || (a.display_order ?? Infinity) - (b.display_order ?? Infinity) || a.id - b.id);
 }
 
 export function selectMarketingPlan(plans: Plan[], kind: NewLandingKind, includeUnlisted = false): Plan | null {
@@ -16,8 +23,7 @@ export function selectMarketingPlan(plans: Plan[], kind: NewLandingKind, include
   if (kind === "menu") return active.find((plan) => plan.is_directory === true) ?? null;
 
   if (kind === "agenda") {
-    return active.filter((plan) => (includeUnlisted || (plan.is_listed === true && plan.is_demo !== true)) && planOffersAgenda(plan))
-      .sort((a, b) => a.price - b.price || (a.display_order ?? Infinity) - (b.display_order ?? Infinity) || a.id - b.id)[0] ?? null;
+    return getAgendaMarketingPlans(plans, includeUnlisted)[0] ?? null;
   }
 
   // The backend exposes no stable plan code. Product capacity distinguishes

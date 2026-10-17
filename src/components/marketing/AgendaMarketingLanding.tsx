@@ -6,7 +6,6 @@ import {
   CalendarDays,
   Check,
   Clock3,
-  CreditCard,
   MessageCircle,
   Settings2,
 } from "lucide-react";
@@ -29,7 +28,7 @@ import {
 } from "@/lib/marketingCampaign";
 import {
   plansFromPayload,
-  selectMarketingPlan,
+  getAgendaMarketingPlans,
 } from "@/lib/marketingPlans";
 import type { AgendaExample } from "@/lib/marketingPageData";
 import type { Plan } from "@/types/subscriptions";
@@ -45,18 +44,18 @@ const container = "mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10";
 const heading =
   "font-[family-name:var(--font-varela-round)] tracking-[-0.035em] text-[#004e28]";
 const whatsappUrl = campaignWhatsAppUrl("agenda");
-const agendaCtaLabel = "Quiero recibir citas";
+const agendaCtaLabel = "Quiero mi agenda digital";
 
 const benefits = [
   {
     icon: CalendarCheck2,
-    title: "Recibe reservaciones",
-    text: "Tus clientes eligen servicio, fecha y horario desde tu enlace.",
+    title: "Recibe citas mientras atiendes",
+    text: "Comparte tu enlace para que tus clientes elijan servicio, fecha y horario sin coordinar cada cita por mensajes.",
   },
   {
-    icon: CreditCard,
-    title: "Reservaciones y pagos en línea",
-    text: "Tus clientes pueden reservar y pagar sus servicios en línea cuando habilitas esta opción.",
+    icon: Clock3,
+    title: "Muestra tus horarios disponibles",
+    text: "Tus clientes consultan tu disponibilidad y eligen cuándo reservar desde tu enlace.",
   },
   {
     icon: Settings2,
@@ -89,7 +88,7 @@ const faqs = [
   {
     question: "¿Mis clientes pueden pagar en línea?",
     answer:
-      "Puedes ofrecer esa opción al vincular Mercado Pago y habilitar pagos en Agenda.",
+      "Los cobros en línea desde Agenda requieren un plan que los incluya, vincular Mercado Pago y habilitar la opción. Consulta las capacidades de cada plan en la sección de precios.",
   },
   {
     question: "¿Agenda tiene algún costo adicional?",
@@ -132,7 +131,14 @@ export function AgendaMarketingLanding({
     [campaignParams],
   );
   const accessCode = originalParams.get("code")?.trim() ?? "";
-  const plan = selectMarketingPlan(plans, "agenda", Boolean(accessCode));
+  const agendaPlans = getAgendaMarketingPlans(plans, Boolean(accessCode));
+  // Compare annual offers together; retain other billing periods when no annual offer exists.
+  const annualPlans = agendaPlans.filter((item) => item.duration === "yearly");
+  const displayedPlans = annualPlans.length ? annualPlans : agendaPlans;
+  const plan = displayedPlans[0] ?? null;
+  const paymentPlan = displayedPlans.find((item) =>
+    item.module_capabilities?.agenda?.online_payments_enabled === true,
+  );
   const showSticky = !heroVisible && !priceVisible && !formVisible;
 
   useEffect(() => {
@@ -221,7 +227,7 @@ export function AgendaMarketingLanding({
         contentId="contenido-agenda"
         onCta={cta("header")}
         onSteps={scrollTo}
-        ctaLabel={agendaCtaLabel}
+        ctaLabel="Solicitar información"
       />
       <main id="contenido-agenda">
         {/* HERO */}
@@ -248,7 +254,12 @@ export function AgendaMarketingLanding({
                 Comparte un enlace para que elijan servicio, fecha y horario.
                 Organiza tus reservaciones sin coordinar cada cita por mensaje.
               </p>
-              <div className="mt-6 flex flex-col items-start gap-2">
+              <p className="mt-5 text-base font-semibold leading-6 text-[#004e28]" aria-live="polite">
+                {plan
+                  ? `Agenda digital desde ${formatPrice(plan.price)} MXN ${plan.duration === "yearly" ? "al año" : "al mes"}`
+                  : loadingPlans ? "Consultando precio de Agenda…" : "Solicita información sobre los planes de Agenda."}
+              </p>
+              <div className="mt-4 flex flex-col items-start gap-2">
                 <MarketingCta
                   href="#quiero-informacion"
                   onClick={cta("hero")}
@@ -392,7 +403,7 @@ export function AgendaMarketingLanding({
               <MarketingCta
                 href="#quiero-informacion"
                 onClick={cta("benefits")}
-                label="Quiero comenzar"
+                label="Solicitar información"
                 className="w-full shrink-0 sm:w-auto"
               />
             </div>
@@ -435,62 +446,51 @@ export function AgendaMarketingLanding({
           aria-labelledby="agenda-pricing-title"
           className="scroll-mt-24 bg-[#004e28] py-12 text-white sm:py-16"
         >
-          <div className={`${container} grid items-center gap-8 lg:grid-cols-[0.46fr_0.54fr] lg:gap-14`}>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b9e8b2]">
-                Opciones para tu negocio
-              </p>
+          <div className={container}>
+            <div className="max-w-3xl">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b9e8b2]">Opciones para tu negocio</p>
               <h2 id="agenda-pricing-title" className="mt-4 font-[family-name:var(--font-varela-round)] text-3xl leading-tight tracking-[-0.025em] sm:text-4xl">
-                Conoce el plan para recibir reservaciones con Drooopy.
+                Elige cómo recibir reservaciones con Drooopy.
               </h2>
-              <p className="mt-4 max-w-md text-base leading-7 text-white/85">
-                Agenda está incluida en los planes que la ofrecen, sin costo
-                adicional por activarla.
+              <p className="mt-4 text-base leading-7 text-white/85">
+                Agenda está incluida en estos planes, sin costo adicional por activarla.
+                {paymentPlan ? ` Los cobros en línea desde Agenda están disponibles desde el plan ${paymentPlan.title}, por ${formatPrice(paymentPlan.price)} MXN ${paymentPlan.duration === "yearly" ? "al año" : "al mes"}.` : " Consulta en cada plan si incluye cobros en línea desde Agenda."}
               </p>
             </div>
-            <div className="rounded-[1.65rem] bg-white p-6 text-[#17251c] shadow-[0_24px_60px_-40px_rgba(0,0,0,0.25)] sm:p-8">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#00672f]">
-                {plan ? plan.title : "Consulta las opciones disponibles"}
-              </p>
-              <div className="mt-4 min-h-20" aria-live="polite">
-                {plan ? (
-                  <>
-                    <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
-                      <span className={`${heading} text-5xl leading-none sm:text-6xl`}>
-                        {formatPrice(plan.price)}
-                      </span>
-                      <span className="pb-1 text-sm font-semibold text-[#40554a]">
-                        MXN / {plan.duration === "monthly" ? "mes" : "año"}
-                      </span>
+            <div className={`mt-8 grid items-stretch gap-5 ${displayedPlans.length === 2 ? "md:grid-cols-2" : displayedPlans.length > 2 ? "md:grid-cols-2 xl:grid-cols-3" : "max-w-xl"}`} aria-live="polite">
+              {displayedPlans.length ? displayedPlans.map((offer) => {
+                const payments = offer.module_capabilities?.agenda?.online_payments_enabled;
+                return (
+                  <article key={offer.id} className="flex min-w-0 flex-col rounded-[1.65rem] bg-white p-6 text-[#17251c] shadow-[0_24px_60px_-40px_rgba(0,0,0,0.25)] sm:p-8">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#00672f]">{offer.title}</h3>
+                    <div className="mt-4 flex flex-wrap items-end gap-x-2 gap-y-2">
+                      <span className={`${heading} text-5xl leading-none`}>{formatPrice(offer.price)}</span>
+                      <span className="pb-1 text-sm font-semibold text-[#40554a]">MXN / {offer.duration === "monthly" ? "mes" : "año"}</span>
                     </div>
-                    <p className="mt-3 text-sm font-semibold text-[#004e28]">
-                      Agenda incluida en este plan, sin costo adicional de activación.
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm leading-6 text-[#40554a]">
-                    {loadingPlans
-                      ? "Consultando planes disponibles…"
-                      : "No hay un precio público disponible en este momento. Déjanos tus datos y te orientamos."}
-                  </p>
-                )}
-              </div>
-              <div className="mt-5 border-t border-[#004e28]/10 pt-4">
-                <p className="text-sm leading-6 text-[#40554a]">
-                  Recibe reservaciones, organiza tus servicios y habilita pagos
-                  en línea cuando vincules Mercado Pago.
-                </p>
-                <p className="mt-2 text-xs leading-5 text-[#5f7164]">
-                  El importe mostrado corresponde a la suscripción. Mercado Pago
-                  puede cobrar comisiones por transacción.
-                </p>
-              </div>
-              <MarketingCta
-                href="#quiero-informacion"
-                onClick={cta("pricing")}
-                label="Solicitar información"
-                className="mt-6 w-full"
-              />
+                    <p className="mt-3 text-sm font-semibold text-[#004e28]">Agenda incluida, sin costo adicional de activación.</p>
+                    <div className="mt-5 flex-1 border-t border-[#004e28]/10 pt-4 text-sm leading-6 text-[#40554a]">
+                      <p>Gestiona reservaciones, muestra tus servicios y disponibilidad y comparte tu enlace de Agenda.</p>
+                      <p className="mt-3 font-semibold text-[#004e28]">
+                        {payments === true
+                          ? "Incluye cobros en línea desde Agenda al vincular Mercado Pago y habilitar la opción."
+                          : payments === false
+                            ? "No incluye cobros en línea desde Agenda."
+                            : "Consulta si este plan permite cobros en línea desde Agenda."}
+                      </p>
+                      <p className="mt-3 text-xs leading-5 text-[#5f7164]">
+                        El importe corresponde a la suscripción{offer.duration === "yearly" ? " anual" : " mensual"}.
+                        {payments === true ? " Mercado Pago puede cobrar comisiones por transacción." : ""}
+                      </p>
+                    </div>
+                    <MarketingCta href="#quiero-informacion" onClick={cta("pricing")} label="Solicitar información" className="mt-6 w-full" />
+                  </article>
+                );
+              }) : (
+                <div className="rounded-[1.65rem] bg-white p-6 text-[#40554a] sm:p-8">
+                  <p className="text-sm leading-6">{loadingPlans ? "Consultando planes disponibles…" : "No hay un precio público disponible en este momento. Déjanos tus datos y te orientamos."}</p>
+                  <MarketingCta href="#quiero-informacion" onClick={cta("pricing")} label="Solicitar información" className="mt-6 w-full" />
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -519,19 +519,20 @@ export function AgendaMarketingLanding({
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-[#004e28]/10 bg-white p-6 shadow-[0_20px_60px_-45px_rgba(0,78,40,0.35)] sm:p-8">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">Da el siguiente paso</p>
-              <p className={`${heading} mt-3 text-2xl leading-snug`}>
-                Recibe información para comenzar con Agenda.
-              </p>
-              <p className="mt-3 text-sm leading-6 text-[#40554a]">
-                La solicitud es breve. Te contactaremos para orientarte.
-              </p>
-              <MarketingCta
-                href="#quiero-informacion"
-                onClick={cta("lead_section")}
-                label="Solicitar información"
-                className="mt-6 w-full"
-              />
+              <h3 className={`${heading} text-2xl leading-snug`}>Así comienzas con tu agenda</h3>
+              <ol className="mt-5 divide-y divide-[#004e28]/10">
+                {[
+                  { title: "Solicita información", text: "Completa el formulario con tu nombre y WhatsApp para que podamos contactarte." },
+                  { title: "Conoce cómo activar tu agenda", text: "Te explicamos los planes disponibles, el proceso de contratación y la configuración de tus servicios y horarios." },
+                  { title: "Comparte tu agenda", text: "Una vez activada y configurada, comparte tu enlace para que tus clientes puedan reservar." },
+                ].map((step, index) => (
+                  <li key={step.title} className="flex gap-4 py-4 first:pt-0 last:pb-0">
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#f2f3f4] text-sm font-bold text-[#004e28]" aria-hidden="true">{index + 1}</span>
+                    <div><p className="text-sm font-semibold text-[#004e28]">{step.title}</p><p className="mt-1 text-sm leading-6 text-[#40554a]">{step.text}</p></div>
+                  </li>
+                ))}
+              </ol>
+              <MarketingCta href="#quiero-informacion" onClick={cta("lead_section")} label="Solicitar información" className="mt-6 w-full" />
             </div>
           </div>
         </section>
