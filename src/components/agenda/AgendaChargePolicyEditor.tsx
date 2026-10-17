@@ -1,5 +1,6 @@
 'use client';
 import { useId } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { mxn, policyExample } from '@/lib/agendaFinance';
 import type { ChargePolicy } from '@/types/agendaFinance';
 
@@ -10,11 +11,13 @@ export default function AgendaChargePolicyEditor({ value, onChange, onlineAvaila
   const id = useId();
   const example = samplePrice !== null && samplePrice !== undefined ? policyExample(String(samplePrice), value) : null;
   const deposit = value.mode === 'fixed' || value.mode === 'percentage';
-  const field = 'mt-2 w-full rounded-xl border border-gray-300 bg-white p-3 text-black';
+  const field = 'mt-2 block min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10';
+  const selectClass = 'h-12 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 pr-11 text-sm text-gray-900 outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400';
   return <fieldset className="space-y-4 rounded-2xl border border-[#004e28]/15 bg-white p-4 text-sm">
     <legend className="px-2 font-bold text-[#004e28]">Cobro inicial y cancelaciones</legend>
     <label className="block">Cómo cobrar al reservar
-      <select className={field} value={value.mode} onChange={e => {
+      <span className="relative mt-2 block">
+      <select className={selectClass} value={value.mode} onChange={e => {
         const mode = e.target.value as ChargePolicy['mode'];
         onChange({ ...value, mode, percentage: mode === 'percentage' ? value.percentage ?? '30' : null, fixed_amount: mode === 'fixed' ? value.fixed_amount ?? '200.00' : null,
           ...(!['percentage', 'fixed'].includes(mode) ? { retain_deposit: false, retention_authorized: false, terms_version: null, terms_text: null } : {}) });
@@ -24,6 +27,8 @@ export default function AgendaChargePolicyEditor({ value, onChange, onlineAvaila
         <option value="percentage" disabled={!onlineAvailable}>Anticipo porcentual (por ejemplo, 30 %)</option>
         <option value="fixed" disabled={!onlineAvailable}>Anticipo fijo (por ejemplo, $200)</option>
       </select>
+      <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" />
+      </span>
     </label>
     {!onlineAvailable ? <p className="text-amber-900">El cobro inicial en línea requiere Mercado Pago vinculado, pagos en línea permitidos y autorización del módulo en tu plan.</p> : null}
     {value.mode === 'percentage' ? <label className="block">Porcentaje de anticipo<input required className={field} type="number" min="0.0001" max="100" step="0.0001" value={value.percentage ?? ''} onChange={e => onChange({ ...value, percentage: e.target.value })} /></label> : null}

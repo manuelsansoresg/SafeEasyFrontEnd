@@ -132,7 +132,7 @@ export default function AgendaServiceConfigModal({
         </div>
       ) : (
         <>
-          <label className="block text-sm font-semibold">Política de cobro<select className={selectClass} value={policy ? "custom" : "inherit"} onChange={e => setPolicy(e.target.value === "inherit" ? null : { ...offlinePolicy })}><option value="inherit">Usar configuración general</option><option value="custom">Personalizar este servicio</option></select></label>
+          <label className="block text-sm font-semibold">Política de cobro<span className="relative mt-2 block"><select className={selectClass} value={policy ? "custom" : "inherit"} onChange={e => setPolicy(e.target.value === "inherit" ? null : { ...offlinePolicy })}><option value="inherit">Usar configuración general</option><option value="custom">Personalizar este servicio</option></select><ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" /></span></label>
           {policy ? <AgendaChargePolicyEditor samplePrice={service.price} value={policy} onChange={setPolicy} onlineAvailable={onlineAvailable} noticeHours={noticeHours} /> : <p className="text-sm text-gray-600">Se aplicará la configuración general al reservar. Las citas anteriores conservan sus importes acordados.</p>}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="min-w-0">

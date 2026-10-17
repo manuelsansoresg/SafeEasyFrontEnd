@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import AgendaFinancialSummary, { AgendaCancellationResult } from '@/components/agenda/AgendaFinancialSummary';
 import AgendaModalShell from '@/components/agenda/AgendaModalShell';
 import { availableAdjustment, cents, financialRefundState, financeLabel, mxn, openIntent } from '@/lib/agendaFinance';
@@ -13,7 +14,8 @@ import type { AgendaBooking } from '@/types/agendaBooking';
 import type { FinancialHistory, FinancialSummary, ManualMethod } from '@/types/agendaFinance';
 
 type Action = { kind: 'manual' | 'checkout' | 'reversals' | 'refunds' | 'confirm'; operationId?: number; refundId?: number; max?: string | null };
-const inputClass = 'mt-2 w-full rounded-xl border border-gray-300 bg-white p-3 text-black';
+const inputClass = 'mt-2 block min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10';
+const selectClass = 'h-12 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 pr-11 text-sm text-gray-900 outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400';
 const buttonClass = 'rounded-xl border border-[#168e00] px-4 py-3 text-sm font-semibold text-[#004e28] disabled:opacity-40';
 
 export default function AgendaFinancialPanel({ booking, provider = false, managementToken, onlineAvailable = false }: {
@@ -158,7 +160,7 @@ export default function AgendaFinancialPanel({ booking, provider = false, manage
     </> : null}
     <AgendaModalShell open={Boolean(action)} title={action?.kind === 'manual' ? 'Cobrar saldo' : action?.kind === 'checkout' ? 'Crear enlace de pago' : action?.kind === 'reversals' ? 'Corregir pago manual' : action?.kind === 'confirm' ? 'Confirmar devolución realizada' : 'Solicitar devolución'} saving={working} submitDisabled={!valid} submitLabel={action?.kind === 'manual' ? 'Registrar pago recibido' : 'Confirmar operación'} onClose={() => setAction(null)} onSubmit={e => { e.preventDefault(); void submit(); }}>
       <fieldset disabled={working || attempted} className="space-y-4 disabled:opacity-70">
-        {action?.kind === 'manual' ? <><label className="block text-sm">Método<select className={inputClass} value={method} onChange={e => setMethod(e.target.value as ManualMethod)}>{summary?.allowed_manual_methods.map(value => <option key={value} value={value}>{financeLabel(value)}</option>)}</select></label>{method === 'external_terminal' ? <p className="rounded-xl bg-amber-50 p-3 text-sm">Realiza primero el cobro en tu terminal. Después confirma aquí el importe recibido para actualizar el saldo de la reservación.</p> : null}</> : null}
+        {action?.kind === 'manual' ? <><label className="block text-sm">Método<span className="relative mt-2 block"><select className={selectClass} value={method} onChange={e => setMethod(e.target.value as ManualMethod)}>{summary?.allowed_manual_methods.map(value => <option key={value} value={value}>{financeLabel(value)}</option>)}</select><ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" /></span></label>{method === 'external_terminal' ? <p className="rounded-xl bg-amber-50 p-3 text-sm">Realiza primero el cobro en tu terminal. Después confirma aquí el importe recibido para actualizar el saldo de la reservación.</p> : null}</> : null}
         {needsAmount ? <label className="block text-sm">Importe en MXN (máximo {mxn(action?.max)})<input className={inputClass} required type="number" min="0.01" step="0.01" max={action?.max ?? undefined} value={amount} onChange={e => setAmount(e.target.value)} /></label> : null}
         {action?.kind === 'manual' || action?.kind === 'confirm' ? <label className="block text-sm">Referencia o comprobante<input className={inputClass} required={action.kind === 'confirm'} maxLength={255} minLength={action.kind === 'confirm' ? 3 : undefined} value={reference} onChange={e => setReference(e.target.value)} /></label> : null}
         {action?.kind === 'refunds' || action?.kind === 'reversals' ? <label className="block text-sm">Motivo<textarea className={inputClass} required minLength={3} maxLength={1000} value={reason} onChange={e => setReason(e.target.value)} /></label> : null}
