@@ -1,3 +1,4 @@
+import type { ChargePolicy } from '@/types/agendaFinance';
 
 export type AgendaDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export type SlotInterval = 15 | 20 | 30 | 60;
@@ -15,6 +16,7 @@ export type AgendaPaymentStatus =
   | "refunded";
 
 export interface AgendaPaymentSettings {
+  charge_policy?: ChargePolicy | null;
   supplier_id: number;
   accepts_payments: boolean;
   allows_cash_payment: boolean;
@@ -24,6 +26,7 @@ export interface AgendaPaymentSettings {
 }
 
 export interface AgendaPaymentSettingsPayload {
+  charge_policy?: ChargePolicy | null;
   accepts_payments: boolean;
   allows_cash_payment: boolean;
   allows_online_payment: boolean;
@@ -94,6 +97,7 @@ export interface AgendaSchedulePayload {
 }
 
 export interface AgendaService {
+  charge_policy?: ChargePolicy | null;
   id: number;
   supplier_id: number;
   catalog_service_id: string;
@@ -109,6 +113,7 @@ export interface AgendaService {
 }
 
 export interface AgendaServiceCreatePayload {
+  charge_policy?: ChargePolicy | null;
   catalog_service_id: string;
   duration_minutes: ServiceDuration;
   buffer_minutes: BufferDuration;
@@ -117,6 +122,7 @@ export interface AgendaServiceCreatePayload {
 }
 
 export interface AgendaServiceUpdatePayload {
+  charge_policy?: ChargePolicy | null;
   duration_minutes?: ServiceDuration;
   buffer_minutes?: BufferDuration;
   is_active?: boolean;

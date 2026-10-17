@@ -90,7 +90,8 @@ export type AgendaInboxEventType =
   | "agenda.refund_confirmed"
   | "agenda.refund_failed"
   | "agenda.manual_refund_pending"
-  | "agenda.manual_refund_confirmed";
+  | "agenda.manual_refund_confirmed"
+  | "agenda.financial_activity";
 
 export type AgendaInboxEvent = {
   type: AgendaInboxEventType;
@@ -113,6 +114,7 @@ const agendaInboxEventTypes = new Set<AgendaInboxEventType>([
   "agenda.refund_failed",
   "agenda.manual_refund_pending",
   "agenda.manual_refund_confirmed",
+  "agenda.financial_activity",
 ]);
 
 export function isAgendaInboxEvent(event: ChatInboxEvent): event is AgendaInboxEvent {

@@ -20,6 +20,7 @@ import {
   Trash2,
 } from "lucide-react";
 import AgendaModalShell from "@/components/agenda/AgendaModalShell";
+import { validateChargePolicy } from '@/lib/agendaFinance';
 import AgendaPaymentSettingsSection from "@/components/agenda/AgendaPaymentSettings";
 import AgendaServiceConfigModal from "@/components/agenda/AgendaServiceConfigModal";
 import AgendaServiceSelectorModal from "@/components/agenda/AgendaServiceSelectorModal";
@@ -377,6 +378,8 @@ export default function AdminAgendaPage() {
 
   const savePaymentSettings = async () => {
     if (!paymentSettings) return false;
+    const policyError = validateChargePolicy(paymentSettings.charge_policy);
+    if (policyError) { setToast({ type: "error", message: policyError }); return false; }
     const onlineAllowed = onlinePaymentsEnabled && paymentSettings.allows_online_payment;
     if (
       paymentSettings.accepts_payments &&
@@ -393,6 +396,7 @@ export default function AdminAgendaPage() {
     setSaving(true);
     try {
       const updated = await agendaService.updatePaymentSettings({
+        charge_policy: paymentSettings.charge_policy ?? null,
         accepts_payments: paymentSettings.accepts_payments,
         allows_cash_payment: paymentSettings.allows_cash_payment,
         allows_online_payment: onlineAllowed,
@@ -1369,6 +1373,8 @@ export default function AdminAgendaPage() {
 
       {section === "payments" && paymentSettings ? (
         <AgendaPaymentSettingsSection
+          noticeHours={settings?.cancellation_notice_hours}
+          samplePrice={services.find(service => service.price !== null)?.price}
           value={paymentSettings}
           onlinePaymentsEnabled={onlinePaymentsEnabled}
           linking={linkingMercadoPago}
@@ -1632,6 +1638,8 @@ export default function AdminAgendaPage() {
       {configuringService ? (
         <AgendaServiceConfigModal
           open
+          onlineAvailable={onlinePaymentsEnabled && paymentSettings?.online_payment_available === true}
+          noticeHours={settings?.cancellation_notice_hours}
           service={configuringService}
           saving={serviceActionSaving}
           onClose={() => setConfiguringService(null)}

@@ -1,3 +1,4 @@
+import type { CancellationResult } from '@/types/agendaFinance';
 import type {
   AgendaPaymentMethod,
   AgendaPaymentStatus,
@@ -63,6 +64,9 @@ export interface AgendaProviderBookingPayload
 }
 
 export interface AgendaBooking {
+  finance_version?: number;
+  ledger_version?: number;
+  cancellation_result?: CancellationResult | null;
   id: number;
   supplier_id: number;
   service_id: number;
@@ -129,6 +133,8 @@ export interface AgendaRescheduleRequest {
 }
 
 export interface AgendaCancelPayload {
+  preview_token?: string;
+  accept_deposit_loss?: boolean;
   reason?: string | null;
   management_token?: string | null;
 }

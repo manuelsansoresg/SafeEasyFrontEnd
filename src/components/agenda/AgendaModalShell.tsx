@@ -16,6 +16,7 @@ type AgendaModalShellProps = {
   saving: boolean;
   submitLabel?: string;
   submitDisabled?: boolean;
+  hideSubmit?: boolean;
   cancelLabel?: string;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -38,6 +39,7 @@ export default function AgendaModalShell({
   saving,
   submitLabel = "Guardar",
   submitDisabled = false,
+  hideSubmit = false,
   cancelLabel = "Cancelar",
   onClose,
   onSubmit,
@@ -146,7 +148,7 @@ export default function AgendaModalShell({
             >
               {cancelLabel}
             </button>
-            <button
+            {!hideSubmit ? <button
               type="submit"
               disabled={saving || submitDisabled}
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#168e00] px-5 py-3 font-semibold text-white transition hover:bg-[#117500] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004e28] disabled:cursor-not-allowed disabled:opacity-50"
@@ -157,7 +159,7 @@ export default function AgendaModalShell({
                 <Check aria-hidden="true" size={18} />
               )}
               {submitLabel}
-            </button>
+            </button> : null}
           </div>
         </form>
       </div>

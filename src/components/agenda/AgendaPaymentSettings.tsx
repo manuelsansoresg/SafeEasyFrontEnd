@@ -1,9 +1,12 @@
 "use client";
 
 import { Banknote, CheckCircle2, CreditCard, ExternalLink, Loader2 } from "lucide-react";
+import AgendaChargePolicyEditor, { offlinePolicy } from '@/components/agenda/AgendaChargePolicyEditor';
 import type { AgendaPaymentSettings } from "@/types/agenda";
 
 type AgendaPaymentSettingsProps = {
+  samplePrice?: number | null;
+  noticeHours?: number;
   value: AgendaPaymentSettings;
   linking: boolean;
   onlinePaymentsEnabled: boolean;
@@ -43,6 +46,8 @@ function Switch({
 
 export default function AgendaPaymentSettingsSection({
   value,
+  noticeHours,
+  samplePrice,
   linking,
   onlinePaymentsEnabled,
   onChange,
@@ -170,6 +175,7 @@ export default function AgendaPaymentSettingsSection({
           )}
         </article> : null}
       </div>
+      <AgendaChargePolicyEditor samplePrice={samplePrice} value={value.charge_policy ?? { ...offlinePolicy, mode: value.accepts_payments && value.allows_online_payment ? 'full' : 'offline' }} noticeHours={noticeHours} onlineAvailable={onlinePaymentsEnabled && value.mercadopago_linked && value.accepts_payments && value.allows_online_payment} onChange={charge_policy => onChange({ ...value, charge_policy })} />
     </section>
   );
 }

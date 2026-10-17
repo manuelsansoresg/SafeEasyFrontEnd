@@ -15,6 +15,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHero } from "@/components/ui/PageHero";
 import { Toast } from "@/components/ui/Toast";
+import AgendaFinancialPanel from '@/components/agenda/AgendaFinancialPanel';
+import { isFinancialBooking } from '@/lib/agendaFinance';
 import AgendaPaymentStatus from "@/components/agenda/AgendaPaymentStatus";
 import AgendaRefundStatus from "@/components/agenda/AgendaRefundStatus";
 import AgendaModalShell from "@/components/agenda/AgendaModalShell";
@@ -90,8 +92,10 @@ function formatSlot(iso: string, timezone: string) {
 }
 
 export default function ProviderAgendaAppointmentsPage() {
-  const { loading: accessLoading, error: accessError, hasModule, retry } = useSupplierModules();
+  const { loading: accessLoading, error: accessError, hasModule, getModule, retry } = useSupplierModules();
   const hasAccess = hasModule("agenda");
+  const [onlineConfigured, setOnlineConfigured] = useState(false);
+  const onlinePaymentsEnabled = getModule("agenda")?.online_payments_enabled === true;
   const token = useAuthStore((state) => state.token);
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
   const { status: inboxStatus } = useChatInboxWebSocket(Boolean(token) && hasAccess);
@@ -178,22 +182,18 @@ export default function ProviderAgendaAppointmentsPage() {
     signal?: AbortSignal,
     includeRefunds = true,
   ) => {
-    const [updated, payment] = await Promise.all([
-      agendaBookingService.providerAppointment(bookingId, signal),
-      includePayment
-        ? agendaBookingService.providerBookingPayment(bookingId, signal)
-        : Promise.resolve(undefined),
-    ]);
+    const updated = await agendaBookingService.providerAppointment(bookingId, signal);
+    const payment = includePayment && !isFinancialBooking(updated) ? await agendaBookingService.providerBookingPayment(bookingId, signal) : undefined;
     if (signal?.aborted) return;
     setAppointments((current) => {
       const index = current.findIndex((item) => item.id === bookingId);
       if (index === -1) return [updated, ...current];
-      return current.map((item) => item.id === bookingId ? updated : item);
+      return current.map((item) => item.id === bookingId ? { ...updated, cancellation_result: updated.cancellation_result ?? item.cancellation_result } : item);
     });
     if (includePayment) {
       setPayments((current) => ({ ...current, [bookingId]: payment }));
     }
-    if (includeRefunds && (openRefundIdsRef.current.has(bookingId) || refundHistory.hasLoaded(bookingId))) {
+    if (!isFinancialBooking(updated) && includeRefunds && (openRefundIdsRef.current.has(bookingId) || refundHistory.hasLoaded(bookingId))) {
       void loadRefunds(bookingId, true, signal);
     }
   }, [loadRefunds, refundHistory]);
@@ -207,21 +207,23 @@ export default function ProviderAgendaAppointmentsPage() {
     if (!silent) setLoading(true);
 
     try {
-      const [appointmentsData, servicesData] =
+      const [appointmentsData, servicesData, paymentConfiguration] =
         await Promise.all([
           agendaBookingService.providerAppointments(
             undefined,
             signal,
           ),
           silent ? Promise.resolve(null) : agendaService.listServices(signal),
+          silent ? Promise.resolve(null) : agendaService.getPaymentSettings(signal).catch(() => null),
         ]);
 
       setAppointments(appointmentsData);
       if (servicesData) setServices(servicesData);
+      if (paymentConfiguration) setOnlineConfigured(paymentConfiguration.online_payment_available);
       if (!silent) setLoading(false);
 
       const paymentResults = await Promise.allSettled(
-        appointmentsData.map(async (booking) => [
+        appointmentsData.filter(booking => !isFinancialBooking(booking)).map(async (booking) => [
           booking.id,
           await agendaBookingService.providerBookingPayment(booking.id, signal),
         ] as const),
@@ -235,7 +237,7 @@ export default function ProviderAgendaAppointmentsPage() {
           : Object.fromEntries(paymentEntries));
       }
       for (const bookingId of openRefundIdsRef.current) {
-        void loadRefunds(bookingId, true, signal);
+        if (!appointmentsData.some(b => b.id === bookingId && isFinancialBooking(b))) void loadRefunds(bookingId, true, signal);
       }
     } catch (error) {
       if (signal?.aborted) return;
@@ -276,7 +278,9 @@ export default function ProviderAgendaAppointmentsPage() {
       const refundEvent = event.type.includes("refund");
       void refreshAppointment(event.booking_id, includePayment, controller.signal, !refundEvent)
         .catch(() => { /* Una actualización posterior puede recuperar esta cita. */ });
-      if (refundEvent) void loadRefunds(event.booking_id, true, controller.signal);
+      if (refundEvent) {
+        void agendaBookingService.providerAppointment(event.booking_id, controller.signal).then(b => { if (!isFinancialBooking(b)) void loadRefunds(b.id, true, controller.signal); }).catch(() => undefined);
+      }
       if (requestsBooking?.id === event.booking_id &&
           (event.type === "agenda.reschedule_requested" ||
            event.type === "agenda.reschedule_decided")) {
@@ -373,7 +377,7 @@ export default function ProviderAgendaAppointmentsPage() {
       open.add(bookingId);
       openRefundIdsRef.current = open;
       setOpenRefundIds(open);
-      void loadRefunds(bookingId, true);
+      if (!isFinancialBooking(updated)) void loadRefunds(bookingId, true);
       setToast({ type: "success", message: "Reservación cancelada. Consulta el estado de la devolución." });
       void refreshAppointment(bookingId, true, undefined, false).catch(() => setToast({ type: "info", message: "Reservación cancelada. Usa Actualizar estado para consultar la devolución." }));
     } catch (error) {
@@ -583,6 +587,7 @@ export default function ProviderAgendaAppointmentsPage() {
                   </div>
                 ) : null}
 
+                {isFinancialBooking(booking) ? <details className="mt-4" open={selectedBookingId === booking.id || Boolean(booking.cancellation_result)}><summary className="cursor-pointer rounded-xl bg-[#004e28]/5 p-3 font-bold text-[#004e28]">Pagos de la reservación</summary><ProviderFinancialDetail booking={booking} onlineAvailable={onlinePaymentsEnabled && onlineConfigured} /></details> : <>
                 <div className="mt-4">
                   <AgendaPaymentStatus
                     compact
@@ -619,6 +624,7 @@ export default function ProviderAgendaAppointmentsPage() {
                   ) : null}
                 </div>
 
+                </>}
                 <div className="mt-5 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
                   {booking.status === "pending" ? (
                     <>
@@ -1503,4 +1509,18 @@ function RequestsModal({
       )}
     </ModalShell>
   );
+}
+
+function ProviderFinancialDetail({ booking, onlineAvailable }: { booking: AgendaProviderBooking; onlineAvailable: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    const details = ref.current?.parentElement as HTMLDetailsElement | null;
+    if (!details) return;
+    const toggle = () => { if (details.open) setLoaded(true); };
+    const frame = requestAnimationFrame(toggle);
+    details.addEventListener('toggle', toggle);
+    return () => { cancelAnimationFrame(frame); details.removeEventListener('toggle', toggle); };
+  }, []);
+  return <div ref={ref}>{loaded ? <AgendaFinancialPanel booking={booking} provider onlineAvailable={onlineAvailable} /> : null}</div>;
 }

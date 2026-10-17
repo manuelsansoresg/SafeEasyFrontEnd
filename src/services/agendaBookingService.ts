@@ -1,3 +1,4 @@
+import type { FinancialQuote, FinancialSummary, FinancialHistory, FinancialIntent, FinancialBookingPayload, FinancialBookingCreated, CancellationPreview, ManualMethod, FinancialOperation, FinancialRefund } from '@/types/agendaFinance';
 import { fetchWithAuth } from "@/lib/api";
 import type { AgendaService, PublicAgendaSettings } from "@/types/agenda";
 import type {
@@ -24,13 +25,15 @@ import type {
 const agendaGateway = "/proxy/agenda";
 const publicAgendaGateway = "/proxy/public/agenda";
 
-class AgendaBookingRequestError extends Error {
+export class AgendaBookingRequestError extends Error {
+  code?: string;
   status: number;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = "AgendaBookingRequestError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -155,6 +158,8 @@ async function request<T>(
     .catch(() => null);
 
   const detail = friendlyAgendaError(extractError(body));
+  const errorDetail = body && typeof body === "object" && "detail" in body ? body.detail : null;
+  const code = errorDetail && typeof errorDetail === "object" && "code" in errorDetail ? String(errorDetail.code) : undefined;
 
   if (response.status === 429) {
     throw new AgendaBookingRequestError(
@@ -187,7 +192,7 @@ async function request<T>(
   if (response.status === 409) {
     throw new AgendaBookingRequestError(
       detail || "Existe un conflicto con esta cita.",
-      response.status,
+      response.status, code,
     );
   }
 
@@ -231,6 +236,35 @@ function queryString(
 }
 
 export const agendaBookingService = {
+
+  financialQuote(supplierId: number, serviceId: number, signal?: AbortSignal) {
+    return request<FinancialQuote>(`${publicAgendaGateway}/${supplierId}/services/${serviceId}/financial-quote`, { signal, retryOnAuthFailure: false });
+  },
+  createFinancialBooking(supplierId: number, payload: FinancialBookingPayload) {
+    return request<FinancialBookingCreated>(`${publicAgendaGateway}/${supplierId}/bookings/financial`, { method: 'POST', body: JSON.stringify(payload), retryOnAuthFailure: false });
+  },
+  financialSummary(bookingId: number, provider = false, managementToken?: string | null, signal?: AbortSignal) {
+    return request<FinancialSummary>(provider ? `${agendaGateway}/appointments/${bookingId}/financial-summary` : `${publicAgendaGateway}/bookings/${bookingId}/financial-summary${queryString({ management_token: managementToken })}`, { signal, retryOnAuthFailure: provider });
+  },
+  financialHistory(bookingId: number, signal?: AbortSignal) {
+    return request<FinancialHistory>(`${agendaGateway}/appointments/${bookingId}/payments`, { signal });
+  },
+  registerManualPayment(bookingId: number, payload: { amount: string; method: ManualMethod; reference: string | null; idempotency_key: string }) {
+    return request<FinancialOperation>(`${agendaGateway}/appointments/${bookingId}/payments/manual`, { method: 'POST', body: JSON.stringify(payload), retryOnAuthFailure: false });
+  },
+  createBalanceIntent(bookingId: number, idempotency_key: string) {
+    return request<FinancialIntent>(`${agendaGateway}/appointments/${bookingId}/payment-intents`, { method: 'POST', body: JSON.stringify({ idempotency_key }), retryOnAuthFailure: false });
+  },
+  adjustPayment(bookingId: number, operationId: number, action: 'reversals' | 'refunds', payload: { amount: string; reason: string; idempotency_key: string }) {
+    return request<FinancialOperation | FinancialRefund>(`${agendaGateway}/appointments/${bookingId}/payments/${operationId}/${action}`, { method: 'POST', body: JSON.stringify(payload), retryOnAuthFailure: false });
+  },
+  confirmFinancialManualRefund(bookingId: number, refundId: number, reference: string) {
+    return request<FinancialRefund>(`${agendaGateway}/appointments/${bookingId}/financial-refunds/${refundId}/confirm-manual`, { method: 'POST', body: JSON.stringify({ reference }), retryOnAuthFailure: false });
+  },
+  cancellationPreview(bookingId: number, managementToken?: string | null, signal?: AbortSignal) {
+    return request<CancellationPreview>(`${publicAgendaGateway}/bookings/${bookingId}/cancellation-preview${queryString({ management_token: managementToken })}`, { signal, retryOnAuthFailure: false });
+  },
+
   async getPublicSettings(
     supplierId: number,
     signal?: AbortSignal,

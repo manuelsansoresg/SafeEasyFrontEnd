@@ -13,6 +13,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AgendaFinancialPanel from '@/components/agenda/AgendaFinancialPanel';
+import AgendaFinancialCancellation from '@/components/agenda/AgendaFinancialCancellation';
+import { isFinancialBooking } from '@/lib/agendaFinance';
 import AgendaPaymentStatus from "@/components/agenda/AgendaPaymentStatus";
 import AgendaRefundStatus from "@/components/agenda/AgendaRefundStatus";
 import AgendaModalShell from "@/components/agenda/AgendaModalShell";
@@ -350,6 +353,7 @@ export default function AgendaBookingManagementPage() {
           }
         }
 
+        if (isFinancialBooking(data)) return;
         try {
           const paymentData = await agendaBookingService.getBookingPayment(
             bookingId,
@@ -408,6 +412,9 @@ export default function AgendaBookingManagementPage() {
   const refreshRegisteredBooking = useCallback(async (signal?: AbortSignal) => {
     const sequence = ++registeredRefreshSequence.current;
     try {
+      const mineForVersion = await agendaBookingService.myBookings(undefined, signal);
+      const versionBooking = mineForVersion.find(b => b.id === bookingId);
+      if (isFinancialBooking(versionBooking)) { if (!signal?.aborted && sequence === registeredRefreshSequence.current && versionBooking) setBooking(versionBooking); return; }
       const [mine, paymentResult, refundResult] = await Promise.all([
         agendaBookingService.myBookings(undefined, signal),
         agendaBookingService.getBookingPayment(bookingId, null, signal).then(
@@ -432,7 +439,7 @@ export default function AgendaBookingManagementPage() {
   }, [bookingId]);
 
   const refreshFinancials = useCallback(async () => {
-    if (!booking) return;
+    if (!booking || isFinancialBooking(booking)) return;
     const results = await Promise.allSettled([
       agendaBookingService.getBookingPayment(booking.id, managementToken || null),
       agendaBookingService.getBookingRefunds(booking.id, managementToken || null),
@@ -801,7 +808,7 @@ export default function AgendaBookingManagementPage() {
         </div>
       </section>
 
-      {paymentNotice ? (
+      {!isFinancialBooking(booking) && paymentNotice ? (
         <div
           className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${paymentNotice.classes}`}
           role="status"
@@ -843,7 +850,7 @@ export default function AgendaBookingManagementPage() {
                 Reglas para administrar esta cita
               </p>
 
-              <p>{cancellationWithinTime ? cancellationPolicy : "El plazo para cancelar esta reservación ya terminó."}</p>
+              <p>{isFinancialBooking(booking) ? "Consulta la vista previa para conocer si puedes cancelar y los importes que se devolverán o retendrán." : cancellationWithinTime ? cancellationPolicy : "El plazo para cancelar esta reservación ya terminó."}</p>
 
               {rules?.allow_reschedule_requests ? (
                 <p>
@@ -914,6 +921,7 @@ export default function AgendaBookingManagementPage() {
         ) : null}
       </section>
 
+      {isFinancialBooking(booking) ? <AgendaFinancialPanel key={`${booking.id}:${managementToken}`} booking={booking} managementToken={managementToken} /> : <>
       <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
         <h2 className="text-xl font-bold text-gray-900">Pago</h2>
         {paymentError ? (
@@ -945,6 +953,7 @@ export default function AgendaBookingManagementPage() {
         </section>
       ) : null}
 
+      </>}
       {isActive ? (
         <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
           <h2 className="text-xl font-bold text-gray-900">
@@ -1006,7 +1015,7 @@ export default function AgendaBookingManagementPage() {
                 </h3>
               </div>
 
-              {!cancellationAllowed ? (
+              {isFinancialBooking(booking) ? <p className="mt-2 text-sm text-gray-600">Antes de confirmar, revisa las consecuencias económicas de cancelar.</p> : !cancellationAllowed ? (
                 <div className="mt-3 flex items-start gap-2 text-sm text-red-700">
                   <ShieldAlert
                     className="mt-0.5 shrink-0"
@@ -1030,14 +1039,14 @@ export default function AgendaBookingManagementPage() {
                 </p>
               )}
 
-              <button
+              {isFinancialBooking(booking) ? <AgendaFinancialCancellation booking={booking} managementToken={managementToken} onUpdated={updated => { setBooking(updated); setSuccess("La reservación fue cancelada. Consulta el resultado financiero."); }} /> : <button
                 type="button"
                 disabled={working || !canCancel}
                 onClick={() => { setCancelError(null); setCancelOpen(true); }}
                 className="mt-3 rounded-xl bg-red-600 px-4 py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Cancelar cita
-              </button>
+              </button>}
             </div>
           </div>
         </section>
