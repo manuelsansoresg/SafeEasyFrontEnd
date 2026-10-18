@@ -1,55 +1,53 @@
 'use client';
-import { useId } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { mxn, policyExample } from '@/lib/agendaFinance';
-import type { ChargePolicy } from '@/types/agendaFinance';
+import { isLegacyChargePolicy, mxn, policyExample, standardChargePolicy, standardPolicyAuthorized } from '@/lib/agendaFinance';
+import type { ChargePolicy, StandardCancellationPolicy } from '@/types/agendaFinance';
 
-export const offlinePolicy: ChargePolicy = { mode: 'offline', percentage: null, fixed_amount: null, retain_deposit: false, retention_authorized: false, terms_version: null, terms_text: null };
-export default function AgendaChargePolicyEditor({ value, onChange, onlineAvailable = true, noticeHours, samplePrice }: {
+export const offlinePolicy: ChargePolicy = { mode: 'offline' };
+export default function AgendaChargePolicyEditor({ value, onChange, onlineAvailable = true, noticeHours, samplePrice, standardPolicy, onEditNotice }: {
   value: ChargePolicy; onChange: (value: ChargePolicy) => void; onlineAvailable?: boolean; noticeHours?: number; samplePrice?: number | null;
+  standardPolicy?: StandardCancellationPolicy | null; onEditNotice?: () => void;
 }) {
-  const id = useId();
+  const legacy = isLegacyChargePolicy(value);
   const example = samplePrice !== null && samplePrice !== undefined ? policyExample(String(samplePrice), value) : null;
   const deposit = value.mode === 'fixed' || value.mode === 'percentage';
+  const authorized = standardPolicyAuthorized(standardPolicy);
   const field = 'mt-2 block min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10';
   const selectClass = 'h-12 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 pr-11 text-sm text-gray-900 outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400';
   return <fieldset className="space-y-4 rounded-2xl border border-[#004e28]/15 bg-white p-4 text-sm">
     <legend className="px-2 font-bold text-[#004e28]">Cobro inicial y cancelaciones</legend>
-    <label className="block">Cómo cobrar al reservar
+    {legacy ? <div className="space-y-2 rounded-xl bg-[#f2f3f4] p-3">
+      <p>Esta configuración conserva sus condiciones anteriores. Puedes mantenerlas o elegir las condiciones de Drooopy para futuras reservaciones.</p>
+      {value.terms_text ? <details><summary className="cursor-pointer font-semibold text-[#004e28]">Consultar condiciones actuales</summary><p className="mt-2 whitespace-pre-wrap text-gray-600">{value.terms_text}</p></details> : null}
+      <button type="button" onClick={() => onChange(standardChargePolicy(value))} className="min-h-11 rounded-xl border border-[#168e00] px-4 py-2 font-semibold text-[#004e28]">Usar condiciones de Drooopy</button>
+    </div> : null}
+    <label className="block">¿Cómo quieres cobrar al reservar?
       <span className="relative mt-2 block">
-      <select className={selectClass} value={value.mode} onChange={e => {
-        const mode = e.target.value as ChargePolicy['mode'];
-        onChange({ ...value, mode, percentage: mode === 'percentage' ? value.percentage ?? '30' : null, fixed_amount: mode === 'fixed' ? value.fixed_amount ?? '200.00' : null,
-          ...(!['percentage', 'fixed'].includes(mode) ? { retain_deposit: false, retention_authorized: false, terms_version: null, terms_text: null } : {}) });
-      }}>
-        <option value="offline">Sin anticipo / pago al asistir</option>
-        <option value="full" disabled={!onlineAvailable}>Pago completo</option>
-        <option value="percentage" disabled={!onlineAvailable}>Anticipo porcentual (por ejemplo, 30 %)</option>
-        <option value="fixed" disabled={!onlineAvailable}>Anticipo fijo (por ejemplo, $200)</option>
-      </select>
-      <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" />
+        <select disabled={legacy} className={selectClass} value={value.mode} onChange={e => {
+          const mode = e.target.value as ChargePolicy['mode'];
+          onChange(mode === 'percentage' ? { mode, percentage: value.percentage ?? '30' } : mode === 'fixed' ? { mode, fixed_amount: value.fixed_amount ?? '200.00' } : { mode });
+        }}>
+          <option value="offline">Sin anticipo / pago al asistir</option>
+          <option value="full" disabled={!onlineAvailable}>Pago completo</option>
+          <option value="percentage" disabled={!onlineAvailable}>Anticipo porcentual</option>
+          <option value="fixed" disabled={!onlineAvailable}>Anticipo fijo</option>
+        </select>
+        <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" />
       </span>
     </label>
     {!onlineAvailable ? <p className="text-amber-900">El cobro inicial en línea requiere Mercado Pago vinculado, pagos en línea permitidos y autorización del módulo en tu plan.</p> : null}
-    {value.mode === 'percentage' ? <label className="block">Porcentaje de anticipo<input required className={field} type="number" min="0.0001" max="100" step="0.0001" value={value.percentage ?? ''} onChange={e => onChange({ ...value, percentage: e.target.value })} /></label> : null}
-    {value.mode === 'fixed' ? <label className="block">Anticipo en MXN<input required className={field} type="number" min="0.01" max="9999999999.99" step="0.01" value={value.fixed_amount ?? ''} onChange={e => onChange({ ...value, fixed_amount: e.target.value })} /></label> : null}
+    {value.mode === 'percentage' ? <label className="block">Porcentaje de anticipo<input disabled={legacy} required className={field} type="number" min="0.0001" max="100" step="0.0001" value={value.percentage ?? ''} onChange={e => onChange({ mode: 'percentage', percentage: e.target.value })} /></label> : null}
+    {value.mode === 'fixed' ? <label className="block">Anticipo en MXN<input disabled={legacy} required className={field} type="number" min="0.01" max="9999999999.99" step="0.01" value={value.fixed_amount ?? ''} onChange={e => onChange({ mode: 'fixed', fixed_amount: e.target.value })} /></label> : null}
     {example ? <p className="rounded-xl bg-[#f2f3f4] p-3 text-sm">Ejemplo para un servicio de {mxn(example.total)}: pago inicial {mxn(example.initial)} y saldo previsto {mxn(example.remaining)}. Cada servicio puede tener un precio distinto; el importe definitivo se cotiza al reservar.</p> : null}
-    <p className="text-gray-600">{noticeHours === undefined ? 'Se aplica el plazo de cancelación configurado en Agenda.' : `Los clientes pueden cancelar sin perder su anticipo hasta ${noticeHours} horas antes de su cita.`}</p>
-    {deposit ? <>
-      <div className="space-y-2">
-        <label className="flex gap-3"><input aria-describedby={`${id}-retention-help`} className="size-5 shrink-0 accent-[#168e00]" type="checkbox" checked={value.retain_deposit} onChange={e => onChange({ ...value, retain_deposit: e.target.checked, retention_authorized: false })} />Retener el anticipo cuando el cliente cancele fuera del plazo permitido</label>
-        <p id={`${id}-retention-help`} className="pl-8 text-xs leading-5 text-gray-600">
-          {value.retain_deposit
-            ? 'Si activas esta opción, el negocio podrá conservar el anticipo cuando el cliente cancele fuera del plazo establecido, siempre que haya aceptado previamente las condiciones de cancelación.'
-            : 'Si no activas esta opción, no se retendrá automáticamente el anticipo. Las cancelaciones fuera del plazo podrán requerir revisión y se tramitarán las devoluciones correspondientes según las condiciones aplicables.'}
-        </p>
-      </div>
-      {value.retain_deposit ? <>
-        <label className="block" htmlFor={`${id}-terms`}>Condiciones de cancelación<textarea id={`${id}-terms`} required minLength={1} maxLength={6000} rows={5} className={field} value={value.terms_text ?? ''} onChange={e => onChange({ ...value, terms_text: e.target.value })} /></label>
-        <label className="block">Versión de las condiciones<input className={field} required maxLength={80} value={value.terms_version ?? ''} onChange={e => onChange({ ...value, terms_version: e.target.value })} /></label>
-        <label className="flex gap-3"><input required className="size-5 shrink-0 accent-[#168e00]" type="checkbox" checked={value.retention_authorized} onChange={e => onChange({ ...value, retention_authorized: e.target.checked })} />Declaro que estoy autorizado para aplicar estas condiciones y que he revisado su conformidad con la normativa aplicable.</label>
-        <p className="text-xs text-gray-600">Las condiciones deben ser válidas conforme a la normativa aplicable. Configurarlas no certifica su validez jurídica. El cliente deberá aceptarlas expresamente.</p>
-      </> : null}
-    </> : null}
+    <div className="flex flex-wrap items-center gap-2 text-gray-600"><p>{noticeHours === undefined ? 'Se aplica el plazo de cancelación configurado en Agenda.' : `Cancelaciones sin penalización hasta ${noticeHours} horas antes de la cita.`}</p>{onEditNotice ? <button type="button" onClick={onEditNotice} className="min-h-11 font-semibold text-[#168e00] underline underline-offset-2">Modificar plazo</button> : null}</div>
+    {deposit && !legacy ? <div className="space-y-2 rounded-xl bg-[#004e28]/5 p-4">
+      <h3 className="font-bold text-[#004e28]">Protección de tu anticipo</h3>
+      <p className="text-sm text-gray-700">{authorized
+        ? 'Si el cliente cancela fuera del plazo permitido o no se presenta, podrás conservar el anticipo conforme a las condiciones aceptadas. Si cancela a tiempo, se tramitará su devolución.'
+        : standardPolicy?.approved && standardPolicy.policy_available
+          ? 'Para habilitar la protección de anticipos, acepta las condiciones de cancelación de Drooopy en Pagos.'
+          : 'La protección automática de anticipos está pendiente de habilitación por Drooopy.'}</p>
+      {authorized ? <p className="text-xs text-gray-600">Solo aplica al anticipo confirmado y disponible, con aceptación del cliente y cuando las condiciones válidas lo permitan. Si cancela el negocio, se tramita la devolución; prevalecen las excepciones legales. Un pago completo no genera retención automática.</p> : null}
+    </div> : null}
   </fieldset>;
 }

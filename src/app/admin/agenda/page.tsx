@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -20,7 +20,9 @@ import {
   Trash2,
 } from "lucide-react";
 import AgendaModalShell from "@/components/agenda/AgendaModalShell";
-import { validateChargePolicy } from '@/lib/agendaFinance';
+import AgendaStandardPolicyConsent from '@/components/agenda/AgendaStandardPolicyConsent';
+import type { StandardCancellationPolicy } from '@/types/agendaFinance';
+import { isLegacyChargePolicy, validateChargePolicy } from '@/lib/agendaFinance';
 import AgendaPaymentSettingsSection from "@/components/agenda/AgendaPaymentSettings";
 import AgendaServiceConfigModal from "@/components/agenda/AgendaServiceConfigModal";
 import AgendaServiceSelectorModal from "@/components/agenda/AgendaServiceSelectorModal";
@@ -143,6 +145,28 @@ export default function AdminAgendaPage() {
     useMyDirectorySubscription(Boolean(user));
 
   const [section, setSection] = useState<Section>("general");
+  const [standardPolicyState, setStandardPolicyState] = useState<{ userId: number; policy: StandardCancellationPolicy } | null>(null);
+  const standardPolicy = standardPolicyState?.userId === user?.id ? standardPolicyState?.policy ?? null : null;
+  const policySequence = useRef(0);
+  const [standardPolicyError, setStandardPolicyError] = useState('');
+  const refreshStandardPolicy = useCallback(async (signal?: AbortSignal) => {
+    if (!hasAccess || !user?.id) return;
+    const sequence = ++policySequence.current;
+    try {
+      const policy = await agendaService.standardCancellationPolicy(signal);
+      if (!signal?.aborted && sequence === policySequence.current) { setStandardPolicyState({ userId: user.id, policy }); setStandardPolicyError(''); }
+    } catch (error) {
+      if (!signal?.aborted && sequence === policySequence.current) { setStandardPolicyState(null); setStandardPolicyError(error instanceof Error ? error.message : 'No se pudieron consultar las condiciones.'); }
+    }
+  }, [hasAccess, user?.id]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void refreshStandardPolicy(controller.signal);
+    const visible = () => { if (document.visibilityState === 'visible') void refreshStandardPolicy(controller.signal); };
+    document.addEventListener('visibilitychange', visible);
+    return () => { controller.abort(); document.removeEventListener('visibilitychange', visible); };
+  }, [refreshStandardPolicy]);
+
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<AgendaSettings | null>(null);
   const [schedules, setSchedules] = useState<AgendaSchedulePayload[]>([]);
@@ -1372,7 +1396,10 @@ export default function AdminAgendaPage() {
       ) : null}
 
       {section === "payments" && paymentSettings ? (
+        <>
         <AgendaPaymentSettingsSection
+          standardPolicy={standardPolicy}
+          onEditNotice={() => setSection("general")}
           noticeHours={settings?.cancellation_notice_hours}
           samplePrice={services.find(service => service.price !== null)?.price}
           value={paymentSettings}
@@ -1387,6 +1414,8 @@ export default function AdminAgendaPage() {
             })
           }
         />
+        {((paymentSettings.charge_policy && !isLegacyChargePolicy(paymentSettings.charge_policy) && ['fixed', 'percentage'].includes(paymentSettings.charge_policy.mode)) || services.some(service => service.charge_policy && !isLegacyChargePolicy(service.charge_policy) && ['fixed', 'percentage'].includes(service.charge_policy.mode))) ? <AgendaStandardPolicyConsent key={`${user?.id}:${standardPolicy?.version}:${standardPolicy?.content_hash}:${standardPolicy?.approved}`} policy={standardPolicy} error={standardPolicyError} noticeHours={settings?.cancellation_notice_hours} onRefresh={() => refreshStandardPolicy()} /> : null}
+        </>
       ) : null}
 
       {section === "exceptions" ? (
@@ -1637,6 +1666,7 @@ export default function AdminAgendaPage() {
 
       {configuringService ? (
         <AgendaServiceConfigModal
+          standardPolicy={standardPolicy}
           open
           onlineAvailable={onlinePaymentsEnabled && paymentSettings?.online_payment_available === true}
           noticeHours={settings?.cancellation_notice_hours}

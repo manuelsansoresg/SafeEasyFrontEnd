@@ -3,7 +3,7 @@
 import { AlertTriangle, ChevronDown, Info } from "lucide-react";
 import { useState } from "react";
 import AgendaChargePolicyEditor, { offlinePolicy } from '@/components/agenda/AgendaChargePolicyEditor';
-import type { ChargePolicy } from '@/types/agendaFinance';
+import type { ChargePolicy, StandardCancellationPolicy } from '@/types/agendaFinance';
 import { validateChargePolicy } from '@/lib/agendaFinance';
 import AgendaModalShell from "@/components/agenda/AgendaModalShell";
 import type {
@@ -19,6 +19,7 @@ const selectClass =
   "h-12 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 pr-11 text-sm text-gray-900 outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10";
 
 type AgendaServiceConfigModalProps = {
+  standardPolicy?: StandardCancellationPolicy | null;
   onlineAvailable?: boolean;
   noticeHours?: number;
   open: boolean;
@@ -40,6 +41,7 @@ function money(value: number | null) {
 
 export default function AgendaServiceConfigModal({
   open,
+  standardPolicy,
   onlineAvailable,
   noticeHours,
   service,
@@ -133,7 +135,7 @@ export default function AgendaServiceConfigModal({
       ) : (
         <>
           <label className="block text-sm font-semibold">Política de cobro<span className="relative mt-2 block"><select className={selectClass} value={policy ? "custom" : "inherit"} onChange={e => setPolicy(e.target.value === "inherit" ? null : { ...offlinePolicy })}><option value="inherit">Usar configuración general</option><option value="custom">Personalizar este servicio</option></select><ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" /></span></label>
-          {policy ? <AgendaChargePolicyEditor samplePrice={service.price} value={policy} onChange={setPolicy} onlineAvailable={onlineAvailable} noticeHours={noticeHours} /> : <p className="text-sm text-gray-600">Se aplicará la configuración general al reservar. Las citas anteriores conservan sus importes acordados.</p>}
+          {policy ? <AgendaChargePolicyEditor standardPolicy={standardPolicy} samplePrice={service.price} value={policy} onChange={setPolicy} onlineAvailable={onlineAvailable} noticeHours={noticeHours} /> : <p className="text-sm text-gray-600">Se aplicará la configuración general al reservar. Las citas anteriores conservan sus importes acordados.</p>}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="min-w-0">
               <label>

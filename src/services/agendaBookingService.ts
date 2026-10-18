@@ -236,6 +236,9 @@ function queryString(
 }
 
 export const agendaBookingService = {
+  cancellationPolicyException(bookingId: number, payload: { reason: string; reference: string | null }) {
+    return request<{ id: number; retention_blocked: boolean }>(`${agendaGateway}/appointments/${bookingId}/cancellation-policy-exception`, { method: 'POST', body: JSON.stringify(payload), retryOnAuthFailure: false });
+  },
 
   financialQuote(supplierId: number, serviceId: number, signal?: AbortSignal) {
     return request<FinancialQuote>(`${publicAgendaGateway}/${supplierId}/services/${serviceId}/financial-quote`, { signal, retryOnAuthFailure: false });

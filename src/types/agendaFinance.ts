@@ -5,12 +5,14 @@ export type Money = string | number;
 export type ManualMethod = 'cash' | 'external_terminal' | 'bank_transfer';
 export interface ChargePolicy {
   mode: 'offline' | 'full' | 'percentage' | 'fixed';
-  percentage: Money | null;
-  fixed_amount: Money | null;
-  retain_deposit: boolean;
-  retention_authorized: boolean;
-  terms_version: string | null;
-  terms_text: string | null;
+  readonly policy_source?: 'legacy' | 'standard';
+  readonly standard_evidence?: { approved?: boolean; provider_authorized?: boolean } | null;
+  percentage?: Money | null;
+  fixed_amount?: Money | null;
+  retain_deposit?: boolean;
+  retention_authorized?: boolean;
+  terms_version?: string | null;
+  terms_text?: string | null;
 }
 export interface FinancialQuote {
   ledger_version: 2; service_id: number; total: Money | null; currency: string;
@@ -44,7 +46,7 @@ export interface FinancialHistory {
   events: { id: number; type: string; created_at: string; details: Record<string, unknown> }[];
 }
 export type FinancialBookingPayload = Omit<AgendaBookingPayload, 'payment_method'> & {
-  idempotency_key: string; accepted_terms_version: string | null;
+  idempotency_key: string; accepted_terms_version?: string | null;
 };
 export interface FinancialBookingCreated {
   booking: AgendaBooking & { management_token: string };
@@ -60,4 +62,17 @@ export interface CancellationPreview {
   original_total: Money | null; deposit_paid: Money; retained_amount: Money;
   online_refund_amount: Money; manual_refund_amount: Money; balance_waived: Money | null;
   review_required: boolean; requires_loss_confirmation: boolean; message: string; preview_token: string;
+}
+
+export interface StandardCancellationPolicy {
+  policy_available: boolean;
+  version?: string;
+  text_template?: string;
+  content_hash?: string;
+  approved: boolean;
+  provider_authorized: boolean;
+  accepted_at?: string | null;
+}
+export interface ProviderPolicyAcceptance {
+  version: string; content_hash: string; accepted: true;
 }

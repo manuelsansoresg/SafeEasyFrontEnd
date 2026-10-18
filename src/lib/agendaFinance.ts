@@ -15,6 +15,7 @@ export function mxn(value: Money | null | undefined) {
   return Number.isFinite(parsed) ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(parsed) : 'Importe desconocido';
 }
 export const financialLabels: Record<string, string> = {
+  cancellation_policy_exception: 'Excepción de cancelación registrada',
   not_required: 'Sin cobro inicial', pending: 'Pago pendiente', partial: 'Saldo pendiente',
   settled: 'Totalmente pagado', refund_pending: 'Reembolso en proceso', refunded: 'Reembolso confirmado',
   review: 'Requiere revisión', unknown: 'Importes por verificar', approved: 'Recibido',
@@ -48,11 +49,11 @@ export function validateChargePolicy(policy: import('@/types/agendaFinance').Cha
   if (policy.mode === 'percentage') {
     const value = String(policy.percentage ?? '');
     if (!/^\d+(\.\d{1,4})?$/.test(value) || Number(value) <= 0 || Number(value) > 100) return 'El porcentaje debe ser mayor que cero y no superar 100, con hasta cuatro decimales.';
-  } else if (policy.percentage !== null) return 'El porcentaje solo corresponde al anticipo porcentual.';
+  } else if (policy.percentage != null) return 'El porcentaje solo corresponde al anticipo porcentual.';
   if (policy.mode === 'fixed') {
     const amount = cents(policy.fixed_amount);
     if (amount === null || amount <= BigInt(0) || amount > BigInt('999999999999')) return 'Escribe un anticipo válido en MXN con hasta dos decimales.';
-  } else if (policy.fixed_amount !== null) return 'El importe fijo solo corresponde al anticipo fijo.';
+  } else if (policy.fixed_amount != null) return 'El importe fijo solo corresponde al anticipo fijo.';
   if (policy.retain_deposit && (!['percentage', 'fixed'].includes(policy.mode) || !policy.retention_authorized || !policy.terms_version?.trim() || !policy.terms_text?.trim())) return 'La retención requiere anticipo, condiciones con versión y declaración expresa del proveedor.';
   return null;
 }
@@ -78,4 +79,53 @@ export function financialRefundState(refund: Pick<import('@/types/agendaFinance'
   if (refund.status === 'failed') return refund.last_error?.startsWith('review_required:') ? 'review_required' : 'recoverable_error';
   if (refund.external_id) return 'request_sent';
   return refund.status === 'processing' ? 'request_in_progress' : 'pending_request';
+}
+
+
+const legalPolicyFields = ['retain_deposit', 'retention_authorized', 'terms_version', 'terms_text'] as const;
+export function isLegacyChargePolicy(policy: import('@/types/agendaFinance').ChargePolicy | null | undefined): boolean {
+  if (!policy) return false;
+  if (policy.policy_source) return policy.policy_source === 'legacy';
+  return legalPolicyFields.some(field => Object.prototype.hasOwnProperty.call(policy, field));
+}
+export function standardChargePolicy(policy: import('@/types/agendaFinance').ChargePolicy): import('@/types/agendaFinance').ChargePolicy {
+  if (policy.mode === 'percentage') return { mode: policy.mode, percentage: policy.percentage };
+  if (policy.mode === 'fixed') return { mode: policy.mode, fixed_amount: policy.fixed_amount };
+  return { mode: policy.mode };
+}
+// Configuration responses may contain server-owned evidence. Never send it back as authorization.
+export function chargePolicyPayload(policy: import('@/types/agendaFinance').ChargePolicy | null | undefined) {
+  if (!policy) return policy;
+  if (!isLegacyChargePolicy(policy)) return standardChargePolicy(policy);
+  return {
+    mode: policy.mode, percentage: policy.percentage ?? null, fixed_amount: policy.fixed_amount ?? null,
+    retain_deposit: policy.retain_deposit ?? false, retention_authorized: policy.retention_authorized ?? false,
+    terms_version: policy.terms_version ?? null, terms_text: policy.terms_text ?? null,
+  };
+}
+export function standardPolicyAuthorized(policy: import('@/types/agendaFinance').StandardCancellationPolicy | null | undefined) {
+  return Boolean(policy?.policy_available && policy.approved && policy.provider_authorized);
+}
+export function isTermsVersionError(error: unknown) {
+  return error instanceof Error && 'status' in error && error.status === 422 &&
+    error.message === 'Debes aceptar la versión vigente de las condiciones de cancelación.';
+}
+export function canRegisterPolicyException(booking: { status: string }, summary: { ledger_version: number }, history: FinancialHistory) {
+  return summary.ledger_version === 2 && ['pending', 'confirmed'].includes(booking.status) && !history.events.some(event => event.type === 'cancellation_policy_exception');
+}
+
+export function bookingTermsPayload(quote: import('@/types/agendaFinance').FinancialQuote, accepted: boolean): { accepted_terms_version?: string } | null {
+  if (!quote.acceptance_required) return {};
+  if (!accepted || !quote.policy.terms_version || !quote.policy.terms_text) return null;
+  return { accepted_terms_version: quote.policy.terms_version };
+}
+
+// Only used after the backend definitively rejected the old terms (422), never after a timeout or 409.
+export function refreshRejectedBookingTerms(payload: import('@/types/agendaFinance').FinancialBookingPayload, quote: import('@/types/agendaFinance').FinancialQuote, accepted: boolean) {
+  if (payload.service_id !== quote.service_id) return null;
+  const terms = bookingTermsPayload(quote, accepted);
+  if (!terms) return null;
+  const next = { ...payload };
+  delete next.accepted_terms_version;
+  return { ...next, ...terms };
 }

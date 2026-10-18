@@ -18,7 +18,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import AgendaMonthlyCalendar from "@/components/agenda/AgendaMonthlyCalendar";
 import { clearFinancialAttempt, readFinancialAttempt, writeFinancialAttempt } from '@/lib/agendaFinancialAttempt';
-import { cents, mxn } from '@/lib/agendaFinance';
+import AgendaBookingQuoteSummary from '@/components/agenda/AgendaBookingQuoteSummary';
+import { bookingTermsPayload, cents, isTermsVersionError, refreshRejectedBookingTerms } from '@/lib/agendaFinance';
 import type { FinancialQuote, FinancialBookingPayload } from '@/types/agendaFinance';
 import { AgendaBookingRequestError } from '@/services/agendaBookingService';
 import AgendaPaymentMethodSelector from "@/components/agenda/AgendaPaymentMethodSelector";
@@ -164,7 +165,7 @@ export default function PublicAgendaBookingPage() {
   const [quoteState, setQuoteState] = useState<{ serviceId: number; quote: FinancialQuote | null; legacy: boolean; error: string }>({ serviceId: 0, quote: null, legacy: false, error: '' });
   const [quoteRefresh, setQuoteRefresh] = useState(0);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  type BookingAttempt = { supplierId: number; payload: FinancialBookingPayload; bookingId?: number; checkout?: string; managementToken?: string };
+  type BookingAttempt = { supplierId: number; payload: FinancialBookingPayload; bookingId?: number; checkout?: string; managementToken?: string; requiresTermsReview?: boolean };
   const financialAttempt = useRef<BookingAttempt | null>(null);
   const attemptScope = `booking:${supplierId}:${auth.isAuthenticated ? auth.user?.id : 'guest'}`;
   const [legacyUncertain, setLegacyUncertain] = useState(false);
@@ -174,6 +175,7 @@ export default function PublicAgendaBookingPage() {
     try {
       financialAttempt.current = readFinancialAttempt<BookingAttempt>(attemptScope);
       setRecoveringAttempt(Boolean(financialAttempt.current));
+      if (financialAttempt.current?.requiresTermsReview) setSelectedServiceId(financialAttempt.current.payload.service_id);
       setLegacyUncertain(Boolean(readFinancialAttempt<boolean>(`${attemptScope}:legacy`)));
     } catch { setError("No se pudo recuperar el intento pendiente. Revisa tus citas antes de continuar."); }
   }, [attemptScope, hydrated]);
@@ -299,7 +301,8 @@ export default function PublicAgendaBookingPage() {
         setServices(data);
 
         if (data.length) {
-          setSelectedServiceId(data[0].id);
+          const pendingService = financialAttempt.current?.payload.service_id;
+          setSelectedServiceId(pendingService && data.some(service => service.id === pendingService) ? pendingService : data[0].id);
         }
       } catch (err) {
         if (isExpectedAbort(err, controller.signal)) return;
@@ -495,8 +498,15 @@ export default function PublicAgendaBookingPage() {
     if (createdBookingId.current !== null) return;
     if (!financialAttempt.current) {
       if (!quote || !selectedSlot || !availability || !name.trim() || guestBlocked) { setError('Completa los datos de la reservación.'); return; }
-      if (quote.acceptance_required && !acceptedTerms) { setError('Acepta expresamente las condiciones antes de reservar.'); return; }
+      if (!bookingTermsPayload(quote, acceptedTerms)) { setError('Acepta expresamente las condiciones antes de reservar.'); return; }
       if ((guestEmailRequired || (cents(quote.initial_required) ?? BigInt(0)) > BigInt(0)) && !email.trim()) { setError('Escribe tu correo electrónico para reservar.'); return; }
+    }
+    const reviewing = financialAttempt.current?.requiresTermsReview;
+    if (reviewing) {
+      const attempt = financialAttempt.current!;
+      const payload = quote ? refreshRejectedBookingTerms(attempt.payload, quote, acceptedTerms) : null;
+      if (!payload) { setError('Revisa y acepta las condiciones actualizadas antes de continuar.'); return; }
+      financialAttempt.current = { ...attempt, payload, requiresTermsReview: false };
     }
     savingRef.current = true; setSaving(true); setError(null);
     try {
@@ -505,7 +515,7 @@ export default function PublicAgendaBookingPage() {
         if (!date) throw new Error('Selecciona un horario válido.');
         const latest = await agendaBookingService.availability(supplierId, selectedService.id, date, date);
         if (!latest.slots.some(slot => slot.start_at === selectedSlot.start_at)) throw new Error('Ese horario ya no está disponible. Selecciona otro.');
-        financialAttempt.current = { supplierId, payload: { service_id: selectedService.id, start_at: selectedSlot.start_at, customer_name: name.trim(), customer_email: email.trim() || null, customer_phone: phone.trim() || null, notes: notes.trim() || null, idempotency_key: crypto.randomUUID(), accepted_terms_version: quote.acceptance_required ? quote.policy.terms_version : null } };
+        financialAttempt.current = { supplierId, payload: { service_id: selectedService.id, start_at: selectedSlot.start_at, customer_name: name.trim(), customer_email: email.trim() || null, customer_phone: phone.trim() || null, notes: notes.trim() || null, idempotency_key: crypto.randomUUID(), ...bookingTermsPayload(quote, acceptedTerms) } };
       }
       const attempt = financialAttempt.current;
       if (!attempt) return;
@@ -521,6 +531,17 @@ export default function PublicAgendaBookingPage() {
       // Never create another intent when Checkout creation is pending or uncertain.
       router.push(`/agenda/bookings/${booking.id}${auth.isAuthenticated ? '' : `?management_token=${encodeURIComponent(booking.management_token)}`}`);
     } catch (err) {
+      if (isTermsVersionError(err) && financialAttempt.current) {
+        const attempt = { ...financialAttempt.current, requiresTermsReview: true };
+        financialAttempt.current = attempt;
+        writeFinancialAttempt(attemptScope, attempt);
+        setAcceptedTerms(false);
+        setSelectedServiceId(attempt.payload.service_id);
+        setQuoteState({ serviceId: attempt.payload.service_id, quote: null, legacy: false, error: '' });
+        setQuoteRefresh(current => current + 1);
+        setError('Las condiciones cambiaron. Revisa la nueva cotización y acepta las condiciones vigentes antes de confirmar nuevamente.');
+        return;
+      }
       setError(`${err instanceof Error ? err.message : 'No pudimos confirmar la reservación.'}${financialAttempt.current ? ' Se conserva el mismo intento. Reintentar no creará una segunda reservación.' : ''}`);
     } finally { savingRef.current = false; setSaving(false); }
   };
@@ -1122,11 +1143,9 @@ export default function PublicAgendaBookingPage() {
 
       {legacyUncertain ? <p role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Hay un intento de reserva tradicional sin resultado confirmado. Revisa tus citas o tu correo; el establecimiento puede verificarlo antes de realizar otra reserva.</p> : null}
       <section className="space-y-4 rounded-3xl border border-[#004e28]/15 bg-white p-5 sm:p-6">
-        <h2 className="text-xl font-bold text-[#004e28]">Pago al reservar</h2>
+        <h2 className="text-xl font-bold text-[#004e28]">Resumen de tu reservación</h2>
         {quote ? <>
-          <dl className="grid gap-3 sm:grid-cols-3"><div><dt className="text-sm">Precio total</dt><dd className="font-bold">{mxn(quote.total)}</dd></div><div><dt className="text-sm">Hoy pagas</dt><dd className="font-bold text-[#168e00]">{mxn(quote.initial_required)}</dd></div><div><dt className="text-sm">Saldo restante previsto</dt><dd className="font-bold">{mxn(quote.remaining_after_initial)}</dd></div></dl>
-          <p className="text-sm text-gray-700">{quote.policy.mode === 'offline' ? 'Reserva sin pagar en línea. Liquida posteriormente con el establecimiento.' : `Hoy pagas ${mxn(quote.initial_required)} para reservar. ${quote.policy.mode === 'full' ? 'Corresponde al precio completo del servicio.' : `Los ${mxn(quote.remaining_after_initial)} restantes se liquidan posteriormente con el establecimiento.`}`}</p>
-          {quote.acceptance_required ? <><p className="whitespace-pre-wrap rounded-xl bg-[#f2f3f4] p-4 text-sm">{quote.policy.terms_text}</p><p className="text-xs text-gray-600">Versión: {quote.policy.terms_version}. Al cancelar fuera del plazo podrías perder el anticipo conforme a estas condiciones.</p><label className="flex gap-3 text-sm"><input type="checkbox" checked={acceptedTerms} className="size-5 shrink-0 accent-[#168e00]" onChange={e => setAcceptedTerms(e.target.checked)} />He leído y acepto expresamente las condiciones de cancelación.</label></> : null}
+          <AgendaBookingQuoteSummary quote={quote} accepted={acceptedTerms} onAccepted={setAcceptedTerms} />
         </> : selectedServiceId && !quoteState.error ? <p role="status">Consultando cotización…</p> : null}
         {quoteState.serviceId === selectedServiceId && quoteState.error ? <p role="alert" className="text-sm text-amber-900">{quoteState.error} {!legacy ? <button type="button" className="underline" onClick={() => setQuoteRefresh(n => n + 1)}>Volver a consultar</button> : null}</p> : null}
         {financialAttempt.current ? <p className="text-sm text-amber-900">Hay un intento de reservación pendiente. El siguiente clic comprobará ese mismo intento con los datos originales.</p> : null}
@@ -1158,6 +1177,7 @@ export default function PublicAgendaBookingPage() {
             disabled={
               saving ||
               legacyUncertain ||
+              (financialAttempt.current?.requiresTermsReview === true && (!quote || quote.service_id !== financialAttempt.current.payload.service_id || !bookingTermsPayload(quote, acceptedTerms))) ||
               createdBookingId.current !== null ||
               (!recoveringAttempt && !financialAttempt.current && (
               (!quote && !legacy) ||

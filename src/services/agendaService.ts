@@ -1,3 +1,5 @@
+import { chargePolicyPayload } from '@/lib/agendaFinance';
+import type { StandardCancellationPolicy, ProviderPolicyAcceptance } from '@/types/agendaFinance';
 import { fetchWithAuth } from "@/lib/api";
 import type {
   AgendaException,
@@ -64,6 +66,16 @@ async function request(
 }
 
 export const agendaService = {
+  async standardCancellationPolicy(signal?: AbortSignal): Promise<StandardCancellationPolicy> {
+    const response = await request(`${base}/standard-cancellation-policy`, { signal });
+    return response.json();
+  },
+  async acceptStandardCancellationPolicy(payload: ProviderPolicyAcceptance): Promise<{ version: string; content_hash: string; accepted_at: string }> {
+    const response = await request(`${base}/standard-cancellation-policy/accept`, {
+      method: 'POST', body: JSON.stringify({ version: payload.version, content_hash: payload.content_hash, accepted: payload.accepted }), retryOnAuthFailure: false,
+    });
+    return response.json();
+  },
   async getSettings(signal?: AbortSignal): Promise<AgendaSettings> {
     const response = await request(`${base}/settings`, { signal });
     return response.json();
@@ -87,7 +99,7 @@ export const agendaService = {
   ): Promise<AgendaPaymentSettings> {
     const response = await request(`${base}/payment-settings`, {
       method: "PUT",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, ...(payload.charge_policy !== undefined ? { charge_policy: chargePolicyPayload(payload.charge_policy) } : {}) }),
     });
     return response.json();
   },
@@ -118,7 +130,7 @@ export const agendaService = {
   async createService(payload: AgendaServiceCreatePayload): Promise<AgendaService> {
     const response = await request(`${base}/services`, {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, ...(payload.charge_policy !== undefined ? { charge_policy: chargePolicyPayload(payload.charge_policy) } : {}) }),
     });
     return response.json();
   },
@@ -126,7 +138,7 @@ export const agendaService = {
   async updateService(id: number, payload: AgendaServiceUpdatePayload): Promise<AgendaService> {
     const response = await request(`${base}/services/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, ...(payload.charge_policy !== undefined ? { charge_policy: chargePolicyPayload(payload.charge_policy) } : {}) }),
     });
     return response.json();
   },

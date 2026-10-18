@@ -131,11 +131,11 @@ test('todas las modalidades y herencia nullable respetan las reglas del backend'
   assert.equal(validateChargePolicy(policy), null);
   assert(validateChargePolicy({ ...policy, retention_authorized: false }));
 });
-test('editor ofrece condiciones completas, campos etiquetados y autorización sin marcar', () => {
-  const html = render(PolicyEditor, { value: { ...offlinePolicy, mode: 'percentage', percentage: '30', retain_deposit: true, terms_text: 'Texto íntegro', terms_version: 'v2' }, noticeHours: 24, onChange() {} });
-  assert.match(html, /Texto íntegro/); assert.match(html, /24 horas/); assert.match(html, /Versión/); assert.match(html, /type="checkbox"/);
-  const authorization = html.match(/<input required=""[^>]*type="checkbox"[^>]*>/)?.[0];
-  assert(authorization); assert.doesNotMatch(authorization, /checked=""/);
+test('el editor conserva condiciones heredadas de solo lectura sin campos legales editables', () => {
+  const html = render(PolicyEditor, { value: { mode: 'percentage', percentage: '30', retain_deposit: true, retention_authorized: true, terms_text: 'Texto íntegro', terms_version: 'v2' }, noticeHours: 24, onChange() {} });
+  assert.match(html, /Texto íntegro/); assert.match(html, /24 horas/);
+  assert.match(html, /Usar condiciones de Drooopy/);
+  assert.doesNotMatch(html, /<textarea|type="checkbox"|Declaro que estoy autorizado/);
   const disabled = render(PolicyEditor, { value: offlinePolicy, onlineAvailable: false, onChange() {} });
   assert.match(disabled, /value="full" disabled=""/);
 });
@@ -224,28 +224,10 @@ test('notificaciones financieras activan la sincronización existente', async ()
   assert.equal(isAgendaInboxEvent({ type: 'agenda.financial_activity', booking_id: '4', supplier_id: 8 }), false);
 });
 
-test('explicación de retención cambia según la casilla sin alterar los datos de la política', () => {
-  const policy = { ...offlinePolicy, mode: 'fixed', fixed_amount: '200.00', terms_text: 'Condiciones del negocio', terms_version: 'v3' };
-  const unchanged = structuredClone(policy);
-  const disabled = render(PolicyEditor, { value: policy, noticeHours: 2, onChange() { assert.fail('Renderizar no debe modificar la política'); } });
-  assert.match(disabled, /Retener el anticipo cuando el cliente cancele fuera del plazo permitido/);
-  assert.match(disabled, /Si no activas esta opción, no se retendrá automáticamente el anticipo/);
-  assert.doesNotMatch(disabled, /Si activas esta opción, el negocio podrá conservar/);
-  assert.doesNotMatch(disabled, /<textarea|Declaro que estoy autorizado/);
-  const enabled = render(PolicyEditor, { value: { ...policy, retain_deposit: true }, noticeHours: 2, onChange() {} });
-  assert.match(enabled, /Si activas esta opción, el negocio podrá conservar el anticipo/);
-  assert.match(enabled, /siempre que haya aceptado previamente las condiciones de cancelación/);
-  assert.doesNotMatch(enabled, /Si no activas esta opción/);
-  assert.match(enabled, /Condiciones del negocio/);
-  assert.match(enabled, /Versión de las condiciones/);
-  assert.match(enabled, /Declaro que estoy autorizado/);
-  assert.match(enabled, /aria-describedby=/);
-  assert.deepEqual(policy, unchanged);
-});
 test('el plazo explicativo proviene de noticeHours y conserva descripción genérica sin dato', () => {
   for (const hours of [0, 2, 24, 48]) {
     const html = render(PolicyEditor, { value: offlinePolicy, noticeHours: hours, onChange() {} });
-    assert(html.includes(`Los clientes pueden cancelar sin perder su anticipo hasta ${hours} horas antes de su cita.`));
+    assert(html.includes(`Cancelaciones sin penalización hasta ${hours} horas antes de la cita.`));
   }
   const generic = render(PolicyEditor, { value: offlinePolicy, onChange() {} });
   assert.match(generic, /Se aplica el plazo de cancelación configurado en Agenda/);

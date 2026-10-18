@@ -1,5 +1,6 @@
 # Agenda financiera v2 — implementación frontend
 
+> Actualización del 18 de octubre de 2026: la configuración legal editable descrita en este informe histórico fue sustituida por políticas estándar y aceptación única. Consultar [AGENDA_STANDARD_POLICIES_FRONTEND_IMPLEMENTATION.md](AGENDA_STANDARD_POLICIES_FRONTEND_IMPLEMENTATION.md) para los contratos y la interfaz actuales.
 Fecha: 17 de octubre de 2026.
 
 ## Alcance y estado

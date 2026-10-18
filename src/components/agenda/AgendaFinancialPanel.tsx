@@ -2,8 +2,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import AgendaFinancialSummary, { AgendaCancellationResult } from '@/components/agenda/AgendaFinancialSummary';
+import AgendaPolicyException from '@/components/agenda/AgendaPolicyException';
 import AgendaModalShell from '@/components/agenda/AgendaModalShell';
-import { availableAdjustment, cents, financialRefundState, financeLabel, mxn, openIntent } from '@/lib/agendaFinance';
+import { availableAdjustment, canRegisterPolicyException, cents, financialRefundState, financeLabel, mxn, openIntent } from '@/lib/agendaFinance';
 import { isExpectedAbort } from '@/lib/agendaRequest';
 import { getSafeMercadoPagoUrl } from '@/lib/security';
 import { agendaBookingService as api } from '@/services/agendaBookingService';
@@ -140,6 +141,9 @@ export default function AgendaFinancialPanel({ booking, provider = false, manage
         {onlineAvailable ? <button type="button" className={buttonClass} disabled={blocked || activeIntent || attempted} onClick={() => begin({ kind: 'checkout' })}>Cobrar con Mercado Pago</button> : null}
       </div> : null}
       {activeIntent ? <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Existe un Checkout pendiente o incierto. Espera su confirmación o conciliación antes de registrar otro cobro.</p> : null}
+      <details className="space-y-3"><summary className="cursor-pointer py-3 font-semibold text-[#004e28]">Más opciones</summary>
+        {canRegisterPolicyException(booking, summary, history) ? <AgendaPolicyException bookingId={booking.id} onRefresh={() => refresh()} /> : <p className="text-sm text-gray-600">{['cancelled', 'no_show'].includes(booking.status) ? 'La reservación ya cerró. Para devolver un importe, utiliza Solicitar devolución en el historial financiero.' : 'No se puede registrar otra excepción en esta reservación.'}</p>}
+      </details>
       <details className="space-y-3"><summary className="cursor-pointer py-3 font-bold text-[#004e28]">Historial financiero</summary>
         {history.operations.map(op => {
           const max = availableAdjustment(op, history);

@@ -2,9 +2,12 @@
 
 import { Banknote, CheckCircle2, CreditCard, ExternalLink, Loader2 } from "lucide-react";
 import AgendaChargePolicyEditor, { offlinePolicy } from '@/components/agenda/AgendaChargePolicyEditor';
+import type { StandardCancellationPolicy } from '@/types/agendaFinance';
 import type { AgendaPaymentSettings } from "@/types/agenda";
 
 type AgendaPaymentSettingsProps = {
+  standardPolicy?: StandardCancellationPolicy | null;
+  onEditNotice?: () => void;
   samplePrice?: number | null;
   noticeHours?: number;
   value: AgendaPaymentSettings;
@@ -46,6 +49,8 @@ function Switch({
 
 export default function AgendaPaymentSettingsSection({
   value,
+  standardPolicy,
+  onEditNotice,
   noticeHours,
   samplePrice,
   linking,
@@ -175,7 +180,7 @@ export default function AgendaPaymentSettingsSection({
           )}
         </article> : null}
       </div>
-      <AgendaChargePolicyEditor samplePrice={samplePrice} value={value.charge_policy ?? { ...offlinePolicy, mode: value.accepts_payments && value.allows_online_payment ? 'full' : 'offline' }} noticeHours={noticeHours} onlineAvailable={onlinePaymentsEnabled && value.mercadopago_linked && value.accepts_payments && value.allows_online_payment} onChange={charge_policy => onChange({ ...value, charge_policy })} />
+      <AgendaChargePolicyEditor standardPolicy={standardPolicy} onEditNotice={onEditNotice} samplePrice={samplePrice} value={value.charge_policy ?? { ...offlinePolicy, mode: value.accepts_payments && value.allows_online_payment ? 'full' : 'offline' }} noticeHours={noticeHours} onlineAvailable={onlinePaymentsEnabled && value.mercadopago_linked && value.accepts_payments && value.allows_online_payment} onChange={charge_policy => onChange({ ...value, charge_policy })} />
     </section>
   );
 }
