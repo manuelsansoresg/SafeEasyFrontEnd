@@ -921,7 +921,7 @@ export default function AgendaBookingManagementPage() {
         ) : null}
       </section>
 
-      {isFinancialBooking(booking) ? <AgendaFinancialPanel key={`${booking.id}:${managementToken}`} booking={booking} managementToken={managementToken} /> : <>
+      {isFinancialBooking(booking) ? <AgendaFinancialPanel key={`${booking.id}:${managementToken}:${auth.user?.id ?? "guest"}`} booking={booking} managementToken={managementToken} /> : <>
       <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
         <h2 className="text-xl font-bold text-gray-900">Pago</h2>
         {paymentError ? (

@@ -21,6 +21,11 @@ export interface FinancialQuote {
 }
 export interface FinancialSummary {
   booking_id: number; ledger_version: number; total: Money | null;
+  payment_state?: string; last_payment_attempt_state?: string; payment_intent_status?: string | null;
+  payment_status_detail?: string | null; payment_updated_at?: string | null;
+  has_active_review?: boolean; has_pending_payment?: boolean; has_confirmed_payment?: boolean;
+  payment_message?: string | null; can_retry_payment?: boolean;
+  retry_block_reason?: string | null; retry_strategy?: 'reuse_existing_checkout' | null;
   currency?: string; mode?: ChargePolicy['mode']; initial_required?: Money;
   remaining_after_initial?: Money | null; deposit_confirmed?: Money;
   gross_collected?: Money; refunded?: Money; balance_due: Money | null;
@@ -75,4 +80,9 @@ export interface StandardCancellationPolicy {
 }
 export interface ProviderPolicyAcceptance {
   version: string; content_hash: string; accepted: true;
+}
+
+export interface AgendaPaymentRetryResponse {
+  booking_id: number; payment_intent_id: number; preference_id: string; checkout_url: string;
+  amount: Money; currency: string; expires_at: string; strategy: 'reuse_existing_checkout';
 }

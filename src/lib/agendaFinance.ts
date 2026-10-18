@@ -129,3 +129,58 @@ export function refreshRejectedBookingTerms(payload: import('@/types/agendaFinan
   delete next.accepted_terms_version;
   return { ...next, ...terms };
 }
+
+
+export const paymentStateLabels: Record<string, string> = {
+  approved: 'Pago aprobado', rejected: 'Pago rechazado', pending: 'Pago pendiente de confirmación',
+  in_process: 'Mercado Pago está revisando el pago', authorized: 'Pago autorizado, pendiente de confirmación',
+  cancelled: 'Intento de pago cancelado', refunded: 'Pago devuelto', in_mediation: 'Pago en disputa',
+  charged_back: 'Pago sujeto a contracargo', not_started: 'Todavía no hay un pago confirmado',
+  invalid: 'El estado requiere verificación',
+};
+export function paymentStateLabel(state: string) {
+  return paymentStateLabels[state] ?? 'El estado requiere verificación';
+}
+const retryMessages: Record<string, string> = {
+  payment_pending: 'Tu pago todavía está pendiente de confirmación.',
+  payment_already_confirmed: 'Tu pago ya fue recibido. No necesitas pagar nuevamente.',
+  reconciliation_required: 'Actualiza el estado antes de volver a intentar.',
+  reconciliation_in_progress: 'Estamos verificando tu pago. Espera un momento.',
+  reconciliation_unavailable: 'No pudimos consultar Mercado Pago. Inténtalo más tarde.',
+  reconciliation_incomplete: 'Todavía no podemos confirmar todos los movimientos.',
+  checkout_expired: 'El plazo del enlace de pago terminó.',
+  booking_closed: 'Esta reservación ya no admite pagos.', booking_expired: 'El horario de esta reservación ya pasó.',
+  financial_review: 'Esta reservación requiere revisión antes de realizar otro cobro.',
+  checkout_uncertain: 'Todavía no podemos recuperar el enlace de pago.',
+  payment_uncertain: 'Necesitamos confirmar el estado del pago antes de continuar.',
+  finance_disabled: 'Esta opción de pago no está disponible.', legacy_booking: 'Esta reservación utiliza otro flujo de pago.',
+  multiple_or_missing_intents: 'El establecimiento debe revisar los intentos de pago de esta reservación.',
+  contract_mismatch: 'El establecimiento debe verificar el importe de esta reservación.',
+  payment_identity_mismatch: 'El establecimiento debe verificar los movimientos de esta reservación.',
+  checkout_identity_mismatch: 'No pudimos verificar el enlace de pago. Consulta al establecimiento.',
+  checkout_contract_mismatch: 'El establecimiento debe verificar el importe del enlace de pago.',
+  checkout_expiration_unverified: 'No pudimos verificar la vigencia del enlace de pago.',
+  checkout_url_unverified: 'No pudimos verificar el enlace de pago.', checkout_url_mismatch: 'No pudimos verificar el enlace de pago.',
+  checkout_not_active: 'El enlace de pago todavía no está disponible.',
+  online_payments_disabled: 'Los pagos en línea no están disponibles para esta reservación.',
+  payment_refresh_rate_limit: 'Has realizado varias consultas. Espera un minuto antes de actualizar.',
+};
+export function paymentRetryMessage(code?: string | null) {
+  return retryMessages[code ?? ''] ?? 'No podemos habilitar otro intento de pago. Actualiza el estado o consulta al establecimiento.';
+}
+export function paymentActionError(error: unknown) {
+  const e = error as { status?: number; code?: string } | null;
+  if (e?.status === 429) return retryMessages.payment_refresh_rate_limit;
+  if (e?.status === 401) return 'Tu sesión venció. Inicia sesión nuevamente para continuar.';
+  if (e?.status === 403) return 'No tienes autorización para gestionar esta reservación. Revisa tu enlace de acceso.';
+  if (e?.status === 404) return 'No encontramos esta reservación. Revisa tu enlace de acceso.';
+  if (e?.status === 409) return paymentRetryMessage(e.code);
+  if (e?.status === 422) return 'No pudimos validar la solicitud. Actualiza la página antes de continuar.';
+  return 'No pudimos confirmar el estado actualizado. Se conservan los datos anteriores; intenta más tarde.';
+}
+export function canRetryFinancialPayment(summary: import('@/types/agendaFinance').FinancialSummary) {
+  return summary.ledger_version === 2 && summary.can_retry_payment === true &&
+    summary.retry_strategy === 'reuse_existing_checkout' && !summary.review_required &&
+    !summary.has_active_review && !summary.has_pending_payment && !summary.has_confirmed_payment &&
+    summary.payment_state === 'rejected';
+}

@@ -488,14 +488,13 @@ export default function PublicAgendaBookingPage() {
       if (stored) { financialAttempt.current = stored; setRecoveringAttempt(true); }
       if (financialAttempt.current?.bookingId) {
         const previous = financialAttempt.current;
-        const safeCheckout = getSafeMercadoPagoUrl(previous.checkout);
-        if (safeCheckout) window.location.assign(safeCheckout);
-        else router.push(`/agenda/bookings/${previous.bookingId}${previous.managementToken ? `?management_token=${encodeURIComponent(previous.managementToken)}` : ""}`);
+        router.push(`/agenda/bookings/${previous.bookingId}${previous.managementToken ? `?management_token=${encodeURIComponent(previous.managementToken)}` : ""}`);
         clearFinancialAttempt(attemptScope);
         return;
       }
     } catch { setError('Permite el almacenamiento de sesión para recuperar el mismo intento de reserva de forma segura.'); return; }
     if (createdBookingId.current !== null) return;
+    const recoveringCreation = Boolean(financialAttempt.current);
     if (!financialAttempt.current) {
       if (!quote || !selectedSlot || !availability || !name.trim() || guestBlocked) { setError('Completa los datos de la reservación.'); return; }
       if (!bookingTermsPayload(quote, acceptedTerms)) { setError('Acepta expresamente las condiciones antes de reservar.'); return; }
@@ -522,7 +521,7 @@ export default function PublicAgendaBookingPage() {
       writeFinancialAttempt(attemptScope, attempt);
       const result = await agendaBookingService.createFinancialBooking(attempt.supplierId, attempt.payload);
       const booking = result.booking;
-      const checkout = result.payment_intent?.status === "ready" ? getSafeMercadoPagoUrl(result.payment_intent.checkout_url) : "";
+      const checkout = !recoveringCreation && result.financial.payment_state === "not_started" && result.payment_intent?.status === "ready" ? getSafeMercadoPagoUrl(result.payment_intent.checkout_url) : "";
       writeFinancialAttempt(attemptScope, { ...attempt, bookingId: booking.id, checkout, managementToken: booking.management_token });
       createdBookingId.current = booking.id;
       try { window.localStorage.setItem(`agenda-management-${booking.id}`, booking.management_token); } catch { /* Guest access is also preserved in the management link. */ }

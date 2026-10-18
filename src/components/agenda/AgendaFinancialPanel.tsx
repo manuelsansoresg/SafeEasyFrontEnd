@@ -2,9 +2,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import AgendaFinancialSummary, { AgendaCancellationResult } from '@/components/agenda/AgendaFinancialSummary';
+import AgendaPaymentRetry from '@/components/agenda/AgendaPaymentRetry';
 import AgendaPolicyException from '@/components/agenda/AgendaPolicyException';
 import AgendaModalShell from '@/components/agenda/AgendaModalShell';
-import { availableAdjustment, canRegisterPolicyException, cents, financialRefundState, financeLabel, mxn, openIntent } from '@/lib/agendaFinance';
+import { availableAdjustment, canRegisterPolicyException, cents, financialRefundState, financeLabel, mxn, openIntent, paymentActionError } from '@/lib/agendaFinance';
 import { isExpectedAbort } from '@/lib/agendaRequest';
 import { getSafeMercadoPagoUrl } from '@/lib/security';
 import { agendaBookingService as api } from '@/services/agendaBookingService';
@@ -25,7 +26,21 @@ export default function AgendaFinancialPanel({ booking, provider = false, manage
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [history, setHistory] = useState<FinancialHistory | null>(null);
   const [error, setError] = useState('');
+  const [remoteError, setRemoteError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [remoteRefreshing, setRemoteRefreshing] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [verification, setVerification] = useState(0);
+  const readLock = useRef(false);
+  const remoteLock = useRef(false);
+  const recoveryLock = useRef(false);
+  const onRecoveryBusy = useCallback((busy: boolean) => { recoveryLock.current = busy; setRecovering(busy); }, []);
+  useEffect(() => {
+    if (!cooldown) return;
+    const timer = setTimeout(() => setCooldown(value => Math.max(0, value - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
   const [action, setAction] = useState<Action | null>(null);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<ManualMethod>('cash');
@@ -54,6 +69,8 @@ export default function AgendaFinancialPanel({ booking, provider = false, manage
   }, [provider, attemptScope]);
   const subscribe = useChatStore(s => s.subscribeToInboxEvents);
   const refresh = useCallback(async (signal?: AbortSignal) => {
+    if (readLock.current || remoteLock.current || recoveryLock.current) return;
+    readLock.current = true;
     const current = ++sequence.current;
     setLoading(true);
     try {
@@ -65,9 +82,29 @@ export default function AgendaFinancialPanel({ booking, provider = false, manage
       if (signal?.aborted || current !== sequence.current) return;
       setSummary(next); setHistory(movements); setCancellation(cancellationStatus); setError('');
     } catch (err) {
-      if (!isExpectedAbort(err, signal) && current === sequence.current) setError(err instanceof Error ? err.message : 'No se pudo actualizar el resumen.');
-    } finally { if (current === sequence.current && !signal?.aborted) setLoading(false); }
+      if (!isExpectedAbort(err, signal) && current === sequence.current) setError(paymentActionError(err));
+    } finally { readLock.current = false; if (current === sequence.current && !signal?.aborted) setLoading(false); }
   }, [booking.id, booking.status, provider, managementToken]);
+  const refreshRemote = async () => {
+    if (readLock.current || remoteLock.current || recoveryLock.current || cooldown > 0) return;
+    remoteLock.current = true;
+    const current = ++sequence.current;
+    setRemoteRefreshing(true);
+    try {
+      const next = await api.refreshFinancialSummary(booking.id, provider, managementToken);
+      const movements = provider ? await api.financialHistory(booking.id) : null;
+      if (current !== sequence.current) return;
+      if (next.booking_id !== booking.id) throw new Error('Resumen no verificable.');
+      setSummary(next); if (provider) setHistory(movements);
+      setError(''); setRemoteError(''); setVerification(value => value + 1); setCooldown(12);
+    } catch (err) {
+      if (current === sequence.current) {
+        setRemoteError(paymentActionError(err));
+        setCooldown((err as { status?: number })?.status === 429 ? 60 : 12);
+      }
+    } finally { remoteLock.current = false; if (current === sequence.current) setRemoteRefreshing(false); }
+  };
+  useEffect(() => () => { sequence.current++; }, []);
   useEffect(() => {
     const controller = new AbortController();
     void refresh(controller.signal);
@@ -112,25 +149,26 @@ export default function AgendaFinancialPanel({ booking, provider = false, manage
       else if (a.kind === 'checkout') {
         const intent = await api.createBalanceIntent(booking.id, data.key);
         const url = getSafeMercadoPagoUrl(intent.checkout_url);
-        setNotice(url ? 'Enlace creado. Puedes abrirlo o copiarlo en el historial de cobros.' : 'El cobro está pendiente de confirmación o conciliación. Actualiza su estado.');
+        setNotice(url ? 'Checkout registrado. Consulta su estado en el historial de cobros.' : 'El cobro está pendiente de confirmación o conciliación. Actualiza su estado.');
       } else if (a.kind === 'confirm' && a.refundId) await api.confirmFinancialManualRefund(booking.id, a.refundId, data.reference.trim());
       else if (a.operationId && (a.kind === 'refunds' || a.kind === 'reversals')) await api.adjustPayment(booking.id, a.operationId, a.kind, { amount: data.amount, reason: data.reason.trim(), idempotency_key: data.key });
       clearFinancialAttempt(attemptScope);
-      attempt.current = null; setAttempted(false); setAction(null); setNotice(data.action.kind === 'checkout' ? 'Consulta el enlace o el estado del Checkout en el historial de cobros.' : 'Operación registrada. El resumen se actualiza desde el servidor.');
+      attempt.current = null; setAttempted(false); setAction(null); setNotice(data.action.kind === 'checkout' ? 'Consulta el estado del Checkout en el historial de cobros.' : 'Operación registrada. El resumen se actualiza desde el servidor.');
     } catch (err) {
       setActionError(`${err instanceof Error ? err.message : 'Respuesta incierta.'} Se conserva el mismo intento para evitar duplicados.`);
     } finally { await refresh(); lock.current = false; setWorking(false); }
   };
   const activeIntent = history?.intents.some(i => openIntent(i.status));
-  const blocked = !attemptReady || Boolean(error) || loading || !summary || Boolean(summary.review_required) || ['review', 'unknown', 'refund_pending'].includes(summary.settlement_status);
+  const blocked = !attemptReady || Boolean(remoteError) || Boolean(error) || loading || !summary || Boolean(summary.review_required) || ['review', 'unknown', 'refund_pending'].includes(summary.settlement_status);
   const inputAmount = cents(amount), maximum = cents(action?.max);
   const validAmount = inputAmount !== null && inputAmount > BigInt(0) && maximum !== null && inputAmount <= maximum;
   const needsAmount = action && ['manual', 'refunds', 'reversals'].includes(action.kind);
   const valid = confirmed && (!needsAmount || validAmount) && (!action || !['refunds', 'reversals'].includes(action.kind) || reason.trim().length >= 3) && (action?.kind !== 'confirm' || reference.trim().length >= 3);
   return <section className="mt-4 space-y-4 rounded-2xl border border-[#004e28]/15 bg-white p-4 sm:p-5">
-    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-[#004e28]">{provider ? 'Pagos de la reservación' : 'Resumen de pago'}</h2><button className={buttonClass} type="button" disabled={loading} onClick={() => void refresh()}>{loading ? 'Actualizando…' : 'Actualizar estado'}</button></div>
-    {error ? <p role="alert" className="text-sm text-amber-900">{error}</p> : null}
+    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-[#004e28]">{provider ? 'Pagos de la reservación' : 'Resumen de pago'}</h2><button className={buttonClass} type="button" disabled={loading || remoteRefreshing || recovering || cooldown > 0} aria-busy={remoteRefreshing} onClick={() => void refreshRemote()}>{remoteRefreshing ? 'Consultando Mercado Pago…' : cooldown > 0 ? `Actualizar en ${cooldown}s` : 'Actualizar estado'}</button></div>
+    {remoteError || error ? <p role="alert" className="text-sm text-amber-900">{remoteError || error}</p> : null}
     {summary ? <AgendaFinancialSummary summary={summary} /> : <p role="status">Consultando importes…</p>}
+    {!provider && summary ? <AgendaPaymentRetry key={`${booking.id}:${userId ?? 'guest'}`} booking={booking} summary={summary} managementToken={managementToken} disabled={Boolean(error || remoteError) || loading || remoteRefreshing || cooldown > 0} onBusy={onRecoveryBusy} verification={verification} /> : null}
     {booking.cancellation_result ? <details><summary className="cursor-pointer text-sm font-semibold text-[#004e28]">Resultado informado al cancelar</summary><AgendaCancellationResult result={booking.cancellation_result} /></details> : null}
     {cancellation ? <div className="space-y-2 rounded-xl bg-[#f2f3f4] p-4 text-sm" role="status"><p className="font-bold text-[#004e28]">Estado actual de la cancelación</p><p>Anticipo retenido: {mxn(cancellation.retained_amount)}</p><p>Devolución online pendiente: {mxn(cancellation.online_refund_amount)}</p><p>Devolución manual a cargo del establecimiento: {mxn(cancellation.manual_refund_amount)}</p><p>Devoluciones confirmadas: {mxn(summary?.refunded)}</p><p className="text-xs">Las devoluciones confirmadas por Mercado Pago pueden tardar en acreditarse según el medio de pago.</p></div> : null}
     {notice ? <p role="status" className="text-sm text-[#004e28]">{notice}</p> : null}
@@ -151,10 +189,7 @@ export default function AgendaFinancialPanel({ booking, provider = false, manage
             {op.kind === 'charge' && op.status !== 'charged_back' && op.confirmed_at && cents(max) !== null && cents(max)! > BigInt(0) && !blocked && !attempted ? <div className="flex flex-wrap gap-2">{op.method !== 'online' ? <button type="button" className={buttonClass} onClick={() => begin({ kind: 'reversals', operationId: op.id, max })}>Corregir pago manual</button> : null}<button type="button" className={buttonClass} onClick={() => begin({ kind: 'refunds', operationId: op.id, max })}>Solicitar devolución</button></div> : null}
           </article>;
         })}
-        {history.intents.map(intent => {
-          const url = getSafeMercadoPagoUrl(intent.checkout_url);
-          return <article key={intent.id} className="rounded-xl border border-gray-200 p-3 text-sm"><p>Checkout · {mxn(intent.amount)} · {financeLabel(intent.status)}</p>{intent.expires_at ? <p>Vence: {new Date(intent.expires_at).toLocaleString("es-MX")}</p> : null}{url && intent.status === 'ready' ? <div className="mt-3 flex flex-wrap gap-3"><a href={url} target="_blank" rel="noopener noreferrer" className={buttonClass}>Abrir enlace de pago</a><button type="button" className={buttonClass} onClick={() => { void navigator.clipboard.writeText(url).then(() => setNotice('Enlace copiado.'), () => setNotice('No se pudo copiar. Abre el enlace para compartirlo.')); }}>Copiar enlace</button></div> : null}</article>;
-        })}
+        {history.intents.map(intent => <article key={intent.id} className="rounded-xl border border-gray-200 p-3 text-sm"><p>Checkout · {mxn(intent.amount)} · {financeLabel(intent.status)}</p>{intent.expires_at ? <p>Vence: {new Date(intent.expires_at).toLocaleString('es-MX')}</p> : null}<p className="mt-2 text-gray-600">El estado del Checkout no autoriza otro cobro. El cliente debe gestionar su pago desde su reservación.</p></article>)}
         {history.refunds.map(refund => {
           const method = history.operations.find(o => o.id === refund.operation_id)?.method;
           return <article key={refund.id} className="rounded-xl bg-[#f2f3f4] p-3 text-sm"><p>{mxn(refund.amount)} · {financeLabel(financialRefundState(refund))} · {method ? financeLabel(method) : 'Método por consultar'}</p><p>{new Date(refund.created_at).toLocaleString('es-MX')}</p>{refund.manual_reference ? <p>Referencia: {refund.manual_reference}</p> : null}{refund.last_error ? <p className="text-amber-900">{refund.last_error}</p> : null}{refund.status === 'manual_pending' && method && method !== 'online' ? <button type="button" className={buttonClass} disabled={attempted} onClick={() => begin({ kind: 'confirm', refundId: refund.id })}>Confirmar devolución realizada</button> : null}</article>;

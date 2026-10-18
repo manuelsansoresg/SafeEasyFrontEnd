@@ -1,4 +1,4 @@
-import type { FinancialQuote, FinancialSummary, FinancialHistory, FinancialIntent, FinancialBookingPayload, FinancialBookingCreated, CancellationPreview, ManualMethod, FinancialOperation, FinancialRefund } from '@/types/agendaFinance';
+import type { AgendaPaymentRetryResponse, FinancialQuote, FinancialSummary, FinancialHistory, FinancialIntent, FinancialBookingPayload, FinancialBookingCreated, CancellationPreview, ManualMethod, FinancialOperation, FinancialRefund } from '@/types/agendaFinance';
 import { fetchWithAuth } from "@/lib/api";
 import type { AgendaService, PublicAgendaSettings } from "@/types/agenda";
 import type {
@@ -248,6 +248,12 @@ export const agendaBookingService = {
   },
   financialSummary(bookingId: number, provider = false, managementToken?: string | null, signal?: AbortSignal) {
     return request<FinancialSummary>(provider ? `${agendaGateway}/appointments/${bookingId}/financial-summary` : `${publicAgendaGateway}/bookings/${bookingId}/financial-summary${queryString({ management_token: managementToken })}`, { signal, retryOnAuthFailure: provider });
+  },
+  refreshFinancialSummary(bookingId: number, provider = false, managementToken?: string | null, signal?: AbortSignal) {
+    return request<FinancialSummary>(provider ? `${agendaGateway}/appointments/${bookingId}/financial-summary/refresh` : `${publicAgendaGateway}/bookings/${bookingId}/financial-summary/refresh${queryString({ management_token: managementToken })}`, { method: 'POST', signal, retryOnAuthFailure: provider || !managementToken });
+  },
+  retryFinancialPayment(bookingId: number, idempotencyKey: string, managementToken?: string | null, signal?: AbortSignal) {
+    return request<AgendaPaymentRetryResponse>(`${publicAgendaGateway}/bookings/${bookingId}/payments/retry${queryString({ management_token: managementToken })}`, { method: 'POST', body: JSON.stringify({ idempotency_key: idempotencyKey }), signal, retryOnAuthFailure: false });
   },
   financialHistory(bookingId: number, signal?: AbortSignal) {
     return request<FinancialHistory>(`${agendaGateway}/appointments/${bookingId}/payments`, { signal });
