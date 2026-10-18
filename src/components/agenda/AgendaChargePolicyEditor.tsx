@@ -34,9 +34,16 @@ export default function AgendaChargePolicyEditor({ value, onChange, onlineAvaila
     {value.mode === 'percentage' ? <label className="block">Porcentaje de anticipo<input required className={field} type="number" min="0.0001" max="100" step="0.0001" value={value.percentage ?? ''} onChange={e => onChange({ ...value, percentage: e.target.value })} /></label> : null}
     {value.mode === 'fixed' ? <label className="block">Anticipo en MXN<input required className={field} type="number" min="0.01" max="9999999999.99" step="0.01" value={value.fixed_amount ?? ''} onChange={e => onChange({ ...value, fixed_amount: e.target.value })} /></label> : null}
     {example ? <p className="rounded-xl bg-[#f2f3f4] p-3 text-sm">Ejemplo para un servicio de {mxn(example.total)}: pago inicial {mxn(example.initial)} y saldo previsto {mxn(example.remaining)}. Cada servicio puede tener un precio distinto; el importe definitivo se cotiza al reservar.</p> : null}
-    <p className="text-gray-600">{noticeHours === undefined ? 'Se aplica el plazo de cancelación configurado en Agenda.' : `Plazo de cancelación con reembolso: ${noticeHours} horas antes de la cita.`}</p>
+    <p className="text-gray-600">{noticeHours === undefined ? 'Se aplica el plazo de cancelación configurado en Agenda.' : `Los clientes pueden cancelar sin perder su anticipo hasta ${noticeHours} horas antes de su cita.`}</p>
     {deposit ? <>
-      <label className="flex gap-3"><input className="size-5 accent-[#168e00]" type="checkbox" checked={value.retain_deposit} onChange={e => onChange({ ...value, retain_deposit: e.target.checked, retention_authorized: false })} />Conservar el anticipo en cancelaciones fuera del plazo, cuando corresponda</label>
+      <div className="space-y-2">
+        <label className="flex gap-3"><input aria-describedby={`${id}-retention-help`} className="size-5 shrink-0 accent-[#168e00]" type="checkbox" checked={value.retain_deposit} onChange={e => onChange({ ...value, retain_deposit: e.target.checked, retention_authorized: false })} />Retener el anticipo cuando el cliente cancele fuera del plazo permitido</label>
+        <p id={`${id}-retention-help`} className="pl-8 text-xs leading-5 text-gray-600">
+          {value.retain_deposit
+            ? 'Si activas esta opción, el negocio podrá conservar el anticipo cuando el cliente cancele fuera del plazo establecido, siempre que haya aceptado previamente las condiciones de cancelación.'
+            : 'Si no activas esta opción, no se retendrá automáticamente el anticipo. Las cancelaciones fuera del plazo podrán requerir revisión y se tramitarán las devoluciones correspondientes según las condiciones aplicables.'}
+        </p>
+      </div>
       {value.retain_deposit ? <>
         <label className="block" htmlFor={`${id}-terms`}>Condiciones de cancelación<textarea id={`${id}-terms`} required minLength={1} maxLength={6000} rows={5} className={field} value={value.terms_text ?? ''} onChange={e => onChange({ ...value, terms_text: e.target.value })} /></label>
         <label className="block">Versión de las condiciones<input className={field} required maxLength={80} value={value.terms_version ?? ''} onChange={e => onChange({ ...value, terms_version: e.target.value })} /></label>
