@@ -1,16 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from 'next/navigation';
+import AgendaCalendarToolbar from '@/components/agenda/AgendaCalendarToolbar';
+import AgendaProviderCalendar from '@/components/agenda/AgendaProviderCalendar';
+import AgendaPendingRequests from '@/components/agenda/AgendaPendingRequests';
+import AgendaRescheduleRequestsModal from '@/components/agenda/AgendaRescheduleRequestsModal';
+import { useProviderAgenda } from '@/hooks/useProviderAgenda';
+import { dateInZone, formatAgendaDate, parseAgendaNavigation } from '@/lib/agendaCalendar';
 import {
   ArrowLeft,
   CalendarClock,
-  CalendarDays,
   Check,
   Clock3,
   Loader2,
   Plus,
   RefreshCw,
-  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHero } from "@/components/ui/PageHero";
@@ -25,7 +30,6 @@ import { useSupplierModules } from "@/hooks/useSupplierModules";
 import { useChatInboxWebSocket } from "@/hooks/useChatWebSocket";
 import { useInboxReconnect } from "@/hooks/useInboxReconnect";
 import { ModuleAccessError } from "@/components/admin/ModuleAccessError";
-import { agendaService } from "@/services/agendaService";
 import { agendaBookingService } from "@/services/agendaBookingService";
 import { useChatStore } from "@/store/useChatStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -37,7 +41,6 @@ import type {
   AgendaBookingPayment,
   AgendaBookingStatus,
   AgendaProviderBooking,
-  AgendaRescheduleRequest,
   AgendaRefund,
 } from "@/types/agendaBooking";
 
@@ -47,14 +50,6 @@ type ToastState =
 
 const inputClass =
   "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10";
-
-function localDateInput() {
-  const now = new Date();
-  const local = new Date(
-    now.getTime() - now.getTimezoneOffset() * 60000,
-  );
-  return local.toISOString().slice(0, 10);
-}
 
 function statusLabel(status: AgendaBookingStatus) {
   return {
@@ -75,8 +70,9 @@ function statusClass(status: AgendaBookingStatus) {
   return "bg-blue-50 text-blue-700";
 }
 
-function formatDateTime(iso: string) {
+function formatDateTime(iso: string, timezone: string) {
   return new Intl.DateTimeFormat("es-MX", {
+    timeZone: timezone,
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(iso));
@@ -94,20 +90,21 @@ function formatSlot(iso: string, timezone: string) {
 export default function ProviderAgendaAppointmentsPage() {
   const { loading: accessLoading, error: accessError, hasModule, getModule, retry } = useSupplierModules();
   const hasAccess = hasModule("agenda");
-  const [onlineConfigured, setOnlineConfigured] = useState(false);
   const onlinePaymentsEnabled = getModule("agenda")?.online_payments_enabled === true;
   const token = useAuthStore((state) => state.token);
   const subscribeToInboxEvents = useChatStore((state) => state.subscribeToInboxEvents);
   const { status: inboxStatus } = useChatInboxWebSocket(Boolean(token) && hasAccess);
 
-  const [appointments, setAppointments] = useState<
-    AgendaProviderBooking[]
-  >([]);
-  const [services, setServices] = useState<AgendaService[]>([]);
-  const [filter, setFilter] =
-    useState<"all" | AgendaBookingStatus>("all");
+  const userId = useAuthStore(state => state.user?.id);
+  const agenda = useProviderAgenda(hasAccess && !accessLoading, userId);
+  const { appointments, setAppointments, services, filter, setFilter, loading, view, setView, date, setDate, timezone, load, pendingMap, refreshAll } = agenda;
+  const [detailBooking, setDetailBooking] = useState<AgendaProviderBooking | null>(null);
+  const [targetRequestId, setTargetRequestId] = useState<number | null>(null);
+  const searchParams = useSearchParams();
+  const navigation = searchParams.toString();
+  const navigationSequence = useRef(0);
+  const handledNavigation = useRef('');
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
   const [workingId, setWorkingId] = useState<number | null>(null);
   const [paymentWorkingId, setPaymentWorkingId] = useState<number | null>(null);
   const [payments, setPayments] = useState<
@@ -127,23 +124,6 @@ export default function ProviderAgendaAppointmentsPage() {
   const [refundActionError, setRefundActionError] = useState<string | null>(null);
   const lastAgendaEvent = useRef<Map<string, number>>(new Map());
   const [toast, setToast] = useState<ToastState>(null);
-
-  useEffect(() => {
-    const id = Number(new URLSearchParams(window.location.search).get("booking_id"));
-    if (Number.isSafeInteger(id) && id > 0) {
-      setSelectedBookingId(id);
-      setFilter("all");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (loading || accessLoading || !hasAccess || selectedBookingId === null) return;
-    if (!appointments.some((booking) => booking.id === selectedBookingId)) {
-      setToast({ type: "info", message: "Esta cita ya no está disponible o no tienes acceso a ella." });
-      return;
-    }
-    document.getElementById(`booking-${selectedBookingId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [accessLoading, appointments, hasAccess, loading, selectedBookingId]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [rescheduleBooking, setRescheduleBooking] =
@@ -196,102 +176,49 @@ export default function ProviderAgendaAppointmentsPage() {
     if (!isFinancialBooking(updated) && includeRefunds && (openRefundIdsRef.current.has(bookingId) || refundHistory.hasLoaded(bookingId))) {
       void loadRefunds(bookingId, true, signal);
     }
-  }, [loadRefunds, refundHistory]);
+  }, [loadRefunds, refundHistory, setAppointments]);
 
-  const load = useCallback(async (signal?: AbortSignal, silent = false) => {
-    if (!hasAccess) {
-      if (!silent) setLoading(false);
-      return;
-    }
-
-    if (!silent) setLoading(true);
-
-    try {
-      const [appointmentsData, servicesData, paymentConfiguration] =
-        await Promise.all([
-          agendaBookingService.providerAppointments(
-            undefined,
-            signal,
-          ),
-          silent ? Promise.resolve(null) : agendaService.listServices(signal),
-          silent ? Promise.resolve(null) : agendaService.getPaymentSettings(signal).catch(() => null),
-        ]);
-
-      setAppointments(appointmentsData);
-      if (servicesData) setServices(servicesData);
-      if (paymentConfiguration) setOnlineConfigured(paymentConfiguration.online_payment_available);
-      if (!silent) setLoading(false);
-
-      const paymentResults = await Promise.allSettled(
-        appointmentsData.filter(booking => !isFinancialBooking(booking)).map(async (booking) => [
-          booking.id,
-          await agendaBookingService.providerBookingPayment(booking.id, signal),
-        ] as const),
-      );
-      if (!signal?.aborted) {
-        const paymentEntries = paymentResults
-          .filter((result): result is PromiseFulfilledResult<readonly [number, AgendaBookingPayment | null]> => result.status === "fulfilled")
-          .map((result) => result.value);
-        setPayments((current) => silent
-          ? { ...current, ...Object.fromEntries(paymentEntries) }
-          : Object.fromEntries(paymentEntries));
-      }
-      for (const bookingId of openRefundIdsRef.current) {
-        if (!appointmentsData.some(b => b.id === bookingId && isFinancialBooking(b))) void loadRefunds(bookingId, true, signal);
-      }
-    } catch (error) {
-      if (signal?.aborted) return;
-      if (!silent) setToast({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "No se pudieron cargar las citas.",
-      });
-    } finally {
-      if (!signal?.aborted && !silent) setLoading(false);
-    }
-  }, [hasAccess, loadRefunds]);
-
-  const resyncAfterReconnect = useCallback(() => {
-    void load(undefined, true);
-  }, [load]);
+  const resyncAfterReconnect = useCallback(() => { void refreshAll(); }, [refreshAll]);
   useInboxReconnect(inboxStatus, Boolean(token) && hasAccess, resyncAfterReconnect);
-
-  useEffect(() => {
-    if (accessLoading) return;
-    const controller = new AbortController();
-    void load(controller.signal);
-    return () => controller.abort();
-  }, [accessLoading, load]);
-
   useEffect(() => {
     if (!token || !hasAccess || accessLoading) return;
-    const controller = new AbortController();
-    const unsubscribe = subscribeToInboxEvents((event) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = subscribeToInboxEvents(event => {
       if (!isAgendaInboxEvent(event)) return;
-      const eventKey = `${event.type}:${event.booking_id}`;
+      const key = `${event.type}:${event.booking_id}:${event.reschedule_request_id ?? ''}`;
       const now = Date.now();
-      if (now - (lastAgendaEvent.current.get(eventKey) ?? 0) < 500) return;
-      lastAgendaEvent.current.set(eventKey, now);
-      const includePayment = true;
-      const refundEvent = event.type.includes("refund");
-      void refreshAppointment(event.booking_id, includePayment, controller.signal, !refundEvent)
-        .catch(() => { /* Una actualización posterior puede recuperar esta cita. */ });
-      if (refundEvent) {
-        void agendaBookingService.providerAppointment(event.booking_id, controller.signal).then(b => { if (!isFinancialBooking(b)) void loadRefunds(b.id, true, controller.signal); }).catch(() => undefined);
-      }
-      if (requestsBooking?.id === event.booking_id &&
-          (event.type === "agenda.reschedule_requested" ||
-           event.type === "agenda.reschedule_decided")) {
-        setRequestsRefreshKey((current) => current + 1);
-      }
+      if (now - (lastAgendaEvent.current.get(key) ?? 0) < 300) return;
+      lastAgendaEvent.current.set(key, now);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void refreshAll(), 120);
+      if (requestsBooking?.id === event.booking_id) setRequestsRefreshKey(value => value + 1);
+      // Refresh an open detail only; calendar/list events never fan out financial requests.
+      if (detailBooking?.id === event.booking_id) void agendaBookingService.providerAppointment(event.booking_id).then(updated => setDetailBooking(current => current?.id === updated.id && Date.parse(current.updated_at) <= Date.parse(updated.updated_at) ? updated : current)).catch(() => undefined);
     });
-    return () => {
-      controller.abort();
-      unsubscribe();
+    return () => { if (timer) clearTimeout(timer); unsubscribe(); };
+  }, [accessLoading, hasAccess, token, subscribeToInboxEvents, refreshAll, requestsBooking?.id, detailBooking?.id]);
+  useEffect(() => {
+    if (!hasAccess || !agenda.ready || handledNavigation.current === `${userId}:${navigation}`) return;
+    const target = parseAgendaNavigation(new URLSearchParams(navigation));
+    if (!target.bookingId) return;
+    const controller = new AbortController();
+    const sequence = ++navigationSequence.current;
+    const run = async () => {
+      try {
+        const booking = await agendaBookingService.providerAppointment(target.bookingId!, controller.signal);
+        const requests = !target.reschedule ? await agendaBookingService.rescheduleRequests(booking.id, controller.signal) : [];
+        if (controller.signal.aborted || sequence !== navigationSequence.current) return;
+        handledNavigation.current = `${userId}:${navigation}`;
+        setSelectedBookingId(booking.id); setDate(dateInZone(booking.start_at, timezone));
+        if (target.reschedule || requests.filter(request => request.status === 'pending').length === 1) {
+          setTargetRequestId(target.requestId ?? requests.find(request => request.status === 'pending')?.id ?? null); setRequestsBooking(booking);
+        } else setDetailBooking(booking);
+      } catch (error) {
+        if (!controller.signal.aborted && sequence === navigationSequence.current) { handledNavigation.current = `${userId}:${navigation}`; setToast({ type: 'error', message: error instanceof Error ? error.message : 'La reservación no existe o no tienes acceso.' }); }
+      }
     };
-  }, [accessLoading, hasAccess, loadRefunds, refreshAppointment, requestsBooking?.id, subscribeToInboxEvents, token]);
+    void run(); return () => controller.abort();
+  }, [hasAccess, agenda.ready, userId, navigation, timezone, setDate]);
 
   useEffect(() => {
     if (!toast) return;
@@ -311,16 +238,13 @@ export default function ProviderAgendaAppointmentsPage() {
   }, [appointments, filter]);
 
   const replaceAppointment = (updated: AgendaProviderBooking) => {
+    setDetailBooking(current => current?.id === updated.id ? updated : current);
     setAppointments((current) =>
       current.map((item) =>
         item.id === updated.id ? updated : item,
       ),
     );
   };
-
-  const showRequestsError = useCallback((message: string) => {
-    setToast({ type: "error", message });
-  }, []);
 
   const changeStatus = async (
     booking: AgendaProviderBooking,
@@ -347,6 +271,7 @@ export default function ProviderAgendaAppointmentsPage() {
         );
 
       replaceAppointment(updated);
+      void refreshAll();
       setToast({
         type: "success",
         message: `Cita marcada como ${statusLabel(status).toLowerCase()}.`,
@@ -373,6 +298,7 @@ export default function ProviderAgendaAppointmentsPage() {
       const updated = await agendaBookingService.updateProviderStatus(bookingId, { status: "cancelled", cancellation_reason: cancelReason.trim(), provider_notes: cancelBooking.provider_notes });
       replaceAppointment(updated);
       setCancelBooking(null);
+      void refreshAll();
       const open = new Set(openRefundIdsRef.current);
       open.add(bookingId);
       openRefundIdsRef.current = open;
@@ -433,92 +359,18 @@ export default function ProviderAgendaAppointmentsPage() {
     }
   };
 
-  if (accessLoading || (hasAccess && loading)) {
-    return (
-      <div className="flex min-h-[55vh] items-center justify-center">
-        <Loader2 className="animate-spin text-[#168e00]" size={34} />
-      </div>
-    );
-  }
-
-  if (accessError) return <ModuleAccessError onRetry={() => void retry()} />;
-
-  if (!hasAccess) {
-    return (
-      <div className="mx-auto max-w-5xl">
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
-          El módulo Agenda no está activo.
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link
-          href="/admin/agenda"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-[#004e28]"
-        >
-          <ArrowLeft size={17} />
-          Configuración de Agenda
-        </Link>
-
-        <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 font-semibold text-white hover:bg-[#117500]"
-        >
-          <Plus size={18} />
-          Crear cita
-        </button>
-      </div>
-
-      <PageHero
-        eyebrow="Agenda"
-        title="Citas"
-        subtitle="Consulta, confirma, reprograma y administra las reservaciones de tus clientes."
-      />
-
-      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
-        {[
-          ["all", "Todas"],
-          ["pending", "Pendientes"],
-          ["confirmed", "Confirmadas"],
-          ["completed", "Completadas"],
-          ["cancelled", "Canceladas"],
-          ["no_show", "No asistió"],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() =>
-              setFilter(value as "all" | AgendaBookingStatus)
-            }
-            className={
-              filter === value
-                ? "shrink-0 rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-semibold text-white"
-                : "shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-gray-500 hover:bg-gray-50"
-            }
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-gray-200 bg-white px-6 py-14 text-center">
-          <CalendarDays className="mx-auto text-[#168e00]" size={38} />
-          <h2 className="mt-3 text-xl font-bold text-gray-900">
-            No hay citas
-          </h2>
-          <p className="mt-1 text-gray-500">
-            No encontramos reservaciones con este filtro.
-          </p>
-        </div>
-      ) : (
+  const serviceNames = useMemo(() => new Map(services.map(service => [service.id, service.name])), [services]);
+  const handlePaymentLoaded = useCallback((id: number, payment: AgendaBookingPayment | null) => setPayments(current => ({ ...current, [id]: payment })), []);
+  const openBooking = async (id: number, requestId?: number) => {
+    try {
+      const booking = await agendaBookingService.providerAppointment(id);
+      if (requestId) { setTargetRequestId(requestId); setRequestsBooking(booking); }
+      else setDetailBooking(booking);
+    } catch (error) { setToast({ type: 'error', message: error instanceof Error ? error.message : 'No se pudo abrir la reservación.' }); }
+  };
+  const renderBookingCards = (items: AgendaProviderBooking[]) => (
         <div className="grid gap-4 xl:grid-cols-2">
-          {filtered.map((booking) => {
+          {items.map((booking) => {
             const service = serviceMap.get(booking.service_id);
             const working = workingId === booking.id;
 
@@ -545,7 +397,7 @@ export default function ProviderAgendaAppointmentsPage() {
 
                     <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
                       <Clock3 size={16} className="text-[#168e00]" />
-                      {formatDateTime(booking.start_at)}
+                      {formatDateTime(booking.start_at, timezone)}
                     </p>
                   </div>
 
@@ -587,7 +439,8 @@ export default function ProviderAgendaAppointmentsPage() {
                   </div>
                 ) : null}
 
-                {isFinancialBooking(booking) ? <details className="mt-4" open={selectedBookingId === booking.id || Boolean(booking.cancellation_result)}><summary className="cursor-pointer rounded-xl bg-[#004e28]/5 p-3 font-bold text-[#004e28]">Pagos de la reservación</summary><ProviderFinancialDetail booking={booking} onlineAvailable={onlinePaymentsEnabled && onlineConfigured} /></details> : <>
+                {isFinancialBooking(booking) ? <details className="mt-4" open={selectedBookingId === booking.id || Boolean(booking.cancellation_result)}><summary className="cursor-pointer rounded-xl bg-[#004e28]/5 p-3 font-bold text-[#004e28]">Pagos de la reservación</summary><ProviderFinancialDetail booking={booking} onlineAvailable={onlinePaymentsEnabled && agenda.onlineConfigured} /></details> : <details className="mt-4"><summary className="cursor-pointer rounded-xl bg-[#004e28]/5 p-3 font-bold text-[#004e28]">Pagos y devoluciones</summary>
+                <LegacyPaymentLoader bookingId={booking.id} onLoaded={handlePaymentLoaded} />
                 <div className="mt-4">
                   <AgendaPaymentStatus
                     compact
@@ -624,7 +477,8 @@ export default function ProviderAgendaAppointmentsPage() {
                   ) : null}
                 </div>
 
-                </>}
+                </details>}
+                {pendingMap.get(booking.id) ? <div className="mt-4 space-y-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-950"><p className="font-bold">El cliente solicitó cambiar esta cita</p><p>Actual: {formatAgendaDate(booking.start_at, timezone)}</p><p>Propuesta: {formatAgendaDate(pendingMap.get(booking.id)!.requested_start_at, timezone)}</p><button type="button" className="min-h-11 font-bold underline" onClick={() => { setTargetRequestId(pendingMap.get(booking.id)!.id); setRequestsBooking(booking); }}>Revisar solicitud</button></div> : null}
                 <div className="mt-5 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
                   {booking.status === "pending" ? (
                     <>
@@ -678,14 +532,14 @@ export default function ProviderAgendaAppointmentsPage() {
                     <SecondaryButton
                       disabled={working}
                       onClick={() => setRescheduleBooking(booking)}
-                      label="Reprogramar"
+                      label="Reprogramar cita"
                       icon={<RefreshCw size={16} />}
                     />
                   ) : null}
 
                   <SecondaryButton
                     disabled={working}
-                    onClick={() => setRequestsBooking(booking)}
+                    onClick={() => { setTargetRequestId(null); setRequestsBooking(booking); }}
                     label="Solicitudes de cambio"
                     icon={<CalendarClock size={16} />}
                   />
@@ -694,14 +548,103 @@ export default function ProviderAgendaAppointmentsPage() {
             );
           })}
         </div>
-      )}
+  );
+
+  if (accessLoading || (hasAccess && !agenda.ready && !agenda.contextError)) {
+    return (
+      <div className="flex min-h-[55vh] items-center justify-center">
+        <Loader2 className="animate-spin text-[#168e00]" size={34} />
+      </div>
+    );
+  }
+
+  if (accessError) return <ModuleAccessError onRetry={() => void retry()} />;
+
+  if (!hasAccess) {
+    return (
+      <div className="mx-auto max-w-5xl">
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
+          El módulo Agenda no está activo.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href="/admin/agenda"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-[#004e28]"
+        >
+          <ArrowLeft size={17} />
+          Configuración de Agenda
+        </Link>
+
+        <button
+          type="button"
+          disabled={!agenda.ready}
+          onClick={() => setCreateOpen(true)}
+          className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 font-semibold text-white hover:bg-[#117500]"
+        >
+          <Plus size={18} />
+          Crear cita
+        </button>
+      </div>
+
+      <PageHero
+        eyebrow="Agenda"
+        title="Mi Agenda"
+        subtitle="Consulta, confirma, reprograma y administra las reservaciones de tus clientes."
+      />
+
+      {agenda.ready ? <>
+        <AgendaPendingRequests items={agenda.pending} total={agenda.pendingTotal} error={agenda.pendingError} loading={agenda.pendingLoading} page={agenda.pendingPage} onPage={agenda.setPendingPage} onRefresh={() => void agenda.loadPending()} onReview={item => void openBooking(item.booking_id, item.id)} onBooking={id => void openBooking(id)} services={serviceNames} timezone={timezone} />
+        <AgendaCalendarToolbar view={view} date={date} timezone={timezone} onView={setView} onDate={setDate} loading={loading} />
+        {view === 'reservations' ? <label className="block rounded-2xl bg-white p-4 text-sm font-semibold text-[#004e28]">Orden de reservaciones<select value={agenda.sort} onChange={event => agenda.setSort(event.target.value as import('@/lib/agendaCalendar').AgendaSort)} className="mt-2 block h-12 w-full rounded-xl border border-gray-200 bg-white px-4"><option value="created_desc">Más recientes · fecha de registro</option><option value="start_asc">Próximas citas · desde ahora</option><option value="start_desc">Fecha de cita descendente</option></select></label> : null}
+      </> : null}
+
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
+        {[
+          ["all", "Todas"],
+          ["pending", "Pendientes"],
+          ["confirmed", "Confirmadas"],
+          ["completed", "Completadas"],
+          ["cancelled", "Canceladas"],
+          ["no_show", "No asistió"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() =>
+              setFilter(value as "all" | AgendaBookingStatus)
+            }
+            className={
+              filter === value
+                ? "shrink-0 rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-semibold text-white"
+                : "shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-gray-500 hover:bg-gray-50"
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {agenda.contextError ? <div role="alert" className="rounded-xl bg-amber-50 p-4 text-amber-900">{agenda.contextError}<button type="button" onClick={agenda.retryContext} className="ml-2 underline">Volver a consultar configuración</button></div> : null}
+      {agenda.error ? <div role="alert" className="rounded-xl bg-amber-50 p-4 text-amber-900">{agenda.error}<button type="button" onClick={() => void load()} className="ml-2 underline">Actualizar citas</button></div> : null}
+      {loading && agenda.ready ? <p role="status" className="rounded-xl bg-white p-5 text-gray-500">Consultando el período…</p> : agenda.ready && view !== 'reservations' ? <AgendaProviderCalendar key={`${view}:${date}`} view={view} date={date} timezone={timezone} bookings={filtered} schedules={agenda.schedules} pendingIds={new Set(pendingMap.keys())} serviceNames={serviceNames} onFocusDate={setDate} onSelectDate={day => { setDate(day); setView('day'); }} onSelectBooking={booking => { if (pendingMap.has(booking.id)) { setTargetRequestId(pendingMap.get(booking.id)!.id); setRequestsBooking(booking); } else setDetailBooking(booking); }} /> : null}
+      {!loading && view === 'reservations' ? <>
+        {!filtered.length ? <p className="rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center text-gray-500">No hay reservaciones con este filtro.</p> : renderBookingCards(filtered)}
+        <div className="flex items-center justify-between rounded-xl bg-white p-3 text-sm"><button type="button" disabled={!agenda.page} onClick={() => agenda.setPage(agenda.page - 1)} className="min-h-11 rounded-xl border px-3 disabled:opacity-40">Anterior</button><span>Página {agenda.page + 1}</span><button type="button" disabled={!agenda.hasMore} onClick={() => agenda.setPage(agenda.page + 1)} className="min-h-11 rounded-xl border px-3 disabled:opacity-40">Siguiente</button></div>
+      </> : null}
+      <AgendaModalShell asForm={false} open={Boolean(detailBooking)} title="Detalle de la reservación" hideSubmit saving={workingId !== null} cancelLabel="Cerrar" onClose={() => setDetailBooking(null)} onSubmit={event => event.preventDefault()}>{detailBooking ? renderBookingCards([detailBooking]) : null}</AgendaModalShell>
 
       <AgendaModalShell open={Boolean(cancelBooking)} title="Cancelar reservación" saving={workingId !== null} cancelLabel="Volver" submitDisabled={!cancelReason.trim()} submitLabel="Confirmar cancelación" onClose={() => { setCancelBooking(null); setCancelError(null); }} onSubmit={(event) => { event.preventDefault(); void confirmCancellation(); }}>
         {cancelBooking ? <>
           <div className="space-y-1 rounded-2xl bg-[#f2f3f4] p-4 text-sm">
             <p><strong>Cliente:</strong> {cancelBooking.customer_name}</p>
             <p><strong>Servicio:</strong> {serviceMap.get(cancelBooking.service_id)?.name ?? `Servicio #${cancelBooking.service_id}`}</p>
-            <p><strong>Fecha:</strong> {formatDateTime(cancelBooking.start_at)}</p>
+            <p><strong>Fecha:</strong> {formatDateTime(cancelBooking.start_at, timezone)}</p>
             <p><strong>Pago:</strong> {payments[cancelBooking.id]?.payment_status ?? "Sin pago"}</p>
             {payments[cancelBooking.id]?.payment_status === "paid" ? <p><strong>Importe pagado:</strong> {payments[cancelBooking.id]?.amount} MXN</p> : null}
           </div>
@@ -729,7 +672,8 @@ export default function ProviderAgendaAppointmentsPage() {
         {refundActionError ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{refundActionError}</p> : null}
       </AgendaModalShell>
 
-      <ProviderCreateModal
+      {agenda.ready ? <ProviderCreateModal
+        timezone={timezone}
         open={createOpen}
         services={services.filter((item) => item.is_active)}
         onClose={() => setCreateOpen(false)}
@@ -741,6 +685,7 @@ export default function ProviderAgendaAppointmentsPage() {
             ? current
             : { ...current, [created.id]: null });
           setCreateOpen(false);
+          void refreshAll();
           setToast({
             type: "success",
             message: "Cita creada.",
@@ -749,9 +694,10 @@ export default function ProviderAgendaAppointmentsPage() {
         onError={(message) =>
           setToast({ type: "error", message })
         }
-      />
+      /> : null}
 
-      <ProviderRescheduleModal
+      {agenda.ready ? <ProviderRescheduleModal
+        timezone={timezone}
         booking={rescheduleBooking}
         service={rescheduleBooking
           ? serviceMap.get(rescheduleBooking.service_id) || null
@@ -760,6 +706,7 @@ export default function ProviderAgendaAppointmentsPage() {
         onUpdated={(updated) => {
           replaceAppointment(updated);
           setRescheduleBooking(null);
+          void refreshAll();
           setToast({
             type: "success",
             message: "Cita reprogramada.",
@@ -768,18 +715,13 @@ export default function ProviderAgendaAppointmentsPage() {
         onError={(message) =>
           setToast({ type: "error", message })
         }
-      />
+      /> : null}
 
-      <RequestsModal
-        booking={requestsBooking}
-        refreshKey={requestsRefreshKey}
-        onClose={() => setRequestsBooking(null)}
-        onDecision={() => {
-          if (requestsBooking) void refreshAppointment(requestsBooking.id)
-            .catch(() => { /* El siguiente evento puede actualizar la cita. */ });
-        }}
-        onError={showRequestsError}
-      />
+      {requestsBooking && agenda.ready ? <AgendaRescheduleRequestsModal key={`${requestsBooking.id}:${targetRequestId}`} booking={requestsBooking} requestId={targetRequestId} serviceName={serviceNames.get(requestsBooking.service_id)} timezone={timezone} refreshKey={requestsRefreshKey} onClose={() => { setRequestsBooking(null); setTargetRequestId(null); }} onDecision={async () => {
+        const updated = await agendaBookingService.providerAppointment(requestsBooking.id);
+        setRequestsBooking(updated); setDetailBooking(current => current?.id === updated.id ? updated : current);
+        await refreshAll();
+      }} /> : null}
 
       {toast ? (
         <Toast
@@ -880,51 +822,27 @@ function DangerButton({
   );
 }
 
-function ModalShell({
-  title,
-  children,
-  onClose,
-}: {
-  title: string;
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[30000] overflow-y-auto bg-black/40 p-4">
-      <div className="mx-auto my-8 max-w-2xl rounded-3xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
-          <h2 className="text-xl font-bold text-gray-900">
-            {title}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-gray-200 p-2 text-gray-500"
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </div>
-  );
+function ModalShell({ title, children, onClose, saving = false }: { title: string; children: React.ReactNode; onClose: () => void; saving?: boolean }) {
+  return <AgendaModalShell open asForm={false} hideSubmit title={title} saving={saving} cancelLabel="Cerrar" onClose={onClose} onSubmit={event => event.preventDefault()}>{children}</AgendaModalShell>;
 }
 
 function ProviderCreateModal({
   open,
   services,
+  timezone,
   onClose,
   onCreated,
   onError,
 }: {
   open: boolean;
   services: AgendaService[];
+  timezone: string;
   onClose: () => void;
   onCreated: (booking: AgendaProviderBooking) => void;
   onError: (message: string) => void;
 }) {
   const [serviceId, setServiceId] = useState<number | null>(null);
-  const [date, setDate] = useState(localDateInput());
+  const [date, setDate] = useState(() => dateInZone(new Date(), timezone));
   const [availability, setAvailability] =
     useState<AgendaAvailability | null>(null);
   const [slot, setSlot] =
@@ -937,6 +855,7 @@ function ProviderCreateModal({
     useState<"pending" | "confirmed">("confirmed");
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [saving, setSaving] = useState(false);
+  const savingLock = useRef(false);
 
   useEffect(() => {
     if (open && services.length && serviceId == null) {
@@ -982,11 +901,13 @@ function ProviderCreateModal({
   if (!open) return null;
 
   const submit = async () => {
+    if (savingLock.current) return;
     if (!serviceId || !slot || !name.trim()) {
       onError("Completa servicio, horario y nombre.");
       return;
     }
 
+    savingLock.current = true;
     setSaving(true);
 
     try {
@@ -1013,12 +934,13 @@ function ProviderCreateModal({
           : "No se pudo crear la cita.",
       );
     } finally {
+      savingLock.current = false;
       setSaving(false);
     }
   };
 
   return (
-    <ModalShell title="Crear cita" onClose={onClose}>
+    <ModalShell saving={saving} title="Crear cita" onClose={onClose}>
       <div className="space-y-5">
         <label>
           <span className="mb-1.5 block text-sm font-semibold text-gray-700">
@@ -1045,7 +967,7 @@ function ProviderCreateModal({
           </span>
           <input
             type="date"
-            min={localDateInput()}
+            min={dateInZone(new Date(), timezone)}
             className={inputClass}
             value={date}
             onChange={(event) => setDate(event.target.value)}
@@ -1181,23 +1103,26 @@ function ProviderCreateModal({
 function ProviderRescheduleModal({
   booking,
   service,
+  timezone,
   onClose,
   onUpdated,
   onError,
 }: {
   booking: AgendaProviderBooking | null;
   service: AgendaService | null;
+  timezone: string;
   onClose: () => void;
   onUpdated: (booking: AgendaProviderBooking) => void;
   onError: (message: string) => void;
 }) {
-  const [date, setDate] = useState(localDateInput());
+  const [date, setDate] = useState(() => dateInZone(new Date(), timezone));
   const [availability, setAvailability] =
     useState<AgendaAvailability | null>(null);
   const [slot, setSlot] =
     useState<AgendaAvailabilitySlot | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const savingLock = useRef(false);
 
   useEffect(() => {
     if (!booking || !service) return;
@@ -1237,8 +1162,10 @@ function ProviderRescheduleModal({
   if (!booking || !service) return null;
 
   const submit = async () => {
+    if (savingLock.current) return;
     if (!slot) return;
 
+    savingLock.current = true;
     setSaving(true);
 
     try {
@@ -1256,6 +1183,7 @@ function ProviderRescheduleModal({
           : "No se pudo reprogramar.",
       );
     } finally {
+      savingLock.current = false;
       setSaving(false);
     }
   };
@@ -1263,6 +1191,7 @@ function ProviderRescheduleModal({
   return (
     <ModalShell
       title={`Reprogramar cita #${booking.id}`}
+      saving={saving}
       onClose={onClose}
     >
       <div className="space-y-5">
@@ -1272,7 +1201,7 @@ function ProviderRescheduleModal({
           </span>
           <input
             type="date"
-            min={localDateInput()}
+            min={dateInZone(new Date(), timezone)}
             className={inputClass}
             value={date}
             onChange={(event) => setDate(event.target.value)}
@@ -1340,177 +1269,6 @@ function ProviderRescheduleModal({
   );
 }
 
-function RequestsModal({
-  booking,
-  refreshKey,
-  onClose,
-  onDecision,
-  onError,
-}: {
-  booking: AgendaProviderBooking | null;
-  refreshKey: number;
-  onClose: () => void;
-  onDecision: () => void;
-  onError: (message: string) => void;
-}) {
-  const [requests, setRequests] = useState<AgendaRescheduleRequest[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [workingId, setWorkingId] = useState<number | null>(null);
-  const loadedBookingId = useRef<number | null>(null);
-  const bookingId = booking?.id;
-
-  useEffect(() => {
-    if (!bookingId) return;
-
-    const controller = new AbortController();
-
-    const run = async () => {
-      if (loadedBookingId.current !== bookingId) setLoading(true);
-
-      try {
-        const data =
-          await agendaBookingService.rescheduleRequests(
-            bookingId,
-            controller.signal,
-          );
-        if (!controller.signal.aborted) {
-          loadedBookingId.current = bookingId;
-          setRequests(data);
-        }
-      } catch (error) {
-        if (!controller.signal.aborted && loadedBookingId.current !== bookingId) {
-          onError(error instanceof Error ? error.message : "No se pudieron cargar las solicitudes.");
-        }
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    };
-
-    void run();
-
-    return () => controller.abort();
-  }, [bookingId, onError, refreshKey]);
-
-  if (!booking) return null;
-
-  const decide = async (
-    request: AgendaRescheduleRequest,
-    approve: boolean,
-  ) => {
-    const responseNote = window.prompt(
-      approve
-        ? "Mensaje para el cliente (opcional):"
-        : "Motivo del rechazo (opcional):",
-      "",
-    );
-
-    if (responseNote === null) return;
-
-    setWorkingId(request.id);
-
-    try {
-      const updated =
-        await agendaBookingService.decideReschedule(
-          booking.id,
-          request.id,
-          {
-            approve,
-            response_note: responseNote.trim() || null,
-          },
-        );
-
-      setRequests((current) =>
-        current.map((item) =>
-          item.id === updated.id ? updated : item,
-        ),
-      );
-
-      onDecision();
-    } catch (error) {
-      onError(
-        error instanceof Error
-          ? error.message
-          : "No se pudo responder la solicitud.",
-      );
-    } finally {
-      setWorkingId(null);
-    }
-  };
-
-  return (
-    <ModalShell
-      title={`Solicitudes de cambio · Cita #${booking.id}`}
-      onClose={onClose}
-    >
-      {loading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="animate-spin text-[#168e00]" size={28} />
-        </div>
-      ) : requests.length === 0 ? (
-        <p className="rounded-2xl bg-gray-50 p-5 text-center text-gray-500">
-          Esta cita no tiene solicitudes de reprogramación.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {requests.map((request) => (
-            <div
-              key={request.id}
-              className="rounded-2xl border border-gray-200 p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-bold text-gray-900">
-                    {formatDateTime(request.requested_start_at)}
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {request.reason || "Sin motivo"}
-                  </p>
-                  {request.response_note ? (
-                    <p className="mt-2 text-sm text-gray-600">
-                      Respuesta: {request.response_note}
-                    </p>
-                  ) : null}
-                </div>
-
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-600">
-                  {request.status === "pending"
-                    ? "Pendiente"
-                    : request.status === "approved"
-                      ? "Aprobada"
-                      : request.status === "rejected"
-                        ? "Rechazada"
-                        : "Cancelada"}
-                </span>
-              </div>
-
-              {request.status === "pending" ? (
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    disabled={workingId === request.id}
-                    onClick={() => void decide(request, true)}
-                    className="rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                  >
-                    Aprobar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={workingId === request.id}
-                    onClick={() => void decide(request, false)}
-                    className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-50"
-                  >
-                    Rechazar
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      )}
-    </ModalShell>
-  );
-}
-
 function ProviderFinancialDetail({ booking, onlineAvailable }: { booking: AgendaProviderBooking; onlineAvailable: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
@@ -1523,4 +1281,23 @@ function ProviderFinancialDetail({ booking, onlineAvailable }: { booking: Agenda
     return () => { cancelAnimationFrame(frame); details.removeEventListener('toggle', toggle); };
   }, []);
   return <div ref={ref}>{loaded ? <AgendaFinancialPanel booking={booking} provider onlineAvailable={onlineAvailable} /> : null}</div>;
+}
+
+function LegacyPaymentLoader({ bookingId, onLoaded }: { bookingId: number; onLoaded: (id: number, payment: AgendaBookingPayment | null) => void }) {
+  const [error, setError] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const details = ref.current?.closest('details');
+    const controller = new AbortController();
+    let started = false;
+    const load = () => {
+      if (!details?.open || started) return;
+      started = true;
+      void agendaBookingService.providerBookingPayment(bookingId, controller.signal).then(payment => { if (!controller.signal.aborted) onLoaded(bookingId, payment); }).catch(error => { if (!controller.signal.aborted) { started = false; setError(error instanceof Error ? error.message : 'No se pudo consultar el pago.'); } });
+    };
+    details?.addEventListener('toggle', load);
+    const frame = requestAnimationFrame(load);
+    return () => { controller.abort(); cancelAnimationFrame(frame); details?.removeEventListener('toggle', load); };
+  }, [bookingId, onLoaded]);
+  return <div ref={ref}>{error ? <p role="alert" className="text-sm text-amber-900">{error}</p> : null}</div>;
 }

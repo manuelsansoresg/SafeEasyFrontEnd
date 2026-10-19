@@ -99,6 +99,7 @@ export type AgendaInboxEvent = {
   supplier_id: number;
   status?: string;
   reschedule_status?: string;
+  reschedule_request_id?: number;
 };
 
 const agendaInboxEventTypes = new Set<AgendaInboxEventType>([
@@ -123,7 +124,8 @@ export function isAgendaInboxEvent(event: ChatInboxEvent): event is AgendaInboxE
     agendaInboxEventTypes.has(record.type as AgendaInboxEventType) &&
     typeof record.booking_id === "number" &&
     Number.isFinite(record.booking_id) &&
-    typeof record.supplier_id === "number"
+    typeof record.supplier_id === "number" &&
+    (record.reschedule_request_id === undefined || (typeof record.reschedule_request_id === "number" && Number.isSafeInteger(record.reschedule_request_id) && record.reschedule_request_id > 0))
   );
 }
 

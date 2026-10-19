@@ -1,3 +1,4 @@
+import type { AgendaAppointmentQuery, AgendaProviderReschedulePage, AgendaProviderRescheduleItem } from '@/types/agendaBooking';
 import type { AgendaPaymentRetryResponse, FinancialQuote, FinancialSummary, FinancialHistory, FinancialIntent, FinancialBookingPayload, FinancialBookingCreated, CancellationPreview, ManualMethod, FinancialOperation, FinancialRefund } from '@/types/agendaFinance';
 import { fetchWithAuth } from "@/lib/api";
 import type { AgendaService, PublicAgendaSettings } from "@/types/agenda";
@@ -236,6 +237,35 @@ function queryString(
 }
 
 export const agendaBookingService = {
+  async providerRescheduleRequests(skip = 0, limit = 50, signal?: AbortSignal, status?: import('@/types/agendaBooking').AgendaRescheduleStatus): Promise<AgendaProviderReschedulePage> {
+    return request<AgendaProviderReschedulePage>(`${agendaGateway}/reschedule-requests${queryString({ status, skip, limit })}`, { signal });
+  },
+  async providerPendingRequests(signal?: AbortSignal): Promise<{ total: number; items: AgendaProviderRescheduleItem[] }> {
+    const items: AgendaProviderRescheduleItem[] = [];
+    let total: number | undefined;
+    for (let skip = 0; ; skip += 200) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      const page = await agendaBookingService.providerRescheduleRequests(skip, 200, signal, 'pending');
+      if (total !== undefined && total !== page.total) throw new Error('Las solicitudes cambiaron durante la consulta. Actualiza la bandeja.');
+      total = page.total; items.push(...page.items);
+      if (page.items.length < 200) {
+        const unique = [...new Map(items.map(item => [item.id, item])).values()];
+        if (unique.length !== total) throw new Error('No se pudo completar la consulta de solicitudes. Actualiza la bandeja.');
+        return { total, items: unique };
+      }
+    }
+  },
+  async providerCalendarAppointments(options: AgendaAppointmentQuery, status?: AgendaBookingStatus, signal?: AbortSignal): Promise<AgendaProviderBooking[]> {
+    if (!options.date_from || !options.date_to) throw new Error('El calendario requiere un intervalo de fechas completo.');
+    const all: AgendaProviderBooking[] = [];
+    for (let skip = 0; ; skip += 200) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      const page = await agendaBookingService.providerAppointments(status, signal, { ...options, sort: 'start_asc', overlap: true, skip, limit: 200 });
+      all.push(...page);
+      if (page.length < 200) return [...new Map(all.map(booking => [booking.id, booking])).values()];
+    }
+  },
+
   cancellationPolicyException(bookingId: number, payload: { reason: string; reference: string | null }) {
     return request<{ id: number; retention_blocked: boolean }>(`${agendaGateway}/appointments/${bookingId}/cancellation-policy-exception`, { method: 'POST', body: JSON.stringify(payload), retryOnAuthFailure: false });
   },
@@ -416,10 +446,14 @@ export const agendaBookingService = {
   async providerAppointments(
     status?: AgendaBookingStatus,
     signal?: AbortSignal,
+    options: AgendaAppointmentQuery = {},
   ): Promise<AgendaProviderBooking[]> {
     const query = queryString({
       status,
-      limit: 200,
+      ...options,
+      overlap: options.overlap === undefined ? undefined : String(options.overlap),
+      include_total: options.include_total === undefined ? undefined : String(options.include_total),
+      limit: options.limit ?? 200,
     });
 
     return request<AgendaProviderBooking[]>(

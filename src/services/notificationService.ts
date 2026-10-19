@@ -10,6 +10,7 @@ export type NotificationItem = {
   read?: boolean;
   order_id?: number | string | null;
   booking_id?: number | string | null;
+  reschedule_request_id?: number | string | null;
   appointment_id?: number | string | null;
   menu_order_id?: number | string | null;
   order_number?: string | null;

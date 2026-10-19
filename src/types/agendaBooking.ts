@@ -183,3 +183,15 @@ export interface AgendaBookingWithService {
   booking: AgendaBooking;
   service: AgendaService | null;
 }
+
+export type AgendaAppointmentSort = 'created_desc' | 'start_asc' | 'start_desc';
+export interface AgendaAppointmentQuery {
+  date_from?: string; date_to?: string; sort?: AgendaAppointmentSort;
+  overlap?: boolean; include_total?: boolean; skip?: number; limit?: number;
+}
+export interface AgendaProviderRescheduleItem {
+  id: number; booking_id: number; status: AgendaRescheduleStatus;
+  requested_start_at: string; reason: string | null; created_at: string; updated_at: string; response_note: string | null;
+  booking: Pick<AgendaProviderBooking, 'id' | 'customer_name' | 'service_id' | 'start_at' | 'end_at' | 'status'>;
+}
+export interface AgendaProviderReschedulePage { total: number; skip: number; limit: number; items: AgendaProviderRescheduleItem[]; }

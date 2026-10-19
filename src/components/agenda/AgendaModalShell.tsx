@@ -11,6 +11,7 @@ import {
 
 type AgendaModalShellProps = {
   open: boolean;
+  asForm?: boolean;
   title: string;
   description?: string;
   saving: boolean;
@@ -34,6 +35,7 @@ const focusableSelector = [
 
 export default function AgendaModalShell({
   open,
+  asForm = true,
   title,
   description,
   saving,
@@ -88,6 +90,7 @@ export default function AgendaModalShell({
         aria-describedby={description ? descriptionId : undefined}
         className="my-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)]"
         onKeyDown={(event) => {
+          if ((event.target as HTMLElement).closest('[role="dialog"]') !== event.currentTarget) return;
           if (event.key === "Escape" && !saving) {
             event.preventDefault();
             onClose();
@@ -135,7 +138,7 @@ export default function AgendaModalShell({
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+        <ModalBody asForm={asForm} onSubmit={onSubmit}>
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
             {children}
           </div>
@@ -161,8 +164,12 @@ export default function AgendaModalShell({
               {submitLabel}
             </button> : null}
           </div>
-        </form>
+        </ModalBody>
       </div>
     </div>
   );
+}
+
+function ModalBody({ asForm, onSubmit, children }: { asForm: boolean; onSubmit: (event: FormEvent<HTMLFormElement>) => void; children: ReactNode }) {
+  return asForm ? <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">{children}</form> : <div className="flex min-h-0 flex-1 flex-col">{children}</div>;
 }

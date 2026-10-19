@@ -12,7 +12,7 @@ const textValue = (value: unknown): string | null =>
 
 export function getNotificationDestination(notification: NotificationItem, role?: string): string | null {
   const data = notification.data && typeof notification.data === "object" ? notification.data : {};
-  const type = (notification.type || "").toLowerCase();
+  const type = (notification.type || textValue(data.type) || "").toLowerCase();
   const title = (notification.title || "").toLowerCase();
   const provider = isSupplierRole(role) || isAdminRole(role);
   const bookingId = idValue(notification.booking_id ?? notification.appointment_id ?? data.booking_id ?? data.appointment_id);
@@ -31,8 +31,10 @@ export function getNotificationDestination(notification: NotificationItem, role?
       ?? idValue(notification.title?.match(/#(\d+)/)?.[1])
       ?? idValue(notification.message?.match(/(?:cita|reservaci[oó]n)\s*#(\d+)/i)?.[1]);
     if (!id) return provider ? "/admin/agenda/appointments" : "/client/appointments";
+    const requestId = idValue(notification.reschedule_request_id ?? data.reschedule_request_id ?? data.request_id);
+    const reschedule = type === 'agenda_reschedule_requested' || type === 'agenda.reschedule_requested' || data.action === 'reschedule';
     return provider
-      ? `/admin/agenda/appointments?booking_id=${encodeURIComponent(id)}`
+      ? `/admin/agenda/appointments?booking_id=${encodeURIComponent(id)}${reschedule ? `&action=reschedule${requestId ? `&request_id=${encodeURIComponent(requestId)}` : ''}` : ''}`
       : `/agenda/bookings/${encodeURIComponent(id)}`;
   }
 
