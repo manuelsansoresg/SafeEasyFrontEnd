@@ -368,8 +368,8 @@ export default function ProviderAgendaAppointmentsPage() {
       else setDetailBooking(booking);
     } catch (error) { setToast({ type: 'error', message: error instanceof Error ? error.message : 'No se pudo abrir la reservación.' }); }
   };
-  const renderBookingCards = (items: AgendaProviderBooking[]) => (
-        <div className="grid gap-4 xl:grid-cols-2">
+  const renderBookingCards = (items: AgendaProviderBooking[], detail = false) => (
+        <div className={detail ? "grid w-full min-w-0 grid-cols-1" : "grid gap-4 xl:grid-cols-2"}>
           {items.map((booking) => {
             const service = serviceMap.get(booking.service_id);
             const working = workingId === booking.id;
@@ -378,7 +378,7 @@ export default function ProviderAgendaAppointmentsPage() {
               <article
                 key={booking.id}
                 id={`booking-${booking.id}`}
-                className={`rounded-3xl border bg-white p-5 shadow-sm sm:p-6 ${selectedBookingId === booking.id ? "border-[#168e00] ring-2 ring-[#168e00]/20" : "border-gray-100"}`}
+                className={`min-w-0 rounded-3xl border bg-white p-5 shadow-sm sm:p-6 ${selectedBookingId === booking.id ? "border-[#168e00] ring-2 ring-[#168e00]/20" : "border-gray-100"}`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -479,7 +479,8 @@ export default function ProviderAgendaAppointmentsPage() {
 
                 </details>}
                 {pendingMap.get(booking.id) ? <div className="mt-4 space-y-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-950"><p className="font-bold">El cliente solicitó cambiar esta cita</p><p>Actual: {formatAgendaDate(booking.start_at, timezone)}</p><p>Propuesta: {formatAgendaDate(pendingMap.get(booking.id)!.requested_start_at, timezone)}</p><button type="button" className="min-h-11 font-bold underline" onClick={() => { setTargetRequestId(pendingMap.get(booking.id)!.id); setRequestsBooking(booking); }}>Revisar solicitud</button></div> : null}
-                <div className="mt-5 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
+                <div className={detail ? "mt-6 space-y-3 border-t border-gray-100 pt-5" : "mt-5 flex flex-wrap gap-2 border-t border-gray-100 pt-4"}>
+                  <div className={detail ? `grid grid-cols-1 gap-3 ${booking.status === "confirmed" ? "sm:grid-cols-3" : "sm:grid-cols-2"} [&:empty]:hidden [&>button]:min-h-11 [&>button]:justify-center` : "contents"}>
                   {booking.status === "pending" ? (
                     <>
                       <ActionButton
@@ -527,6 +528,8 @@ export default function ProviderAgendaAppointmentsPage() {
                     </>
                   ) : null}
 
+                  </div>
+                  <div className={detail ? "grid grid-cols-1 gap-3 sm:grid-cols-2 [&>button]:min-h-11 [&>button]:justify-center" : "contents"}>
                   {(booking.status === "pending" ||
                     booking.status === "confirmed") ? (
                     <SecondaryButton
@@ -543,6 +546,7 @@ export default function ProviderAgendaAppointmentsPage() {
                     label="Solicitudes de cambio"
                     icon={<CalendarClock size={16} />}
                   />
+                  </div>
                 </div>
               </article>
             );
@@ -637,7 +641,7 @@ export default function ProviderAgendaAppointmentsPage() {
         {!filtered.length ? <p className="rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center text-gray-500">No hay reservaciones con este filtro.</p> : renderBookingCards(filtered)}
         <div className="flex items-center justify-between rounded-xl bg-white p-3 text-sm"><button type="button" disabled={!agenda.page} onClick={() => agenda.setPage(agenda.page - 1)} className="min-h-11 rounded-xl border px-3 disabled:opacity-40">Anterior</button><span>Página {agenda.page + 1}</span><button type="button" disabled={!agenda.hasMore} onClick={() => agenda.setPage(agenda.page + 1)} className="min-h-11 rounded-xl border px-3 disabled:opacity-40">Siguiente</button></div>
       </> : null}
-      <AgendaModalShell asForm={false} open={Boolean(detailBooking)} title="Detalle de la reservación" hideSubmit saving={workingId !== null} cancelLabel="Cerrar" onClose={() => setDetailBooking(null)} onSubmit={event => event.preventDefault()}>{detailBooking ? renderBookingCards([detailBooking]) : null}</AgendaModalShell>
+      <AgendaModalShell asForm={false} open={Boolean(detailBooking)} title="Detalle de la reservación" hideSubmit saving={workingId !== null} cancelLabel="Cerrar" onClose={() => setDetailBooking(null)} onSubmit={event => event.preventDefault()}>{detailBooking ? renderBookingCards([detailBooking], true) : null}</AgendaModalShell>
 
       <AgendaModalShell open={Boolean(cancelBooking)} title="Cancelar reservación" saving={workingId !== null} cancelLabel="Volver" submitDisabled={!cancelReason.trim()} submitLabel="Confirmar cancelación" onClose={() => { setCancelBooking(null); setCancelError(null); }} onSubmit={(event) => { event.preventDefault(); void confirmCancellation(); }}>
         {cancelBooking ? <>
@@ -742,11 +746,11 @@ function Info({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl bg-gray-50 p-3">
+    <div className="min-w-0 rounded-2xl bg-gray-50 p-3">
       <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
         {label}
       </p>
-      <p className="mt-1 font-semibold text-gray-700">
+      <p className="mt-1 font-semibold text-gray-700 [overflow-wrap:anywhere]">
         {value}
       </p>
     </div>

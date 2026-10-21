@@ -1,14 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { adsService, AdItem } from "@/services/adsService";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { adsService, adsErrorMessage, AdItem } from "@/services/adsService";
 import { Loader2, Plus, Trash2, EyeOff, Eye, Pencil } from "lucide-react";
 import FileUpload from "@/components/ui/FileUpload";
 import { PageHero } from "@/components/ui/PageHero";
 
+import { SupplierAdForm } from "@/components/admin/ads/SupplierAdForm";
+import { AdImage, resolveAdImage } from "@/components/admin/ads/AdImage";
+import { Toast } from "@/components/ui/Toast";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useQueryClient } from "@tanstack/react-query";
+
 const PAGE_LIMIT = 10;
 
 export default function AdminAdsPage() {
+  const role = useAuthStore((state) => state.user?.role);
+  const canManage = role === "admin" || role === "superuser";
+  const queryClient = useQueryClient();
+  const [mode, setMode] = useState<"manual" | "supplier">("manual");
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [success, setSuccess] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const listRequest = useRef(0);
+  const createLock = useRef(false);
+  const mutationLock = useRef(false);
+  const editDialog = useRef<HTMLDialogElement>(null);
   const [items, setItems] = useState<AdItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -34,21 +51,40 @@ export default function AdminAdsPage() {
 
   const skip = (page - 1) * PAGE_LIMIT;
 
-  const load = async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
+    if (!canManage) return;
+    const request = ++listRequest.current;
     setLoading(true);
+    setListError(null);
     try {
-      const data = await adsService.list(skip, PAGE_LIMIT);
+      const data = await adsService.list(skip, PAGE_LIMIT, activeFilter === "all" ? undefined : activeFilter === "active", signal);
+      if (request !== listRequest.current || signal?.aborted) return;
+      if (data.length === 0 && page > 1) { setPage((previous) => previous - 1); return; }
       setItems(data);
-    } catch (e) {
-      setError("No se pudieron cargar los anuncios.");
+    } catch (cause) {
+      if (request === listRequest.current && !signal?.aborted) setListError(adsErrorMessage(cause));
     } finally {
-      setLoading(false);
+      if (request === listRequest.current && !signal?.aborted) setLoading(false);
     }
-  };
+  }, [skip, activeFilter, canManage, page]);
 
   useEffect(() => {
-    load();
-  }, [skip]);
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
+  useEffect(() => {
+    if (isEditOpen) editDialog.current?.showModal();
+  }, [isEditOpen]);
+
+  const onSupplierCreated = () => {
+    setSuccess("El anuncio del proveedor se guardó correctamente.");
+    if (page !== 1 || activeFilter !== "all") {
+      setPage(1);
+      setActiveFilter("all");
+    } else void load();
+  };
 
   // Prevent browser navigating away when dropping files outside dropzone
   useEffect(() => {
@@ -68,10 +104,12 @@ export default function AdminAdsPage() {
   };
 
   const handleCreate = async () => {
+    if (createLock.current) return;
     if (!file) {
       setError("Selecciona una imagen para el anuncio.");
       return;
     }
+    createLock.current = true;
     setCreating(true);
     setError(null);
     try {
@@ -91,16 +129,20 @@ export default function AdminAdsPage() {
         setDisplayOrder("0");
         setFile(null);
         setMobileFile(null);
+        setSuccess("El anuncio se creó correctamente.");
         await load();
       }
-    } catch {
-      setError("Ocurrió un error al crear el anuncio.");
+    } catch (cause) {
+      setError(adsErrorMessage(cause));
     } finally {
+      createLock.current = false;
       setCreating(false);
     }
   };
 
   const handleToggleActive = async (ad: AdItem) => {
+    if (mutationLock.current) return;
+    mutationLock.current = true;
     setUpdatingId(ad.id);
     setError(null);
     try {
@@ -114,17 +156,23 @@ export default function AdminAdsPage() {
       if (!updated) {
         setError("No se pudo actualizar el anuncio.");
       } else {
-        setItems((prev) => prev.map((i) => (i.id === ad.id ? updated : i)));
+        await load();
       }
-    } catch {
-      setError("Ocurrió un error al actualizar el anuncio.");
+    } catch (cause) {
+      setError(adsErrorMessage(cause));
     } finally {
+      mutationLock.current = false;
       setUpdatingId(null);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("¿Eliminar este anuncio?")) return;
+  const handleDelete = async (ad: AdItem) => {
+    if (mutationLock.current) return;
+    if (!confirm(ad.source === "supplier_carousel"
+      ? "¿Retirar este anuncio de Drooopy? La imagen permanecerá en el carrusel del proveedor y podrás seleccionarla nuevamente."
+      : "¿Eliminar este anuncio?")) return;
+    mutationLock.current = true;
+    const id = ad.id;
     setDeletingId(id);
     setError(null);
     try {
@@ -132,44 +180,23 @@ export default function AdminAdsPage() {
       if (!ok) {
         setError("No se pudo eliminar el anuncio.");
       } else {
-        setItems((prev) => prev.filter((i) => i.id !== id));
+        void queryClient.invalidateQueries({ queryKey: ["ad-supplier-images"] });
+        await load();
+        setSuccess("El anuncio se eliminó correctamente.");
       }
-    } catch {
-      setError("Ocurrió un error al eliminar el anuncio.");
+    } catch (cause) {
+      setError(adsErrorMessage(cause));
     } finally {
+      mutationLock.current = false;
       setDeletingId(null);
     }
   };
 
-  const computeImageUrl = (ad: AdItem) => {
-    const src = ad.image_desktop || ad.image_mobile;
-    if (!src) return null;
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-    return src.startsWith("http") ? src : `${base.replace(/\/$/, "")}${src.startsWith("/") ? "" : "/"}${src}`;
-  };
-
-  const computeImageUrlFromPath = (path?: string | null) => {
-    if (!path) return null;
-    if (path.startsWith("http")) return path;
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-    return `${base.replace(/\/$/, "")}${path.startsWith("/") ? "" : "/"}${path}`;
-  };
-
+  const computeImageUrlFromPath = resolveAdImage;
   const hasMore = items.length === PAGE_LIMIT;
+  const renderImage = (ad: AdItem) => <AdImage src={ad.image_desktop} fallback={ad.image_mobile} className="h-16 w-32" />;
 
-  const renderImage = (ad: AdItem) => {
-    const src = ad.image_desktop || ad.image_mobile;
-    if (!src) return <span className="text-xs text-gray-400">Sin imagen</span>;
-    const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-    const full = src.startsWith("http") ? src : `${base.replace(/\/$/, "")}${src.startsWith("/") ? "" : "/"}${src}`;
-    return (
-      <img
-        src={full}
-        alt=""
-        className="w-32 h-16 object-cover rounded-md border border-gray-200"
-      />
-    );
-  };
+  if (!canManage) return <p role="alert" className="rounded-xl bg-white p-6 text-gray-700">No tienes permisos para administrar anuncios.</p>;
 
   return (
     <div className="space-y-6">
@@ -179,8 +206,10 @@ export default function AdminAdsPage() {
         eyebrow="Contenido"
       />
 
+      {success && <Toast type="success" message={success} onClose={() => setSuccess(null)} />}
+
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -192,6 +221,12 @@ export default function AdminAdsPage() {
           Nuevo anuncio
         </h2>
 
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Origen del nuevo anuncio">
+          <button type="button" aria-pressed={mode === "manual"} disabled={creating} onClick={() => setMode("manual")} className={`min-h-11 rounded-lg border px-4 py-2 text-sm font-medium ${mode === "manual" ? "border-[#004e28] bg-[#004e28] text-white" : "border-gray-200 text-[#004e28]"}`}>Subir imagen</button>
+          <button type="button" aria-pressed={mode === "supplier"} disabled={creating} onClick={() => setMode("supplier")} className={`min-h-11 rounded-lg border px-4 py-2 text-sm font-medium ${mode === "supplier" ? "border-[#004e28] bg-[#004e28] text-white" : "border-gray-200 text-[#004e28]"}`}>Seleccionar de un proveedor</button>
+        </div>
+        <div hidden={mode !== "supplier"}><SupplierAdForm onCreated={onSupplierCreated} /></div>
+        <div hidden={mode !== "manual"}>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-700">Imagen desktop *</p>
@@ -277,14 +312,20 @@ export default function AdminAdsPage() {
             </button>
           </div>
         </div>
+        </div>
       </div>
 
       {/* Listado */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-3 items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">
             Anuncios registrados
           </h2>
+          <label className="flex items-center gap-2 text-sm">Estado
+            <select value={activeFilter} onChange={(event) => { setActiveFilter(event.target.value); setPage(1); }} className="rounded-lg border border-gray-200 px-3 py-2">
+              <option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option>
+            </select>
+          </label>
         </div>
 
         <div className="overflow-x-auto">
@@ -292,7 +333,7 @@ export default function AdminAdsPage() {
             <thead className="bg-gray-50/50">
               <tr className="border-b border-gray-100">
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Imagen</th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Link</th>
+                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Origen / Link</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Orden</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ciudad</th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
@@ -310,6 +351,8 @@ export default function AdminAdsPage() {
                     </div>
                   </td>
                 </tr>
+              ) : listError ? (
+                <tr><td colSpan={7} role="alert" className="px-6 py-8 text-center text-sm text-red-700">{listError} <button type="button" onClick={() => void load()} className="underline">Reintentar</button></td></tr>
               ) : items.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
@@ -325,7 +368,9 @@ export default function AdminAdsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-blue-600">
-                      {ad.link_url || "-"}
+                      <span className={`mb-1 block w-fit rounded-full px-2 py-1 text-xs font-medium ${ad.source === "supplier_carousel" ? "bg-green-50 text-[#004e28]" : "bg-gray-100 text-gray-600"}`}>{ad.source === "supplier_carousel" ? "Imagen de proveedor" : "Anuncio propio"}</span>
+                      {ad.source === "supplier_carousel" && ad.supplier_id != null && <span className="block text-xs text-gray-600">Proveedor #{ad.supplier_id}</span>}
+                      <span className="block max-w-48 break-words">{ad.link_url || "-"}</span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700">
                       {ad.display_order ?? 0}
@@ -352,6 +397,7 @@ export default function AdminAdsPage() {
                         <button
                           type="button"
                           onClick={() => {
+                            setError(null);
                             setEditItem(ad);
                             setEditLinkUrl(ad.link_url || "");
                             setEditDisplayOrder(String(ad.display_order ?? 0));
@@ -365,6 +411,7 @@ export default function AdminAdsPage() {
                             setIsEditOpen(true);
                           }}
                           className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                          disabled={updatingId !== null || deletingId !== null}
                           title="Editar"
                         >
                           <Pencil className="w-4 h-4" />
@@ -372,7 +419,7 @@ export default function AdminAdsPage() {
                         <button
                           type="button"
                           onClick={() => handleToggleActive(ad)}
-                          disabled={updatingId === ad.id}
+                          disabled={updatingId !== null || deletingId !== null}
                           className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors disabled:opacity-50"
                           title={ad.is_active ? "Desactivar" : "Activar"}
                         >
@@ -384,8 +431,8 @@ export default function AdminAdsPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(ad.id)}
-                          disabled={deletingId === ad.id}
+                          onClick={() => handleDelete(ad)}
+                          disabled={updatingId !== null || deletingId !== null}
                           className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                           title="Eliminar anuncio"
                         >
@@ -414,7 +461,7 @@ export default function AdminAdsPage() {
           <button
             type="button"
             onClick={() => hasMore && setPage((p) => p + 1)}
-            disabled={!hasMore || loading}
+            disabled={!hasMore || loading || !!listError}
             className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Siguiente
@@ -423,21 +470,28 @@ export default function AdminAdsPage() {
       </div>
 
       {isEditOpen && editItem && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+        <dialog ref={editDialog} aria-labelledby="edit-ad-title" onCancel={(event) => { event.preventDefault(); if (!mutationLock.current && confirm("¿Cerrar la edición y descartar los cambios sin guardar?")) setIsEditOpen(false); }} className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl backdrop:bg-black/50">
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Editar anuncio</h3>
+              <h3 id="edit-ad-title" className="text-lg font-semibold text-gray-900">Editar anuncio</h3>
               <button
                 type="button"
-                onClick={() => setIsEditOpen(false)}
+                aria-label="Cerrar edición"
+                disabled={updatingId !== null}
+                onClick={() => { if (confirm("¿Cerrar la edición y descartar los cambios sin guardar?")) setIsEditOpen(false); }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+            <fieldset disabled={updatingId !== null} className="min-w-0 space-y-3">
+              {editItem.source === "supplier_carousel" ? <div className="space-y-2 rounded-xl bg-[#f2f3f4] p-3">
+                <p className="text-sm text-[#004e28]">Esta imagen pertenece al proveedor. Solo puedes cambiar los datos del anuncio.</p>
+                <AdImage src={editItem.image_desktop} fallback={editItem.image_mobile} alt="Imagen vinculada del proveedor" className="max-h-56 w-full" />
+                {editItem.image_mobile && <AdImage src={editItem.image_mobile} alt="Imagen móvil vinculada" className="max-h-40 w-full" />}
+              </div> : <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">Imagen desktop (opcional)</p>
                   <FileUpload
@@ -470,7 +524,7 @@ export default function AdminAdsPage() {
                     helperText="Arrastra y suelta o haz clic para seleccionar"
                   />
                 </div>
-              </div>
+              </div>}
               <div>
                 <label className="text-sm font-medium text-gray-700">
                   Link URL
@@ -526,12 +580,13 @@ export default function AdminAdsPage() {
                 />
                 Activo
               </label>
-            </div>
+            </fieldset>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => {
+                  if (mutationLock.current || !confirm("¿Cancelar la edición y descartar los cambios sin guardar?")) return;
                   setIsEditOpen(false);
                   setEditFile(null);
                   setEditMobileFile(null);
@@ -545,7 +600,11 @@ export default function AdminAdsPage() {
               <button
                 type="button"
                 onClick={async () => {
-                  if (!editItem) return;
+                  if (!editItem || mutationLock.current) return;
+                  if (!Number.isSafeInteger(Number(editDisplayOrder)) || Number(editDisplayOrder) < 0) {
+                    setError("El orden debe ser un número entero mayor o igual a cero."); return;
+                  }
+                  mutationLock.current = true;
                   setUpdatingId(editItem.id);
                   setError(null);
                   try {
@@ -555,24 +614,28 @@ export default function AdminAdsPage() {
                       state: editState || null,
                       display_order: Number(editDisplayOrder) || 0,
                       is_active: editActive,
-                      image: editFile || undefined,
-                      image_mobile: editMobileFile || undefined,
-                      delete_image_desktop: deleteDesktopImage || false,
-                      delete_image_mobile: deleteMobileImage || false,
+                      ...(editItem.source === "supplier_carousel" ? {} : {
+                        image: editFile || undefined,
+                        image_mobile: editMobileFile || undefined,
+                        delete_image_desktop: deleteDesktopImage || false,
+                        delete_image_mobile: deleteMobileImage || false,
+                      }),
                     });
                     if (!updated) {
                       setError("No se pudo actualizar el anuncio.");
                     } else {
-                      setItems((prev) => prev.map((i) => (i.id === editItem.id ? updated : i)));
+                      await load();
+                      setSuccess("El anuncio se actualizó correctamente.");
                       setIsEditOpen(false);
                       setEditFile(null);
                       setEditMobileFile(null);
                       setDeleteDesktopImage(false);
                       setDeleteMobileImage(false);
                     }
-                  } catch {
-                    setError("Ocurrió un error al actualizar.");
+                  } catch (cause) {
+                    setError(adsErrorMessage(cause));
                   } finally {
+                    mutationLock.current = false;
                     setUpdatingId(null);
                   }
                 }}
@@ -584,7 +647,7 @@ export default function AdminAdsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
       )}
     </div>
   );
