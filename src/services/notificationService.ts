@@ -8,6 +8,7 @@ export type NotificationItem = {
   created_at?: string;
   is_read?: boolean;
   read?: boolean;
+  ad_banner_id?: number | string | null;
   order_id?: number | string | null;
   booking_id?: number | string | null;
   reschedule_request_id?: number | string | null;

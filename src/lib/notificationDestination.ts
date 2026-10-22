@@ -13,6 +13,15 @@ const textValue = (value: unknown): string | null =>
 export function getNotificationDestination(notification: NotificationItem, role?: string): string | null {
   const data = notification.data && typeof notification.data === "object" ? notification.data : {};
   const type = (notification.type || textValue(data.type) || "").toLowerCase();
+  const adId = idValue(notification.ad_banner_id ?? data.ad_banner_id);
+  if (type === "ad_pending_approval") {
+    if (role !== "admin") return null;
+    return `/admin/ads?approval_status=PENDING${adId ? `&ad_id=${encodeURIComponent(adId)}` : ""}`;
+  }
+  if (type === "ad_approved" || type === "ad_rejected") {
+    if (role !== "supplier") return null;
+    return `/admin/my-ads${adId ? `?ad_id=${encodeURIComponent(adId)}` : ""}`;
+  }
   const title = (notification.title || "").toLowerCase();
   const provider = isSupplierRole(role) || isAdminRole(role);
   const bookingId = idValue(notification.booking_id ?? notification.appointment_id ?? data.booking_id ?? data.appointment_id);

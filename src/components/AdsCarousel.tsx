@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { safeAdDestination } from "@/lib/adDestination";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -103,8 +104,11 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
   const currentAd = ads[currentIndex];
 
   const handleClick = () => {
-    // if (!enableNavigation) return;
-    // router.push("/recomendados?kind=most_searched");
+    if (!enableNavigation) return;
+    const destination = safeAdDestination(currentAd?.link_url);
+    if (!destination) return;
+    if (destination.startsWith("/")) router.push(destination);
+    else window.location.assign(destination);
   };
 
   const handlePrev = (e: React.MouseEvent) => {
@@ -135,6 +139,8 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
   const mobileSrc = computeImageUrl(currentAd.image_mobile || currentAd.image_desktop);
   const fallbackSrc = mobileSrc || desktopSrc;
 
+  const navigable = enableNavigation && !!safeAdDestination(currentAd.link_url);
+
   return (
     <div
       className="relative w-full mb-6 rounded-2xl overflow-hidden bg-gray-100 md:aspect-[16/6]"
@@ -149,6 +155,15 @@ export function AdsCarousel({ enableNavigation = true }: AdsCarouselProps) {
         )}
         {fallbackSrc && (
           <img
+            role={navigable ? "link" : undefined}
+            tabIndex={navigable ? 0 : undefined}
+            aria-label={navigable ? "Abrir anuncio" : undefined}
+            onKeyDown={(event) => {
+              if (navigable && (event.key === "Enter" || event.key === " ")) {
+                event.preventDefault();
+                handleClick();
+              }
+            }}
             src={fallbackSrc}
             alt=""
             className="w-full h-auto md:h-full md:object-cover"

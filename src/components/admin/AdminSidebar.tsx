@@ -9,7 +9,7 @@ import {
   PackageCheck, Heart, BarChart3, Store, Truck, BadgeDollarSign,
   Repeat, Settings, FileText, LifeBuoy, CircleHelp, Trash2, Tags,
   Blocks, ContactRound, BriefcaseBusiness, Image as ImageIcon, Images,
-  UtensilsCrossed, CalendarClock, ClipboardList, CalendarCheck2,
+  UtensilsCrossed, CalendarClock, ClipboardList, CalendarCheck2, Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -58,7 +58,7 @@ export function AdminSidebar({
         { title: "Categorías", path: "/admin/categories", icon: Grid, roles: ["admin", "superuser"] },
         { title: "Subcategorías", path: "/admin/subcategories", icon: Layers, roles: ["admin", "superuser"] },
         { title: "Tipos de negocio", path: "/admin/business-types", icon: BriefcaseBusiness, roles: ["admin"] },
-        { title: "Anuncios", path: "/admin/ads", icon: ImageIcon, roles: ["admin", "superuser"] },
+        { title: "Anuncios", path: "/admin/ads", icon: ImageIcon, roles: ["admin"] },
         { title: "Preguntas", path: "/admin/sell-faq", icon: CircleHelp, roles: ["admin", "superuser"] },
         { title: "Legales", path: "/admin/legal", icon: FileText, roles: ["admin", "superuser"] },
         { title: "Planes", path: "/admin/plans", icon: BadgeDollarSign, roles: ["admin", "superuser"] },
@@ -81,6 +81,7 @@ export function AdminSidebar({
       icon: isDirectory ? BriefcaseBusiness : Package,
       roles: ["admin", "superuser", "supplier"],
     },
+    { title: "Mis anuncios", path: "/admin/my-ads", icon: Megaphone, roles: ["supplier"] },
     { title: "Mis categorías", path: "/admin/my-categories", icon: Tags, roles: ["supplier"] },
     ...(isSupplier && hasModule("menu") ? [{
       title: "Menú", path: "/admin/menu", icon: UtensilsCrossed, roles: ["supplier"] as AdminRole[],
