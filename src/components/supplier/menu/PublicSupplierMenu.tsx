@@ -172,16 +172,16 @@ function MenuItemCard({
 
   return (
     <article
-      className={`flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
+      className={`flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
         item.is_available
-          ? "border-[#004e28]/10"
+          ? "border-[var(--supplier-heading,#004e28)]/10"
           : "border-gray-200 opacity-70"
       }`}
     >
       <button
         type="button"
         onClick={() => onOpen(item)}
-        className="group relative aspect-[4/3] w-full overflow-hidden bg-[#edf3ee] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#168e00]"
+        className="group relative aspect-[4/3] w-full overflow-hidden supplier-surface-page bg-[var(--supplier-page-background,#edf3ee)] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--supplier-outline,#168e00)]"
         aria-label={`Ver información completa de ${item.name}`}
       >
         {image ? (
@@ -194,12 +194,12 @@ function MenuItemCard({
             className="object-cover transition duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-[#004e28]/30">
+          <div className="flex h-full items-center justify-center text-[var(--supplier-heading,#004e28)]/30">
             <UtensilsCrossed size={34} />
           </div>
         )}
 
-        <span className="absolute inset-x-3 bottom-3 flex translate-y-2 items-center justify-center gap-1.5 rounded-xl bg-[#004e28]/90 px-3 py-2 text-xs font-bold text-white opacity-0 shadow-lg backdrop-blur-sm transition group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+        <span className="absolute inset-x-3 bottom-3 flex translate-y-2 items-center justify-center gap-1.5 rounded-xl bg-[var(--supplier-secondary,#004e28)]/90 px-3 py-2 text-xs font-bold text-[color:var(--supplier-on-header,#ffffff)] opacity-0 shadow-lg backdrop-blur-sm transition group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
           <Maximize2 size={14} /> Ver detalle
         </span>
       </button>
@@ -209,7 +209,7 @@ function MenuItemCard({
           <button
             type="button"
             onClick={() => onOpen(item)}
-            className="min-w-0 flex-1 text-left font-[family-name:var(--font-varela-round)] text-base font-black leading-snug text-[#004e28] hover:text-[#168e00] focus-visible:outline-none focus-visible:underline"
+            className="min-w-0 flex-1 text-left font-[family-name:var(--font-varela-round)] text-base font-black leading-snug text-[var(--supplier-heading,#004e28)] hover:text-[var(--supplier-accent,#168e00)] focus-visible:outline-none focus-visible:underline"
           >
             {item.name}
           </button>
@@ -256,28 +256,28 @@ function MenuItemCard({
                       <p className="line-clamp-2 text-sm font-bold leading-5 text-gray-800">
                         {variant.name}
                       </p>
-                      <p className="text-sm font-black text-[#168e00]">
+                      <p className="text-sm font-black text-[var(--supplier-accent,#168e00)]">
                         {formatMoney(variant.price)}
                       </p>
                     </div>
 
                     {enabled ? (
                       quantity > 0 ? (
-                        <div className="flex items-center rounded-xl border border-[#168e00]/20 bg-[#168e00]/5 p-1">
+                        <div className="flex items-center rounded-xl border border-[var(--supplier-outline,#168e00)]/20 bg-[var(--supplier-primary,#168e00)]/5 p-1">
                           <button
                             type="button"
                             onClick={() => changeQuantity(item, -1, variant)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#004e28] hover:bg-white"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--supplier-heading,#004e28)] hover:bg-[var(--supplier-card-background,#ffffff)]"
                           >
                             <Minus size={14} />
                           </button>
-                          <span className="min-w-7 text-center text-sm font-black text-[#004e28]">
+                          <span className="min-w-7 text-center text-sm font-black text-[var(--supplier-heading,#004e28)]">
                             {quantity}
                           </span>
                           <button
                             type="button"
                             onClick={() => changeQuantity(item, 1, variant)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#168e00] text-white"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]"
                           >
                             <Plus size={14} />
                           </button>
@@ -286,7 +286,7 @@ function MenuItemCard({
                         <button
                           type="button"
                           onClick={() => changeQuantity(item, 1, variant)}
-                          className="rounded-xl bg-[#168e00] px-3 py-2 text-xs font-bold text-white"
+                          className="rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-3 py-2 text-xs font-bold text-[color:var(--supplier-inverse,#ffffff)]"
                         >
                           Agregar
                         </button>
@@ -303,27 +303,27 @@ function MenuItemCard({
           </div>
         ) : (
           <div className="mt-4">
-            <p className="text-base font-black text-[#168e00]">
+            <p className="text-base font-black text-[var(--supplier-accent,#168e00)]">
               {formatMoney(item.price) || "Sin precio"}
             </p>
 
             {canOrder && item.is_available && typeof item.price === "number" ? (
               baseQuantity > 0 ? (
-                <div className="mt-3 flex items-center justify-between rounded-xl border border-[#168e00]/20 bg-[#168e00]/5 p-1">
+                <div className="mt-3 flex items-center justify-between rounded-xl border border-[var(--supplier-outline,#168e00)]/20 bg-[var(--supplier-primary,#168e00)]/5 p-1">
                   <button
                     type="button"
                     onClick={() => changeQuantity(item, -1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-[#004e28] hover:bg-white"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--supplier-heading,#004e28)] hover:bg-[var(--supplier-card-background,#ffffff)]"
                   >
                     <Minus size={15} />
                   </button>
-                  <span className="min-w-8 text-center text-sm font-black text-[#004e28]">
+                  <span className="min-w-8 text-center text-sm font-black text-[var(--supplier-heading,#004e28)]">
                     {baseQuantity}
                   </span>
                   <button
                     type="button"
                     onClick={() => changeQuantity(item, 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#168e00] text-white"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]"
                   >
                     <Plus size={15} />
                   </button>
@@ -332,7 +332,7 @@ function MenuItemCard({
                 <button
                   type="button"
                   onClick={() => changeQuantity(item, 1)}
-                  className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#168e00] px-3 py-2.5 text-xs font-bold text-white"
+                  className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-3 py-2.5 text-xs font-bold text-[color:var(--supplier-inverse,#ffffff)]"
                 >
                   <Plus size={15} /> Agregar
                 </button>
@@ -380,20 +380,20 @@ function MenuItemDetailModal({
       onClick={onClose}
     >
       <article
-        className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
+        className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#004e28] shadow-lg backdrop-blur hover:bg-white"
+          className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--supplier-card-background,#ffffff)]/95 text-[var(--supplier-heading,#004e28)] shadow-lg backdrop-blur hover:bg-[var(--supplier-card-background,#ffffff)]"
           aria-label="Cerrar detalle del platillo"
         >
           <X size={20} />
         </button>
 
         <div className="grid md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div className="relative min-h-64 overflow-hidden bg-[#edf3ee] md:min-h-[560px]">
+          <div className="relative min-h-64 overflow-hidden supplier-surface-page bg-[var(--supplier-page-background,#edf3ee)] md:min-h-[560px]">
             {image ? (
               <Image
                 src={image}
@@ -404,13 +404,13 @@ function MenuItemDetailModal({
                 className="object-cover"
               />
             ) : (
-              <div className="flex h-full min-h-64 items-center justify-center text-[#004e28]/25">
+              <div className="flex h-full min-h-64 items-center justify-center text-[var(--supplier-heading,#004e28)]/25">
                 <UtensilsCrossed size={64} strokeWidth={1.4} />
               </div>
             )}
 
             {!item.is_available ? (
-              <span className="absolute bottom-4 left-4 rounded-full bg-gray-900/85 px-4 py-2 text-xs font-black uppercase tracking-wide text-white">
+              <span className="absolute bottom-4 left-4 rounded-full bg-gray-900/85 px-4 py-2 text-xs font-black uppercase tracking-wide text-[color:var(--supplier-inverse,#ffffff)]">
                 Agotado
               </span>
             ) : null}
@@ -425,7 +425,7 @@ function MenuItemDetailModal({
 
             <h3
               id={`menu-item-detail-${item.id}`}
-              className="mt-3 font-[family-name:var(--font-varela-round)] text-3xl font-black leading-tight text-[#004e28]"
+              className="mt-3 font-[family-name:var(--font-varela-round)] text-3xl font-black leading-tight text-[var(--supplier-heading,#004e28)]"
             >
               {item.name}
             </h3>
@@ -438,7 +438,7 @@ function MenuItemDetailModal({
 
             {variants.length ? (
               <div className="mt-7">
-                <p className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-[#168e00]">
+                <p className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-[var(--supplier-accent,#168e00)]">
                   Elige una presentación
                 </p>
                 <div className="space-y-3">
@@ -459,7 +459,7 @@ function MenuItemDetailModal({
                         key={variant.id}
                         className={`rounded-2xl border p-4 ${
                           variant.is_available
-                            ? "border-[#004e28]/10 bg-[#f7f9f8]"
+                            ? "border-[var(--supplier-heading,#004e28)]/10 supplier-surface-page bg-[var(--supplier-page-background,#f7f9f8)]"
                             : "border-gray-100 bg-gray-50 opacity-65"
                         }`}
                       >
@@ -469,7 +469,7 @@ function MenuItemDetailModal({
                               {variant.name}
                             </p>
                             <div className="mt-1 flex flex-wrap items-baseline gap-2">
-                              <span className="text-lg font-black text-[#168e00]">
+                              <span className="text-lg font-black text-[var(--supplier-accent,#168e00)]">
                                 {formatMoney(variant.price)}
                               </span>
                               {showOldPrice ? (
@@ -482,17 +482,17 @@ function MenuItemDetailModal({
 
                           {enabled ? (
                             quantity > 0 ? (
-                              <div className="flex items-center justify-between rounded-xl border border-[#168e00]/20 bg-white p-1 sm:min-w-32">
-                                <button type="button" onClick={() => changeQuantity(item, -1, variant)} className="flex h-9 w-9 items-center justify-center rounded-lg text-[#004e28] hover:bg-[#f2f3f4]" aria-label={`Quitar ${variant.name}`}>
+                              <div className="flex items-center justify-between rounded-xl border border-[var(--supplier-outline,#168e00)]/20 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-1 sm:min-w-32">
+                                <button type="button" onClick={() => changeQuantity(item, -1, variant)} className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--supplier-heading,#004e28)] hover:bg-[var(--supplier-page-background,#f2f3f4)]" aria-label={`Quitar ${variant.name}`}>
                                   <Minus size={16} />
                                 </button>
-                                <span className="min-w-8 text-center text-sm font-black text-[#004e28]">{quantity}</span>
-                                <button type="button" onClick={() => changeQuantity(item, 1, variant)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#168e00] text-white" aria-label={`Agregar ${variant.name}`}>
+                                <span className="min-w-8 text-center text-sm font-black text-[var(--supplier-heading,#004e28)]">{quantity}</span>
+                                <button type="button" onClick={() => changeQuantity(item, 1, variant)} className="flex h-9 w-9 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]" aria-label={`Agregar ${variant.name}`}>
                                   <Plus size={16} />
                                 </button>
                               </div>
                             ) : (
-                              <button type="button" onClick={() => changeQuantity(item, 1, variant)} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white">
+                              <button type="button" onClick={() => changeQuantity(item, 1, variant)} className="inline-flex items-center justify-center gap-1.5 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-2.5 text-sm font-bold text-[color:var(--supplier-inverse,#ffffff)]">
                                 <Plus size={16} /> Agregar
                               </button>
                             )
@@ -510,7 +510,7 @@ function MenuItemDetailModal({
             ) : (
               <div className="mt-7 border-t border-gray-100 pt-5">
                 <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="text-2xl font-black text-[#168e00]">
+                  <span className="text-2xl font-black text-[var(--supplier-accent,#168e00)]">
                     {basePrice || "Sin precio"}
                   </span>
                   {showBaseOldPrice ? (
@@ -522,17 +522,17 @@ function MenuItemDetailModal({
 
                 {canOrder && item.is_available && typeof item.price === "number" ? (
                   baseQuantity > 0 ? (
-                    <div className="mt-4 flex items-center justify-between rounded-xl border border-[#168e00]/20 bg-[#168e00]/5 p-1">
-                      <button type="button" onClick={() => changeQuantity(item, -1)} className="flex h-10 w-10 items-center justify-center rounded-lg text-[#004e28] hover:bg-white" aria-label={`Quitar ${item.name}`}>
+                    <div className="mt-4 flex items-center justify-between rounded-xl border border-[var(--supplier-outline,#168e00)]/20 bg-[var(--supplier-primary,#168e00)]/5 p-1">
+                      <button type="button" onClick={() => changeQuantity(item, -1)} className="flex h-10 w-10 items-center justify-center rounded-lg text-[var(--supplier-heading,#004e28)] hover:bg-[var(--supplier-card-background,#ffffff)]" aria-label={`Quitar ${item.name}`}>
                         <Minus size={17} />
                       </button>
-                      <span className="min-w-10 text-center font-black text-[#004e28]">{baseQuantity}</span>
-                      <button type="button" onClick={() => changeQuantity(item, 1)} className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#168e00] text-white" aria-label={`Agregar ${item.name}`}>
+                      <span className="min-w-10 text-center font-black text-[var(--supplier-heading,#004e28)]">{baseQuantity}</span>
+                      <button type="button" onClick={() => changeQuantity(item, 1)} className="flex h-10 w-10 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]" aria-label={`Agregar ${item.name}`}>
                         <Plus size={17} />
                       </button>
                     </div>
                   ) : (
-                    <button type="button" onClick={() => changeQuantity(item, 1)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3 font-bold text-white">
+                    <button type="button" onClick={() => changeQuantity(item, 1)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-3 font-bold text-[color:var(--supplier-inverse,#ffffff)]">
                       <Plus size={17} /> Agregar al pedido
                     </button>
                   )
@@ -1151,17 +1151,17 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
   }
 
   return (
-    <section id="menu" className="bg-[#f7f9f8] py-8 md:py-12">
+    <section id="menu" className="supplier-surface-page bg-[var(--supplier-page-background,#f7f9f8)] py-8 md:py-12">
       {demoOrderComplete ? (
-        <div role="status" className="mx-auto mb-6 max-w-6xl rounded-2xl border border-[#168e00]/30 bg-white px-5 py-4 text-sm font-semibold text-[#004e28]">
+        <div role="status" className="mx-auto mb-6 max-w-6xl rounded-2xl border border-[var(--supplier-outline,#168e00)]/30 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-5 py-4 text-sm font-semibold text-[var(--supplier-heading,#004e28)]">
           Pedido de demostración completado. Así termina el recorrido de compra; no se generó un pedido real.
         </div>
       ) : null}
       <div className="mx-auto max-w-6xl px-5 md:px-8">
         <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#168e00]">Menú</p>
-            <h2 className="mt-1 font-[family-name:var(--font-varela-round)] text-3xl font-black text-[#004e28]">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[var(--supplier-accent,#168e00)]">Menú</p>
+            <h2 className="mt-1 font-[family-name:var(--font-varela-round)] text-3xl font-black text-[var(--supplier-heading,#004e28)]">
               {selectedMenu.name}
             </h2>
             {selectedMenu.description ? (
@@ -1175,7 +1175,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
             <button
               type="button"
               onClick={() => void shareMenu()}
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-[#004e28] shadow-sm"
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-4 py-2.5 text-sm font-bold text-[var(--supplier-heading,#004e28)] shadow-sm"
             >
               <Share2 size={16} /> Compartir
             </button>
@@ -1185,7 +1185,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                 <button
                   type="button"
                   onClick={goToLoginForOrder}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white"
+                  className="inline-flex items-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-2.5 text-sm font-bold text-[color:var(--supplier-inverse,#ffffff)]"
                 >
                   <LogIn size={16} /> Iniciar sesión para pedir
                 </button>
@@ -1193,7 +1193,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                 <button
                   type="button"
                   onClick={() => setCartOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#168e00] px-4 py-2.5 text-sm font-bold text-white"
+                  className="inline-flex items-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-2.5 text-sm font-bold text-[color:var(--supplier-inverse,#ffffff)]"
                 >
                   <ShoppingBag size={16} /> Pedido ({cartQuantity})
                 </button>
@@ -1214,8 +1214,8 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                 }}
                 className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
                   menu.id === selectedMenu.id
-                    ? "bg-[#004e28] text-white"
-                    : "bg-white text-gray-600 shadow-sm"
+                    ? "supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] text-[color:var(--supplier-inverse,#ffffff)]"
+                    : "supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] text-gray-600 shadow-sm"
                 }`}
               >
                 {menu.name}
@@ -1224,10 +1224,10 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
           </div>
         ) : null}
 
-        <article className="mb-8 overflow-hidden rounded-3xl border border-[#004e28]/10 bg-white shadow-sm">
+        <article className="mb-8 overflow-hidden rounded-3xl border border-[var(--supplier-heading,#004e28)]/10 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] shadow-sm">
           <div className="grid md:grid-cols-[320px_1fr]">
             {cover ? (
-              <div className="relative min-h-52 bg-[#e8eee9] md:min-h-64">
+              <div className="relative min-h-52 bg-[var(--supplier-page-background,#e8eee9)] md:min-h-64">
                 <Image
                   src={cover}
                   alt={`Portada de ${selectedMenu.name}`}
@@ -1238,7 +1238,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                 />
               </div>
             ) : (
-              <div className="flex min-h-48 items-center justify-center bg-gradient-to-br from-[#004e28] to-[#168e00] text-white md:min-h-64">
+              <div className="flex min-h-48 items-center justify-center bg-gradient-to-br from-[var(--supplier-secondary,#004e28)] to-[var(--supplier-secondary-hover,#168e00)] text-[color:var(--supplier-on-header,#ffffff)] md:min-h-64">
                 <UtensilsCrossed size={58} strokeWidth={1.4} />
               </div>
             )}
@@ -1246,7 +1246,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
             <div className="p-5 sm:p-7">
               <div className="flex flex-wrap gap-2">
                 {schedule ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#004e28]/[0.06] px-3 py-1.5 text-xs font-bold text-[#004e28]">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--supplier-secondary,#004e28)]/[0.06] px-3 py-1.5 text-xs font-bold text-[var(--supplier-heading,#004e28)]">
                     <CalendarDays size={14} /> {schedule}
                   </span>
                 ) : null}
@@ -1255,32 +1255,32 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                     <Loader2 size={13} className="animate-spin" /> Consultando pedidos
                   </span>
                 ) : acceptsOrders ? (
-                  <span className="rounded-full bg-[#168e00]/10 px-3 py-1.5 text-xs font-bold text-[#0b6d00]">Acepta pedidos</span>
+                  <span className="rounded-full bg-[var(--supplier-primary,#168e00)]/10 px-3 py-1.5 text-xs font-bold text-[#0b6d00]">Acepta pedidos</span>
                 ) : null}
               </div>
 
               {acceptsOrders ? <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {orderSettings?.allows_pickup ? (
                   <div className="rounded-2xl bg-gray-50 p-4">
-                    <Store size={20} className="text-[#168e00]" />
+                    <Store size={20} className="text-[var(--supplier-accent,#168e00)]" />
                     <p className="mt-2 text-sm font-bold text-gray-900">Recoger</p>
                   </div>
                 ) : null}
                 {orderSettings?.allows_delivery ? (
                   <div className="rounded-2xl bg-gray-50 p-4">
-                    <Truck size={20} className="text-[#168e00]" />
+                    <Truck size={20} className="text-[var(--supplier-accent,#168e00)]" />
                     <p className="mt-2 text-sm font-bold text-gray-900">Domicilio</p>
                   </div>
                 ) : null}
                 {orderSettings?.allows_cash ? (
                   <div className="rounded-2xl bg-gray-50 p-4">
-                    <Banknote size={20} className="text-[#168e00]" />
+                    <Banknote size={20} className="text-[var(--supplier-accent,#168e00)]" />
                     <p className="mt-2 text-sm font-bold text-gray-900">Efectivo</p>
                   </div>
                 ) : null}
                 {orderSettings?.online_payment_available ? (
                   <div className="rounded-2xl bg-gray-50 p-4">
-                    <CreditCard size={20} className="text-[#168e00]" />
+                    <CreditCard size={20} className="text-[var(--supplier-accent,#168e00)]" />
                     <p className="mt-2 text-sm font-bold text-gray-900">Tarjeta</p>
                   </div>
                 ) : null}
@@ -1293,7 +1293,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
           {selectedMenu.sections.map((section) => (
             <section key={section.id}>
               <header className="mb-4">
-                <h3 className="font-[family-name:var(--font-varela-round)] text-2xl font-black text-[#004e28]">
+                <h3 className="font-[family-name:var(--font-varela-round)] text-2xl font-black text-[var(--supplier-heading,#004e28)]">
                   {section.name}
                 </h3>
                 {section.description ? (
@@ -1332,11 +1332,11 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
         <button
           type="button"
           onClick={() => setCartOpen(true)}
-          className="fixed bottom-5 right-5 z-[19000] inline-flex items-center gap-3 rounded-2xl bg-[#004e28] px-5 py-3.5 font-bold text-white shadow-2xl"
+          className="fixed bottom-5 right-5 z-[19000] inline-flex items-center gap-3 rounded-2xl supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] px-5 py-3.5 font-bold text-[color:var(--supplier-inverse,#ffffff)] shadow-2xl"
         >
           <ShoppingBag size={20} />
           <span>{cartQuantity} productos</span>
-          <span className="text-white/70">{currencyFormatter.format(cartSubtotal)}</span>
+          <span className="text-[color:var(--supplier-inverse-muted,#ffffff)]">{currencyFormatter.format(cartSubtotal)}</span>
         </button>
       ) : null}
 
@@ -1349,15 +1349,15 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
           onClick={() => setCartOpen(false)}
         >
           <div
-            className="flex h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            className="flex h-full w-full max-w-lg flex-col overflow-hidden rounded-2xl supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">Tu pedido</p>
-                <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[#004e28]">{selectedMenu.name}</h3>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--supplier-accent,#168e00)]">Tu pedido</p>
+                <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[var(--supplier-heading,#004e28)]">{selectedMenu.name}</h3>
               </div>
-              <button type="button" onClick={() => setCartOpen(false)} className="rounded-full p-2 text-gray-500 hover:bg-gray-100" aria-label="Cerrar pedido">
+              <button type="button" onClick={() => setCartOpen(false)} className="rounded-full p-2 text-gray-500 hover:bg-[var(--supplier-hover-card,#f3f4f6)]" aria-label="Cerrar pedido">
                 <X size={20} />
               </button>
             </div>
@@ -1365,7 +1365,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
             <div className="flex-1 overflow-y-auto p-5">
               {cartItems.length === 0 ? (
                 <div className="flex min-h-72 flex-col items-center justify-center text-center">
-                  <ShoppingBag size={40} className="text-[#168e00]" />
+                  <ShoppingBag size={40} className="text-[var(--supplier-accent,#168e00)]" />
                   <h4 className="mt-4 text-lg font-bold text-gray-900">Tu pedido está vacío</h4>
                 </div>
               ) : (
@@ -1376,9 +1376,9 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                       <div key={key} className="rounded-2xl border border-gray-100 p-4">
                         <div className="flex gap-3">
                           <div className="min-w-0 flex-1">
-                            <p className="font-bold text-[#004e28]">{line.item.name}</p>
+                            <p className="font-bold text-[var(--supplier-heading,#004e28)]">{line.item.name}</p>
                             {line.variant ? <p className="text-xs font-semibold text-gray-500">{line.variant.name}</p> : null}
-                            <p className="mt-1 text-sm font-black text-[#168e00]">
+                            <p className="mt-1 text-sm font-black text-[var(--supplier-accent,#168e00)]">
                               {currencyFormatter.format(Number(line.variant?.price ?? line.item.price ?? 0) * line.quantity)}
                             </p>
                           </div>
@@ -1389,11 +1389,11 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
 
                         <div className="mt-3 flex items-center justify-between">
                           <div className="flex items-center rounded-xl border border-gray-200 p-1">
-                            <button type="button" onClick={() => changeQuantity(line.item, -1, line.variant)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-50">
+                            <button type="button" onClick={() => changeQuantity(line.item, -1, line.variant)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-[var(--supplier-hover-card,#f9fafb)]">
                               <Minus size={15} />
                             </button>
                             <span className="min-w-8 text-center text-sm font-bold">{line.quantity}</span>
-                            <button type="button" onClick={() => changeQuantity(line.item, 1, line.variant)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#168e00] text-white">
+                            <button type="button" onClick={() => changeQuantity(line.item, 1, line.variant)} className="flex h-8 w-8 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]">
                               <Plus size={15} />
                             </button>
                           </div>
@@ -1406,7 +1406,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                             maxLength={500}
                             onChange={(event) => updateNotes(key, event.target.value)}
                             placeholder="Ej. sin cebolla, salsa aparte..."
-                            className="mt-1.5 min-h-20 w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm font-normal text-gray-800 outline-none focus:border-[#168e00]"
+                            className="mt-1.5 min-h-20 w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm font-normal text-gray-800 outline-none focus:border-[var(--supplier-outline,#168e00)]"
                           />
                         </label>
                       </div>
@@ -1416,16 +1416,16 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
               )}
             </div>
 
-            <div className="border-t border-gray-100 bg-white p-5">
+            <div className="border-t border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5">
               <div className="mb-4 flex items-center justify-between">
                 <span className="text-sm font-semibold text-gray-500">Subtotal estimado</span>
-                <span className="text-xl font-black text-[#004e28]">{currencyFormatter.format(cartSubtotal)}</span>
+                <span className="text-xl font-black text-[var(--supplier-heading,#004e28)]">{currencyFormatter.format(cartSubtotal)}</span>
               </div>
               <button
                 type="button"
                 disabled={!cartItems.length}
                 onClick={openCheckout}
-                className="w-full rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white disabled:opacity-40"
+                className="w-full rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-3.5 font-bold text-[color:var(--supplier-inverse,#ffffff)] disabled:opacity-40"
               >
                 Continuar con el pedido
               </button>
@@ -1445,16 +1445,16 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
           <form
             onSubmit={submitOrder}
             noValidate
-            className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
+            className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-5 py-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#168e00]">Finalizar pedido</p>
-                <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[#004e28]">Tus datos</h3>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--supplier-accent,#168e00)]">Finalizar pedido</p>
+                <h3 className="font-[family-name:var(--font-varela-round)] text-xl font-black text-[var(--supplier-heading,#004e28)]">Tus datos</h3>
                 <p className="mt-1 text-xs font-normal text-gray-500">Los campos marcados con * son obligatorios.</p>
               </div>
-              <button type="button" disabled={submitting} onClick={() => setCheckoutOpen(false)} className="rounded-full p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-40" aria-label="Cerrar">
+              <button type="button" disabled={submitting} onClick={() => setCheckoutOpen(false)} className="rounded-full p-2 text-gray-500 hover:bg-[var(--supplier-hover-card,#f3f4f6)] disabled:opacity-40" aria-label="Cerrar">
                 <X size={20} />
               </button>
             </div>
@@ -1467,17 +1467,17 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm font-bold text-gray-700 sm:col-span-2">
                   Nombre <span className="text-red-600" aria-hidden="true">*</span>
-                  <input ref={nameInputRef} value={customerName} onChange={(event) => { setCustomerName(event.target.value); setCustomerFieldErrors((current) => current.name ? { ...current, name: undefined } : current); }} required minLength={2} maxLength={255} aria-invalid={Boolean(customerFieldErrors.name)} aria-describedby={customerFieldErrors.name ? "menu-name-error" : undefined} className={`mt-1.5 w-full rounded-xl border px-3.5 py-3 font-normal outline-none ${customerFieldErrors.name ? "border-red-500 focus:border-red-600" : "border-gray-200 focus:border-[#168e00]"}`} />
+                  <input ref={nameInputRef} value={customerName} onChange={(event) => { setCustomerName(event.target.value); setCustomerFieldErrors((current) => current.name ? { ...current, name: undefined } : current); }} required minLength={2} maxLength={255} aria-invalid={Boolean(customerFieldErrors.name)} aria-describedby={customerFieldErrors.name ? "menu-name-error" : undefined} className={`mt-1.5 w-full rounded-xl border px-3.5 py-3 font-normal outline-none ${customerFieldErrors.name ? "border-red-500 focus:border-red-600" : "border-gray-200 focus:border-[var(--supplier-outline,#168e00)]"}`} />
                   {customerFieldErrors.name ? <span id="menu-name-error" role="alert" className="mt-1 block text-xs font-medium text-red-600">{customerFieldErrors.name}</span> : null}
                 </label>
                 <label className="text-sm font-bold text-gray-700">
                   Correo <span className="text-red-600" aria-hidden="true">*</span>
-                  <input ref={emailInputRef} type="email" value={customerEmail} onChange={(event) => { setCustomerEmail(event.target.value); setCustomerFieldErrors((current) => current.email ? { ...current, email: undefined } : current); }} required aria-invalid={Boolean(customerFieldErrors.email)} aria-describedby={customerFieldErrors.email ? "menu-email-error" : undefined} className={`mt-1.5 w-full rounded-xl border px-3.5 py-3 font-normal outline-none ${customerFieldErrors.email ? "border-red-500 focus:border-red-600" : "border-gray-200 focus:border-[#168e00]"}`} />
+                  <input ref={emailInputRef} type="email" value={customerEmail} onChange={(event) => { setCustomerEmail(event.target.value); setCustomerFieldErrors((current) => current.email ? { ...current, email: undefined } : current); }} required aria-invalid={Boolean(customerFieldErrors.email)} aria-describedby={customerFieldErrors.email ? "menu-email-error" : undefined} className={`mt-1.5 w-full rounded-xl border px-3.5 py-3 font-normal outline-none ${customerFieldErrors.email ? "border-red-500 focus:border-red-600" : "border-gray-200 focus:border-[var(--supplier-outline,#168e00)]"}`} />
                   {customerFieldErrors.email ? <span id="menu-email-error" role="alert" className="mt-1 block text-xs font-medium text-red-600">{customerFieldErrors.email}</span> : null}
                 </label>
                 <label className="text-sm font-bold text-gray-700">
                   Teléfono <span className="text-red-600" aria-hidden="true">*</span>
-                  <input ref={phoneInputRef} type="tel" value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setCustomerFieldErrors((current) => current.phone ? { ...current, phone: undefined } : current); }} required minLength={7} maxLength={40} aria-invalid={Boolean(customerFieldErrors.phone)} aria-describedby={customerFieldErrors.phone ? "menu-phone-error" : undefined} className={`mt-1.5 w-full rounded-xl border px-3.5 py-3 font-normal outline-none ${customerFieldErrors.phone ? "border-red-500 focus:border-red-600" : "border-gray-200 focus:border-[#168e00]"}`} />
+                  <input ref={phoneInputRef} type="tel" value={customerPhone} onChange={(event) => { setCustomerPhone(event.target.value); setCustomerFieldErrors((current) => current.phone ? { ...current, phone: undefined } : current); }} required minLength={7} maxLength={40} aria-invalid={Boolean(customerFieldErrors.phone)} aria-describedby={customerFieldErrors.phone ? "menu-phone-error" : undefined} className={`mt-1.5 w-full rounded-xl border px-3.5 py-3 font-normal outline-none ${customerFieldErrors.phone ? "border-red-500 focus:border-red-600" : "border-gray-200 focus:border-[var(--supplier-outline,#168e00)]"}`} />
                   {customerFieldErrors.phone ? <span id="menu-phone-error" role="alert" className="mt-1 block text-xs font-medium text-red-600">{customerFieldErrors.phone}</span> : null}
                 </label>
               </div>
@@ -1486,16 +1486,16 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                 <legend className="text-sm font-bold text-gray-700">¿Cómo quieres recibirlo?</legend>
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
                   {orderSettings?.allows_pickup ? (
-                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${fulfillmentType === "pickup" ? "border-[#168e00] bg-[#168e00]/5" : "border-gray-200"}`}>
-                      <input type="radio" name="fulfillment" value="pickup" checked={fulfillmentType === "pickup"} onChange={() => { invalidateShippingQuote(); setFulfillmentType("pickup"); }} className="accent-[#168e00]" />
-                      <Store className="text-[#168e00]" size={21} />
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${fulfillmentType === "pickup" ? "border-[var(--supplier-outline,#168e00)] bg-[var(--supplier-primary,#168e00)]/5" : "border-gray-200"}`}>
+                      <input type="radio" name="fulfillment" value="pickup" checked={fulfillmentType === "pickup"} onChange={() => { invalidateShippingQuote(); setFulfillmentType("pickup"); }} className="accent-[var(--supplier-outline,#168e00)]" />
+                      <Store className="text-[var(--supplier-accent,#168e00)]" size={21} />
                       <span><strong className="block text-sm text-gray-900">Recoger</strong><span className="text-xs text-gray-500">En el establecimiento</span></span>
                     </label>
                   ) : null}
                   {orderSettings?.allows_delivery ? (
-                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${fulfillmentType === "delivery" ? "border-[#168e00] bg-[#168e00]/5" : "border-gray-200"}`}>
-                      <input type="radio" name="fulfillment" value="delivery" checked={fulfillmentType === "delivery"} onChange={() => { invalidateShippingQuote(); setFulfillmentType("delivery"); }} className="accent-[#168e00]" />
-                      <Truck className="text-[#168e00]" size={21} />
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${fulfillmentType === "delivery" ? "border-[var(--supplier-outline,#168e00)] bg-[var(--supplier-primary,#168e00)]/5" : "border-gray-200"}`}>
+                      <input type="radio" name="fulfillment" value="delivery" checked={fulfillmentType === "delivery"} onChange={() => { invalidateShippingQuote(); setFulfillmentType("delivery"); }} className="accent-[var(--supplier-outline,#168e00)]" />
+                      <Truck className="text-[var(--supplier-accent,#168e00)]" size={21} />
                       <span><strong className="block text-sm text-gray-900">Domicilio</strong><span className="text-xs text-gray-500">Entrega por el negocio</span></span>
                     </label>
                   ) : null}
@@ -1521,7 +1521,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                       Este negocio aún no tiene una ubicación configurada y no es posible calcular el envío.
                     </p>
                   ) : shippingQuoteLoading ? (
-                    <p className="flex items-center gap-2 rounded-xl bg-[#f2f3f4] p-3 text-sm font-semibold text-[#004e28]">
+                    <p className="flex items-center gap-2 rounded-xl supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] p-3 text-sm font-semibold text-[var(--supplier-heading,#004e28)]">
                       <Loader2 size={16} className="animate-spin" /> Calculando costo de envío...
                     </p>
                   ) : shippingQuoteError ? (
@@ -1536,17 +1536,17 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                 <legend className="text-sm font-bold text-gray-700">¿Cómo quieres pagar?</legend>
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
                   {orderSettings?.allows_cash ? (
-                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${paymentMethod === "cash" ? "border-[#168e00] bg-[#168e00]/5" : "border-gray-200"}`}>
-                      <input type="radio" name="payment" value="cash" checked={paymentMethod === "cash"} onChange={() => setPaymentMethod("cash")} className="accent-[#168e00]" />
-                      <Banknote className="text-[#168e00]" size={22} />
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${paymentMethod === "cash" ? "border-[var(--supplier-outline,#168e00)] bg-[var(--supplier-primary,#168e00)]/5" : "border-gray-200"}`}>
+                      <input type="radio" name="payment" value="cash" checked={paymentMethod === "cash"} onChange={() => setPaymentMethod("cash")} className="accent-[var(--supplier-outline,#168e00)]" />
+                      <Banknote className="text-[var(--supplier-accent,#168e00)]" size={22} />
                       <span><strong className="block text-sm text-gray-900">Efectivo</strong><span className="text-xs text-gray-500">Paga al recoger o recibir</span></span>
                     </label>
                   ) : null}
 
                   {orderSettings?.online_payment_available ? (
-                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${paymentMethod === "online" ? "border-[#168e00] bg-[#168e00]/5" : "border-gray-200"}`}>
-                      <input type="radio" name="payment" value="online" checked={paymentMethod === "online"} onChange={() => setPaymentMethod("online")} className="accent-[#168e00]" />
-                      <CreditCard className="text-[#168e00]" size={22} />
+                    <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 ${paymentMethod === "online" ? "border-[var(--supplier-outline,#168e00)] bg-[var(--supplier-primary,#168e00)]/5" : "border-gray-200"}`}>
+                      <input type="radio" name="payment" value="online" checked={paymentMethod === "online"} onChange={() => setPaymentMethod("online")} className="accent-[var(--supplier-outline,#168e00)]" />
+                      <CreditCard className="text-[var(--supplier-accent,#168e00)]" size={22} />
                       <span><strong className="block text-sm text-gray-900">Tarjeta / Mercado Pago</strong><span className="text-xs text-gray-500">Paga en línea de forma segura</span></span>
                     </label>
                   ) : null}
@@ -1561,10 +1561,10 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
 
               <label className="block text-sm font-bold text-gray-700">
                 Notas generales <span className="font-normal text-gray-400">(opcional)</span>
-                <textarea value={generalNotes} onChange={(event) => setGeneralNotes(event.target.value)} maxLength={1500} placeholder="Cualquier indicación general para el negocio" className="mt-1.5 min-h-20 w-full resize-none rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[#168e00]" />
+                <textarea value={generalNotes} onChange={(event) => setGeneralNotes(event.target.value)} maxLength={1500} placeholder="Cualquier indicación general para el negocio" className="mt-1.5 min-h-20 w-full resize-none rounded-xl border border-gray-200 px-3.5 py-3 font-normal outline-none focus:border-[var(--supplier-outline,#168e00)]" />
               </label>
 
-              <div className="rounded-2xl bg-[#f2f3f4] p-4">
+              <div className="rounded-2xl supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] p-4">
                 <div className="flex items-center justify-between text-sm"><span className="text-gray-500">Subtotal productos</span><strong>{currencyFormatter.format(cartSubtotal)}</strong></div>
                 {fulfillmentType === "delivery" ? (
                   <>
@@ -1573,7 +1573,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                     ) : null}
                     <div className="mt-2 flex items-center justify-between text-sm">
                       <span className="text-gray-500">Envío</span>
-                      <strong className="text-right text-[#004e28]">
+                      <strong className="text-right text-[var(--supplier-heading,#004e28)]">
                         {shippingQuote
                           ? currencyFormatter.format(shippingQuote.delivery_fee)
                           : shippingQuoteLoading
@@ -1590,14 +1590,14 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                     <strong>{currencyFormatter.format(0)}</strong>
                   </div>
                 )}
-                <div className="mt-3 flex items-center justify-between border-t border-[#004e28]/10 pt-3"><span className="font-bold text-[#004e28]">Total</span><strong className="text-xl text-[#168e00]">{checkoutTotal == null ? "Pendiente" : currencyFormatter.format(checkoutTotal)}</strong></div>
+                <div className="mt-3 flex items-center justify-between border-t border-[var(--supplier-heading,#004e28)]/10 pt-3"><span className="font-bold text-[var(--supplier-heading,#004e28)]">Total</span><strong className="text-xl text-[var(--supplier-accent,#168e00)]">{checkoutTotal == null ? "Pendiente" : currencyFormatter.format(checkoutTotal)}</strong></div>
                 {paymentMethod === "online" ? <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500"><CreditCard size={13} /> Completarás tu pago en la página segura de Mercado Pago.</p> : null}
               </div>
 
               {checkoutError ? (
                 <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{checkoutError}</div>
               ) : null}
-              <button type="submit" disabled={submitting || (fulfillmentType === "delivery" && (delivery.loading || delivery.resolvingAddress || shippingQuoteLoading))} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#168e00] px-4 py-3.5 font-bold text-white hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="submit" disabled={submitting || (fulfillmentType === "delivery" && (delivery.loading || delivery.resolvingAddress || shippingQuoteLoading))} className="inline-flex w-full items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-3.5 font-bold text-[color:var(--supplier-inverse,#ffffff)] hover:bg-[var(--supplier-primary-hover,#117500)] disabled:cursor-not-allowed disabled:opacity-50">
                 {submitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                 {submitting ? "Creando pedido..." : paymentMethod === "online" ? "Continuar al pago seguro" : "Confirmar pedido"}
               </button>

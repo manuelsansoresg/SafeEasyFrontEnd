@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
 import { Supplier, CarouselImage, Certificate } from "@/lib/products";
-import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Store, Star, Check, MessageCircle, X, Calendar, Play, Clock, ArrowDown, Volume2, VolumeX, Search, BriefcaseBusiness, Facebook, Instagram, X as XIcon, Award } from "lucide-react";
+import { MapPin, Phone, Mail, CheckCircle, ChevronLeft, ChevronRight, Star, Check, MessageCircle, X, Calendar, Play, Clock, ArrowDown, Volume2, VolumeX, Search, BriefcaseBusiness, Facebook, Instagram, X as XIcon } from "lucide-react";
 import StarRating from "@/components/StarRating";
 import { ProductCard } from "@/components/ProductCard";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
@@ -37,7 +37,8 @@ import {
 import { SupplierCatalogFilters } from "@/components/supplier/SupplierCatalogFilters";
 import { DirectoryRatingsSection } from "@/components/supplier/DirectoryRatingsSection";
 import { DirectoryContactButton } from "@/components/supplier/DirectoryContactButton";
-import { getContrastRatio, getReadableTextColor, resolveSupplierTheme } from "@/lib/supplierTheme";
+import { SupplierAboutSection } from "@/components/supplier/SupplierAboutSection";
+import { SupplierTheme } from "@/components/supplier/SupplierTheme";
 import { DirectoryTopNav } from "@/components/supplier/DirectoryTopNav";
 import { DirectoryGallerySection } from "@/components/supplier/DirectoryGallerySection";
 import type { SupplierGalleryImage } from "@/types/supplierGallery";
@@ -133,16 +134,6 @@ const pickSocialLinks = (source: Supplier | null): SocialLink[] => {
   return links;
 };
 
-// --- THEME CONSTANTS (From user request) ---
-const THEME = {
-  primaryDark: "#004e28", // Barra principal, Titulos
-  primary: "#168e00",     // Subtitulos, Botones
-  bgAlt: "#f2f3f4",       // Fondos contraste
-  textMain: "#000000",
-  textInv: "#ffffff"
-};
-
-
 function InlineVideo({ src, poster }: { src: string; poster?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [showPlayer, setShowPlayer] = useState(false);
@@ -210,7 +201,7 @@ function InlineVideo({ src, poster }: { src: string; poster?: string }) {
             <div className="w-full h-full bg-gray-900" />
           )}
           <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-            <span className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#168e00] text-white shadow-lg transform group-hover:scale-110 transition-transform duration-300">
+            <span className="inline-flex items-center justify-center w-20 h-20 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)] shadow-lg transform group-hover:scale-110 transition-transform duration-300">
               <Play size={32} className="ml-1" />
             </span>
           </div>
@@ -218,13 +209,13 @@ function InlineVideo({ src, poster }: { src: string; poster?: string }) {
       )}
 
       {error && (
-        <div className="w-full h-full bg-gray-900 text-white flex flex-col items-center justify-center gap-2">
+        <div className="w-full h-full bg-gray-900 text-[color:var(--supplier-inverse,#ffffff)] flex flex-col items-center justify-center gap-2">
           <div className="text-sm opacity-80">No se pudo reproducir el video.</div>
           <a
             href={src}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-6 py-2 bg-white text-[#004e28] rounded-full text-sm font-bold hover:bg-gray-100 transition-colors"
+            className="px-6 py-2 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] text-[var(--supplier-heading,#004e28)] rounded-full text-sm font-bold hover:bg-[var(--supplier-hover-card,#f3f4f6)] transition-colors"
           >
             Ver archivo
           </a>
@@ -298,7 +289,7 @@ function Carousel({ images }: { images: CarouselImage[] }) {
                         key={idx}
                         onClick={() => setCurrentIndex(idx)}
                         className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                            idx === currentIndex ? "bg-[#168e00] w-8" : "bg-white/50 hover:bg-white"
+                            idx === currentIndex ? "supplier-surface-primary bg-[var(--supplier-primary,#168e00)] w-8" : "bg-[var(--supplier-card-background,#ffffff)]/50 hover:bg-[var(--supplier-card-background,#ffffff)]"
                         }`}
                         aria-label={`Ir a slide ${idx + 1}`}
                     />
@@ -349,8 +340,8 @@ function DirectoryServiceCard({
     "/placeholder.png";
 
   return (
-    <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-3xl border border-[#004e28]/10 bg-white shadow-[0_18px_45px_-32px_rgba(0,78,40,0.45)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_-30px_rgba(0,78,40,0.5)]">
-      <div className="relative aspect-square w-full overflow-hidden bg-[#e9efeb]">
+    <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-3xl border border-[var(--supplier-heading,#004e28)]/10 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] shadow-[0_18px_45px_-32px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_45%,transparent)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_-30px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_50%,transparent)]">
+      <div className="relative aspect-square w-full overflow-hidden supplier-surface-page bg-[var(--supplier-page-background,#e9efeb)]">
         <Image
           src={imageUrl}
           alt={`Servicio ${service.title}`}
@@ -362,7 +353,7 @@ function DirectoryServiceCard({
       </div>
 
       <div className="flex flex-1 flex-col p-6">
-        <h3 className="line-clamp-2 min-h-12 text-lg font-bold leading-snug text-[#004e28] font-[family-name:var(--font-varela-round)]">
+        <h3 className="line-clamp-2 min-h-12 text-lg font-bold leading-snug text-[var(--supplier-heading,#004e28)] font-[family-name:var(--font-varela-round)]">
           {service.title}
         </h3>
         {service.description ? (
@@ -373,7 +364,7 @@ function DirectoryServiceCard({
           <div aria-hidden="true" className="mt-2 min-h-[4.5rem]" />
         )}
         {hasPrice ? (
-          <p className="mt-3 min-h-6 text-sm font-bold text-[#168e00]">
+          <p className="mt-3 min-h-6 text-sm font-bold text-[var(--supplier-accent,#168e00)]">
             Desde{" "}
             {new Intl.NumberFormat("es-MX", {
               style: "currency",
@@ -385,7 +376,7 @@ function DirectoryServiceCard({
         )}
         <Link
           href={`/servicios/${service.id}`}
-          className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-bold text-[#168e00] transition-colors hover:text-[#004e28]"
+          className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-bold text-[var(--supplier-accent,#168e00)] transition-colors hover:text-[var(--supplier-heading,#004e28)]"
         >
           Ver más
           <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">→</span>
@@ -1092,7 +1083,6 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   ]);
 
     const [logoError, setLogoError] = useState(false);
-    const [aboutError, setAboutError] = useState(false);
     const [introError, setIntroError] = useState(false);
 
   const getImageUrl = (path: string | null) => {
@@ -1317,53 +1307,11 @@ const contactHref = supplier?.phone
 
   const sectionFocusClass = (sections: SiteBuilderSection[]) =>
     isBuilderPreview && builderSection && sections.includes(builderSection)
-      ? "ring-1 ring-inset ring-[#168e00]"
+      ? "ring-1 ring-inset ring-[var(--supplier-outline,#168e00)]"
       : "";
 
-  const supplierTheme = resolveSupplierTheme(supplier);
-  const supplierPrimaryColor = supplierTheme.primary;
-  const supplierCardColor = supplierTheme.cardBackground;
-  const supplierChipOutlineColor =
-    getContrastRatio(supplierPrimaryColor, supplierCardColor) >= 3
-      ? supplierPrimaryColor
-      : getReadableTextColor(supplierCardColor);
-  const themeStyle = {
-    "--supplier-page-background": supplierTheme.pageBackground,
-    "--supplier-card-background": supplierCardColor,
-    "--supplier-header-background": supplierTheme.headerBackground,
-    "--supplier-on-header": getReadableTextColor(supplierTheme.headerBackground),
-    "--supplier-primary": supplierPrimaryColor,
-    "--supplier-on-primary": getReadableTextColor(supplierPrimaryColor),
-    "--supplier-chip-outline": supplierChipOutlineColor,
-  } as CSSProperties;
-
   return (
-    <div className="drooopy-supplier-theme min-h-screen bg-[var(--supplier-page-background)] font-sans selection:bg-[#168e00] selection:text-white" style={themeStyle}>
-      <style>{`
-        .drooopy-supplier-theme section [class~="bg-white"] { background-color: var(--supplier-card-background); }
-        .drooopy-supplier-theme section[class*="bg-[#f2f3f4]"],
-        .drooopy-supplier-theme section[class*="bg-white"] { background-color: var(--supplier-page-background); }
-        .drooopy-supplier-theme > nav { background-color: var(--supplier-header-background); }
-        .drooopy-supplier-theme [class~="bg-[#168e00]"] { background-color: var(--supplier-primary); }
-        .drooopy-supplier-theme [class~="bg-[#168e00]/5"] { background-color: color-mix(in srgb, var(--supplier-primary) 5%, transparent); }
-        .drooopy-supplier-theme [class~="bg-[#168e00]/8"] { background-color: color-mix(in srgb, var(--supplier-primary) 8%, transparent); }
-        .drooopy-supplier-theme [class~="bg-[#168e00]/10"] { background-color: color-mix(in srgb, var(--supplier-primary) 10%, transparent); }
-        .drooopy-supplier-theme [class~="bg-[#168e00]/15"] { background-color: color-mix(in srgb, var(--supplier-primary) 15%, transparent); }
-        .drooopy-supplier-theme [class~="bg-[#168e00]/20"] { background-color: color-mix(in srgb, var(--supplier-primary) 20%, transparent); }
-        .drooopy-supplier-theme [class~="bg-[#168e00]/[0.03]"] { background-color: color-mix(in srgb, var(--supplier-primary) 3%, transparent); }
-        .drooopy-supplier-theme [class~="border-[#168e00]"] { border-color: var(--supplier-primary); }
-        .drooopy-supplier-theme [class~="border-[#168e00]/15"] { border-color: color-mix(in srgb, var(--supplier-primary) 15%, transparent); }
-        .drooopy-supplier-theme [class~="border-[#168e00]/20"] { border-color: color-mix(in srgb, var(--supplier-primary) 20%, transparent); }
-        .drooopy-supplier-theme [class~="border-[#168e00]/30"] { border-color: color-mix(in srgb, var(--supplier-primary) 30%, transparent); }
-        .drooopy-supplier-theme [class~="border-[#168e00]/35"] { border-color: color-mix(in srgb, var(--supplier-primary) 35%, transparent); }
-        .drooopy-supplier-theme [class~="border-[#168e00]/40"] { border-color: color-mix(in srgb, var(--supplier-primary) 40%, transparent); }
-        .drooopy-supplier-theme [class~="border-[#168e00]/50"] { border-color: color-mix(in srgb, var(--supplier-primary) 50%, transparent); }
-        .drooopy-supplier-theme [class~="text-[#168e00]"] { color: var(--supplier-primary); }
-        .drooopy-supplier-theme [class~="accent-[#168e00]"] { accent-color: var(--supplier-primary); }
-        .drooopy-supplier-theme [class~="bg-[#168e00]"][class~="text-white"] { color: var(--supplier-on-primary); }
-        .drooopy-supplier-theme #contacto { background-color: #004e28; }
-        [data-builder-active="true"] { outline: 1px solid #168e00; outline-offset: -1px; }
-      `}</style>
+    <SupplierTheme supplier={supplier} className="min-h-screen font-sans">
 
       {isDirectory ? (
         <DirectoryTopNav
@@ -1382,7 +1330,7 @@ const contactHref = supplier?.phone
       {/* --- HERO SECTION --- */}
       <section
         id="inicio"
-        className={`group relative w-full scroll-mt-20 overflow-hidden bg-black ${sectionFocusClass(["general", "appearance", "header"])} ${
+        className={`supplier-media group relative w-full scroll-mt-20 overflow-hidden bg-black ${sectionFocusClass(["general", "appearance", "header"])} ${
           isDirectory
             ? "min-h-[calc(100svh-4rem)] xl:min-h-0"
             : "min-h-[100svh] xl:min-h-0 xl:pt-24"
@@ -1416,7 +1364,7 @@ const contactHref = supplier?.phone
            {supplier.header_media_type === 'video' && supplier.header_video && (
                <button
                   onClick={toggleMute}
-                  className="absolute bottom-6 right-6 z-40 rounded-full border border-white/20 bg-black/40 p-3 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/60"
+                  className="absolute bottom-6 right-6 z-40 rounded-full border border-white/20 bg-black/40 p-3 text-[color:var(--supplier-inverse,#ffffff)] backdrop-blur-md transition-all hover:scale-110 hover:bg-black/60"
                   aria-label={isMuted ? "Activar sonido" : "Silenciar"}
                >
                    {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
@@ -1436,12 +1384,12 @@ const contactHref = supplier?.phone
          >
              <div className="animate-in fade-in slide-in-from-left-10 mx-auto w-full max-w-6xl duration-1000">
                 {supplierLogo && !logoError && (
-                    <div className="mx-auto mb-5 h-[clamp(4.5rem,11svh,7rem)] w-[clamp(4.5rem,11svh,7rem)] rounded-2xl border border-white/20 bg-white/10 p-3 shadow-2xl backdrop-blur-md sm:mb-6 md:mx-0 md:rounded-3xl">
+                    <div className="mx-auto mb-5 h-[clamp(4.5rem,11svh,7rem)] w-[clamp(4.5rem,11svh,7rem)] rounded-2xl border border-white/20 bg-[var(--supplier-card-background,#ffffff)]/10 p-3 shadow-2xl backdrop-blur-md sm:mb-6 md:mx-0 md:rounded-3xl">
                         <img src={getImageUrl(supplierLogo)} alt={supplier.name} className="w-full h-full object-contain drop-shadow-md" onError={() => setLogoError(true)} />
                     </div>
                 )}
                 
-                <h1 className={`mb-5 max-w-full break-words font-black uppercase leading-[0.92] tracking-[-0.045em] text-white drop-shadow-2xl font-[family-name:var(--font-varela-round)] sm:mb-6 ${
+                <h1 className={`mb-5 max-w-full break-words font-black uppercase leading-[0.92] tracking-[-0.045em] text-[color:var(--supplier-inverse,#ffffff)] drop-shadow-2xl font-[family-name:var(--font-varela-round)] sm:mb-6 ${
                   isDirectory
                     ? "text-[clamp(2.5rem,min(6vw,11svh),6rem)]"
                     : "text-[clamp(2.5rem,min(5.25vw,10svh),5.5rem)]"
@@ -1450,14 +1398,14 @@ const contactHref = supplier?.phone
                 </h1>
                 
                 {supplier.short_description ? (
-                  <p className="mx-auto mb-7 max-w-3xl border-l-0 border-[#168e00] pl-0 text-[clamp(1rem,min(1.45vw,2.8svh),1.35rem)] font-light leading-relaxed text-gray-100 drop-shadow-lg font-[family-name:var(--font-poppins)] sm:mb-8 md:mx-0 md:border-l-4 md:pl-6">
+                  <p className="mx-auto mb-7 max-w-3xl border-l-0 border-[var(--supplier-outline,#168e00)] pl-0 text-[clamp(1rem,min(1.45vw,2.8svh),1.35rem)] font-light leading-relaxed text-gray-100 drop-shadow-lg font-[family-name:var(--font-poppins)] sm:mb-8 md:mx-0 md:border-l-4 md:pl-6">
                     {supplier.short_description}
                   </p>
                 ) : null}
 
                 <div className="mb-6 flex w-full flex-col flex-wrap items-stretch justify-center gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4 md:justify-start">
                       {!isDirectory ? (
-                        <Link href={`${supplierBasePath}productos/`} onClick={(event) => { event.preventDefault(); handleShowProducts(); }} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#168e00] px-7 py-3 text-base font-bold text-white shadow-[0_0_30px_-5px_rgba(22,142,0,0.6)] transition-all hover:-translate-y-1 hover:bg-[#137a00] hover:shadow-[0_0_40px_-5px_rgba(22,142,0,0.8)] font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
+                        <Link href={`${supplierBasePath}productos/`} onClick={(event) => { event.preventDefault(); handleShowProducts(); }} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-7 py-3 text-base font-bold text-[color:var(--supplier-inverse,#ffffff)] shadow-[0_0_30px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_60%,transparent)] transition-all hover:-translate-y-1 hover:bg-[var(--supplier-primary-hover,#137a00)] hover:shadow-[0_0_40px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_80%,transparent)] font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
                             Ver Catálogo <ArrowDown size={20} />
                         </Link>
                       ) : null}
@@ -1471,7 +1419,7 @@ const contactHref = supplier?.phone
                         />
                       ) : null}
                       {hasContactSection ? (
-                        <button type="button" onClick={handleContactClick} className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/30 bg-white/10 px-7 py-3 text-base font-bold text-white backdrop-blur-md transition-all hover:-translate-y-1 hover:bg-white/20 font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
+                        <button type="button" onClick={handleContactClick} className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/30 bg-[var(--supplier-card-background,#ffffff)]/10 px-7 py-3 text-base font-bold text-[color:var(--supplier-inverse,#ffffff)] backdrop-blur-md transition-all hover:-translate-y-1 hover:bg-[var(--supplier-card-background,#ffffff)]/20 font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
                           Contactar Ahora
                         </button>
                       ) : null}
@@ -1485,27 +1433,27 @@ const contactHref = supplier?.phone
              <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-10 px-5 py-6 md:gap-16 md:px-8">
                  {Number(supplier.rating_count) > 0 && Number(supplier.average_rating) > 0 ? (
                    <div className="text-center md:text-left">
-                       <div className="text-3xl font-black text-[#168e00] font-[family-name:var(--font-varela-round)]">{supplier.average_rating?.toFixed(1)}</div>
-                       <div className="text-white/60 text-xs uppercase tracking-widest font-bold">Calificación</div>
+                       <div className="text-3xl font-black text-[var(--supplier-accent,#168e00)] font-[family-name:var(--font-varela-round)]">{supplier.average_rating?.toFixed(1)}</div>
+                       <div className="text-[color:var(--supplier-inverse-muted,#ffffff)] text-xs uppercase tracking-widest font-bold">Calificación</div>
                    </div>
                  ) : null}
                  {Number(supplier.sales_count) > 0 ? (
                    <div className="text-center md:text-left">
-                       <div className="text-3xl font-black text-white font-[family-name:var(--font-varela-round)]">
+                       <div className="text-3xl font-black text-[color:var(--supplier-inverse,#ffffff)] font-[family-name:var(--font-varela-round)]">
                          {supplier.sales_count}
                        </div>
-                       <div className="text-white/60 text-xs uppercase tracking-widest font-bold">
+                       <div className="text-[color:var(--supplier-inverse-muted,#ffffff)] text-xs uppercase tracking-widest font-bold">
                          Ventas
                        </div>
                    </div>
                  ) : null}
                 {supplier.is_verified ? (
                   <div className="flex items-center">
-                    <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
-                      <div className="w-8 h-8 rounded-full bg-[#168e00] flex items-center justify-center text-white">
+                    <div className="flex items-center gap-3 bg-[var(--supplier-card-background,#ffffff)]/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
+                      <div className="w-8 h-8 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)] flex items-center justify-center text-[color:var(--supplier-inverse,#ffffff)]">
                         <Check size={18} strokeWidth={4} />
                       </div>
-                      <span className="text-white font-bold text-sm uppercase tracking-wider">Empresa Verificada</span>
+                      <span className="text-[color:var(--supplier-inverse,#ffffff)] font-bold text-sm uppercase tracking-wider">Empresa Verificada</span>
                     </div>
                   </div>
                 ) : null}
@@ -1538,23 +1486,23 @@ const contactHref = supplier?.phone
       {activeTab === "main" && supplier.description?.trim() ? (
         <section
           aria-labelledby="supplier-description-title"
-          className="relative overflow-hidden bg-gradient-to-b from-white to-[#f7f9f8] py-14 md:py-20"
+          className="relative overflow-hidden supplier-surface-page bg-gradient-to-b from-[var(--supplier-page-background,#ffffff)] to-[var(--supplier-page-background,#f7f9f8)] py-14 md:py-20"
         >
           <div className="mx-auto max-w-6xl px-5 md:px-8">
             <article className="max-w-4xl">
               <span
                 aria-hidden="true"
-                className="mb-7 block h-1 w-14 rounded-full bg-[#168e00]"
+                className="mb-7 block h-1 w-14 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)]"
               />
               <h2
                 id="supplier-description-title"
-                className="font-[family-name:var(--font-varela-round)] text-3xl font-bold text-[#004e28] md:text-5xl"
+                className="font-[family-name:var(--font-varela-round)] text-3xl font-bold text-[var(--supplier-heading,#004e28)] md:text-5xl"
               >
                 Conoce a {supplier.name}
               </h2>
               <div className="ql-snow mt-7 w-full">
                 <div
-                  className="ql-editor max-w-none p-0 text-base leading-8 text-gray-700 [&_a]:font-semibold [&_a]:text-[#168e00] [&_a]:underline-offset-4 [&_a:hover]:underline [&_li]:mb-2 [&_p]:mb-5 [&_p:last-child]:mb-0 md:text-lg md:leading-9"
+                  className="ql-editor max-w-none p-0 text-base leading-8 text-gray-700 [&_a]:font-semibold [&_a]:text-[var(--supplier-accent,#168e00)] [&_a]:underline-offset-4 [&_a:hover]:underline [&_li]:mb-2 [&_p]:mb-5 [&_p:last-child]:mb-0 md:text-lg md:leading-9"
                   dangerouslySetInnerHTML={{
                     __html: sanitizeDescriptionHtml(
                       supplier.description.trim(),
@@ -1570,17 +1518,17 @@ const contactHref = supplier?.phone
       {isDirectory && activeTab === "main" && (servicesLoading || serviceCatalog.length > 0 || selectedServiceCategory) ? (
         <section
           id="servicios"
-          className="relative scroll-mt-20 overflow-hidden bg-[#f2f3f4] py-20"
+          className="relative scroll-mt-20 overflow-hidden supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] py-20"
         >
-          <div className="pointer-events-none absolute -right-64 -top-64 h-[620px] w-[620px] rounded-full bg-[#168e00]/5 blur-3xl" />
+          <div className="pointer-events-none absolute -right-64 -top-64 h-[620px] w-[620px] rounded-full bg-[var(--supplier-primary,#168e00)]/5 blur-3xl" />
           <div className="relative z-10 mx-auto max-w-6xl px-5 md:px-8">
             <div className="mb-10 flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
               <div className="max-w-2xl">
-                <span className="mb-3 inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-[#168e00]">
+                <span className="mb-3 inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-[var(--supplier-accent,#168e00)]">
                   <BriefcaseBusiness size={17} />
                   Directorio empresarial
                 </span>
-                <h2 className="font-[family-name:var(--font-varela-round)] text-3xl font-black text-[#004e28] md:text-5xl">
+                <h2 className="font-[family-name:var(--font-varela-round)] text-3xl font-black text-[var(--supplier-heading,#004e28)] md:text-5xl">
                   Servicios
                 </h2>
                 <p className="mt-3 text-base leading-7 text-gray-600">
@@ -1600,7 +1548,7 @@ const contactHref = supplier?.phone
                     value={serviceSearchQuery}
                     onChange={(event) => setServiceSearchQuery(event.target.value)}
                     placeholder="Buscar servicios..."
-                    className="w-full rounded-2xl border border-gray-200 bg-white py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10"
+                    className="w-full rounded-2xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-[var(--supplier-outline,#168e00)] focus:ring-4 focus:ring-[var(--supplier-outline,#168e00)]/10"
                   />
                 </label>
               ) : null}
@@ -1622,16 +1570,16 @@ const contactHref = supplier?.phone
                 {[1, 2, 3].map((item) => (
                   <div
                     key={item}
-                    className="aspect-[4/5] animate-pulse rounded-[2rem] bg-white"
+                    className="aspect-[4/5] animate-pulse rounded-[2rem] supplier-surface-card bg-[var(--supplier-card-background,#ffffff)]"
                   />
                 ))}
               </div>
             ) : servicesError ? (
-              <div className="rounded-[2rem] bg-white px-6 py-14 text-center shadow-sm">
+              <div className="rounded-[2rem] supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-6 py-14 text-center shadow-sm">
                 <p className="font-semibold text-red-600">{servicesError}</p>
               </div>
             ) : filteredServices.length === 0 ? (
-              <div className="rounded-[2rem] bg-white px-6 py-14 text-center shadow-sm">
+              <div className="rounded-[2rem] supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-6 py-14 text-center shadow-sm">
                 <p className="font-semibold text-gray-500">
                   {serviceSearchQuery
                     ? "No encontramos servicios con esos filtros."
@@ -1655,9 +1603,9 @@ const contactHref = supplier?.phone
       {isDirectory && activeTab === "main" && (supplier.intro_title?.trim() || supplier.intro_description?.trim() || supplier.intro_image_url) ? (
         <section
           id="intro"
-          className="relative scroll-mt-20 overflow-hidden bg-[#004e28] py-16 text-white md:py-24"
+          className="relative scroll-mt-20 overflow-hidden supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] py-16 text-[color:var(--supplier-inverse,#ffffff)] md:py-24"
         >
-          <div className="pointer-events-none absolute -left-40 top-1/2 h-[420px] w-[420px] -translate-y-1/2 rounded-full bg-[#168e00]/15 blur-3xl" />
+          <div className="pointer-events-none absolute -left-40 top-1/2 h-[420px] w-[420px] -translate-y-1/2 rounded-full bg-[var(--supplier-primary,#168e00)]/15 blur-3xl" />
           <div className="relative z-10 mx-auto grid max-w-6xl items-center gap-12 px-5 md:grid-cols-2 md:px-8">
             <div className="order-2 md:order-1">
               {supplier.intro_title?.trim() ? (
@@ -1666,7 +1614,7 @@ const contactHref = supplier?.phone
                 </h2>
               ) : null}
               {supplier.intro_description?.trim() ? (
-                <p className="mt-5 max-w-xl whitespace-pre-line text-base leading-8 text-white/85 md:text-lg md:leading-9">
+                <p className="mt-5 max-w-xl whitespace-pre-line text-base leading-8 text-[color:var(--supplier-inverse-muted,#ffffff)] md:text-lg md:leading-9">
                   {supplier.intro_description.trim()}
                 </p>
               ) : null}
@@ -1691,14 +1639,14 @@ const contactHref = supplier?.phone
 
       {/* --- PRODUCTS SECTION (Tab Content) --- */}
       {!isDirectory && activeTab === 'products' && (
-      <section id={isDirectory ? "servicios" : "productos"} className={`relative scroll-mt-20 overflow-hidden ${isDirectory ? "bg-[#f2f3f4] py-20" : "bg-[#f2f3f4] py-24"}`}>
+      <section id={isDirectory ? "servicios" : "productos"} className={`relative scroll-mt-20 overflow-hidden ${isDirectory ? "supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] py-20" : "supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] py-24"}`}>
         {/* Decorative Background Blob */}
-        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#004e28]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[var(--supplier-secondary,#004e28)]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 
         <div className="relative z-10 mx-auto max-w-6xl px-5 md:px-8">
             <div className={`flex flex-col md:flex-row items-center justify-between gap-6 ${isDirectory ? "mb-10" : "mb-16"}`}>
                 <div className="max-w-2xl">
-                    <h2 className={`${isDirectory ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl"} font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]`}>
+                    <h2 className={`${isDirectory ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl"} font-black text-[var(--supplier-heading,#004e28)] mb-4 font-[family-name:var(--font-varela-round)]`}>
                         {isDirectory ? "Servicios" : "Productos"}
                     </h2>
                 </div>
@@ -1707,7 +1655,7 @@ const contactHref = supplier?.phone
                 <div className="w-full md:w-auto">
                     <div className="relative w-full md:w-96 group">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <Search className="h-5 w-5 text-gray-400 group-focus-within:text-[#168e00] transition-colors" />
+                            <Search className="h-5 w-5 text-gray-400 group-focus-within:text-[var(--supplier-accent,#168e00)] transition-colors" />
                         </div>
                         <input
                             type="text"
@@ -1717,7 +1665,7 @@ const contactHref = supplier?.phone
                               setProductSearchQuery(event.target.value);
                               setPage(1);
                             }}
-                            className="block w-full pl-11 pr-4 py-4 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#168e00]/20 focus:border-[#168e00] transition-all shadow-sm hover:shadow-md"
+                            className="block w-full pl-11 pr-4 py-4 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--supplier-outline,#168e00)]/20 focus:border-[var(--supplier-outline,#168e00)] transition-all shadow-sm hover:shadow-md"
                         />
                         {productSearchQuery && (
                             <button
@@ -1755,7 +1703,7 @@ const contactHref = supplier?.phone
                     ))}
                 </div>
             ) : productsError ? (
-                <div className="text-center py-20 bg-white rounded-[3rem] shadow-sm">
+                <div className="text-center py-20 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] rounded-[3rem] shadow-sm">
                     <p className="text-xl text-red-500 font-bold mb-4">{productsError}</p>
                     <button 
                         onClick={() => void fetchProducts(
@@ -1768,13 +1716,13 @@ const contactHref = supplier?.phone
                             search: debouncedProductSearch,
                           },
                         )}
-                        className="px-6 py-3 bg-[#004e28] text-white rounded-full hover:bg-[#168e00] transition-colors"
+                        className="px-6 py-3 supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] text-[color:var(--supplier-inverse,#ffffff)] rounded-full hover:bg-[var(--supplier-primary,#168e00)] transition-colors"
                     >
                         Reintentar Carga
                     </button>
                 </div>
             ) : !isDirectory && visibleProducts.length === 0 ? (
-                <div className="rounded-[3rem] bg-white py-20 text-center shadow-sm">
+                <div className="rounded-[3rem] supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] py-20 text-center shadow-sm">
                     <p className="text-xl font-bold text-gray-400">
                       {productSearchQuery
                         ? "No encontramos productos con esos filtros."
@@ -1809,7 +1757,7 @@ const contactHref = supplier?.phone
             
             {/* Infinite Scroll Trigger */}
             <div ref={observerTarget} className="h-20 w-full flex items-center justify-center mt-12">
-                {productsLoading && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#004e28]" />}
+                {productsLoading && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--supplier-heading,#004e28)]" />}
             </div>
         </div>
       </section>
@@ -1827,206 +1775,24 @@ const contactHref = supplier?.phone
         </div>
         ) : null}
 
-      {/* --- NUESTRA ESENCIA (Storytelling) --- */}
       {(!isDirectory || hasAboutContent) ? (
-        <section
-          id="nosotros"
-          className={`relative scroll-mt-20 overflow-hidden ${sectionFocusClass(["information"])} ${
-            useDirectoryPresentation ? "bg-[#f2f3f4] py-16 md:py-24" : "bg-white py-24"
-          }`}
-        >
-          <div className="mx-auto max-w-6xl px-5 md:px-8">
-            {useDirectoryPresentation ? (
-              <>
-                <header className="mb-8">
-                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[#168e00]">
-                    {supplier.name}
-                  </p>
-                  <h2 className="text-3xl font-black tracking-[-0.025em] text-[#004e28] font-[family-name:var(--font-varela-round)] sm:text-4xl">
-                    Acerca de nosotros
-                  </h2>
-                </header>
-
-                <article className="overflow-hidden rounded-[2rem] border border-[#004e28]/15 bg-white shadow-[0_28px_80px_-48px_rgba(0,78,40,0.7)]">
-                  <div className={supplier.about_media ? "grid items-stretch lg:grid-cols-2" : ""}>
-                    {supplier.about_media && !aboutError ? (
-                      <div className="relative self-center overflow-hidden rounded-[1.5rem]">
-                        <img
-                          src={getImageUrl(supplier.about_media)}
-                          alt={supplier.name}
-                          className="block h-auto w-full"
-                          onError={() => setAboutError(true)}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#002f18]/45 via-transparent to-transparent" />
-                        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-6 sm:p-8">
-                          <p className="max-w-[75%] text-xl font-bold leading-tight text-white drop-shadow-md font-[family-name:var(--font-varela-round)] sm:text-2xl">
-                            {supplier.name}
-                          </p>
-                          {supplier.is_verified ? (
-                            <span
-                              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/30 bg-white/90 text-[#168e00] shadow-lg backdrop-blur"
-                              aria-label="Perfil verificado"
-                              title="Perfil verificado"
-                            >
-                              <Check size={20} strokeWidth={3} />
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className={`relative flex flex-col justify-center bg-[#004e28] p-9 text-white sm:p-12 lg:p-14 ${supplier.about_media ? "min-h-[400px]" : ""}`}>
-                      <span className="mb-8 block h-1 w-16 rounded-full bg-[#168e00]" aria-hidden="true" />
-                      {hasCustomAboutTitle || hasCustomAboutSubtitle ? (
-                        <h3 className="max-w-xl text-2xl font-black leading-[1.15] tracking-[-0.02em] text-white font-[family-name:var(--font-varela-round)] sm:text-3xl">
-                          {hasCustomAboutTitle ? supplier.title_about : null}
-                          {hasCustomAboutTitle && hasCustomAboutSubtitle ? <br /> : null}
-                          {hasCustomAboutSubtitle ? (
-                            <span className="text-[#168e00]">{supplier.subtitle_about}</span>
-                          ) : null}
-                        </h3>
-                      ) : null}
-
-                      {supplier.about ? (
-                        <div className={`${hasCustomAboutTitle || hasCustomAboutSubtitle ? "mt-7" : ""} max-w-3xl text-base leading-8 text-white/85 sm:text-lg sm:leading-9`}>
-                          <div className="ql-snow w-full">
-                            <div
-                              className="ql-editor break-normal [&_a]:font-semibold [&_a]:text-[#7cde68] [&_a]:underline-offset-4 [&_a:hover]:underline [&_li]:mb-3 [&_p]:mb-6 [&_p:last-child]:mb-0"
-                              style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
-                              dangerouslySetInnerHTML={{
-                                __html: sanitizeHtml(supplier.about || ""),
-                              }}
-                            />
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {(supplier.phone || supplier.email || supplier.address) ? (
-                        <div className="mt-10 flex flex-col gap-4 border-t border-white/15 pt-8">
-                          {supplier.phone ? (
-                            <a
-                              href={`tel:${supplier.phone}`}
-                              className="group inline-flex w-fit items-center gap-3 text-sm font-semibold text-white/90 transition-colors hover:text-white"
-                            >
-                              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-[#7cde68] transition-colors group-hover:bg-[#168e00] group-hover:text-white">
-                                <Phone size={16} aria-hidden="true" />
-                              </span>
-                              {supplier.phone}
-                            </a>
-                          ) : null}
-                          {supplier.email ? (
-                            <a
-                              href={`mailto:${supplier.email}`}
-                              className="group inline-flex w-fit items-center gap-3 text-sm font-semibold text-white/90 transition-colors hover:text-white"
-                            >
-                              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-[#7cde68] transition-colors group-hover:bg-[#168e00] group-hover:text-white">
-                                <Mail size={16} aria-hidden="true" />
-                              </span>
-                              {supplier.email}
-                            </a>
-                          ) : null}
-                          {supplier.address ? (
-                            <div className="inline-flex items-start gap-3 text-sm font-medium leading-6 text-white/75">
-                              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#7cde68]">
-                                <MapPin size={16} aria-hidden="true" />
-                              </span>
-                              <span className="pt-1.5">{supplier.address}</span>
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </article>
-              </>
-            ) : (
-              <div className="bg-[#f2f3f4] rounded-[3rem] p-8 md:p-16 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5" />
-
-                <div className={`relative z-10 grid grid-cols-1 items-center gap-16 ${supplier.about_media || !isDirectory ? "md:grid-cols-2" : ""}`}>
-                  {supplier.about_media && !aboutError ? (
-                    <div className="order-2 md:order-1">
-                      <div className="overflow-hidden rounded-3xl shadow-[0_20px_50px_-20px_rgba(0,0,0,0.3)] transition-transform duration-700 md:-rotate-2 md:hover:rotate-0">
-                        <img
-                          src={getImageUrl(supplier.about_media)}
-                          alt="Nosotros"
-                          className="block h-auto w-full"
-                          onError={() => setAboutError(true)}
-                        />
-                      </div>
-                    </div>
-                  ) : !isDirectory ? (
-                    <div className="order-2 md:order-1">
-                      <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-gray-300 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.3)] transition-transform duration-700 md:-rotate-2 md:hover:rotate-0">
-                        <div className="flex h-full w-full items-center justify-center">
-                          <Store size={64} className="text-gray-400" aria-hidden="true" />
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="order-1 md:order-2">
-                    {!isDirectory || hasCustomAboutTitle || hasCustomAboutSubtitle ? (
-                      <h2 className="text-3xl md:text-5xl font-black text-[#004e28] mb-8 font-[family-name:var(--font-varela-round)] leading-tight">
-                        {!isDirectory
-                          ? supplier.title_about?.trim() || "Más que un negocio,"
-                          : hasCustomAboutTitle
-                            ? supplier.title_about
-                            : null}
-                        {(!isDirectory || (hasCustomAboutTitle && hasCustomAboutSubtitle)) ? <br/> : null}
-                        {!isDirectory || hasCustomAboutSubtitle ? (
-                          <span className="text-[#168e00]">
-                            {!isDirectory
-                              ? supplier.subtitle_about?.trim() || "tu aliado estratégico."
-                              : supplier.subtitle_about}
-                          </span>
-                        ) : null}
-                      </h2>
-                    ) : null}
-                    {!isDirectory || supplier.about ? (
-                      <div className="text-gray-600 w-full">
-                        <div className="ql-snow w-full">
-                          <div
-                            className="ql-editor"
-                            style={{ padding: 0, color: "inherit", fontSize: "inherit", background: "transparent" }}
-                            dangerouslySetInnerHTML={{
-                              __html: sanitizeHtml(
-                                supplier.about ||
-                                  (!isDirectory
-                                    ? "Comprometidos con la excelencia y el servicio al cliente."
-                                    : ""),
-                              ),
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {supplier.is_verified ? (
-                      <div className="mt-10 flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-[#168e00] shadow-md">
-                          <Award size={32} />
-                        </div>
-                        <div>
-                          <p className="text-[#004e28] font-bold text-lg">Certificado de Calidad</p>
-                          <p className="text-sm text-gray-500">Verificado por Drooopy</p>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
+        <SupplierAboutSection
+          supplierName={supplier.name}
+          imageUrl={supplier.about_media ? getImageUrl(supplier.about_media) : null}
+          title={hasCustomAboutTitle ? supplier.title_about : null}
+          subtitle={hasCustomAboutSubtitle ? supplier.subtitle_about : null}
+          sanitizedHtml={sanitizeHtml(supplier.about || "")}
+          verified={Boolean(supplier.is_verified)}
+          className={sectionFocusClass(["information"])}
+        />
       ) : null}
 
       {/* --- CERTIFICATES SECTION --- */}
       {supplier.certificates && supplier.certificates.length > 0 && (
-        <section className="py-20 bg-[#f9fafb]">
+        <section className="py-20 supplier-surface-page bg-[var(--supplier-page-background,#f9fafb)]">
             <div className="mx-auto max-w-6xl px-5 md:px-8">
                 <div className="text-center mb-16">
-                    <h2 className="text-3xl md:text-4xl font-black text-[#004e28] mb-4 font-[family-name:var(--font-varela-round)]">
+                    <h2 className="text-3xl md:text-4xl font-black text-[var(--supplier-heading,#004e28)] mb-4 font-[family-name:var(--font-varela-round)]">
                         {supplier.certificates_title || 'Calidad Certificada'}
                     </h2>
                     {!isDirectory ? (
@@ -2038,7 +1804,7 @@ const contactHref = supplier?.phone
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                     {supplier.certificates.map((cert) => (
-                        <div key={cert.id} className="group relative bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 text-center border border-gray-100">
+                        <div key={cert.id} className="group relative supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 text-center border border-gray-100">
                             <div className="h-32 mb-4 flex items-center justify-center p-2 bg-gray-50 rounded-xl">
                                 <img 
                                     src={getImageUrl(cert.image || cert.image_url || "/placeholder-cert.png")} 
@@ -2046,12 +1812,12 @@ const contactHref = supplier?.phone
                                     className="max-h-full max-w-full object-contain grayscale group-hover:grayscale-0 transition-all duration-500" 
                                 />
                             </div>
-                            <h3 className="font-bold text-[#004e28] mb-1 font-[family-name:var(--font-varela-round)] line-clamp-1">{cert.name || "Certificado"}</h3>
+                            <h3 className="font-bold text-[var(--supplier-heading,#004e28)] mb-1 font-[family-name:var(--font-varela-round)] line-clamp-1">{cert.name || "Certificado"}</h3>
                             <p className="text-xs text-gray-500 line-clamp-2">{cert.description}</p>
                             
                             {/* Zoom Effect Overlay */}
                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl flex items-center justify-center backdrop-blur-sm cursor-pointer">
-                                <span className="text-white font-bold px-4 py-2 border border-white/30 rounded-full bg-white/10 backdrop-blur-md">
+                                <span className="text-[color:var(--supplier-inverse,#ffffff)] font-bold px-4 py-2 border border-white/30 rounded-full bg-[var(--supplier-card-background,#ffffff)]/10 backdrop-blur-md">
                                     Ver Certificado
                                 </span>
                             </div>
@@ -2066,14 +1832,14 @@ const contactHref = supplier?.phone
       {isDirectory ? (
         <DirectoryRatingsSection slug={supplier.slug || String(slug)} />
       ) : (
-        <section id="experiencia" className="scroll-mt-20 border-t border-gray-100 bg-white py-24">
+        <section id="experiencia" className="scroll-mt-20 border-t border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] py-24">
           <div className="mx-auto max-w-6xl px-5 md:px-8">
               <div className="flex flex-col md:flex-row items-center justify-between mb-12 gap-8">
                   <div>
-                      <h2 className="text-3xl md:text-4xl font-black text-[#004e28] mb-2 font-[family-name:var(--font-varela-round)]">
+                      <h2 className="text-3xl md:text-4xl font-black text-[var(--supplier-heading,#004e28)] mb-2 font-[family-name:var(--font-varela-round)]">
                           Opiniones Verificadas
                       </h2>
-                      <div className="flex items-center gap-2 text-[#168e00]">
+                      <div className="flex items-center gap-2 text-[var(--supplier-accent,#168e00)]">
                           <span className="font-bold text-xl">{supplier.average_rating?.toFixed(1)}</span>
                           <StarRating rating={supplier.average_rating || 0} size={20} />
                           <span className="text-gray-400 text-sm">({ratingsTotal} reseñas)</span>
@@ -2091,9 +1857,9 @@ const contactHref = supplier?.phone
               ) : ratings.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                       {ratings.map((rating) => (
-                          <div key={rating.id} className="bg-[#f9fafb] p-8 rounded-[2rem] relative">
+                          <div key={rating.id} className="supplier-surface-page bg-[var(--supplier-page-background,#f9fafb)] p-8 rounded-[2rem] relative">
                               <div className="flex items-center gap-4 mb-4">
-                                  <div className="w-12 h-12 rounded-full bg-[#004e28] flex items-center justify-center text-white font-bold text-xl">
+                                  <div className="w-12 h-12 rounded-full supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] flex items-center justify-center text-[color:var(--supplier-inverse,#ffffff)] font-bold text-xl">
                                       {rating.user_name ? rating.user_name.charAt(0).toUpperCase() : "U"}
                                   </div>
                                   <div>
@@ -2106,7 +1872,7 @@ const contactHref = supplier?.phone
                                   <img
                                     src={getImageUrl(rating.product_thumbnail_url || rating.product_image || null)}
                                     alt=""
-                                    className="w-10 h-10 rounded-lg object-cover bg-white"
+                                    className="w-10 h-10 rounded-lg object-cover supplier-surface-card bg-[var(--supplier-card-background,#ffffff)]"
                                   />
                                   <div className="text-xs text-gray-400">
                                       <p className="line-clamp-1">
@@ -2119,7 +1885,7 @@ const contactHref = supplier?.phone
                       ))}
                   </div>
               ) : (
-                  <div className="text-center py-16 bg-[#f9fafb] rounded-[3rem]">
+                  <div className="text-center py-16 supplier-surface-page bg-[var(--supplier-page-background,#f9fafb)] rounded-[3rem]">
                       <MessageCircle size={48} className="mx-auto text-gray-300 mb-4" />
                       <p className="text-gray-500 text-lg">Aún no hay reseñas.</p>
                       <p className="text-gray-400 text-sm">¡Sé el primero en compartir tu experiencia!</p>
@@ -2138,11 +1904,11 @@ const contactHref = supplier?.phone
       <section
         id="contacto"
         className={`relative overflow-hidden ${sectionFocusClass(["hours", "contact", "social"])} ${
-          useDirectoryPresentation ? "bg-[#f2f3f4] py-16 text-[#000000] md:py-20" : "bg-[#004e28] py-24 text-white"
+          useDirectoryPresentation ? "supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] py-16 md:py-20" : "supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] py-24 text-[color:var(--supplier-inverse,#ffffff)]"
         }`}
       >
           {/* Background Elements */}
-          <div className={`absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] via-transparent to-transparent ${useDirectoryPresentation ? "from-[#168e00]/10" : "from-white opacity-10"}`} />
+          <div className={`absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] via-transparent to-transparent ${useDirectoryPresentation ? "from-[var(--supplier-primary,#168e00)]/10" : "from-white opacity-10"}`} />
           
           <div className="relative z-10 mx-auto max-w-6xl px-5 md:px-8">
               
@@ -2150,39 +1916,39 @@ const contactHref = supplier?.phone
               <div className={`mb-12 grid grid-cols-1 gap-8 ${hasContactInfo && hasBusinessHours ? "md:grid-cols-2" : ""}`}>
                   {/* Info Card */}
                   {hasContactInfo || hasSocial ? (
-                  <div className={`rounded-[2rem] transition-colors ${useDirectoryPresentation ? "overflow-hidden border border-[#004e28]/10 bg-white shadow-[0_24px_60px_-40px_rgba(0,78,40,0.7)]" : "bg-white/5 backdrop-blur-lg border border-white/10 p-8 hover:bg-white/10"}`}>
-                      <h3 className={`text-2xl font-bold font-[family-name:var(--font-varela-round)] flex items-center gap-3 ${useDirectoryPresentation ? "bg-[#004e28] px-8 py-6 text-white" : "mb-6"}`}>
-                          <MessageCircle className="text-[#168e00]" /> Contáctanos
+                  <div className={`rounded-[2rem] transition-colors ${useDirectoryPresentation ? "overflow-hidden border border-[var(--supplier-heading,#004e28)]/10 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] shadow-[0_24px_60px_-40px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_70%,transparent)]" : "bg-[var(--supplier-card-background,#ffffff)]/5 backdrop-blur-lg border border-white/10 p-8 hover:bg-[var(--supplier-card-background,#ffffff)]/10"}`}>
+                      <h3 className={`text-2xl font-bold font-[family-name:var(--font-varela-round)] flex items-center gap-3 ${useDirectoryPresentation ? "supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] px-8 py-6 text-[color:var(--supplier-inverse,#ffffff)]" : "mb-6"}`}>
+                          <MessageCircle className="text-[var(--supplier-accent,#168e00)]" /> Contáctanos
                       </h3>
                       <div className={`space-y-4 ${useDirectoryPresentation ? "p-8" : ""}`}>
                           {supplier.phone && (
                               <div className="flex min-w-0 items-center gap-4 group">
-                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
-                                      <Phone size={18} className="text-[#168e00] group-hover:text-white" />
+                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[var(--supplier-primary,#168e00)]/20 flex items-center justify-center group-hover:bg-[var(--supplier-primary,#168e00)] transition-colors">
+                                      <Phone size={18} className="text-[var(--supplier-accent,#168e00)] group-hover:text-[color:var(--supplier-inverse,#ffffff)]" />
                                   </div>
                                   <span className="min-w-0 break-words text-base font-medium sm:text-lg">{supplier.phone}</span>
                               </div>
                           )}
                           {supplier.email && (
                               <div className="flex min-w-0 items-center gap-4 group">
-                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
-                                      <Mail size={18} className="text-[#168e00] group-hover:text-white" />
+                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[var(--supplier-primary,#168e00)]/20 flex items-center justify-center group-hover:bg-[var(--supplier-primary,#168e00)] transition-colors">
+                                      <Mail size={18} className="text-[var(--supplier-accent,#168e00)] group-hover:text-[color:var(--supplier-inverse,#ffffff)]" />
                                   </div>
                                   <span className="min-w-0 break-all text-base font-medium leading-snug sm:text-lg">{supplier.email}</span>
                               </div>
                           )}
                           {supplier.address && (
                               <div className="flex min-w-0 items-center gap-4 group">
-                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[#168e00]/20 flex items-center justify-center group-hover:bg-[#168e00] transition-colors">
-                                      <MapPin size={18} className="text-[#168e00] group-hover:text-white" />
+                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[var(--supplier-primary,#168e00)]/20 flex items-center justify-center group-hover:bg-[var(--supplier-primary,#168e00)] transition-colors">
+                                      <MapPin size={18} className="text-[var(--supplier-accent,#168e00)] group-hover:text-[color:var(--supplier-inverse,#ffffff)]" />
                                   </div>
                                   <span className="min-w-0 break-words text-base font-medium sm:text-lg">{supplier.address}</span>
                               </div>
                           )}
 
                           {hasSocial ? (
-                            <div className={`pt-4 mt-2 ${useDirectoryPresentation ? "border-t border-[#004e28]/10" : "border-t border-white/10"}`}>
-                              <p className={`mb-3 text-xs font-bold uppercase tracking-widest ${useDirectoryPresentation ? "text-[#168e00]" : "text-white/70"}`}>
+                            <div className={`pt-4 mt-2 ${useDirectoryPresentation ? "border-t border-[var(--supplier-heading,#004e28)]/10" : "border-t border-white/10"}`}>
+                              <p className={`mb-3 text-xs font-bold uppercase tracking-widest ${useDirectoryPresentation ? "text-[var(--supplier-accent,#168e00)]" : "text-[color:var(--supplier-inverse-muted,#ffffff)]"}`}>
                                 Síguenos
                               </p>
                               <div className="flex flex-wrap items-center gap-3">
@@ -2195,8 +1961,8 @@ const contactHref = supplier?.phone
                                     aria-label={`${link.label} — se abre en una pestaña nueva`}
                                     className={`inline-flex h-12 w-12 items-center justify-center rounded-full transition-all hover:-translate-y-0.5 ${
                                       useDirectoryPresentation
-                                        ? "bg-[#004e28]/10 text-[#004e28] hover:bg-[#004e28] hover:text-white"
-                                        : "bg-white/10 text-white hover:bg-white hover:text-[#004e28]"
+                                        ? "bg-[var(--supplier-secondary,#004e28)]/10 text-[var(--supplier-heading,#004e28)] hover:bg-[var(--supplier-secondary,#004e28)] hover:text-[color:var(--supplier-inverse,#ffffff)]"
+                                        : "bg-[var(--supplier-card-background,#ffffff)]/10 text-[color:var(--supplier-inverse,#ffffff)] hover:bg-[var(--supplier-card-background,#ffffff)] hover:text-[var(--supplier-heading,#004e28)]"
                                     }`}
                                   >
                                     {link.platform === "facebook" ? (
@@ -2217,19 +1983,19 @@ const contactHref = supplier?.phone
 
                   {/* Hours Card */}
                   {hasBusinessHours ? (
-                  <div className={`rounded-[2rem] ${useDirectoryPresentation ? "overflow-hidden border border-[#004e28]/10 bg-white shadow-[0_24px_60px_-40px_rgba(0,78,40,0.7)]" : "bg-white/5 backdrop-blur-lg border border-white/10 p-8"}`}>
-                      <h3 className={`text-2xl font-bold font-[family-name:var(--font-varela-round)] flex items-center gap-3 ${useDirectoryPresentation ? "bg-[#004e28] px-8 py-6 text-white" : "mb-6"}`}>
-                          <Clock style={{ color: supplier.primary_color || '#168e00' }} /> Horarios de Atención
+                  <div className={`rounded-[2rem] ${useDirectoryPresentation ? "overflow-hidden border border-[var(--supplier-heading,#004e28)]/10 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] shadow-[0_24px_60px_-40px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_70%,transparent)]" : "bg-[var(--supplier-card-background,#ffffff)]/5 backdrop-blur-lg border border-white/10 p-8"}`}>
+                      <h3 className={`text-2xl font-bold font-[family-name:var(--font-varela-round)] flex items-center gap-3 ${useDirectoryPresentation ? "supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] px-8 py-6 text-[color:var(--supplier-inverse,#ffffff)]" : "mb-6"}`}>
+                          <Clock className="text-[var(--supplier-accent,#168e00)]" /> Horarios de Atención
                       </h3>
-                      <div className={`space-y-4 ${useDirectoryPresentation ? "p-8 text-[#59675f]" : "text-gray-300"}`}>
+                      <div className={`space-y-4 ${useDirectoryPresentation ? "p-8 text-[var(--supplier-muted,#59675f)]" : "text-gray-300"}`}>
                           {groupedHours.map((group, idx) => (
-                                  <div key={idx} className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${useDirectoryPresentation ? "rounded-2xl bg-[#f2f3f4] px-5 py-4" : "border-b border-white/5 pb-2 last:border-0"}`}>
-                                      <span className={useDirectoryPresentation ? "font-semibold text-[#004e28]" : ""}>
+                                  <div key={idx} className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${useDirectoryPresentation ? "rounded-2xl supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] px-5 py-4" : "border-b border-white/5 pb-2 last:border-0"}`}>
+                                      <span className={useDirectoryPresentation ? "font-semibold text-[var(--supplier-heading,#004e28)]" : ""}>
                                           {group.start === group.end 
                                               ? DAYS_MAP[group.start] 
                                               : `${DAYS_MAP[group.start]} - ${DAYS_MAP[group.end]}`}
                                       </span>
-                                      <span className={`font-bold ${useDirectoryPresentation ? "w-fit rounded-xl bg-white px-4 py-2 text-[#168e00] shadow-sm" : "text-white"}`}>
+                                      <span className={`font-bold ${useDirectoryPresentation ? "w-fit rounded-xl supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-4 py-2 text-[var(--supplier-accent,#168e00)] shadow-sm" : "text-[color:var(--supplier-inverse,#ffffff)]"}`}>
                                           {group.isClosed ? "Cerrado" : `${formatTime(group.open)} - ${formatTime(group.close)}`}
                                       </span>
                                   </div>
@@ -2238,10 +2004,10 @@ const contactHref = supplier?.phone
                           <div className={`flex items-center gap-3 ${useDirectoryPresentation ? "pt-3" : "mt-4"}`}>
                               {businessStatus.isOpen ? (
                                   <div 
-                                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide text-white"
-                                    style={{ backgroundColor: supplier.primary_color || '#168e00' }}
+                                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide text-[color:var(--supplier-inverse,#ffffff)]"
+                                    style={{ backgroundColor: "var(--supplier-primary)", color: "var(--supplier-on-primary)" }}
                                   >
-                                      <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                      <div className="w-2 h-2 rounded-full supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] animate-pulse" />
                                       Abierto Ahora
                                   </div>
                               ) : (
@@ -2258,7 +2024,7 @@ const contactHref = supplier?.phone
 
               {/* MIDDLE ROW: Map (Full Width) */}
               {mapLocation ? (
-              <div className={`w-full h-[400px] rounded-[2rem] overflow-hidden relative mb-12 group ${useDirectoryPresentation ? "border border-[#004e28]/10 bg-white shadow-[0_24px_70px_-44px_rgba(0,78,40,0.7)]" : "bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl"}`}>
+              <div className={`w-full h-[400px] rounded-[2rem] overflow-hidden relative mb-12 group ${useDirectoryPresentation ? "border border-[var(--supplier-heading,#004e28)]/10 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] shadow-[0_24px_70px_-44px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_70%,transparent)]" : "bg-[var(--supplier-card-background,#ffffff)]/5 backdrop-blur-md border border-white/10 shadow-2xl"}`}>
                   <SupplierLocationMap
                       location={mapLocation}
                       supplierName={supplier.name}
@@ -2269,7 +2035,7 @@ const contactHref = supplier?.phone
                       href={`https://www.google.com/maps/search/?api=1&query=${mapLocation.lat},${mapLocation.lng}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="absolute bottom-4 left-4 z-[500] flex items-center gap-2 rounded-xl bg-white/90 px-4 py-2 text-sm font-bold text-[#004e28] shadow-lg backdrop-blur transition-transform group-hover:scale-105"
+                      className="absolute bottom-4 left-4 z-[500] flex items-center gap-2 rounded-xl bg-[var(--supplier-card-background,#ffffff)]/90 px-4 py-2 text-sm font-bold text-[var(--supplier-heading,#004e28)] shadow-lg backdrop-blur transition-transform group-hover:scale-105"
                     >
                         <MapPin size={16} /> Ver Ubicación Exacta
                     </a>
@@ -2278,14 +2044,14 @@ const contactHref = supplier?.phone
 
               {/* BOTTOM ROW: CTA (Full Width) */}
               {(contactHref || isDirectory) ? (
-              <div className="bg-[#168e00] rounded-[2rem] p-8 md:p-12 text-center relative overflow-hidden shadow-[0_0_50px_-10px_rgba(22,142,0,0.4)]">
+              <div className="supplier-surface-primary bg-[var(--supplier-primary,#168e00)] rounded-[2rem] p-8 md:p-12 text-center relative overflow-hidden shadow-[0_0_50px_-10px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_40%,transparent)]">
                   <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
                   <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
                       <div className="text-left">
                           <h3 className="text-2xl md:text-3xl font-black mb-2 font-[family-name:var(--font-varela-round)]">
                             ¿Tienes preguntas sobre nuestros {isDirectory ? "servicios" : "productos"}?
                           </h3>
-                          <p className="text-white/80 text-lg">Estamos listos para atenderte y resolver todas tus dudas al instante.</p>
+                          <p className="text-[color:var(--supplier-inverse-muted,#ffffff)] text-lg">Estamos listos para atenderte y resolver todas tus dudas al instante.</p>
                       </div>
                       {isDirectory ? (
                         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
@@ -2294,7 +2060,7 @@ const contactHref = supplier?.phone
                               href={`https://wa.me/${normalizeWhatsAppPhone(supplier.phone)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex min-h-14 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-white px-8 py-4 text-base font-bold text-[#004e28] shadow-xl transition-all hover:-translate-y-1 hover:bg-gray-100"
+                              className="inline-flex min-h-14 items-center justify-center gap-2 whitespace-nowrap rounded-full supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-8 py-4 text-base font-bold text-[var(--supplier-heading,#004e28)] shadow-xl transition-all hover:-translate-y-1 hover:bg-[var(--supplier-hover-card,#f3f4f6)]"
                             >
                               <Phone size={21} />
                               WhatsApp
@@ -2303,7 +2069,7 @@ const contactHref = supplier?.phone
                             <span
                               aria-disabled="true"
                               title="El negocio todavía no ha configurado un número de WhatsApp"
-                              className="inline-flex min-h-14 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/30 bg-white/15 px-8 py-4 text-base font-bold text-white/75"
+                              className="inline-flex min-h-14 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/30 bg-[var(--supplier-card-background,#ffffff)]/15 px-8 py-4 text-base font-bold text-[color:var(--supplier-inverse-muted,#ffffff)]"
                             >
                               <Phone size={21} />
                               WhatsApp sin configurar
@@ -2315,7 +2081,7 @@ const contactHref = supplier?.phone
                             supplierSlug={supplier.slug}
                             supplierImage={supplierLogo}
                             returnPath={supplierBasePath}
-                            className="inline-flex min-h-14 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/20 bg-[#004e28] px-8 py-4 text-base font-bold text-white shadow-xl transition-all hover:-translate-y-1 hover:bg-[#003b1f] disabled:cursor-wait disabled:opacity-70"
+                            className="inline-flex min-h-14 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/20 supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] px-8 py-4 text-base font-bold text-[color:var(--supplier-inverse,#ffffff)] shadow-xl transition-all hover:-translate-y-1 hover:bg-[var(--supplier-secondary-hover,#003b1f)] disabled:cursor-wait disabled:opacity-70"
                           />
                         </div>
                       ) : contactHref ? (
@@ -2323,7 +2089,7 @@ const contactHref = supplier?.phone
                           href={contactHref}
                           target={contactHref.startsWith("http") ? "_blank" : undefined}
                           rel={contactHref.startsWith("http") ? "noopener noreferrer" : undefined}
-                          className="flex items-center gap-2 whitespace-nowrap rounded-full bg-white px-8 py-4 text-lg font-bold text-[#004e28] shadow-xl transition-all hover:-translate-y-1 hover:bg-gray-100"
+                          className="flex items-center gap-2 whitespace-nowrap rounded-full supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-8 py-4 text-lg font-bold text-[var(--supplier-heading,#004e28)] shadow-xl transition-all hover:-translate-y-1 hover:bg-[var(--supplier-hover-card,#f3f4f6)]"
                         >
                             <MessageCircle size={24} />
                             {supplier.phone ? "Enviar mensaje" : "Enviar correo"}
@@ -2337,6 +2103,6 @@ const contactHref = supplier?.phone
       </section>
       </>
       )}
-    </div>
+    </SupplierTheme>
   );
 }

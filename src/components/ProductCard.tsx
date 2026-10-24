@@ -108,20 +108,20 @@ export function ProductCard({
   };
 
   return (
-    <div className="group block h-full relative bg-white rounded-[2rem] overflow-hidden transition-all duration-500 hover:shadow-[0_20px_40px_-15px_rgba(0,78,40,0.2)] hover:-translate-y-2">
+    <div className="group block h-full relative supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] rounded-[2rem] overflow-hidden transition-all duration-500 hover:shadow-[0_20px_40px_-15px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_20%,transparent)] hover:-translate-y-2">
       {/* Image Container - Premium Aspect Ratio */}
-      <div className="relative aspect-[4/5] bg-[#f2f3f4] overflow-hidden">
+      <div className="supplier-media relative aspect-[4/5] supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] overflow-hidden">
         {/* Favorite Button - Floating Glass Effect */}
         <button
             onClick={handleFavoriteClick}
-            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-white/90 backdrop-blur-md rounded-full hover:bg-[#168e00] hover:text-white transition-all z-30 shadow-sm group/btn"
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-[var(--supplier-card-background,#ffffff)]/90 backdrop-blur-md rounded-full hover:bg-[var(--supplier-primary,#168e00)] hover:text-[color:var(--supplier-inverse,#ffffff)] transition-all z-30 shadow-sm group/btn"
             title={isFav ? "Quitar de favoritos" : "Agregar a favoritos"}
         >
             <Heart
             size={20}
             className={cn(
                 "transition-colors duration-300",
-                isFav ? "fill-[#168e00] text-[#168e00]" : "text-gray-400 group-hover/btn:text-white"
+                isFav ? "fill-[var(--supplier-outline,#168e00)] text-[var(--supplier-accent,#168e00)]" : "text-gray-400 group-hover/btn:text-[color:var(--supplier-inverse,#ffffff)]"
             )}
             strokeWidth={2}
             />
@@ -141,17 +141,17 @@ export function ProductCard({
                 onError={handleImgError}
             />
             ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-300 bg-[#f2f3f4]">
+            <div className="w-full h-full flex items-center justify-center text-gray-300 supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)]">
                 <span className="text-4xl opacity-50">📦</span>
             </div>
             )}
             
             {/* Quick View Overlay (Optional Premium Touch) */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#004e28]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[var(--supplier-secondary,#004e28)]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             
             {/* Floating Action Button on Hover */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 translate-y-10 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-500 delay-75">
-                <span className="bg-white text-[#004e28] px-6 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2 font-[family-name:var(--font-varela-round)]">
+                <span className="supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] text-[var(--supplier-heading,#004e28)] px-6 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2 font-[family-name:var(--font-varela-round)]">
                     Ver Detalles
                 </span>
             </div>
@@ -159,7 +159,7 @@ export function ProductCard({
       </div>
 
       {/* Content - Minimalist & Clean */}
-      <div className="p-6 flex flex-col flex-grow relative z-10 bg-white">
+      <div className="p-6 flex flex-col flex-grow relative z-10 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)]">
         <div className="flex flex-col gap-2 mb-3">
            <div className="flex items-center justify-between">
                 {supplier ? (
@@ -167,7 +167,7 @@ export function ProductCard({
                     {supplierHref ? (
                       <Link
                         href={supplierHref}
-                        className="text-xs font-bold text-[#168e00] uppercase tracking-wider font-[family-name:var(--font-varela-round)] truncate hover:underline"
+                        className="text-xs font-bold text-[var(--supplier-accent,#168e00)] uppercase tracking-wider font-[family-name:var(--font-varela-round)] truncate hover:underline"
                         title={supplier.name || "Proveedor"}
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -175,7 +175,7 @@ export function ProductCard({
                       </Link>
                     ) : (
                       <div
-                        className="text-xs font-bold text-[#168e00] uppercase tracking-wider font-[family-name:var(--font-varela-round)] truncate"
+                        className="text-xs font-bold text-[var(--supplier-accent,#168e00)] uppercase tracking-wider font-[family-name:var(--font-varela-round)] truncate"
                         title={supplier.name || "Proveedor"}
                       >
                         {supplier.name || "Proveedor"}
@@ -183,18 +183,18 @@ export function ProductCard({
                     )}
                     {showSupplierVerified ? (
                       <span className="inline-flex items-center" title="Empresa verificada">
-                        <CheckCircle size={14} className="text-[#168e00]" />
+                        <CheckCircle size={14} className="text-[var(--supplier-accent,#168e00)]" />
                       </span>
                     ) : null}
                   </div>
                 ) : null}
-                <div className="flex items-center gap-1 bg-[#f2f3f4] px-2 py-1 rounded-md">
+                <div className="flex items-center gap-1 supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] px-2 py-1 rounded-md">
                     <Star size={10} className="fill-amber-400 text-amber-400" />
                     <span className="font-bold text-xs text-gray-700">{rating}</span>
                 </div>
            </div>
           
-          <Link href={`/product/${slug}`} onClick={handleCardClick} className="block group-hover:text-[#004e28] transition-colors">
+          <Link href={`/product/${slug}`} onClick={handleCardClick} className="block group-hover:text-[var(--supplier-heading,#004e28)] transition-colors">
             <h3 className="text-lg font-bold text-gray-900 leading-tight line-clamp-2 font-[family-name:var(--font-varela-round)]">
               {title}
             </h3>
@@ -202,7 +202,7 @@ export function ProductCard({
           
           <div className="flex items-baseline gap-1 mt-2">
              <span className="text-sm font-medium text-gray-400">$</span>
-             <span className="text-2xl font-black text-[#004e28] tracking-tight font-[family-name:var(--font-poppins)]">{displayPrice}</span>
+             <span className="text-2xl font-black text-[var(--supplier-heading,#004e28)] tracking-tight font-[family-name:var(--font-poppins)]">{displayPrice}</span>
              <span className="text-xs text-gray-400 ml-1 font-normal">/ {minOrder}</span>
           </div>
         </div>

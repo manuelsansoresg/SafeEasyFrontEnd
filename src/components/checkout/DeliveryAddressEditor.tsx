@@ -31,7 +31,7 @@ export function DeliveryAddressEditor({
   return (
     <div className="min-w-0 space-y-3">
       <div>
-        <p className="text-sm font-bold text-[#004e28]">Dirección de entrega</p>
+        <p className="text-sm font-bold text-[var(--supplier-heading,#004e28)]">Dirección de entrega</p>
         {resolvingAddress ? (
           <p className="mt-1 text-sm text-gray-600" role="status">Obteniendo dirección...</p>
         ) : summary.length ? (
@@ -61,7 +61,7 @@ export function DeliveryAddressEditor({
 
       {isAuthenticated ? (
         <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-700">
-          <input type="checkbox" checked={saveToProfile} onChange={(event) => onSaveToProfileChange(event.target.checked)} className="mt-1 accent-[#168e00]" />
+          <input type="checkbox" checked={saveToProfile} onChange={(event) => onSaveToProfileChange(event.target.checked)} className="mt-1 accent-[var(--supplier-outline,#168e00)]" />
           <span>Guardar esta dirección en mi perfil al finalizar la compra</span>
         </label>
       ) : null}

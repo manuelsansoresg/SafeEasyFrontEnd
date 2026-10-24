@@ -17,7 +17,7 @@ export default function AgendaPaymentMethodSelector({
   onChange,
 }: AgendaPaymentMethodSelectorProps) {
   return (
-    <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
+    <section className="rounded-3xl border border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 shadow-sm sm:p-6">
       <h2 className="text-xl font-bold text-gray-900">4. Forma de pago</h2>
       <p className="mt-1 text-sm text-gray-500">Elige cómo quieres pagar este servicio.</p>
 
@@ -27,8 +27,8 @@ export default function AgendaPaymentMethodSelector({
           <label
             className={
               value === "cash"
-                ? "flex min-h-28 cursor-pointer items-start gap-3 rounded-2xl border-2 border-[#168e00] bg-[#168e00]/5 p-4"
-                : "flex min-h-28 cursor-pointer items-start gap-3 rounded-2xl border border-gray-200 p-4 transition hover:border-[#168e00]/40"
+                ? "flex min-h-28 cursor-pointer items-start gap-3 rounded-2xl border-2 border-[var(--supplier-outline,#168e00)] bg-[var(--supplier-primary,#168e00)]/5 p-4"
+                : "flex min-h-28 cursor-pointer items-start gap-3 rounded-2xl border border-gray-200 p-4 transition hover:border-[var(--supplier-outline,#168e00)]/40"
             }
           >
             <input
@@ -37,11 +37,11 @@ export default function AgendaPaymentMethodSelector({
               value="cash"
               checked={value === "cash"}
               onChange={() => onChange("cash")}
-              className="mt-1 size-5 shrink-0 accent-[#168e00]"
+              className="mt-1 size-5 shrink-0 accent-[var(--supplier-outline,#168e00)]"
             />
             <span>
               <span className="flex items-center gap-2 font-bold text-gray-900">
-                <Banknote aria-hidden="true" size={20} className="text-[#168e00]" />
+                <Banknote aria-hidden="true" size={20} className="text-[var(--supplier-accent,#168e00)]" />
                 Pago directo
               </span>
               <span className="mt-2 block text-sm leading-6 text-gray-600">
@@ -55,8 +55,8 @@ export default function AgendaPaymentMethodSelector({
           <label
             className={
               value === "online"
-                ? "flex min-h-28 cursor-pointer items-start gap-3 rounded-2xl border-2 border-[#168e00] bg-[#168e00]/5 p-4"
-                : "flex min-h-28 cursor-pointer items-start gap-3 rounded-2xl border border-gray-200 p-4 transition hover:border-[#168e00]/40"
+                ? "flex min-h-28 cursor-pointer items-start gap-3 rounded-2xl border-2 border-[var(--supplier-outline,#168e00)] bg-[var(--supplier-primary,#168e00)]/5 p-4"
+                : "flex min-h-28 cursor-pointer items-start gap-3 rounded-2xl border border-gray-200 p-4 transition hover:border-[var(--supplier-outline,#168e00)]/40"
             }
           >
             <input
@@ -65,11 +65,11 @@ export default function AgendaPaymentMethodSelector({
               value="online"
               checked={value === "online"}
               onChange={() => onChange("online")}
-              className="mt-1 size-5 shrink-0 accent-[#168e00]"
+              className="mt-1 size-5 shrink-0 accent-[var(--supplier-outline,#168e00)]"
             />
             <span>
               <span className="flex items-center gap-2 font-bold text-gray-900">
-                <CreditCard aria-hidden="true" size={20} className="text-[#168e00]" />
+                <CreditCard aria-hidden="true" size={20} className="text-[var(--supplier-accent,#168e00)]" />
                 Tarjeta / Mercado Pago
               </span>
               <span className="mt-2 block text-sm leading-6 text-gray-600">

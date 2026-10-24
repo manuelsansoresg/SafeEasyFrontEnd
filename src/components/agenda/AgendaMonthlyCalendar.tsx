@@ -89,7 +89,7 @@ export default function AgendaMonthlyCalendar({
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-3 shadow-[0_12px_35px_rgba(0,78,40,0.06)] sm:p-5"
+      className="relative overflow-hidden rounded-2xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-3 shadow-[0_12px_35px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_6%,transparent)] sm:p-5"
       aria-busy={loading}
     >
       <div className="flex items-center justify-between gap-3">
@@ -98,12 +98,12 @@ export default function AgendaMonthlyCalendar({
           onClick={onPreviousMonth}
           disabled={!canGoPrevious || loading}
           aria-label="Ver mes anterior"
-          className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-[#004e28] transition hover:border-[#168e00] hover:bg-[#168e00]/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-300"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-[var(--supplier-heading,#004e28)] transition hover:border-[var(--supplier-outline,#168e00)] hover:bg-[var(--supplier-primary,#168e00)]/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-outline,#168e00)] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-300"
         >
           <ChevronLeft aria-hidden="true" size={21} />
         </button>
 
-        <h3 className="text-center font-[family-name:var(--font-varela-round)] text-lg font-bold text-[#004e28] sm:text-xl">
+        <h3 className="text-center font-[family-name:var(--font-varela-round)] text-lg font-bold text-[var(--supplier-heading,#004e28)] sm:text-xl">
           {formatMonth(month)}
         </h3>
 
@@ -112,7 +112,7 @@ export default function AgendaMonthlyCalendar({
           onClick={onNextMonth}
           disabled={!canGoNext || loading}
           aria-label="Ver mes siguiente"
-          className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-[#004e28] transition hover:border-[#168e00] hover:bg-[#168e00]/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-300"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 text-[var(--supplier-heading,#004e28)] transition hover:border-[var(--supplier-outline,#168e00)] hover:bg-[var(--supplier-primary,#168e00)]/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-outline,#168e00)] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-300"
         >
           <ChevronRight aria-hidden="true" size={21} />
         </button>
@@ -147,11 +147,11 @@ export default function AgendaMonthlyCalendar({
                 aria-current={selected ? "date" : undefined}
                 className={[
                   "relative flex size-10 items-center justify-center rounded-xl text-sm font-semibold transition sm:size-11",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00]",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-outline,#168e00)]",
                   selected
-                    ? "bg-[#168e00] text-white shadow-sm"
+                    ? "supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)] shadow-sm ring-2 ring-inset ring-[var(--supplier-chip-outline,#168e00)]"
                     : available
-                      ? "text-gray-800 hover:bg-[#168e00]/8 hover:text-[#004e28]"
+                      ? "text-gray-800 hover:bg-[var(--supplier-primary,#168e00)]/8 hover:text-[var(--supplier-heading,#004e28)]"
                       : inCurrentMonth
                         ? "cursor-not-allowed text-gray-300"
                         : "cursor-not-allowed text-gray-200",
@@ -160,7 +160,7 @@ export default function AgendaMonthlyCalendar({
                 {day}
                 {available && !selected ? (
                   <span
-                    className="absolute bottom-1 size-1 rounded-full bg-[#168e00]"
+                    className="absolute bottom-1 size-1 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)]"
                     aria-hidden="true"
                   />
                 ) : null}
@@ -171,18 +171,18 @@ export default function AgendaMonthlyCalendar({
       </div>
 
       <p className="mt-4 flex items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600">
-        <span className="size-2 rounded-full bg-[#168e00]" aria-hidden="true" />
-        Los días con punto verde tienen horarios disponibles.
+        <span className="size-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)]" aria-hidden="true" />
+        Los días marcados con un punto tienen horarios disponibles.
       </p>
 
       {loading ? (
         <div
-          className="absolute inset-0 flex items-center justify-center bg-white/85 px-4 backdrop-blur-[1px]"
+          className="absolute inset-0 flex items-center justify-center bg-[var(--supplier-card-background,#ffffff)]/85 px-4 backdrop-blur-[1px]"
           role="status"
           aria-live="polite"
         >
-          <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-gray-600 shadow-sm">
-            <Loader2 className="animate-spin text-[#168e00]" size={19} aria-hidden="true" />
+          <div className="flex items-center gap-2 rounded-xl supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-4 py-3 text-sm font-semibold text-gray-600 shadow-sm">
+            <Loader2 className="animate-spin text-[var(--supplier-accent,#168e00)]" size={19} aria-hidden="true" />
             Consultando horarios disponibles...
           </div>
         </div>

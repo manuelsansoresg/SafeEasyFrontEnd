@@ -93,16 +93,16 @@ export function DirectoryGallerySection({ supplierId, initialImages }: Directory
   return (
     <section
       id="galeria"
-      className="relative scroll-mt-20 overflow-hidden bg-white py-16 md:py-24"
+      className="relative scroll-mt-20 overflow-hidden supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] py-16 md:py-24"
     >
       <div className="mx-auto max-w-6xl px-5 md:px-8">
         <div className="mb-10 flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <span className="mb-3 inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-[#168e00]">
+            <span className="mb-3 inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-[var(--supplier-accent,#168e00)]">
               <Camera size={17} />
               Nuestra galería
             </span>
-            <h2 className="font-[family-name:var(--font-varela-round)] text-3xl font-black text-[#004e28] md:text-4xl lg:text-5xl">
+            <h2 className="font-[family-name:var(--font-varela-round)] text-3xl font-black text-[var(--supplier-heading,#004e28)] md:text-4xl lg:text-5xl">
               Conoce nuestro trabajo
             </h2>
             <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">
@@ -122,7 +122,7 @@ export function DirectoryGallerySection({ supplierId, initialImages }: Directory
                 key={image.id}
                 type="button"
                 onClick={() => setLightboxIndex(index)}
-                className="group mb-4 block w-full overflow-hidden rounded-2xl bg-[#e9efeb] break-inside-avoid focus:outline-none focus:ring-4 focus:ring-[#168e00]/30"
+                className="group mb-4 block w-full overflow-hidden rounded-2xl supplier-surface-page bg-[var(--supplier-page-background,#e9efeb)] break-inside-avoid focus:outline-none focus:ring-4 focus:ring-[var(--supplier-outline,#168e00)]/30"
                 aria-label={`Ver imagen ${index + 1} en grande`}
               >
                 <Image
@@ -142,7 +142,7 @@ export function DirectoryGallerySection({ supplierId, initialImages }: Directory
 
       {lightboxIndex !== null && images[lightboxIndex] ? (
         <div
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 p-4 md:p-8"
+          className="supplier-media fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 p-4 md:p-8"
           onClick={closeLightbox}
           role="dialog"
           aria-modal="true"
@@ -154,7 +154,7 @@ export function DirectoryGallerySection({ supplierId, initialImages }: Directory
               event.stopPropagation();
               closeLightbox();
             }}
-            className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
+            className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--supplier-card-background,#ffffff)]/10 text-[color:var(--supplier-inverse,#ffffff)] backdrop-blur-md transition-colors hover:bg-[var(--supplier-card-background,#ffffff)]/20 focus:outline-none focus:ring-2 focus:ring-white/40"
             aria-label="Cerrar"
           >
             <X size={22} />
@@ -168,7 +168,7 @@ export function DirectoryGallerySection({ supplierId, initialImages }: Directory
                   event.stopPropagation();
                   goToPrevious();
                 }}
-                className="absolute left-4 top-1/2 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
+                className="absolute left-4 top-1/2 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--supplier-card-background,#ffffff)]/10 text-[color:var(--supplier-inverse,#ffffff)] backdrop-blur-md transition-colors hover:bg-[var(--supplier-card-background,#ffffff)]/20 focus:outline-none focus:ring-2 focus:ring-white/40"
                 aria-label="Imagen anterior"
               >
                 <ChevronLeft size={26} />
@@ -179,7 +179,7 @@ export function DirectoryGallerySection({ supplierId, initialImages }: Directory
                   event.stopPropagation();
                   goToNext();
                 }}
-                className="absolute right-4 top-1/2 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
+                className="absolute right-4 top-1/2 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--supplier-card-background,#ffffff)]/10 text-[color:var(--supplier-inverse,#ffffff)] backdrop-blur-md transition-colors hover:bg-[var(--supplier-card-background,#ffffff)]/20 focus:outline-none focus:ring-2 focus:ring-white/40"
                 aria-label="Siguiente imagen"
               >
                 <ChevronRight size={26} />
@@ -197,7 +197,7 @@ export function DirectoryGallerySection({ supplierId, initialImages }: Directory
               alt={`Galería imagen ${lightboxIndex + 1}`}
               className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain shadow-[0_30px_80px_-20px_rgba(0,0,0,0.6)]"
             />
-            <figcaption className="mt-3 text-center text-sm text-white/70">
+            <figcaption className="mt-3 text-center text-sm text-[color:var(--supplier-inverse-muted,#ffffff)]">
               {lightboxIndex + 1} / {images.length}
             </figcaption>
           </figure>

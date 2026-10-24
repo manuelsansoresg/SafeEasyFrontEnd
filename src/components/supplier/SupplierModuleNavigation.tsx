@@ -121,7 +121,7 @@ export function SupplierModuleNavigation({
       {showTabs ? (
         <div
           ref={tabsRef}
-          className="sticky top-0 z-40 border-b border-gray-100 bg-white/95 shadow-sm backdrop-blur-md"
+          className="sticky top-0 z-40 border-b border-gray-100 bg-[var(--supplier-card-background,#ffffff)]/95 shadow-sm backdrop-blur-md"
         >
           <div className="mx-auto max-w-6xl px-5 md:px-8">
             <div className="flex gap-8 overflow-x-auto no-scrollbar">
@@ -130,8 +130,8 @@ export function SupplierModuleNavigation({
                 onClick={() => openTab("main")}
                 className={`whitespace-nowrap border-b-2 px-2 py-4 font-bold transition-colors ${
                   activeTab === "main"
-                    ? "border-[#168e00] text-[#004e28]"
-                    : "border-transparent text-gray-500 hover:text-[#004e28]"
+                    ? "border-[var(--supplier-outline,#168e00)] text-[var(--supplier-heading,#004e28)]"
+                    : "border-transparent text-gray-500 hover:text-[var(--supplier-heading,#004e28)]"
                 }`}
               >
                 Página Principal
@@ -143,8 +143,8 @@ export function SupplierModuleNavigation({
                   onClick={() => openTab("menu")}
                   className={`whitespace-nowrap border-b-2 px-2 py-4 font-bold transition-colors ${
                     activeTab === "menu"
-                      ? "border-[#168e00] text-[#004e28]"
-                      : "border-transparent text-gray-500 hover:text-[#004e28]"
+                      ? "border-[var(--supplier-outline,#168e00)] text-[var(--supplier-heading,#004e28)]"
+                      : "border-transparent text-gray-500 hover:text-[var(--supplier-heading,#004e28)]"
                   }`}
                 >
                   Menú
@@ -157,8 +157,8 @@ export function SupplierModuleNavigation({
                   onClick={() => openTab("agenda")}
                   className={`whitespace-nowrap border-b-2 px-2 py-4 font-bold transition-colors ${
                     activeTab === "agenda"
-                      ? "border-[#168e00] text-[#004e28]"
-                      : "border-transparent text-gray-500 hover:text-[#004e28]"
+                      ? "border-[var(--supplier-outline,#168e00)] text-[var(--supplier-heading,#004e28)]"
+                      : "border-transparent text-gray-500 hover:text-[var(--supplier-heading,#004e28)]"
                   }`}
                 >
                   Agenda
@@ -171,8 +171,8 @@ export function SupplierModuleNavigation({
                   onClick={() => openTab("products")}
                   className={`whitespace-nowrap border-b-2 px-2 py-4 font-bold transition-colors ${
                     activeTab === "products"
-                      ? "border-[#168e00] text-[#004e28]"
-                      : "border-transparent text-gray-500 hover:text-[#004e28]"
+                      ? "border-[var(--supplier-outline,#168e00)] text-[var(--supplier-heading,#004e28)]"
+                      : "border-transparent text-gray-500 hover:text-[var(--supplier-heading,#004e28)]"
                   }`}
                 >
                   Productos
@@ -186,16 +186,16 @@ export function SupplierModuleNavigation({
       {showModuleAccess ? (
         <section
           aria-labelledby="module-access-title"
-          className="border-b border-gray-100 bg-[#f7f9f8] py-10 md:py-12"
+          className="border-b border-gray-100 supplier-surface-page bg-[var(--supplier-page-background,#f7f9f8)] py-10 md:py-12"
         >
           <div className="mx-auto max-w-6xl px-5 md:px-8">
             <div className="mb-6">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#168e00]">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[var(--supplier-accent,#168e00)]">
                 Accesos rápidos
               </p>
               <h2
                 id="module-access-title"
-                className="mt-1 font-[family-name:var(--font-varela-round)] text-2xl font-black text-[#004e28] md:text-3xl"
+                className="mt-1 font-[family-name:var(--font-varela-round)] text-2xl font-black text-[var(--supplier-heading,#004e28)] md:text-3xl"
               >
                 ¿Qué quieres consultar?
               </h2>
@@ -206,14 +206,14 @@ export function SupplierModuleNavigation({
                 <button
                   type="button"
                   onClick={() => openTab("menu")}
-                  className="group flex min-h-28 items-center gap-4 rounded-3xl border border-[#004e28]/10 bg-white p-5 text-left shadow-[0_16px_35px_-30px_rgba(0,78,40,0.6)] transition hover:-translate-y-0.5 hover:border-[#168e00]/35 hover:shadow-[0_20px_45px_-28px_rgba(0,78,40,0.6)]"
+                  className="group flex min-h-28 items-center gap-4 rounded-3xl border border-[var(--supplier-heading,#004e28)]/10 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 text-left shadow-[0_16px_35px_-30px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_60%,transparent)] transition hover:-translate-y-0.5 hover:border-[var(--supplier-outline,#168e00)]/35 hover:shadow-[0_20px_45px_-28px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_60%,transparent)]"
                 >
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#168e00]/10 text-[#168e00]">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--supplier-primary,#168e00)]/10 text-[var(--supplier-accent,#168e00)]">
                     <UtensilsCrossed size={24} />
                   </span>
 
                   <span className="min-w-0 flex-1">
-                    <span className="block font-[family-name:var(--font-varela-round)] text-lg font-black text-[#004e28]">
+                    <span className="block font-[family-name:var(--font-varela-round)] text-lg font-black text-[var(--supplier-heading,#004e28)]">
                       Ver menú
                     </span>
                     <span className="mt-1 block text-sm leading-5 text-gray-500">
@@ -223,14 +223,14 @@ export function SupplierModuleNavigation({
 
                   <ChevronRight
                     size={20}
-                    className="shrink-0 text-[#168e00] transition-transform group-hover:translate-x-1"
+                    className="shrink-0 text-[var(--supplier-accent,#168e00)] transition-transform group-hover:translate-x-1"
                   />
                 </button>
               ) : null}
 
               {agendaLoading ? (
-                <div className="flex min-h-28 items-center gap-4 rounded-3xl border border-[#004e28]/10 bg-white p-5">
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#168e00]/10 text-[#168e00]">
+                <div className="flex min-h-28 items-center gap-4 rounded-3xl border border-[var(--supplier-heading,#004e28)]/10 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--supplier-primary,#168e00)]/10 text-[var(--supplier-accent,#168e00)]">
                     <Loader2
                       size={23}
                       className="animate-spin"
@@ -238,7 +238,7 @@ export function SupplierModuleNavigation({
                   </span>
 
                   <span>
-                    <span className="block font-bold text-[#004e28]">
+                    <span className="block font-bold text-[var(--supplier-heading,#004e28)]">
                       Consultando agenda
                     </span>
                     <span className="mt-1 block text-sm text-gray-500">
@@ -250,14 +250,14 @@ export function SupplierModuleNavigation({
                 <button
                   type="button"
                   onClick={() => openTab("agenda")}
-                  className="group flex min-h-28 items-center gap-4 rounded-3xl border border-[#004e28]/10 bg-white p-5 text-left shadow-[0_16px_35px_-30px_rgba(0,78,40,0.6)] transition hover:-translate-y-0.5 hover:border-[#168e00]/35 hover:shadow-[0_20px_45px_-28px_rgba(0,78,40,0.6)]"
+                  className="group flex min-h-28 items-center gap-4 rounded-3xl border border-[var(--supplier-heading,#004e28)]/10 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 text-left shadow-[0_16px_35px_-30px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_60%,transparent)] transition hover:-translate-y-0.5 hover:border-[var(--supplier-outline,#168e00)]/35 hover:shadow-[0_20px_45px_-28px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_60%,transparent)]"
                 >
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#004e28]/8 text-[#004e28]">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--supplier-secondary,#004e28)]/8 text-[var(--supplier-heading,#004e28)]">
                     <CalendarDays size={24} />
                   </span>
 
                   <span className="min-w-0 flex-1">
-                    <span className="block font-[family-name:var(--font-varela-round)] text-lg font-black text-[#004e28]">
+                    <span className="block font-[family-name:var(--font-varela-round)] text-lg font-black text-[var(--supplier-heading,#004e28)]">
                       Ver agenda
                     </span>
                     <span className="mt-1 block text-sm leading-5 text-gray-500">
@@ -267,7 +267,7 @@ export function SupplierModuleNavigation({
 
                   <ChevronRight
                     size={20}
-                    className="shrink-0 text-[#168e00] transition-transform group-hover:translate-x-1"
+                    className="shrink-0 text-[var(--supplier-accent,#168e00)] transition-transform group-hover:translate-x-1"
                   />
                 </button>
               ) : null}

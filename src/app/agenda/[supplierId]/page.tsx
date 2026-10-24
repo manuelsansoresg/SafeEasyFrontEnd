@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { SupplierTheme } from "@/components/supplier/SupplierTheme";
+import type { SupplierThemeSource } from "@/lib/supplierTheme";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -46,7 +48,7 @@ import type {
 } from "@/types/agendaBooking";
 
 const inputClass =
-  "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none transition focus:border-[#168e00] focus:ring-2 focus:ring-[#168e00]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400";
+  "w-full rounded-xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-4 py-3 outline-none transition focus:border-[var(--supplier-outline,#168e00)] focus:ring-2 focus:ring-[var(--supplier-outline,#168e00)]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400";
 
 function todayInput() {
   const now = new Date();
@@ -126,6 +128,8 @@ export default function PublicAgendaBookingPage() {
 
   const auth = useAuthStore();
   const supplierId = Number(params.supplierId);
+  const [portalTheme, setPortalTheme] = useState<{ supplierId: number; colors: SupplierThemeSource } | null>(null);
+  const themeSource = portalTheme?.supplierId === supplierId ? portalTheme.colors : {};
   const [loginReturnTo, setLoginReturnTo] = useState(
     `/agenda/${params.supplierId}`,
   );
@@ -209,6 +213,7 @@ export default function PublicAgendaBookingPage() {
         ? supplierPayload as Record<string, unknown> : null;
       const supplier = supplierRecord?.supplier && typeof supplierRecord.supplier === "object"
         ? supplierRecord.supplier as Record<string, unknown> : supplierRecord;
+      setPortalTheme({ supplierId, colors: (supplier ?? {}) as SupplierThemeSource });
       const type = supplier?.business_type;
       if (typeof type === "string") {
         setBusinessType(type);
@@ -689,21 +694,21 @@ export default function PublicAgendaBookingPage() {
 
   if (loadingServices) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
+      <SupplierTheme supplier={themeSource} className="flex min-h-[60vh] items-center justify-center">
         <Loader2
-          className="animate-spin text-[#168e00]"
+          className="animate-spin text-[var(--supplier-accent,#168e00)]"
           size={36}
         />
-      </div>
+      </SupplierTheme>
     );
   }
 
   if (!services.length) {
     return (
-      <main className="mx-auto max-w-3xl px-4 pb-24 pt-28 sm:pb-12 sm:pt-32">
-        <div className="rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-sm">
+      <SupplierTheme supplier={themeSource}><main className="mx-auto max-w-3xl px-4 pb-24 pt-28 sm:pb-12 sm:pt-32">
+        <div className="rounded-3xl border border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-8 text-center shadow-sm">
           <CalendarDays
-            className="mx-auto text-[#168e00]"
+            className="mx-auto text-[var(--supplier-accent,#168e00)]"
             size={42}
           />
           <h1 className="mt-4 text-2xl font-bold text-gray-900">
@@ -714,36 +719,36 @@ export default function PublicAgendaBookingPage() {
             en este momento.
           </p>
         </div>
-      </main>
+      </main></SupplierTheme>
     );
   }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 px-4 pb-24 pt-28 sm:pb-12 sm:pt-32">
+    <SupplierTheme supplier={themeSource}><main className="mx-auto max-w-5xl space-y-6 px-4 pb-24 pt-28 sm:pb-12 sm:pt-32">
       <div>
         <button
           type="button"
           onClick={() => router.back()}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-[#004e28]"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-[var(--supplier-heading,#004e28)]"
         >
           <ArrowLeft size={17} />
           Volver
         </button>
       </div>
 
-      <section className="rounded-3xl bg-[#004e28] p-6 text-white sm:p-8">
+      <section className="rounded-3xl supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] p-6 text-[color:var(--supplier-inverse,#ffffff)] sm:p-8">
         <div className="flex items-start gap-4">
-          <div className="rounded-2xl bg-white/10 p-3">
+          <div className="rounded-2xl bg-[var(--supplier-card-background,#ffffff)]/10 p-3">
             <CalendarDays size={30} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-white/70">
+            <p className="text-sm font-semibold text-[color:var(--supplier-inverse-muted,#ffffff)]">
               Agenda
             </p>
             <h1 className="mt-1 text-3xl font-bold">
               {publicAgendaTitle(savedPublicTitle, businessType)}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm text-white/80">
+            <p className="mt-2 max-w-2xl text-sm text-[color:var(--supplier-inverse-muted,#ffffff)]">
               Elige el servicio, la fecha y uno de los horarios
               disponibles.
             </p>
@@ -761,15 +766,15 @@ export default function PublicAgendaBookingPage() {
       ) : null}
 
     {availability ? (
-  <section className="rounded-3xl border border-[#168e00]/15 bg-[#168e00]/5 p-5">
+  <section className="rounded-3xl border border-[var(--supplier-outline,#168e00)]/15 bg-[var(--supplier-primary,#168e00)]/5 p-5">
     <div className="flex items-start gap-3">
       <Info
-        className="mt-0.5 shrink-0 text-[#168e00]"
+        className="mt-0.5 shrink-0 text-[var(--supplier-accent,#168e00)]"
         size={20}
       />
 
       <div>
-        <h2 className="font-bold text-[#004e28]">
+        <h2 className="font-bold text-[var(--supplier-heading,#004e28)]">
           Reglas de reservación
         </h2>
 
@@ -830,7 +835,7 @@ export default function PublicAgendaBookingPage() {
 
             <Link
               href={getLoginUrl(loginReturnTo)}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 py-2.5 font-semibold text-white"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 py-2.5 font-semibold text-[color:var(--supplier-inverse,#ffffff)]"
             >
               <LogIn size={18} />
               Iniciar sesión
@@ -838,10 +843,10 @@ export default function PublicAgendaBookingPage() {
           </div>
         </section>
       ) : !auth.isAuthenticated && hydrated ? (
-        <section className="rounded-3xl border border-[#168e00]/20 bg-[#168e00]/5 p-5">
+        <section className="rounded-3xl border border-[var(--supplier-outline,#168e00)]/20 bg-[var(--supplier-primary,#168e00)]/5 p-5">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-              <h2 className="font-bold text-[#004e28]">
+              <h2 className="font-bold text-[var(--supplier-heading,#004e28)]">
                 ¿Ya tienes cuenta en Drooopy?
               </h2>
               <p className="mt-1 text-sm text-gray-600">
@@ -851,7 +856,7 @@ export default function PublicAgendaBookingPage() {
             </div>
             <Link
               href={getLoginUrl(loginReturnTo)}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[#168e00] px-4 py-2.5 font-semibold text-[#168e00]"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--supplier-outline,#168e00)] px-4 py-2.5 font-semibold text-[var(--supplier-accent,#168e00)]"
             >
               <LogIn size={18} />
               Iniciar sesión
@@ -860,7 +865,7 @@ export default function PublicAgendaBookingPage() {
         </section>
       ) : null}
 
-      <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-3xl border border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 shadow-sm sm:p-6">
         <h2 className="text-xl font-bold text-gray-900">
           1. Selecciona el servicio
         </h2>
@@ -884,8 +889,8 @@ export default function PublicAgendaBookingPage() {
                 aria-pressed={selected}
                 className={
                   selected
-                    ? "rounded-2xl border-2 border-[#168e00] bg-[#168e00]/5 p-4 text-left"
-                    : "rounded-2xl border border-gray-200 p-4 text-left transition hover:border-[#168e00]/40"
+                    ? "rounded-2xl border-2 border-[var(--supplier-outline,#168e00)] bg-[var(--supplier-primary,#168e00)]/5 p-4 text-left"
+                    : "rounded-2xl border border-gray-200 p-4 text-left transition hover:border-[var(--supplier-outline,#168e00)]/40"
                 }
               >
                 <div className="flex items-start justify-between gap-3">
@@ -902,7 +907,7 @@ export default function PublicAgendaBookingPage() {
 
                   {selected ? (
                     <CheckCircle2
-                      className="shrink-0 text-[#168e00]"
+                      className="shrink-0 text-[var(--supplier-accent,#168e00)]"
                       size={20}
                     />
                   ) : null}
@@ -922,7 +927,7 @@ export default function PublicAgendaBookingPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-3xl border border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 shadow-sm sm:p-6">
         <h2 className="text-xl font-bold text-gray-900">
           2. Elige fecha y horario
         </h2>
@@ -956,13 +961,13 @@ export default function PublicAgendaBookingPage() {
             }}
           />
 
-          <div className="min-w-0 rounded-2xl bg-[#f2f3f4] p-4 sm:p-5">
+          <div className="min-w-0 rounded-2xl supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] p-4 sm:p-5">
             {selectedDate && availability ? (
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#168e00]">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--supplier-accent,#168e00)]">
                   Fecha seleccionada
                 </p>
-                <p className="mt-1 font-[family-name:var(--font-varela-round)] text-lg font-bold text-[#004e28]">
+                <p className="mt-1 font-[family-name:var(--font-varela-round)] text-lg font-bold text-[var(--supplier-heading,#004e28)]">
                   {formatDate(selectedDate)}
                 </p>
               </div>
@@ -999,8 +1004,8 @@ export default function PublicAgendaBookingPage() {
                       aria-label={`Elegir horario ${formatSlot(slot.start_at, availability.timezone)}`}
                       className={
                         selected
-                          ? "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#168e00] px-3 py-3 text-sm font-semibold text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#004e28]"
-                          : "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm font-semibold text-gray-700 transition hover:border-[#168e00] hover:text-[#168e00] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00]"
+                          ? "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-3 py-3 text-sm font-semibold text-[color:var(--supplier-inverse,#ffffff)] shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-heading,#004e28)]"
+                          : "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-3 py-3 text-sm font-semibold text-gray-700 transition hover:border-[var(--supplier-outline,#168e00)] hover:text-[var(--supplier-accent,#168e00)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-outline,#168e00)]"
                       }
                     >
                       <Clock3 size={16} aria-hidden="true" />
@@ -1013,7 +1018,7 @@ export default function PublicAgendaBookingPage() {
                 })}
               </div>
             ) : availability ? (
-              <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
+              <div className="mt-3 rounded-xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-4 text-sm text-gray-600">
                 <p className="font-semibold text-gray-800">
                   No hay horarios disponibles en este periodo.
                 </p>
@@ -1030,14 +1035,14 @@ export default function PublicAgendaBookingPage() {
                       setSelectedDate(null);
                       setSelectedSlot(null);
                     }}
-                    className="mt-3 font-bold text-[#168e00] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00]"
+                    className="mt-3 font-bold text-[var(--supplier-accent,#168e00)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-outline,#168e00)]"
                   >
                     Ver siguiente periodo
                   </button>
                 ) : null}
               </div>
             ) : (
-              <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500">
+              <div className="mt-3 rounded-xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-4 text-sm text-gray-500">
                 Selecciona un servicio para consultar horarios.
               </div>
             )}
@@ -1045,7 +1050,7 @@ export default function PublicAgendaBookingPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-3xl border border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 shadow-sm sm:p-6">
         <h2 className="text-xl font-bold text-gray-900">
           3. Tus datos
         </h2>
@@ -1141,15 +1146,15 @@ export default function PublicAgendaBookingPage() {
       ) : null}
 
       {legacyUncertain ? <p role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Hay un intento de reserva tradicional sin resultado confirmado. Revisa tus citas o tu correo; el establecimiento puede verificarlo antes de realizar otra reserva.</p> : null}
-      <section className="space-y-4 rounded-3xl border border-[#004e28]/15 bg-white p-5 sm:p-6">
-        <h2 className="text-xl font-bold text-[#004e28]">Resumen de tu reservación</h2>
+      <section className="space-y-4 rounded-3xl border border-[var(--supplier-heading,#004e28)]/15 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 sm:p-6">
+        <h2 className="text-xl font-bold text-[var(--supplier-heading,#004e28)]">Resumen de tu reservación</h2>
         {quote ? <>
           <AgendaBookingQuoteSummary quote={quote} accepted={acceptedTerms} onAccepted={setAcceptedTerms} />
         </> : selectedServiceId && !quoteState.error ? <p role="status">Consultando cotización…</p> : null}
         {quoteState.serviceId === selectedServiceId && quoteState.error ? <p role="alert" className="text-sm text-amber-900">{quoteState.error} {!legacy ? <button type="button" className="underline" onClick={() => setQuoteRefresh(n => n + 1)}>Volver a consultar</button> : null}</p> : null}
         {financialAttempt.current ? <p className="text-sm text-amber-900">Hay un intento de reservación pendiente. El siguiente clic comprobará ese mismo intento con los datos originales.</p> : null}
       </section>
-      <section className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-3xl border border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 shadow-sm sm:p-6">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <p className="text-sm font-semibold text-gray-500">
@@ -1190,7 +1195,7 @@ export default function PublicAgendaBookingPage() {
               guestBlocked ||
               (legacy && availability?.accepts_payments === true && selectedPaymentMethod === "none")))
             }
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#168e00] px-6 py-3.5 font-bold text-white transition hover:bg-[#117500] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-6 py-3.5 font-bold text-[color:var(--supplier-inverse,#ffffff)] transition hover:bg-[var(--supplier-primary-hover,#117500)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? (
               <Loader2
@@ -1204,6 +1209,6 @@ export default function PublicAgendaBookingPage() {
           </button>
         </div>
       </section>
-    </main>
+    </main></SupplierTheme>
   );
 }

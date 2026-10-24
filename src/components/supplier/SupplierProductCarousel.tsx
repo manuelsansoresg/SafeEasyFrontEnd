@@ -103,7 +103,7 @@ export function SupplierProductCarousel({
   if (loading) {
     return (
       <div className="py-8 w-full">
-        <h3 className="text-2xl font-bold mb-6 text-[#004e28] px-4 md:px-0 font-[family-name:var(--font-varela-round)]">
+        <h3 className="text-2xl font-bold mb-6 text-[var(--supplier-heading,#004e28)] px-4 md:px-0 font-[family-name:var(--font-varela-round)]">
             {title}
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-4 md:px-0">
@@ -126,7 +126,7 @@ export function SupplierProductCarousel({
   return (
     <div className="py-8 w-full relative group">
       <div className="flex items-center justify-between mb-6 px-4 md:px-0">
-        <h3 className="text-2xl font-bold text-[#004e28] font-[family-name:var(--font-varela-round)]">
+        <h3 className="text-2xl font-bold text-[var(--supplier-heading,#004e28)] font-[family-name:var(--font-varela-round)]">
           {title}
         </h3>
         {showControls && (
@@ -134,7 +134,7 @@ export function SupplierProductCarousel({
             <button
               onClick={prevSlide}
               disabled={isAtStart}
-              className="p-2 rounded-full bg-white border border-gray-200 shadow-sm hover:bg-[#004e28] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 rounded-full supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] border border-gray-200 shadow-sm hover:bg-[var(--supplier-secondary,#004e28)] hover:text-[color:var(--supplier-inverse,#ffffff)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Anterior"
             >
               <ChevronLeft size={20} />
@@ -142,7 +142,7 @@ export function SupplierProductCarousel({
             <button
               onClick={nextSlide}
               disabled={isAtEnd}
-              className="p-2 rounded-full bg-white border border-gray-200 shadow-sm hover:bg-[#004e28] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 rounded-full supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] border border-gray-200 shadow-sm hover:bg-[var(--supplier-secondary,#004e28)] hover:text-[color:var(--supplier-inverse,#ffffff)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Siguiente"
             >
               <ChevronRight size={20} />

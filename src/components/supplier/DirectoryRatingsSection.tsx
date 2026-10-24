@@ -73,15 +73,15 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
   return (
     <section
       id="experiencia"
-      className="scroll-mt-20 border-t border-gray-100 bg-white py-20 md:py-24"
+      className="scroll-mt-20 border-t border-gray-100 supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] py-20 md:py-24"
     >
       <div className="mx-auto max-w-6xl px-5 md:px-8">
         <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr]">
           <div>
-            <span className="text-sm font-bold uppercase tracking-[0.16em] text-[#168e00]">
+            <span className="text-sm font-bold uppercase tracking-[0.16em] text-[var(--supplier-accent,#168e00)]">
               Experiencias reales
             </span>
-            <h2 className="mt-3 font-[family-name:var(--font-varela-round)] text-3xl font-black text-[#004e28] md:text-4xl">
+            <h2 className="mt-3 font-[family-name:var(--font-varela-round)] text-3xl font-black text-[var(--supplier-heading,#004e28)] md:text-4xl">
               Califica al negocio
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-6 text-gray-600">
@@ -90,7 +90,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
             </p>
 
             <div className="mt-7 flex items-end gap-4">
-              <span className="font-[family-name:var(--font-varela-round)] text-5xl font-black text-[#004e28]">
+              <span className="font-[family-name:var(--font-varela-round)] text-5xl font-black text-[var(--supplier-heading,#004e28)]">
                 {(data?.average ?? 0).toFixed(1)}
               </span>
               <div className="pb-1">
@@ -102,11 +102,11 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
               </div>
             </div>
 
-            <div className="mt-8 rounded-[1.5rem] border border-[#004e28]/10 bg-[#f7f9f8] p-5">
+            <div className="mt-8 rounded-[1.5rem] border border-[var(--supplier-heading,#004e28)]/10 supplier-surface-page bg-[var(--supplier-page-background,#f7f9f8)] p-5">
               {!token ? (
                 <div className="text-center">
-                  <LockKeyhole className="mx-auto text-[#168e00]" size={26} />
-                  <p className="mt-3 text-sm font-semibold text-[#004e28]">
+                  <LockKeyhole className="mx-auto text-[var(--supplier-accent,#168e00)]" size={26} />
+                  <p className="mt-3 text-sm font-semibold text-[var(--supplier-heading,#004e28)]">
                     Inicia sesión para calificar
                   </p>
                   <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -115,14 +115,14 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
                   </p>
                   <Link
                     href={getLoginUrl(`${pathname}#experiencia`)}
-                    className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#004e28] px-5 text-sm font-semibold text-white transition hover:bg-[#168e00]"
+                    className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] px-5 text-sm font-semibold text-[color:var(--supplier-inverse,#ffffff)] transition hover:bg-[var(--supplier-primary,#168e00)]"
                   >
                     Iniciar sesión
                   </Link>
                 </div>
               ) : data?.my_rating ? (
                 <div>
-                  <div className="flex items-center gap-2 text-[#168e00]">
+                  <div className="flex items-center gap-2 text-[var(--supplier-accent,#168e00)]">
                     <CheckCircle2 size={20} />
                     <p className="font-semibold">Tu calificación fue registrada</p>
                   </div>
@@ -140,7 +140,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
                 </div>
               ) : (
                 <div>
-                  <p className="text-sm font-semibold text-[#004e28]">
+                  <p className="text-sm font-semibold text-[var(--supplier-heading,#004e28)]">
                     ¿Cómo fue tu experiencia?
                   </p>
                   <div className="mt-3">
@@ -159,14 +159,14 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
                       maxLength={1000}
                       rows={4}
                       placeholder="Cuéntanos tu experiencia (opcional)"
-                      className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-[#168e00] focus:ring-4 focus:ring-[#168e00]/10"
+                      className="w-full resize-none rounded-xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-4 py-3 text-sm outline-none transition focus:border-[var(--supplier-outline,#168e00)] focus:ring-4 focus:ring-[var(--supplier-outline,#168e00)]/10"
                     />
                   </label>
                   <button
                     type="button"
                     onClick={submitRating}
                     disabled={!selectedRating || submitting}
-                    className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#004e28] px-5 text-sm font-semibold text-white transition hover:bg-[#168e00] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] px-5 text-sm font-semibold text-[color:var(--supplier-inverse,#ffffff)] transition hover:bg-[var(--supplier-primary,#168e00)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {submitting ? (
                       <Loader2 className="animate-spin" size={18} />
@@ -185,7 +185,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
 
           <div>
             <div className="mb-6 flex items-center justify-between">
-              <h3 className="font-[family-name:var(--font-varela-round)] text-2xl font-bold text-[#004e28]">
+              <h3 className="font-[family-name:var(--font-varela-round)] text-2xl font-bold text-[var(--supplier-heading,#004e28)]">
                 Opiniones del negocio
               </h3>
             </div>
@@ -194,7 +194,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
                 {[1, 2].map((item) => (
                   <div
                     key={item}
-                    className="h-52 animate-pulse rounded-[1.5rem] bg-[#f2f3f4]"
+                    className="h-52 animate-pulse rounded-[1.5rem] supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)]"
                   />
                 ))}
               </div>
@@ -203,10 +203,10 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
                 {data.ratings.map((rating) => (
                   <article
                     key={rating.id}
-                    className="rounded-[1.5rem] border border-gray-100 bg-[#f7f9f8] p-6"
+                    className="rounded-[1.5rem] border border-gray-100 supplier-surface-page bg-[var(--supplier-page-background,#f7f9f8)] p-6"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#004e28] font-bold text-white">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] font-bold text-[color:var(--supplier-inverse,#ffffff)]">
                         {rating.user_name.charAt(0).toUpperCase()}
                       </span>
                       <div>
@@ -230,9 +230,9 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
                 ))}
               </div>
             ) : (
-              <div className="flex min-h-72 flex-col items-center justify-center rounded-[2rem] bg-[#f7f9f8] px-6 text-center">
+              <div className="flex min-h-72 flex-col items-center justify-center rounded-[2rem] supplier-surface-page bg-[var(--supplier-page-background,#f7f9f8)] px-6 text-center">
                 <MessageCircle className="text-gray-300" size={44} />
-                <p className="mt-4 font-semibold text-[#004e28]">
+                <p className="mt-4 font-semibold text-[var(--supplier-heading,#004e28)]">
                   Aún no hay opiniones
                 </p>
                 <p className="mt-1 text-sm text-gray-500">

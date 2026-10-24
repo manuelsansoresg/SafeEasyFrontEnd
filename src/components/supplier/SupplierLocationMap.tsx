@@ -87,7 +87,7 @@ export default function SupplierLocationMap({
       </MapContainer>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[400] h-16 bg-gradient-to-b from-white/25 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[400] h-20 bg-gradient-to-t from-[#004e28]/10 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[400] h-20 bg-gradient-to-t from-[var(--supplier-secondary,#004e28)]/10 to-transparent" />
 
       <style jsx global>{`
         .supplier-location-map .leaflet-container {
@@ -102,15 +102,15 @@ export default function SupplierLocationMap({
 
         .supplier-location-map .leaflet-popup-content-wrapper,
         .supplier-location-map .leaflet-popup-tip {
-          border: 1px solid rgba(0, 78, 40, 0.08);
+          border: 1px solid color-mix(in srgb, var(--supplier-secondary, #004e28) 8%, transparent);
           border-radius: 14px;
-          background: rgba(255, 255, 255, 0.97);
-          box-shadow: 0 16px 40px rgba(0, 78, 40, 0.2);
+          background: var(--supplier-card-background, #ffffff);
+          box-shadow: 0 16px 40px color-mix(in srgb, var(--supplier-secondary, #004e28) 20%, transparent);
         }
 
         .supplier-location-map .leaflet-popup-content {
           margin: 0;
-          color: #004e28;
+          color: var(--supplier-heading-on-card, #004e28);
         }
 
         .supplier-location-popup-link {
@@ -119,7 +119,7 @@ export default function SupplierLocationMap({
           flex-direction: column;
           gap: 3px;
           padding: 12px 14px;
-          color: #004e28 !important;
+          color: var(--supplier-heading-on-card, #004e28) !important;
           text-decoration: none !important;
         }
 
@@ -128,7 +128,7 @@ export default function SupplierLocationMap({
         }
 
         .supplier-location-popup-link span {
-          color: #168e00;
+          color: var(--supplier-accent-on-card, #168e00);
           font-size: 0.72rem;
           font-weight: 700;
         }
@@ -173,15 +173,15 @@ export default function SupplierLocationMap({
           display: grid;
           place-items: center;
           border-radius: 999px;
-          background: rgba(22, 142, 0, 0.15);
-          box-shadow: 0 0 0 8px rgba(22, 142, 0, 0.1);
+          background: color-mix(in srgb, var(--supplier-primary, #168e00) 15%, transparent);
+          box-shadow: 0 0 0 8px color-mix(in srgb, var(--supplier-primary, #168e00) 10%, transparent);
           cursor: pointer;
         }
 
         .supplier-location-marker__pulse {
           position: absolute;
           inset: 5px;
-          border: 2px solid rgba(22, 142, 0, 0.55);
+          border: 2px solid color-mix(in srgb, var(--supplier-primary, #168e00) 55%, transparent);
           border-radius: 999px;
           animation: supplier-location-pulse 2s ease-out infinite;
         }
@@ -192,8 +192,8 @@ export default function SupplierLocationMap({
           height: 19px;
           border: 4px solid #ffffff;
           border-radius: 999px;
-          background: #168e00;
-          box-shadow: 0 10px 26px rgba(0, 78, 40, 0.42);
+          background: var(--supplier-primary, #168e00);
+          box-shadow: 0 10px 26px color-mix(in srgb, var(--supplier-secondary, #004e28) 42%, transparent);
         }
 
         @keyframes supplier-location-pulse {

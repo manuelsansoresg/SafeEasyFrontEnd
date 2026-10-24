@@ -1,0 +1,229 @@
+/* Variables stay within the public supplier tree, including its dialogs. */
+@layer components {
+  .drooopy-supplier-theme {
+    --ring: var(--supplier-primary);
+    --supplier-inverse: #ffffff;
+    --supplier-inverse-muted: #ffffff;
+    background-color: var(--supplier-page-background);
+    color: var(--supplier-text);
+  }
+  .drooopy-supplier-theme, .drooopy-supplier-theme .supplier-surface-page {
+    --supplier-text: var(--supplier-text-on-page);
+    --supplier-muted: var(--supplier-muted-on-page);
+    --supplier-heading: var(--supplier-heading-on-page);
+    --supplier-accent: var(--supplier-accent-on-page);
+    --supplier-outline: var(--supplier-accent-on-page);
+    color: var(--supplier-text);
+    --supplier-inverse: #ffffff;
+    --supplier-inverse-muted: #ffffff;
+  }
+  .drooopy-supplier-theme .supplier-surface-card {
+    --supplier-text: var(--supplier-text-on-card);
+    --supplier-muted: var(--supplier-muted-on-card);
+    --supplier-heading: var(--supplier-heading-on-card);
+    --supplier-accent: var(--supplier-accent-on-card);
+    --supplier-outline: var(--supplier-accent-on-card);
+    color: var(--supplier-text);
+    --supplier-inverse: #ffffff;
+    --supplier-inverse-muted: #ffffff;
+  }
+  .drooopy-supplier-theme .supplier-surface-primary {
+    --supplier-text: var(--supplier-text-on-primary);
+    --supplier-muted: var(--supplier-muted-on-primary);
+    --supplier-heading: var(--supplier-heading-on-primary);
+    --supplier-accent: var(--supplier-accent-on-primary);
+    --supplier-outline: var(--supplier-accent-on-primary);
+    color: var(--supplier-text);
+    --supplier-inverse: var(--supplier-text-on-primary);
+    --supplier-inverse-muted: var(--supplier-text-on-primary);
+  }
+  .drooopy-supplier-theme .supplier-surface-secondary {
+    --supplier-text: var(--supplier-text-on-secondary);
+    --supplier-muted: var(--supplier-muted-on-secondary);
+    --supplier-heading: var(--supplier-heading-on-secondary);
+    --supplier-accent: var(--supplier-accent-on-secondary);
+    --supplier-outline: var(--supplier-accent-on-secondary);
+    color: var(--supplier-text);
+    --supplier-inverse: var(--supplier-text-on-secondary);
+    --supplier-inverse-muted: var(--supplier-text-on-secondary);
+  }
+}
+
+.drooopy-supplier-theme ::selection {
+  background: var(--supplier-primary);
+  color: var(--supplier-on-primary);
+}
+/* Neutral copy adapts to each local surface; semantic alert and rating colors remain intact. */
+.drooopy-supplier-theme :where(.text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700) {
+  color: var(--supplier-muted);
+}
+.drooopy-supplier-theme :where(.text-gray-300):not(:disabled) {
+  color: var(--supplier-muted);
+}
+.drooopy-supplier-theme :where(.text-gray-800, .text-gray-900, .text-black, .text-\[\#000000\]) {
+  color: var(--supplier-text);
+}
+.drooopy-supplier-theme :where(.bg-gray-50, .bg-gray-100) {
+  background-color: color-mix(in srgb, var(--supplier-text) 6%, var(--supplier-card-background));
+}
+.drooopy-supplier-theme :where(.border-gray-100, .border-gray-200, .border-gray-300) {
+  border-color: color-mix(in srgb, var(--supplier-text) 22%, transparent);
+}
+.drooopy-supplier-theme :where(input:not([type="radio"]):not([type="checkbox"]), textarea, select) {
+  background-color: var(--supplier-card-background);
+  color: var(--supplier-text-on-card);
+  caret-color: var(--supplier-accent-on-card);
+}
+.drooopy-supplier-theme :where(input, textarea)::placeholder {
+  color: var(--supplier-muted-on-card);
+  opacity: 1;
+}
+.drooopy-supplier-theme :where(button, a, input, textarea, select, summary):focus-visible {
+  outline: 2px solid var(--supplier-outline);
+  outline-offset: 3px;
+}
+/* Photo/lightbox copy is intentionally independent of the card underneath. */
+.drooopy-supplier-theme .supplier-media {
+  --supplier-inverse: #ffffff;
+  --supplier-inverse-muted: #ffffff;
+  --supplier-text: #ffffff;
+  --supplier-muted: #ffffff;
+}
+.drooopy-supplier-theme [class~="hover:bg-[var(--supplier-primary,#168e00)]"]:hover {
+  --supplier-inverse: var(--supplier-on-primary);
+  --supplier-inverse-muted: var(--supplier-on-primary);
+  --supplier-text: var(--supplier-on-primary);
+  --supplier-muted: var(--supplier-on-primary);
+  --supplier-heading: var(--supplier-on-primary);
+  --supplier-accent: var(--supplier-on-primary);
+  --supplier-outline: var(--supplier-on-primary);
+  color: var(--supplier-on-primary);
+}
+.drooopy-supplier-theme .group:hover [class~="group-hover:bg-[var(--supplier-primary,#168e00)]"] {
+  --supplier-inverse: var(--supplier-on-primary);
+  --supplier-inverse-muted: var(--supplier-on-primary);
+  --supplier-text: var(--supplier-on-primary);
+  --supplier-muted: var(--supplier-on-primary);
+  --supplier-heading: var(--supplier-on-primary);
+  --supplier-accent: var(--supplier-on-primary);
+  --supplier-outline: var(--supplier-on-primary);
+  color: var(--supplier-on-primary);
+}
+.drooopy-supplier-theme [class~="hover:bg-[var(--supplier-secondary,#004e28)]"]:hover {
+  --supplier-inverse: var(--supplier-on-header);
+  --supplier-inverse-muted: var(--supplier-on-header);
+  --supplier-text: var(--supplier-on-header);
+  --supplier-muted: var(--supplier-on-header);
+  --supplier-heading: var(--supplier-on-header);
+  --supplier-accent: var(--supplier-on-header);
+  --supplier-outline: var(--supplier-on-header);
+  color: var(--supplier-on-header);
+}
+.drooopy-supplier-theme .group:hover [class~="group-hover:bg-[var(--supplier-secondary,#004e28)]"] {
+  --supplier-inverse: var(--supplier-on-header);
+  --supplier-inverse-muted: var(--supplier-on-header);
+  --supplier-text: var(--supplier-on-header);
+  --supplier-muted: var(--supplier-on-header);
+  --supplier-heading: var(--supplier-on-header);
+  --supplier-accent: var(--supplier-on-header);
+  --supplier-outline: var(--supplier-on-header);
+  color: var(--supplier-on-header);
+}
+.drooopy-supplier-theme [class~="hover:bg-[var(--supplier-primary-hover,#137a00)]"]:hover {
+  --supplier-inverse: var(--supplier-on-primary-hover);
+  --supplier-inverse-muted: var(--supplier-on-primary-hover);
+  --supplier-text: var(--supplier-on-primary-hover);
+  --supplier-muted: var(--supplier-on-primary-hover);
+  --supplier-heading: var(--supplier-on-primary-hover);
+  --supplier-accent: var(--supplier-on-primary-hover);
+  --supplier-outline: var(--supplier-on-primary-hover);
+  color: var(--supplier-on-primary-hover);
+}
+.drooopy-supplier-theme .group:hover [class~="group-hover:bg-[var(--supplier-primary-hover,#137a00)]"] {
+  --supplier-inverse: var(--supplier-on-primary-hover);
+  --supplier-inverse-muted: var(--supplier-on-primary-hover);
+  --supplier-text: var(--supplier-on-primary-hover);
+  --supplier-muted: var(--supplier-on-primary-hover);
+  --supplier-heading: var(--supplier-on-primary-hover);
+  --supplier-accent: var(--supplier-on-primary-hover);
+  --supplier-outline: var(--supplier-on-primary-hover);
+  color: var(--supplier-on-primary-hover);
+}
+.drooopy-supplier-theme [class~="hover:bg-[var(--supplier-primary-hover,#117500)]"]:hover {
+  --supplier-inverse: var(--supplier-on-primary-hover);
+  --supplier-inverse-muted: var(--supplier-on-primary-hover);
+  --supplier-text: var(--supplier-on-primary-hover);
+  --supplier-muted: var(--supplier-on-primary-hover);
+  --supplier-heading: var(--supplier-on-primary-hover);
+  --supplier-accent: var(--supplier-on-primary-hover);
+  --supplier-outline: var(--supplier-on-primary-hover);
+  color: var(--supplier-on-primary-hover);
+}
+.drooopy-supplier-theme .group:hover [class~="group-hover:bg-[var(--supplier-primary-hover,#117500)]"] {
+  --supplier-inverse: var(--supplier-on-primary-hover);
+  --supplier-inverse-muted: var(--supplier-on-primary-hover);
+  --supplier-text: var(--supplier-on-primary-hover);
+  --supplier-muted: var(--supplier-on-primary-hover);
+  --supplier-heading: var(--supplier-on-primary-hover);
+  --supplier-accent: var(--supplier-on-primary-hover);
+  --supplier-outline: var(--supplier-on-primary-hover);
+  color: var(--supplier-on-primary-hover);
+}
+.drooopy-supplier-theme [class~="hover:bg-[var(--supplier-secondary-hover,#003b1f)]"]:hover {
+  --supplier-inverse: var(--supplier-on-secondary-hover);
+  --supplier-inverse-muted: var(--supplier-on-secondary-hover);
+  --supplier-text: var(--supplier-on-secondary-hover);
+  --supplier-muted: var(--supplier-on-secondary-hover);
+  --supplier-heading: var(--supplier-on-secondary-hover);
+  --supplier-accent: var(--supplier-on-secondary-hover);
+  --supplier-outline: var(--supplier-on-secondary-hover);
+  color: var(--supplier-on-secondary-hover);
+}
+.drooopy-supplier-theme .group:hover [class~="group-hover:bg-[var(--supplier-secondary-hover,#003b1f)]"] {
+  --supplier-inverse: var(--supplier-on-secondary-hover);
+  --supplier-inverse-muted: var(--supplier-on-secondary-hover);
+  --supplier-text: var(--supplier-on-secondary-hover);
+  --supplier-muted: var(--supplier-on-secondary-hover);
+  --supplier-heading: var(--supplier-on-secondary-hover);
+  --supplier-accent: var(--supplier-on-secondary-hover);
+  --supplier-outline: var(--supplier-on-secondary-hover);
+  color: var(--supplier-on-secondary-hover);
+}
+
+.drooopy-supplier-theme [data-builder-active="true"] {
+  outline: 1px solid var(--supplier-outline);
+  outline-offset: -1px;
+}
+
+.drooopy-supplier-theme [class~="hover:bg-[var(--supplier-card-background,#ffffff)]"]:hover {
+  --supplier-inverse: var(--supplier-text-on-card);
+  --supplier-inverse-muted: var(--supplier-text-on-card);
+  --supplier-text: var(--supplier-text-on-card);
+  --supplier-muted: var(--supplier-text-on-card);
+  --supplier-heading: var(--supplier-text-on-card);
+  --supplier-accent: var(--supplier-text-on-card);
+  --supplier-outline: var(--supplier-text-on-card);
+  color: var(--supplier-text-on-card);
+}
+
+.drooopy-supplier-theme [class~="hover:bg-[var(--supplier-hover-card,#f3f4f6)]"]:hover {
+  --supplier-inverse: var(--supplier-on-hover-card);
+  --supplier-inverse-muted: var(--supplier-on-hover-card);
+  --supplier-text: var(--supplier-on-hover-card);
+  --supplier-muted: var(--supplier-on-hover-card);
+  --supplier-heading: var(--supplier-on-hover-card);
+  --supplier-accent: var(--supplier-on-hover-card);
+  --supplier-outline: var(--supplier-on-hover-card);
+  color: var(--supplier-on-hover-card);
+}
+
+.drooopy-supplier-theme [class~="hover:bg-[var(--supplier-hover-card,#f9fafb)]"]:hover {
+  --supplier-inverse: var(--supplier-on-hover-card);
+  --supplier-inverse-muted: var(--supplier-on-hover-card);
+  --supplier-text: var(--supplier-on-hover-card);
+  --supplier-muted: var(--supplier-on-hover-card);
+  --supplier-heading: var(--supplier-on-hover-card);
+  --supplier-accent: var(--supplier-on-hover-card);
+  --supplier-outline: var(--supplier-on-hover-card);
+  color: var(--supplier-on-hover-card);
+}
