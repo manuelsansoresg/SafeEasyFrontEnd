@@ -61,12 +61,14 @@ export function AdImagesInput({ desktop, mobile, onDesktop, onMobile, current, a
     <div ref={desktopRef} className="min-w-0 space-y-2">
       <FileUpload label={current ? "Imagen escritorio" : "Imagen escritorio *"} value={desktop} onChange={onDesktop} currentImageUrl={deletedDesktop ? null : resolveAdImage(current?.image_desktop)} disabled={disabled}
         accept="image/*" helperText="JPEG, PNG o WebP" removeBehavior="clear_selection" />
+      <p className="text-xs leading-5 text-gray-600">Tamaño recomendado: <strong className="font-semibold text-[#004e28]">1600 × 600 px</strong> (proporción 8:3).</p>
       <button type="button" disabled={disabled} className={`${adButtonClass} w-full`} onClick={() => desktopRef.current?.querySelector<HTMLInputElement>('input[type="file"]')?.click()}>Seleccionar imagen escritorio</button>
       {allowDelete && current?.image_desktop && <label className="inline-flex min-h-9 items-center gap-2 text-xs text-red-700"><input type="checkbox" disabled={disabled || !!desktop} checked={deletedDesktop} onChange={(event) => onDeleteDesktop?.(event.target.checked)} />Eliminar imagen de escritorio actual</label>}
     </div>
     <div ref={mobileRef} className="min-w-0 space-y-2">
       <FileUpload label="Imagen móvil (opcional)" value={mobile} onChange={onMobile} currentImageUrl={deletedMobile ? null : resolveAdImage(current?.image_mobile)} disabled={disabled}
         accept="image/*" helperText="JPEG, PNG o WebP" removeBehavior="clear_selection" />
+      <p className="text-xs leading-5 text-gray-600">Tamaño recomendado: <strong className="font-semibold text-[#004e28]">1080 × 900 px</strong> (proporción 6:5).</p>
       <button type="button" disabled={disabled} className={`${adButtonClass} w-full`} onClick={() => mobileRef.current?.querySelector<HTMLInputElement>('input[type="file"]')?.click()}>Seleccionar imagen móvil</button>
       {allowDelete && current?.image_mobile && <label className="inline-flex min-h-9 items-center gap-2 text-xs text-red-700"><input type="checkbox" disabled={disabled || !!mobile} checked={deletedMobile} onChange={(event) => onDeleteMobile?.(event.target.checked)} />Eliminar imagen móvil actual</label>}
     </div>
