@@ -27,7 +27,7 @@ export function DirectoryTopNav({
   const fullLogoUrl = getImageUrl(logoUrl);
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#004e28] text-white shadow-md backdrop-blur">
+    <nav className="sticky top-0 z-50 border-b border-current/10 bg-[var(--supplier-header-background,#004e28)] text-[color:var(--supplier-on-header,#ffffff)] shadow-md backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5 md:px-8">
         {/* Logo + nombre del proveedor */}
         <Link
@@ -35,7 +35,7 @@ export function DirectoryTopNav({
           className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 transition-opacity hover:opacity-90 sm:gap-3 lg:max-w-sm lg:flex-none"
         >
           {fullLogoUrl ? (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10 p-1">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,currentColor_10%,transparent)] p-1">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={fullLogoUrl}
@@ -53,14 +53,14 @@ export function DirectoryTopNav({
         <div className="hidden items-center gap-5 text-sm font-semibold lg:flex xl:gap-7">
           <a
             href="#inicio"
-            className="text-white/85 transition-colors hover:text-white"
+            className="transition-colors hover:underline underline-offset-4"
           >
             Inicio
           </a>
           {showAbout ? (
             <a
               href="#nosotros"
-              className="text-white/85 transition-colors hover:text-white"
+              className="transition-colors hover:underline underline-offset-4"
             >
               Nosotros
             </a>
@@ -68,14 +68,14 @@ export function DirectoryTopNav({
           {showServices ? (
             <a
               href="#servicios"
-              className="text-white/85 transition-colors hover:text-white"
+              className="transition-colors hover:underline underline-offset-4"
             >
               Servicios
             </a>
           ) : null}
           <a
             href="#contacto"
-            className="text-white/85 transition-colors hover:text-white"
+            className="transition-colors hover:underline underline-offset-4"
           >
             Contacto
           </a>
@@ -84,7 +84,7 @@ export function DirectoryTopNav({
         {/* Volver a Drooopy */}
         <Link
           href="/"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold transition-colors hover:bg-white/20 sm:text-sm"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-current/20 bg-[color-mix(in_srgb,currentColor_10%,transparent)] px-3 py-1.5 text-xs font-bold transition-colors hover:bg-[color-mix(in_srgb,currentColor_20%,transparent)] sm:text-sm"
         >
           <ArrowLeft size={14} />
           <span className="hidden sm:inline">Volver a Drooopy</span>
