@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Trash2, Edit2, X, Video, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Trash2, Edit2, X, Video, Image as ImageIcon, Loader2, Monitor, Smartphone, Lightbulb, Camera, Scan, Type, ChevronDown } from 'lucide-react';
 import FileUpload from '@/components/ui/FileUpload';
 import { fetchWithAuth } from '@/lib/api';
 
@@ -623,10 +623,6 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
       ) : (
         /* Carousel Section (Existing) */
         <>
-            <p className="text-gray-600 text-center mb-8">
-                Puedes agregar hasta 3 imágenes para destacar tu negocio.
-            </p>
-
             {/* Upload Form */}
             <div className={`mb-8 rounded-xl border border-gray-200 bg-gray-50 transition-all ${compact ? "p-4" : "p-6"}`}>
                 <div className={`mb-4 flex gap-3 ${compact ? "flex-col items-start" : "flex-col items-start sm:flex-row sm:items-center sm:justify-between"}`}>
@@ -644,13 +640,52 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
                 </div>
 
                 <p className="text-gray-600 mb-6 text-sm">
-                    Elige una buena imagen. Drooopy la adaptará automáticamente para computadora y celular.
+                    Destaca tu negocio con fotografías de calidad. Puedes subir hasta 3 imágenes que se mostrarán automáticamente en la portada de tu perfil.
                 </p>
                 
                 {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
                 
                 <form id="image-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
                 <div className="mx-auto w-full max-w-2xl">
+                    <div className="mb-5 rounded-xl border border-[#004e28]/10 bg-[#f0f7f1] p-4 text-sm leading-relaxed text-black">
+                        <h4 className="mb-3 flex items-start gap-2 font-semibold text-[#004e28]">
+                            <Lightbulb size={18} className="mt-0.5 shrink-0 text-[#168e00]" aria-hidden="true" />
+                            Recomendaciones para tus imágenes
+                        </h4>
+                        <div className={`flex flex-col gap-3 ${compact ? "" : "sm:flex-row sm:items-start sm:justify-between"}`}>
+                            <p className="flex min-w-0 items-start gap-2">
+                                <Monitor size={18} className="mt-0.5 shrink-0 text-[#168e00]" aria-hidden="true" />
+                                <span><strong className="font-semibold text-[#004e28]">Tamaño recomendado:</strong> 2100 × 740 píxeles para una mejor presentación en computadora.</span>
+                            </p>
+                            <span className="shrink-0 self-start rounded-md bg-white px-2.5 py-1 text-xs font-medium text-[#004e28]">
+                                Máximo 4 MB por imagen
+                            </span>
+                        </div>
+                        <details open className="group mt-3 border-t border-[#004e28]/10 pt-1">
+                            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-md font-medium text-[#004e28] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                                Consejos para tus imágenes
+                                <ChevronDown size={16} className="shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+                            </summary>
+                            <ul className="mt-1 space-y-3 pb-1">
+                                <li className="flex items-start gap-2">
+                                    <Smartphone size={18} className="mt-0.5 shrink-0 text-[#168e00]" aria-hidden="true" />
+                                    <span><strong className="font-semibold text-[#004e28]">Adaptación a celular:</strong> Drooopy genera automáticamente una versión vertical de la imagen, de hasta 1080 × 1350 píxeles, según la resolución original.</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <Camera size={18} className="mt-0.5 shrink-0 text-[#168e00]" aria-hidden="true" />
+                                    <span><strong className="font-semibold text-[#004e28]">Fotografías de calidad:</strong> utiliza imágenes nítidas, bien iluminadas y relacionadas con los productos, servicios o instalaciones de tu negocio.</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <Type size={18} className="mt-0.5 shrink-0 text-[#168e00]" aria-hidden="true" />
+                                    <span><strong className="font-semibold text-[#004e28]">Evita textos y logotipos:</strong> el nombre, logotipo y descripción de tu empresa ya aparecen automáticamente sobre las fotografías.</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <Scan size={18} className="mt-0.5 shrink-0 text-[#168e00]" aria-hidden="true" />
+                                    <span><strong className="font-semibold text-[#004e28]">Cuida los elementos importantes:</strong> evita colocar rostros u objetos relevantes cerca de los extremos, ya que las imágenes pueden recortarse al adaptarse a diferentes pantallas.</span>
+                                </li>
+                            </ul>
+                        </details>
+                    </div>
                     <FileUpload
                         key={`cover-${editingId ?? 'new'}`}
                         label={currentImageUrl ? "Cambiar imagen (opcional)" : "Agregar imagen"}
@@ -659,8 +694,15 @@ export default function StepCarousel({ supplierId, slug, token, onSaved, compact
                         currentImageUrl={currentImageUrl}
                         removeBehavior="clear_selection"
                         disabled={loading}
-                        helperText="JPG, PNG o WebP, máximo 4 MB. Nosotros nos encargamos del resto."
+                        helperText=""
                     />
+                    <p className="mt-3 text-xs leading-relaxed text-gray-600">
+                        Formatos permitidos: JPG, PNG o WebP. Tamaño máximo: 4 MB por imagen.
+                    </p>
+                    <p className="mt-2 flex items-start gap-2 text-xs leading-relaxed text-gray-600">
+                        <Smartphone size={16} className="mt-0.5 shrink-0 text-[#168e00]" aria-hidden="true" />
+                        <span>No necesitas subir una imagen adicional para celular. Drooopy se encarga de adaptarla automáticamente.</span>
+                    </p>
                 </div>
                 {!editingId && items.length >= 3 && (
                     <div className="md:col-span-2 text-center mt-2">
