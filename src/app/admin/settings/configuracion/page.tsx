@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { fetchWithAuth } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { cn } from "@/lib/utils";
+import { ProviderShippingPermission } from "@/components/admin/shipping/ProviderShippingPermission";
 import { PageHero } from "@/components/ui/PageHero";
 import { CheckCircle, ChevronDown, Loader2, Search } from "lucide-react";
 
@@ -825,6 +826,7 @@ export default function ConfiguracionPage() {
                   </p>
                 </div>
               </div>
+              <ProviderShippingPermission />
             </section>
 
             <div className="flex justify-end pt-4 border-t border-gray-100">

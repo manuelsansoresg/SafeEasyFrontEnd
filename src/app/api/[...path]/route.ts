@@ -317,6 +317,7 @@ function normalizeBackendPath(pathname: string) {
     "courier-pickup",
     "start-checkout",
     "shipping-quote",
+    "shipping-settings",
     "add",
     "update",
     "clear",

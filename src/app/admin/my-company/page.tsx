@@ -3,7 +3,8 @@
 import { Suspense, useCallback, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Award, Clock3, ExternalLink, Home, Image as ImageIcon, Info, Loader2, MessageCircle, Package, Paintbrush, PanelTop, QrCode } from "lucide-react";
+import { Award, Clock3, ExternalLink, Home, Image as ImageIcon, Info, Loader2, MessageCircle, Package, Paintbrush, PanelTop, QrCode, Truck } from "lucide-react";
+import { SupplierShippingSettings } from "@/components/admin/shipping/SupplierShippingSettings";
 import SupplierForm from "@/components/admin/SupplierForm";
 import StepCarousel from "@/components/sell/wizard/StepCarousel";
 import StepCertificates from "@/components/sell/wizard/StepCertificates";
@@ -23,12 +24,12 @@ type SupplierForForm = NonNullable<ComponentProps<typeof SupplierForm>["initialD
   business_type?: SupplierBusinessType | null;
   [key: string]: unknown;
 };
-type CompanyTab = "overview" | "information" | "appearance" | "header" | "hours" | "contact" | "sharing" | "advanced";
+type CompanyTab = "overview" | "information" | "appearance" | "header" | "hours" | "contact" | "sharing" | "shipping" | "advanced";
 
 const normalizeTab = (value: string | null): CompanyTab => {
   const legacy: Record<string, CompanyTab> = { info: "information", carousel: "header", certificates: "advanced", qr: "sharing" };
   const normalized = value ? legacy[value] || value : "overview";
-  return ["overview", "information", "appearance", "header", "hours", "contact", "sharing", "advanced"].includes(normalized)
+  return ["overview", "information", "appearance", "header", "hours", "contact", "sharing", "shipping", "advanced"].includes(normalized)
     ? (normalized as CompanyTab)
     : "overview";
 };
@@ -73,8 +74,9 @@ function MyCompanyContent() {
     { id: "hours" as const, label: "Horarios", icon: Clock3 },
     { id: "contact" as const, label: "Contacto", icon: MessageCircle },
     { id: "sharing" as const, label: "Compartir", icon: QrCode },
+    ...(user?.role === "supplier" ? [{ id: "shipping" as const, label: "Costo de envío", icon: Truck }] : []),
     { id: "advanced" as const, label: "Más opciones", icon: Award },
-  ], []);
+  ], [user?.role]);
 
   if (loading || directoryLoading) {
     return <div className="grid min-h-[420px] place-items-center rounded-2xl border border-gray-200 bg-white"><div className="text-center text-gray-500"><Loader2 className="mx-auto mb-3 animate-spin text-[#168e00]" size={30} /><p className="text-sm font-medium">Preparando tu negocio…</p></div></div>;
@@ -132,6 +134,7 @@ function MyCompanyContent() {
           {activeTab === "hours" && token ? <SectionCard title="Horarios" description="Dile a tus clientes cuándo pueden visitarte o contactarte."><BusinessHoursEditor supplierId={supplier.id} token={token} /></SectionCard> : null}
           {activeTab === "contact" ? <SectionCard title="Contacto" description="Teléfono, WhatsApp y redes sociales en un solo lugar."><SupplierForm initialData={supplier} isEditMode view="contact" onSaved={() => fetchSupplier({ silent: true })} /></SectionCard> : null}
           {activeTab === "sharing" ? <SectionCard title="Compartir" description="Comparte tu perfil con un enlace o código QR."><QRPanel /></SectionCard> : null}
+          {activeTab === "shipping" && token && user?.role === "supplier" ? <SectionCard title="Costo de envío" description="Consulta las tarifas vigentes y configura los costos de envío de tu negocio."><SupplierShippingSettings key={user.id} /></SectionCard> : null}
           {activeTab === "advanced" && token ? <div className="space-y-5"><SectionCard title="Información adicional" description="Historia, introducción y datos que no necesitas cambiar con frecuencia."><SupplierForm initialData={supplier} isEditMode view="advanced" onSaved={() => fetchSupplier({ silent: true })} /></SectionCard><SectionCard title="Certificaciones y reconocimientos" description="Agrega respaldos que ayuden a generar confianza."><StepCertificates supplierId={supplier.id} slug={slug || undefined} token={token} onNext={() => undefined} /></SectionCard></div> : null}
         </main>
       </div>

@@ -717,6 +717,15 @@ export default function ProductCartSection() {
       });
       const data: unknown = await response.json().catch(() => null);
       if (!response.ok) {
+        const detail = data && typeof data === "object" ? (data as Record<string, unknown>).detail : null;
+        const needsNewQuote = typeof detail === "string" &&
+          (detail.includes("shipping-quote") || detail.includes("persisted cart quote"));
+        if (response.status === 409 && requiresShippingQuote && needsNewQuote) {
+          setShippingCost(null);
+          setAddressLocked(false);
+          setQuoteRetryCount((count) => count + 1);
+          throw new Error("La compra o la tarifa de envío cambió. Estamos actualizando la cotización; revisa el total antes de volver a pagar.");
+        }
         throw new Error(getSpanishErrorMessage(data, "No se pudo iniciar el pago con Mercado Pago. Inténtalo nuevamente."));
       }
       const preference = data && typeof data === "object" ? (data as Record<string, unknown>).preference : null;
