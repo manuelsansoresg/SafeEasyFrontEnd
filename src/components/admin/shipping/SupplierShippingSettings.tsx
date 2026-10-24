@@ -93,12 +93,12 @@ export function SupplierShippingSettings() {
             <div className="space-y-2">
               <label htmlFor="supplier-shipping-distance" className="text-sm font-medium text-black">Distancia Mínima de Cobro (km)</label>
               <input id="supplier-shipping-distance" type="number" inputMode="numeric" min={0} max={1000} step={1} required value={distance} onChange={(event) => { setDistance(event.target.value); setMessage(""); }} aria-describedby="supplier-shipping-distance-help" className={inputClass} />
-              <p id="supplier-shipping-distance-help" className="text-xs leading-5 text-gray-500">Los kilómetros por debajo de este valor no se cobran extra.</p>
+              <p id="supplier-shipping-distance-help" className="text-xs leading-5 text-gray-500">Distancia mínima utilizada para calcular el costo de envío. Si el recorrido es menor, se cobrará como mínimo la distancia configurada.</p>
             </div>
             <div className="space-y-2">
               <label htmlFor="supplier-shipping-cost" className="text-sm font-medium text-black">Costo Extra por Kilómetro (MXN)</label>
               <input id="supplier-shipping-cost" type="number" inputMode="decimal" min={0} max={100000} step="0.01" required value={cost} onChange={(event) => { setCost(event.target.value); setMessage(""); }} aria-describedby="supplier-shipping-cost-help" className={inputClass} />
-              <p id="supplier-shipping-cost-help" className="text-xs leading-5 text-gray-500">Este monto se sumará por cada kilómetro adicional a la distancia mínima.</p>
+              <p id="supplier-shipping-cost-help" className="text-xs leading-5 text-gray-500">Importe que se cobra por cada kilómetro, respetando la distancia mínima configurada.</p>
             </div>
           </fieldset>
           <div className="border-t border-gray-100 pt-5 sm:flex sm:justify-end">
