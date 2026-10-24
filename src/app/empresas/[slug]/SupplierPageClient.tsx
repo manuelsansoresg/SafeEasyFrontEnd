@@ -44,6 +44,7 @@ import { DirectoryGallerySection } from "@/components/supplier/DirectoryGalleryS
 import type { SupplierGalleryImage } from "@/types/supplierGallery";
 import { SupplierModuleNavigation } from "@/components/supplier/SupplierModuleNavigation";
 import { PublicSupplierMenu } from "@/components/supplier/menu/PublicSupplierMenu";
+import { DemoSupplierAgendaTab } from "@/components/agenda/DemoSupplierAgendaTab";
 import { PublicSupplierAgendaTab } from "@/components/agenda/PublicSupplierAgendaTab";
 import { menuService } from "@/services/menuService";
 import type { Menu } from "@/types/menu";
@@ -329,8 +330,10 @@ interface SupplierProduct {
 
 function DirectoryServiceCard({
   service,
+  demoAgendaHref,
 }: {
   service: SupplierService;
+  demoAgendaHref?: string;
 }) {
   const price = Number(service.price);
   const hasPrice = Number.isFinite(price) && price > 0;
@@ -375,10 +378,10 @@ function DirectoryServiceCard({
           <div aria-hidden="true" className="mt-3 min-h-6" />
         )}
         <Link
-          href={`/servicios/${service.id}`}
+          href={demoAgendaHref || `/servicios/${service.id}`}
           className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-bold text-[var(--supplier-accent,#168e00)] transition-colors hover:text-[var(--supplier-heading,#004e28)]"
         >
-          Ver más
+          {demoAgendaHref ? "Probar reservación" : "Ver más"}
           <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">→</span>
         </Link>
       </div>
@@ -1469,13 +1472,17 @@ const contactHref = supplier?.phone
         activeTab={activeTab}
         onChangeTab={navigateTab}
         tabsRef={tabsRef}
+        isDemo={isDemo}
+        demoHasAgenda={demoServices.length > 0}
       />
 
       {activeTab === "menu" && publicMenus.length > 0 ? (
         <PublicSupplierMenu menus={publicMenus} supplierName={supplier.name} isDemo={isDemo} />
       ) : null}
 
-      {activeTab === "agenda" ? (
+      {activeTab === "agenda" ? isDemo ? (
+        <DemoSupplierAgendaTab key={`${supplier.slug || String(slug)}:${searchParams.get("service") || ""}`} services={demoServices} supplierName={supplier.name} initialServiceId={searchParams.get("service")} />
+      ) : (
         <PublicSupplierAgendaTab
           supplierId={supplier.id}
           businessType={supplier.business_type}
@@ -1591,7 +1598,7 @@ const contactHref = supplier?.phone
             ) : (
               <div className="grid grid-cols-1 items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredServices.map((service) => (
-                  <DirectoryServiceCard key={service.id} service={service} />
+                  <DirectoryServiceCard key={service.id} service={service} demoAgendaHref={isDemo ? `${supplierBasePath}agenda/?service=${encodeURIComponent(service.id)}` : undefined} />
                 ))}
               </div>
             )}
@@ -1830,7 +1837,7 @@ const contactHref = supplier?.phone
 
       {/* --- RATINGS SECTION --- */}
       {isDirectory ? (
-        <DirectoryRatingsSection slug={supplier.slug || String(slug)} />
+        <DirectoryRatingsSection key={`${isDemo ? "demo" : "supplier"}:${supplier.slug || String(slug)}`} slug={supplier.slug || String(slug)} isDemo={isDemo} />
       ) : (
         <section id="experiencia" className="scroll-mt-20 border-t border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] py-24">
           <div className="mx-auto max-w-6xl px-5 md:px-8">

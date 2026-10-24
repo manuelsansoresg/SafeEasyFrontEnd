@@ -26,6 +26,8 @@ type SupplierModuleNavigationProps = {
   activeTab: SupplierPublicTab;
   onChangeTab: (tab: SupplierPublicTab, replace?: boolean) => void;
   tabsRef: RefObject<HTMLDivElement | null>;
+  isDemo?: boolean;
+  demoHasAgenda?: boolean;
 };
 
 export function SupplierModuleNavigation({
@@ -35,13 +37,18 @@ export function SupplierModuleNavigation({
   activeTab,
   onChangeTab,
   tabsRef,
+  isDemo = false,
+  demoHasAgenda = false,
 }: SupplierModuleNavigationProps) {
-  const [agendaAvailable, setAgendaAvailable] =
+  const [liveAgendaAvailable, setAgendaAvailable] =
     useState(false);
-  const [agendaLoading, setAgendaLoading] =
+  const [liveAgendaLoading, setAgendaLoading] =
     useState(true);
+  const agendaAvailable = isDemo ? demoHasAgenda : liveAgendaAvailable;
+  const agendaLoading = !isDemo && liveAgendaLoading;
 
   useEffect(() => {
+    if (isDemo) return;
     const controller = new AbortController();
 
     const loadAgenda = async () => {
@@ -78,7 +85,7 @@ export function SupplierModuleNavigation({
     void loadAgenda();
 
     return () => controller.abort();
-  }, [supplierId]);
+  }, [supplierId, isDemo]);
 
   useEffect(() => {
     if (

@@ -10,7 +10,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import type { SupplierDirectoryRatingsResponse } from "@/types/supplierRatings";
 import { getLoginUrl } from "@/lib/authRedirect";
 
-export function DirectoryRatingsSection({ slug }: { slug: string }) {
+export function DirectoryRatingsSection({ slug, isDemo = false }: { slug: string; isDemo?: boolean }) {
   const pathname = usePathname();
   const token = useAuthStore((state) => state.token);
   const [data, setData] = useState<SupplierDirectoryRatingsResponse | null>(
@@ -18,11 +18,12 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
   );
   const [selectedRating, setSelectedRating] = useState(0);
   const [comment, setComment] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isDemo);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isDemo) return;
     let cancelled = false;
     setLoading(true);
     supplierRatingsService
@@ -45,10 +46,17 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
     return () => {
       cancelled = true;
     };
-  }, [slug, token]);
+  }, [slug, token, isDemo]);
 
   const submitRating = async () => {
     if (!selectedRating || submitting) return;
+    if (isDemo) {
+      // Demo feedback is local to this view and never reaches the real ratings API.
+      const rating = { id: 0, rating: selectedRating, comment: comment.trim() || null, user_name: "Visitante de demostración", created_at: new Date().toISOString() };
+      setData({ supplier_slug: slug, average: selectedRating, total: 1, ratings: [rating], my_rating: rating });
+      setComment("");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -79,14 +87,13 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
         <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr]">
           <div>
             <span className="text-sm font-bold uppercase tracking-[0.16em] text-[var(--supplier-accent,#168e00)]">
-              Experiencias reales
+              {isDemo ? "Modo demostración" : "Experiencias reales"}
             </span>
             <h2 className="mt-3 font-[family-name:var(--font-varela-round)] text-3xl font-black text-[var(--supplier-heading,#004e28)] md:text-4xl">
-              Califica al negocio
+              {isDemo ? "Prueba las opiniones" : "Califica al negocio"}
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-6 text-gray-600">
-              Cada usuario puede compartir una sola calificación sobre este
-              negocio.
+              {isDemo ? "Estas opiniones son de prueba. No se publican ni modifican la calificación de ningún negocio." : "Cada usuario puede compartir una sola calificación sobre este negocio."}
             </p>
 
             <div className="mt-7 flex items-end gap-4">
@@ -103,7 +110,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
             </div>
 
             <div className="mt-8 rounded-[1.5rem] border border-[var(--supplier-heading,#004e28)]/10 supplier-surface-page bg-[var(--supplier-page-background,#f7f9f8)] p-5">
-              {!token ? (
+              {!token && !isDemo ? (
                 <div className="text-center">
                   <LockKeyhole className="mx-auto text-[var(--supplier-accent,#168e00)]" size={26} />
                   <p className="mt-3 text-sm font-semibold text-[var(--supplier-heading,#004e28)]">
@@ -124,7 +131,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
                 <div>
                   <div className="flex items-center gap-2 text-[var(--supplier-accent,#168e00)]">
                     <CheckCircle2 size={20} />
-                    <p className="font-semibold">Tu calificación fue registrada</p>
+                    <p className="font-semibold">{isDemo ? "Calificación de prueba completada" : "Tu calificación fue registrada"}</p>
                   </div>
                   <div className="mt-3">
                     <StarRating rating={data.my_rating.rating} size={20} />
@@ -135,7 +142,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
                     </p>
                   ) : null}
                   <p className="mt-3 text-xs text-gray-400">
-                    Solo se permite una calificación por negocio.
+                    {isDemo ? "Esta simulación se borra al salir. No se guardó ninguna opinión real." : "Solo se permite una calificación por negocio."}
                   </p>
                 </div>
               ) : (
@@ -171,7 +178,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
                     {submitting ? (
                       <Loader2 className="animate-spin" size={18} />
                     ) : null}
-                    Publicar calificación
+                    {isDemo ? "Probar calificación" : "Publicar calificación"}
                   </button>
                 </div>
               )}
@@ -186,7 +193,7 @@ export function DirectoryRatingsSection({ slug }: { slug: string }) {
           <div>
             <div className="mb-6 flex items-center justify-between">
               <h3 className="font-[family-name:var(--font-varela-round)] text-2xl font-bold text-[var(--supplier-heading,#004e28)]">
-                Opiniones del negocio
+                {isDemo ? "Opiniones de prueba" : "Opiniones del negocio"}
               </h3>
             </div>
             {loading ? (
