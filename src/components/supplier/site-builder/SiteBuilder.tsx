@@ -44,6 +44,7 @@ import type { BusinessHour } from "@/lib/products";
 import {
   SITE_BUILDER_READY,
   SITE_BUILDER_UPDATE,
+  normalizeSiteBuilderText,
   type SiteBuilderDevice,
   type SiteBuilderDraft,
   type SiteBuilderSection,
@@ -123,7 +124,7 @@ const normalizeHours = (hours?: BusinessHour[]) => {
 };
 
 const pickDraft = (value: SiteBuilderDraft) =>
-  Object.fromEntries(EDITABLE_FIELDS.map((key) => [key, value[key] ?? ""]));
+  Object.fromEntries(EDITABLE_FIELDS.map((key) => [key, normalizeSiteBuilderText(value[key])]));
 
 const readSupplierPayload = (payload: unknown): Partial<SiteBuilderDraft> => {
   if (!payload || typeof payload !== "object") return {};
@@ -242,7 +243,7 @@ export default function SiteBuilder() {
       if (formDirty) {
         const body = new FormData();
         const changedFields = EDITABLE_FIELDS.filter(
-          (key) => (draftData[key] ?? "") !== (savedData[key] ?? ""),
+          (key) => normalizeSiteBuilderText(draftData[key]) !== normalizeSiteBuilderText(savedData[key]),
         );
         for (const key of changedFields) {
           body.append(key, String(draftData[key] ?? ""));
@@ -252,7 +253,7 @@ export default function SiteBuilder() {
 
         confirmedSupplier = readSupplierPayload(await response.json().catch(() => null));
         const rejectedFields = changedFields.filter(
-          (key) => String(confirmedSupplier?.[key] ?? "") !== String(draftData[key] ?? ""),
+          (key) => normalizeSiteBuilderText(confirmedSupplier?.[key]) !== normalizeSiteBuilderText(draftData[key]),
         );
         if (rejectedFields.length > 0) {
           throw new Error("El servidor no confirmó todos los cambios. Intenta nuevamente.");

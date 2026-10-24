@@ -3,6 +3,11 @@ import type { BusinessHour, Supplier } from "@/lib/products";
 export const SITE_BUILDER_UPDATE = "DROOOPY_PREVIEW_UPDATE";
 export const SITE_BUILDER_READY = "DROOOPY_PREVIEW_READY";
 
+// Textareas use LF, while multipart forms serialize line breaks as CRLF.
+// Normalize comparisons only; preserve the supplier's original content.
+export const normalizeSiteBuilderText = (value: unknown): string =>
+  String(value ?? "").replace(/\r\n?/g, "\n");
+
 export type SiteBuilderSection =
   | "general"
   | "appearance"
