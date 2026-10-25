@@ -6,6 +6,7 @@ import { ClientSidebar } from "@/components/client/ClientSidebar";
 import { Loader2, LogIn } from "lucide-react";
 import { useAuthHydrated, useAuthStore } from "@/store/useAuthStore";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 type ClientShellProps = {
   children: React.ReactNode;
@@ -18,6 +19,9 @@ export function ClientShell({ children, allowGuest = false }: ClientShellProps) 
   const hydrated = useAuthHydrated();
   const requireAuth = useRequireAuth();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // AdminSidebar uses query hooks even when supplier module queries are disabled.
+  // Client and cart routes live outside the provider in the admin layout.
+  const [queryClient] = useState(() => new QueryClient());
   const isAdmin = userRole === "admin" || userRole === "superuser";
 
   useEffect(() => {
@@ -65,6 +69,7 @@ export function ClientShell({ children, allowGuest = false }: ClientShellProps) 
   }
 
   return (
+    <QueryClientProvider client={queryClient}>
     <div className="flex min-h-screen bg-gray-50">
       {!isAuthenticated ? null : isAdmin ? (
         <AdminSidebar
@@ -82,5 +87,6 @@ export function ClientShell({ children, allowGuest = false }: ClientShellProps) 
         <div className="p-4 md:p-8 max-w-7xl mx-auto">{children}</div>
       </main>
     </div>
+    </QueryClientProvider>
   );
 }
