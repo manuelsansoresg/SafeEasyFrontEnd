@@ -202,7 +202,7 @@ function InlineVideo({ src, poster }: { src: string; poster?: string }) {
             <div className="w-full h-full bg-gray-900" />
           )}
           <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-            <span className="inline-flex items-center justify-center w-20 h-20 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)] shadow-lg transform group-hover:scale-110 transition-transform duration-300">
+            <span className="inline-flex items-center justify-center w-20 h-20 rounded-full supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] text-[color:var(--supplier-inverse,#ffffff)] shadow-lg transform group-hover:scale-110 transition-transform duration-300">
               <Play size={32} className="ml-1" />
             </span>
           </div>
@@ -290,7 +290,7 @@ function Carousel({ images }: { images: CarouselImage[] }) {
                         key={idx}
                         onClick={() => setCurrentIndex(idx)}
                         className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                            idx === currentIndex ? "supplier-surface-primary bg-[var(--supplier-primary,#168e00)] w-8" : "bg-[var(--supplier-card-background,#ffffff)]/50 hover:bg-[var(--supplier-card-background,#ffffff)]"
+                            idx === currentIndex ? "supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] w-8" : "bg-[var(--supplier-card-background,#ffffff)]/50 hover:bg-[var(--supplier-card-background,#ffffff)]"
                         }`}
                         aria-label={`Ir a slide ${idx + 1}`}
                     />
@@ -1408,7 +1408,7 @@ const contactHref = supplier?.phone
 
                 <div className="mb-6 flex w-full flex-col flex-wrap items-stretch justify-center gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4 md:justify-start">
                       {!isDirectory ? (
-                        <Link href={`${supplierBasePath}productos/`} onClick={(event) => { event.preventDefault(); handleShowProducts(); }} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-7 py-3 text-base font-bold text-[color:var(--supplier-inverse,#ffffff)] shadow-[0_0_30px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_60%,transparent)] transition-all hover:-translate-y-1 hover:bg-[var(--supplier-primary-hover,#137a00)] hover:shadow-[0_0_40px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_80%,transparent)] font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
+                        <Link href={`${supplierBasePath}productos/`} onClick={(event) => { event.preventDefault(); handleShowProducts(); }} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-7 py-3 text-base font-bold text-[color:var(--supplier-inverse,#ffffff)] shadow-[0_0_30px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_60%,transparent)] transition-all hover:-translate-y-1 hover:bg-[var(--supplier-primary-hover,#137a00)] hover:shadow-[0_0_40px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_80%,transparent)] font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
                             Ver Catálogo <ArrowDown size={20} />
                         </Link>
                       ) : null}
@@ -1453,7 +1453,7 @@ const contactHref = supplier?.phone
                 {supplier.is_verified ? (
                   <div className="flex items-center">
                     <div className="flex items-center gap-3 bg-[var(--supplier-card-background,#ffffff)]/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
-                      <div className="w-8 h-8 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)] flex items-center justify-center text-[color:var(--supplier-inverse,#ffffff)]">
+                      <div className="w-8 h-8 rounded-full supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] flex items-center justify-center text-[color:var(--supplier-inverse,#ffffff)]">
                         <Check size={18} strokeWidth={4} />
                       </div>
                       <span className="text-[color:var(--supplier-inverse,#ffffff)] font-bold text-sm uppercase tracking-wider">Empresa Verificada</span>
@@ -1499,7 +1499,7 @@ const contactHref = supplier?.phone
             <article className="max-w-4xl">
               <span
                 aria-hidden="true"
-                className="mb-7 block h-1 w-14 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)]"
+                className="mb-7 block h-1 w-14 rounded-full supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)]"
               />
               <h2
                 id="supplier-description-title"
@@ -1723,7 +1723,7 @@ const contactHref = supplier?.phone
                             search: debouncedProductSearch,
                           },
                         )}
-                        className="px-6 py-3 supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] text-[color:var(--supplier-inverse,#ffffff)] rounded-full hover:bg-[var(--supplier-primary,#168e00)] transition-colors"
+                        className="px-6 py-3 supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] text-[color:var(--supplier-inverse,#ffffff)] rounded-full hover:bg-[var(--supplier-primary-action,#168e00)] transition-colors"
                     >
                         Reintentar Carga
                     </button>
@@ -1930,7 +1930,7 @@ const contactHref = supplier?.phone
                       <div className={`space-y-4 ${useDirectoryPresentation ? "p-8" : ""}`}>
                           {supplier.phone && (
                               <div className="flex min-w-0 items-center gap-4 group">
-                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[var(--supplier-primary,#168e00)]/20 flex items-center justify-center group-hover:bg-[var(--supplier-primary,#168e00)] transition-colors">
+                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[var(--supplier-primary,#168e00)]/20 flex items-center justify-center group-hover:bg-[var(--supplier-primary-action,#168e00)] transition-colors">
                                       <Phone size={18} className="text-[var(--supplier-accent,#168e00)] group-hover:text-[color:var(--supplier-inverse,#ffffff)]" />
                                   </div>
                                   <span className="min-w-0 break-words text-base font-medium sm:text-lg">{supplier.phone}</span>
@@ -1938,7 +1938,7 @@ const contactHref = supplier?.phone
                           )}
                           {supplier.email && (
                               <div className="flex min-w-0 items-center gap-4 group">
-                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[var(--supplier-primary,#168e00)]/20 flex items-center justify-center group-hover:bg-[var(--supplier-primary,#168e00)] transition-colors">
+                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[var(--supplier-primary,#168e00)]/20 flex items-center justify-center group-hover:bg-[var(--supplier-primary-action,#168e00)] transition-colors">
                                       <Mail size={18} className="text-[var(--supplier-accent,#168e00)] group-hover:text-[color:var(--supplier-inverse,#ffffff)]" />
                                   </div>
                                   <span className="min-w-0 break-all text-base font-medium leading-snug sm:text-lg">{supplier.email}</span>
@@ -1946,7 +1946,7 @@ const contactHref = supplier?.phone
                           )}
                           {supplier.address && (
                               <div className="flex min-w-0 items-center gap-4 group">
-                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[var(--supplier-primary,#168e00)]/20 flex items-center justify-center group-hover:bg-[var(--supplier-primary,#168e00)] transition-colors">
+                                  <div className="w-10 h-10 shrink-0 rounded-full bg-[var(--supplier-primary,#168e00)]/20 flex items-center justify-center group-hover:bg-[var(--supplier-primary-action,#168e00)] transition-colors">
                                       <MapPin size={18} className="text-[var(--supplier-accent,#168e00)] group-hover:text-[color:var(--supplier-inverse,#ffffff)]" />
                                   </div>
                                   <span className="min-w-0 break-words text-base font-medium sm:text-lg">{supplier.address}</span>
@@ -2051,7 +2051,7 @@ const contactHref = supplier?.phone
 
               {/* BOTTOM ROW: CTA (Full Width) */}
               {(contactHref || isDirectory) ? (
-              <div className="supplier-surface-primary bg-[var(--supplier-primary,#168e00)] rounded-[2rem] p-8 md:p-12 text-center relative overflow-hidden shadow-[0_0_50px_-10px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_40%,transparent)]">
+              <div className="supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] rounded-[2rem] p-8 md:p-12 text-center relative overflow-hidden shadow-[0_0_50px_-10px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_40%,transparent)]">
                   <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
                   <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
                       <div className="text-left">

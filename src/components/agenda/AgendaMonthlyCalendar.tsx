@@ -149,7 +149,7 @@ export default function AgendaMonthlyCalendar({
                   "relative flex size-10 items-center justify-center rounded-xl text-sm font-semibold transition sm:size-11",
                   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-outline,#168e00)]",
                   selected
-                    ? "supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)] shadow-sm ring-2 ring-inset ring-[var(--supplier-chip-outline,#168e00)]"
+                    ? "supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] text-[color:var(--supplier-inverse,#ffffff)] shadow-sm ring-2 ring-inset ring-[var(--supplier-chip-outline,#168e00)]"
                     : available
                       ? "text-gray-800 hover:bg-[var(--supplier-primary,#168e00)]/8 hover:text-[var(--supplier-heading,#004e28)]"
                       : inCurrentMonth
@@ -160,7 +160,7 @@ export default function AgendaMonthlyCalendar({
                 {day}
                 {available && !selected ? (
                   <span
-                    className="absolute bottom-1 size-1 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)]"
+                    className="absolute bottom-1 size-1 rounded-full supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)]"
                     aria-hidden="true"
                   />
                 ) : null}
@@ -171,7 +171,7 @@ export default function AgendaMonthlyCalendar({
       </div>
 
       <p className="mt-4 flex items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600">
-        <span className="size-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)]" aria-hidden="true" />
+        <span className="size-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)]" aria-hidden="true" />
         Los días marcados con un punto tienen horarios disponibles.
       </p>
 

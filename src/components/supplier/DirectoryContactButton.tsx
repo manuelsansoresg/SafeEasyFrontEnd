@@ -90,7 +90,7 @@ export function DirectoryContactButton({
         disabled={loading}
         className={
           className ||
-          "inline-flex min-h-12 items-center justify-center gap-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-8 py-4 text-base font-bold text-[color:var(--supplier-inverse,#ffffff)] shadow-[0_0_30px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_55%,transparent)] transition hover:-translate-y-1 hover:bg-[var(--supplier-primary-hover,#137a00)] disabled:cursor-wait disabled:opacity-70"
+          "inline-flex min-h-12 items-center justify-center gap-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-8 py-4 text-base font-bold text-[color:var(--supplier-inverse,#ffffff)] shadow-[0_0_30px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_55%,transparent)] transition hover:-translate-y-1 hover:bg-[var(--supplier-primary-hover,#137a00)] disabled:cursor-wait disabled:opacity-70"
         }
       >
         {loading ? (

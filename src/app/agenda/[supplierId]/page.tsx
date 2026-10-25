@@ -1004,7 +1004,7 @@ export default function PublicAgendaBookingPage() {
                       aria-label={`Elegir horario ${formatSlot(slot.start_at, availability.timezone)}`}
                       className={
                         selected
-                          ? "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-3 py-3 text-sm font-semibold text-[color:var(--supplier-inverse,#ffffff)] shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-heading,#004e28)]"
+                          ? "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-3 py-3 text-sm font-semibold text-[color:var(--supplier-inverse,#ffffff)] shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-heading,#004e28)]"
                           : "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-3 py-3 text-sm font-semibold text-gray-700 transition hover:border-[var(--supplier-outline,#168e00)] hover:text-[var(--supplier-accent,#168e00)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-outline,#168e00)]"
                       }
                     >
@@ -1195,7 +1195,7 @@ export default function PublicAgendaBookingPage() {
               guestBlocked ||
               (legacy && availability?.accepts_payments === true && selectedPaymentMethod === "none")))
             }
-            className="inline-flex items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-6 py-3.5 font-bold text-[color:var(--supplier-inverse,#ffffff)] transition hover:bg-[var(--supplier-primary-hover,#117500)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-6 py-3.5 font-bold text-[color:var(--supplier-inverse,#ffffff)] transition hover:bg-[var(--supplier-primary-hover,#117500)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? (
               <Loader2

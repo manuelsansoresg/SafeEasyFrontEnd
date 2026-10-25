@@ -277,7 +277,7 @@ function MenuItemCard({
                           <button
                             type="button"
                             onClick={() => changeQuantity(item, 1, variant)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]"
                           >
                             <Plus size={14} />
                           </button>
@@ -286,7 +286,7 @@ function MenuItemCard({
                         <button
                           type="button"
                           onClick={() => changeQuantity(item, 1, variant)}
-                          className="rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-3 py-2 text-xs font-bold text-[color:var(--supplier-inverse,#ffffff)]"
+                          className="rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-3 py-2 text-xs font-bold text-[color:var(--supplier-inverse,#ffffff)]"
                         >
                           Agregar
                         </button>
@@ -323,7 +323,7 @@ function MenuItemCard({
                   <button
                     type="button"
                     onClick={() => changeQuantity(item, 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]"
                   >
                     <Plus size={15} />
                   </button>
@@ -332,7 +332,7 @@ function MenuItemCard({
                 <button
                   type="button"
                   onClick={() => changeQuantity(item, 1)}
-                  className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-3 py-2.5 text-xs font-bold text-[color:var(--supplier-inverse,#ffffff)]"
+                  className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-3 py-2.5 text-xs font-bold text-[color:var(--supplier-inverse,#ffffff)]"
                 >
                   <Plus size={15} /> Agregar
                 </button>
@@ -487,12 +487,12 @@ function MenuItemDetailModal({
                                   <Minus size={16} />
                                 </button>
                                 <span className="min-w-8 text-center text-sm font-black text-[var(--supplier-heading,#004e28)]">{quantity}</span>
-                                <button type="button" onClick={() => changeQuantity(item, 1, variant)} className="flex h-9 w-9 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]" aria-label={`Agregar ${variant.name}`}>
+                                <button type="button" onClick={() => changeQuantity(item, 1, variant)} className="flex h-9 w-9 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]" aria-label={`Agregar ${variant.name}`}>
                                   <Plus size={16} />
                                 </button>
                               </div>
                             ) : (
-                              <button type="button" onClick={() => changeQuantity(item, 1, variant)} className="inline-flex items-center justify-center gap-1.5 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-2.5 text-sm font-bold text-[color:var(--supplier-inverse,#ffffff)]">
+                              <button type="button" onClick={() => changeQuantity(item, 1, variant)} className="inline-flex items-center justify-center gap-1.5 rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-4 py-2.5 text-sm font-bold text-[color:var(--supplier-inverse,#ffffff)]">
                                 <Plus size={16} /> Agregar
                               </button>
                             )
@@ -527,12 +527,12 @@ function MenuItemDetailModal({
                         <Minus size={17} />
                       </button>
                       <span className="min-w-10 text-center font-black text-[var(--supplier-heading,#004e28)]">{baseQuantity}</span>
-                      <button type="button" onClick={() => changeQuantity(item, 1)} className="flex h-10 w-10 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]" aria-label={`Agregar ${item.name}`}>
+                      <button type="button" onClick={() => changeQuantity(item, 1)} className="flex h-10 w-10 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]" aria-label={`Agregar ${item.name}`}>
                         <Plus size={17} />
                       </button>
                     </div>
                   ) : (
-                    <button type="button" onClick={() => changeQuantity(item, 1)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-3 font-bold text-[color:var(--supplier-inverse,#ffffff)]">
+                    <button type="button" onClick={() => changeQuantity(item, 1)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-4 py-3 font-bold text-[color:var(--supplier-inverse,#ffffff)]">
                       <Plus size={17} /> Agregar al pedido
                     </button>
                   )
@@ -1185,7 +1185,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                 <button
                   type="button"
                   onClick={goToLoginForOrder}
-                  className="inline-flex items-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-2.5 text-sm font-bold text-[color:var(--supplier-inverse,#ffffff)]"
+                  className="inline-flex items-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-4 py-2.5 text-sm font-bold text-[color:var(--supplier-inverse,#ffffff)]"
                 >
                   <LogIn size={16} /> Iniciar sesión para pedir
                 </button>
@@ -1193,7 +1193,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                 <button
                   type="button"
                   onClick={() => setCartOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-2.5 text-sm font-bold text-[color:var(--supplier-inverse,#ffffff)]"
+                  className="inline-flex items-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-4 py-2.5 text-sm font-bold text-[color:var(--supplier-inverse,#ffffff)]"
                 >
                   <ShoppingBag size={16} /> Pedido ({cartQuantity})
                 </button>
@@ -1393,7 +1393,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                               <Minus size={15} />
                             </button>
                             <span className="min-w-8 text-center text-sm font-bold">{line.quantity}</span>
-                            <button type="button" onClick={() => changeQuantity(line.item, 1, line.variant)} className="flex h-8 w-8 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]">
+                            <button type="button" onClick={() => changeQuantity(line.item, 1, line.variant)} className="flex h-8 w-8 items-center justify-center rounded-lg supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] text-[color:var(--supplier-inverse,#ffffff)]">
                               <Plus size={15} />
                             </button>
                           </div>
@@ -1425,7 +1425,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
                 type="button"
                 disabled={!cartItems.length}
                 onClick={openCheckout}
-                className="w-full rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-3.5 font-bold text-[color:var(--supplier-inverse,#ffffff)] disabled:opacity-40"
+                className="w-full rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-4 py-3.5 font-bold text-[color:var(--supplier-inverse,#ffffff)] disabled:opacity-40"
               >
                 Continuar con el pedido
               </button>
@@ -1597,7 +1597,7 @@ export function PublicSupplierMenu({ menus, supplierName, isDemo = false }: { me
               {checkoutError ? (
                 <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{checkoutError}</div>
               ) : null}
-              <button type="submit" disabled={submitting || (fulfillmentType === "delivery" && (delivery.loading || delivery.resolvingAddress || shippingQuoteLoading))} className="inline-flex w-full items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-4 py-3.5 font-bold text-[color:var(--supplier-inverse,#ffffff)] hover:bg-[var(--supplier-primary-hover,#117500)] disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="submit" disabled={submitting || (fulfillmentType === "delivery" && (delivery.loading || delivery.resolvingAddress || shippingQuoteLoading))} className="inline-flex w-full items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-4 py-3.5 font-bold text-[color:var(--supplier-inverse,#ffffff)] hover:bg-[var(--supplier-primary-hover,#117500)] disabled:cursor-not-allowed disabled:opacity-50">
                 {submitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                 {submitting ? "Creando pedido..." : paymentMethod === "online" ? "Continuar al pago seguro" : "Confirmar pedido"}
               </button>

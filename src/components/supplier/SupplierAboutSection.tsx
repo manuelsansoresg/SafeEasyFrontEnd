@@ -163,7 +163,7 @@ export function SupplierAboutSection({
           </div>
 
           {currentPreview?.hasMore ? (
-            <button type="button" onClick={openStory} aria-haspopup="dialog" aria-controls={dialogId} className="mt-5 inline-flex min-h-11 items-center justify-center gap-3 rounded-full border border-[var(--supplier-outline)] px-5 py-2.5 text-sm font-semibold text-[var(--supplier-accent)] transition-colors hover:bg-[var(--supplier-primary)] hover:text-[var(--supplier-on-primary)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--supplier-outline)]">
+            <button type="button" onClick={openStory} aria-haspopup="dialog" aria-controls={dialogId} className="mt-5 inline-flex min-h-11 items-center justify-center gap-3 rounded-full border border-[var(--supplier-outline)] px-5 py-2.5 text-sm font-semibold text-[var(--supplier-accent)] transition-colors hover:bg-[var(--supplier-primary-action)] hover:text-[var(--supplier-on-primary)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--supplier-outline)]">
               Leer nuestra historia <ArrowUpRight size={17} aria-hidden="true" />
             </button>
           ) : null}

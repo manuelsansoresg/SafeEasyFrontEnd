@@ -46,7 +46,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const hideForDirectory = useChromeVisibilityStore((state) => state.hideForDirectory);
   const isMarketingPage = marketingPaths.has(normalizedPathname);
   const isCancelAccountPage = normalizedPathname === "/cancel-account";
-  const isPortalCustomizer = normalizedPathname === "/admin/my-company/customize";
+  const isPortalCustomizer = normalizedPathname === "/admin/my-company/customize" || /^\/admin\/suppliers\/[^/]+\/customize$/.test(normalizedPathname);
 
   if (isMarketingPage || isCancelAccountPage || isPortalCustomizer) {
     return <>{children}</>;

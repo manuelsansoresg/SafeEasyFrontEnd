@@ -137,7 +137,7 @@ export default function SupplierLocationMap({
           overflow: hidden;
           border: 0;
           border-radius: 14px;
-          box-shadow: 0 14px 35px rgba(0, 78, 40, 0.18);
+          box-shadow: 0 14px 35px color-mix(in srgb, var(--supplier-secondary, #004e28) 18%, transparent);
         }
 
         .supplier-location-map .leaflet-control-zoom a {
@@ -146,14 +146,14 @@ export default function SupplierLocationMap({
           height: 36px;
           place-items: center;
           border: 0;
-          background: rgba(255, 255, 255, 0.95);
-          color: #004e28;
+          background: var(--supplier-card-background, #ffffff);
+          color: var(--supplier-heading-on-card, #004e28);
           font-weight: 900;
         }
 
         .supplier-location-map .leaflet-control-zoom a:hover {
-          background: #ffffff;
-          color: #168e00;
+          background: var(--supplier-hover-card, #f3f4f6);
+          color: var(--supplier-on-hover-card, #000000);
         }
 
         .supplier-location-map .leaflet-control-attribution {
@@ -164,7 +164,7 @@ export default function SupplierLocationMap({
         }
 
         .supplier-location-map .leaflet-control-attribution a {
-          color: #004e28;
+          color: #374151;
           font-weight: 700;
         }
 

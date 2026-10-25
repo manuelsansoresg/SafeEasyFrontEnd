@@ -114,7 +114,7 @@ export function ProductCard({
         {/* Favorite Button - Floating Glass Effect */}
         <button
             onClick={handleFavoriteClick}
-            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-[var(--supplier-card-background,#ffffff)]/90 backdrop-blur-md rounded-full hover:bg-[var(--supplier-primary,#168e00)] hover:text-[color:var(--supplier-inverse,#ffffff)] transition-all z-30 shadow-sm group/btn"
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-[var(--supplier-card-background,#ffffff)]/90 backdrop-blur-md rounded-full hover:bg-[var(--supplier-primary-action,#168e00)] hover:text-[color:var(--supplier-inverse,#ffffff)] transition-all z-30 shadow-sm group/btn"
             title={isFav ? "Quitar de favoritos" : "Agregar a favoritos"}
         >
             <Heart

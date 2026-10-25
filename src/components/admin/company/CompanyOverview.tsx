@@ -36,6 +36,8 @@ type CompanyOverviewProps = {
   enabledModules: (typeof supplierModuleScreens)[number][];
   onNavigate: (tab: string) => void;
   onSupplierUpdated: () => Promise<void> | void;
+  showSupplierModules?: boolean;
+  showCatalogLink?: boolean;
 };
 
 const cards = [
@@ -77,6 +79,8 @@ export function CompanyOverview({
   enabledModules,
   onNavigate,
   onSupplierUpdated,
+  showSupplierModules = true,
+  showCatalogLink = true,
 }: CompanyOverviewProps) {
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -234,7 +238,7 @@ export function CompanyOverview({
       )}
 
       {/* NUEVO: catálogo, activación y compra de módulos del proveedor */}
-      <SupplierModulesPanel />
+      {showSupplierModules ? <SupplierModulesPanel /> : null}
 
       <section aria-labelledby="quick-access-title">
         <div className="mb-3 flex items-end justify-between gap-4">
@@ -305,7 +309,7 @@ export function CompanyOverview({
             <span className="block text-sm text-white/70">Enlace y código QR en un solo lugar</span>
           </span>
         </button>
-        <Link
+        {showCatalogLink ? <Link
           href={isDirectory ? "/admin/services" : "/admin/products"}
           className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-[#168e00]/40"
         >
@@ -316,7 +320,7 @@ export function CompanyOverview({
             </span>
             <span className="block text-sm text-gray-500">Abre el módulo que ya conoces</span>
           </span>
-        </Link>
+        </Link> : null}
       </div>
 
       {typePickerOpen ? (

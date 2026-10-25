@@ -82,19 +82,41 @@ export function accessibleThemeColor(color: string, background: string, minimum 
   return target;
 }
 
+// Prefer white for actions, allowing at most 8% darkening. Pastels retain their
+// identity and use dark text instead. Saved colors and decorative accents stay intact.
+export function resolvePrimaryAction(color: string) {
+  if (getContrastRatio(color, "#ffffff") >= 4.5) {
+    return { background: color, foreground: "#ffffff" };
+  }
+  if (getContrastRatio(mixColor(color, "#000000", 0.08), "#ffffff") >= 4.5) {
+    for (let step = 1; step <= 800; step++) {
+      const background = mixColor(color, "#000000", step / 10000);
+      if (getContrastRatio(background, "#ffffff") >= 4.5) {
+        return { background, foreground: "#ffffff" };
+      }
+    }
+  }
+  return { background: color, foreground: getReadableTextColor(color) };
+}
+
 export function supplierThemeVariables(supplier: SupplierThemeSource) {
   const theme = resolveSupplierTheme(supplier);
+  const action = resolvePrimaryAction(theme.primary);
+  // Keep dark text on light actions in both states, without a hover color flip.
+  const actionHover = action.foreground === "#ffffff"
+    ? mixColor(action.background, "#000000", 0.14)
+    : mixColor(action.background, "#000000", 0.04);
   const variables: Record<string, string> = {
     "--supplier-primary": theme.primary,
+    "--supplier-primary-action": action.background,
     "--supplier-secondary": theme.headerBackground,
     "--supplier-header-background": theme.headerBackground,
     "--supplier-page-background": theme.pageBackground,
     "--supplier-card-background": theme.cardBackground,
-    "--supplier-primary-hover": theme.primary === SUPPLIER_THEME_DEFAULTS.primary
-      ? "#137a00" : mixColor(theme.primary, "#000000", 0.14),
+    "--supplier-primary-hover": actionHover,
     "--supplier-secondary-hover": theme.headerBackground === SUPPLIER_THEME_DEFAULTS.headerBackground
       ? "#003b1f" : mixColor(theme.headerBackground, "#000000", 0.14),
-    "--supplier-on-primary": getReadableTextColor(theme.primary),
+    "--supplier-on-primary": action.foreground,
     "--supplier-on-header": getReadableTextColor(theme.headerBackground),
     "--supplier-hover-card": theme.cardBackground === "#ffffff" ? "#f3f4f6" : mixColor(theme.cardBackground, getReadableTextColor(theme.cardBackground), 0.06),
     "--supplier-shadow": theme.headerBackground,
@@ -102,7 +124,7 @@ export function supplierThemeVariables(supplier: SupplierThemeSource) {
   for (const [surface, background] of Object.entries({
     page: theme.pageBackground,
     card: theme.cardBackground,
-    primary: theme.primary,
+    primary: action.background,
     secondary: theme.headerBackground,
   })) {
     variables[`--supplier-text-on-${surface}`] = getReadableTextColor(background);
@@ -111,7 +133,8 @@ export function supplierThemeVariables(supplier: SupplierThemeSource) {
     variables[`--supplier-muted-on-${surface}`] = accessibleThemeColor("#6b7280", background);
   }
   variables["--supplier-on-hover-card"] = getReadableTextColor(variables["--supplier-hover-card"]);
-  variables["--supplier-on-primary-hover"] = getReadableTextColor(variables["--supplier-primary-hover"]);
+  variables["--supplier-text-on-primary"] = action.foreground;
+  variables["--supplier-on-primary-hover"] = action.foreground;
   variables["--supplier-on-secondary-hover"] = getReadableTextColor(variables["--supplier-secondary-hover"]);
   variables["--supplier-rating"] = accessibleThemeColor(
     theme.primary === SUPPLIER_THEME_DEFAULTS.primary && theme.headerBackground === SUPPLIER_THEME_DEFAULTS.headerBackground

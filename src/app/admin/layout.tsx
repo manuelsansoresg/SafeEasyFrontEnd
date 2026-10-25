@@ -18,7 +18,7 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const isPortalCustomizer = pathname.replace(/\/$/, "") === "/admin/my-company/customize";
+  const isPortalCustomizer = pathname.replace(/\/$/, "") === "/admin/my-company/customize" || /^\/admin\/suppliers\/[^/]+\/customize\/?$/.test(pathname);
   const hydrated = useAuthHydrated();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   // Initialize collapsed state based on screen size or preference

@@ -37,6 +37,8 @@ import {
   X,
 } from "lucide-react";
 import StepCarousel from "@/components/sell/wizard/StepCarousel";
+import { loadManagedSupplier } from "@/lib/managedSupplier";
+import { isAdminRole } from "@/lib/currentSupplier";
 import { normalizeThemeColor, resolveSupplierTheme, SUPPLIER_THEME_DEFAULTS } from "@/lib/supplierTheme";
 import { fetchWithAuth } from "@/lib/api";
 import { resolveCurrentSupplier } from "@/lib/currentSupplier";
@@ -133,9 +135,10 @@ const readSupplierPayload = (payload: unknown): Partial<SiteBuilderDraft> => {
   return (nested && typeof nested === "object" ? nested : record) as Partial<SiteBuilderDraft>;
 };
 
-export default function SiteBuilder() {
+export default function SiteBuilder({ supplierId }: { supplierId?: number } = {}) {
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
+  const returnPath = supplierId !== undefined ? `/admin/suppliers/${supplierId}` : "/admin/my-company";
   const [savedData, setSavedData] = useState<SiteBuilderDraft | null>(null);
   const [draftData, setDraftData] = useState<SiteBuilderDraft | null>(null);
   const [savedHours, setSavedHours] = useState<BusinessHour[]>([]);
@@ -163,10 +166,11 @@ export default function SiteBuilder() {
     setLoading(true);
     setLoadError(null);
     try {
-      const resolved = await resolveCurrentSupplier(user);
+      if (supplierId !== undefined && !isAdminRole(user.role)) throw new Error("Necesitas una cuenta de administrador para gestionar este proveedor.");
+      const resolved = supplierId !== undefined ? await loadManagedSupplier(supplierId) : await resolveCurrentSupplier(user);
       if (!resolved) throw new Error("No encontramos un negocio asociado a esta cuenta.");
-      const response = await fetchWithAuth(`/api/suppliers/me`, { cache: "no-store" });
-      const full = response.ok ? readSupplierPayload(await response.json().catch(() => null)) : {};
+      const response = supplierId === undefined ? await fetchWithAuth(`/api/suppliers/me`, { cache: "no-store" }) : null;
+      const full = response?.ok ? readSupplierPayload(await response.json().catch(() => null)) : {};
       const supplier = { ...resolved, ...full } as SiteBuilderDraft;
       const hours = normalizeHours(supplier.business_hours);
       setSavedData(supplier);
@@ -179,7 +183,7 @@ export default function SiteBuilder() {
     } finally {
       setLoading(false);
     }
-  }, [token, user]);
+  }, [token, user, supplierId]);
 
   useEffect(() => {
     void loadSupplier();
@@ -297,14 +301,21 @@ export default function SiteBuilder() {
 
   const reloadPublishedData = useCallback(async () => {
     if (!draftData) return;
-    const response = await fetchWithAuth(`/api/suppliers/${draftData.id}`, { cache: "no-store" });
-    if (!response.ok) return;
-    const fresh = { ...draftData, ...readSupplierPayload(await response.json().catch(() => null)) } as SiteBuilderDraft;
+    let published: Partial<SiteBuilderDraft>;
+    if (supplierId !== undefined) {
+      try { published = await loadManagedSupplier(supplierId) as Partial<SiteBuilderDraft>; }
+      catch { return; }
+    } else {
+      const response = await fetchWithAuth(`/api/suppliers/${draftData.id}`, { cache: "no-store" });
+      if (!response.ok) return;
+      published = readSupplierPayload(await response.json().catch(() => null));
+    }
+    const fresh = { ...draftData, ...published } as SiteBuilderDraft;
     setSavedData(fresh);
     setDraftData(fresh);
     setPreviewReady(false);
     iframeRef.current?.contentWindow?.location.reload();
-  }, [draftData]);
+  }, [draftData, supplierId]);
 
   const handleLogo = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -379,7 +390,7 @@ export default function SiteBuilder() {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#eef0f1]">
       <header className="z-30 flex h-[72px] shrink-0 items-center gap-3 border-b border-black/10 bg-white px-3 shadow-[0_1px_8px_rgba(0,0,0,0.04)] sm:px-5">
-        <Link href="/admin/my-company" className="inline-flex h-10 items-center gap-2 rounded-xl px-2.5 text-sm font-semibold text-[#004e28] transition hover:bg-[#004e28]/5" title="Volver a Mi negocio">
+        <Link href={returnPath} className="inline-flex h-10 items-center gap-2 rounded-xl px-2.5 text-sm font-semibold text-[#004e28] transition hover:bg-[#004e28]/5" title="Volver al negocio">
           <ArrowLeft size={18} /><span className="hidden lg:inline">Mi negocio</span>
         </Link>
         <div className="h-7 w-px bg-gray-200" />

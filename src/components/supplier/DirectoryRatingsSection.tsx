@@ -122,7 +122,7 @@ export function DirectoryRatingsSection({ slug, isDemo = false }: { slug: string
                   </p>
                   <Link
                     href={getLoginUrl(`${pathname}#experiencia`)}
-                    className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] px-5 text-sm font-semibold text-[color:var(--supplier-inverse,#ffffff)] transition hover:bg-[var(--supplier-primary,#168e00)]"
+                    className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] px-5 text-sm font-semibold text-[color:var(--supplier-inverse,#ffffff)] transition hover:bg-[var(--supplier-primary-action,#168e00)]"
                   >
                     Iniciar sesión
                   </Link>
@@ -173,7 +173,7 @@ export function DirectoryRatingsSection({ slug, isDemo = false }: { slug: string
                     type="button"
                     onClick={submitRating}
                     disabled={!selectedRating || submitting}
-                    className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] px-5 text-sm font-semibold text-[color:var(--supplier-inverse,#ffffff)] transition hover:bg-[var(--supplier-primary,#168e00)] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] px-5 text-sm font-semibold text-[color:var(--supplier-inverse,#ffffff)] transition hover:bg-[var(--supplier-primary-action,#168e00)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {submitting ? (
                       <Loader2 className="animate-spin" size={18} />

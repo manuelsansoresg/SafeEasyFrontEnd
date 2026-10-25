@@ -226,7 +226,7 @@ export function PublicSupplierAgendaTab({
         <div className="mt-7">
           <Link
             href={`/agenda/${supplierId}`}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary,#168e00)] px-7 py-3 text-base font-black text-[color:var(--supplier-inverse,#ffffff)] shadow-[0_0_30px_-8px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_70%,transparent)] transition hover:-translate-y-0.5 hover:bg-[var(--supplier-primary-hover,#137a00)] sm:w-auto"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-7 py-3 text-base font-black text-[color:var(--supplier-inverse,#ffffff)] shadow-[0_0_30px_-8px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_70%,transparent)] transition hover:-translate-y-0.5 hover:bg-[var(--supplier-primary-hover,#137a00)] sm:w-auto"
           >
             <CalendarDays size={19} />
             Elegir fecha y horario

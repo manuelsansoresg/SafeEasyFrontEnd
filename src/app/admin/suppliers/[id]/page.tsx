@@ -1,42 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import SupplierForm from "@/components/admin/SupplierForm";
-import StepCarousel from "@/components/sell/wizard/StepCarousel";
-import StepCertificates from "@/components/sell/wizard/StepCertificates";
-import { PageHero } from "@/components/ui/PageHero";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 
-interface Supplier {
-  id: number;
-  name: string;
-  short_name?: string;
-  slug?: string;
-  rfc?: string;
-  phone?: string;
-  city?: string;
-  state?: string;
-  country: string;
-  is_active: boolean;
-  is_demo?: boolean;
-  user_id: number;
-}
+import { CompanyWorkspace, normalizeCompanyTab, type CompanySupplier } from "@/components/admin/company/CompanyWorkspace";
+import { isAdminRole } from "@/lib/currentSupplier";
+import { loadManagedSupplier } from "@/lib/managedSupplier";
 
-export default function EditSupplierPage() {
+function EditSupplierContent() {
   const params = useParams();
   const idParam = params.id;
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const { token, user } = useAuthStore();
-  const isGeneralAdmin = String(user?.role || "").toLowerCase() === "admin";
+  const isGeneralAdmin = isAdminRole(user?.role);
 
-  const [supplier, setSupplier] = useState<Supplier | null>(null);
+  const [supplier, setSupplier] = useState<CompanySupplier | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"info" | "carousel" | "certificates">("info");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = normalizeCompanyTab(searchParams.get("tab"));
   const [savingDemo, setSavingDemo] = useState(false);
   const [demoMessage, setDemoMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -79,108 +67,22 @@ export default function EditSupplierPage() {
     }
   };
 
-  useEffect(() => {
-    const fetchSupplier = async () => {
-      if (!id) {
-        setError("Proveedor no encontrado");
-        setLoading(false);
-        return;
-      }
-
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-        const encodedId = encodeURIComponent(String(id));
-        if (isGeneralAdmin) {
-          const adminList = await fetchWithAuth(`/api/suppliers/?id=${encodedId}&skip=0&limit=1`);
-          if (adminList.ok) {
-            const payload: unknown = await adminList.json();
-            const items = Array.isArray(payload) ? payload : [];
-            const found = items.find((item: Supplier) => String(item.id) === String(id));
-            if (found) {
-              setSupplier(found);
-              return;
-            }
-          }
-        }
-        const detailUrls = [
-          `/api/suppliers/${encodedId}`,
-          `/api/suppliers/${encodedId}/`,
-          `/api/v1/suppliers/${encodedId}`,
-          `/api/v1/suppliers/${encodedId}/`,
-        ];
-
-        let detailError = "";
-        for (const url of detailUrls) {
-          try {
-            const response = await fetchWithAuth(url, { headers: { Accept: "application/json" } });
-
-            if (response.ok) {
-              const data = await response.json();
-              setSupplier(data);
-              return;
-            }
-
-            const text = await response.text().catch(() => "");
-            detailError = `Error ${response.status}${text ? `: ${text}` : ""}`;
-          } catch (err: unknown) {
-            detailError =
-              err instanceof Error ? `Error de conexión: ${err.message}` : "Error de conexión desconocido";
-            console.error(`Fetch error loading supplier ${id} from ${url}:`, err);
-          }
-        }
-
-        const listUrls = [
-          `/api/suppliers/?skip=0&limit=1000`,
-          `/api/suppliers?skip=0&limit=1000`,
-        ];
-
-        for (const url of listUrls) {
-          const listResponse = await fetchWithAuth(url, { headers: { Accept: "application/json" } }).catch(
-            (err: unknown) => {
-              console.error(`Fetch error loading supplier list from ${url}:`, err);
-              return null;
-            },
-          );
-
-          if (!listResponse) continue;
-          if (listResponse.ok) {
-            const listData = await listResponse.json();
-            const list = Array.isArray(listData)
-              ? listData
-              : listData && typeof listData === "object" && Array.isArray((listData as Record<string, unknown>).items)
-                ? ((listData as Record<string, unknown>).items as Supplier[])
-                : [];
-            const found = list.find((s: Supplier) => String(s.id) === String(id));
-
-            if (found) {
-              setSupplier(found);
-              return;
-            }
-          }
-        }
-
-        setError(detailError || "No se pudo cargar la información del proveedor");
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(`Error de conexión: ${err.message}`);
-          console.error("Fetch error:", err);
-        } else {
-          setError("Error de conexión desconocido");
-          console.error("Fetch error:", err);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSupplier();
+  const fetchSupplier = useCallback(async (silent = false) => {
+    if (!token || !isGeneralAdmin) return;
+    if (!silent) setLoading(true);
+    setError(null);
+    try {
+      setSupplier(await loadManagedSupplier(Number(id)) as CompanySupplier);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "No se pudo cargar el proveedor.");
+    } finally {
+      setLoading(false);
+    }
   }, [id, token, isGeneralAdmin]);
+
+  useEffect(() => { void fetchSupplier(); }, [fetchSupplier]);
+
+  if (!isGeneralAdmin) return <p className="p-6 text-red-700" role="alert">Necesitas una cuenta de administrador para gestionar este proveedor.</p>;
 
   if (loading) {
     return (
@@ -201,21 +103,9 @@ export default function EditSupplierPage() {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <PageHero
-        title="Editar Proveedor"
-        subtitle={`Modifica los datos del proveedor ${supplier.name}.`}
-        eyebrow="Usuarios"
-        actions={
-          <Link href="/admin/suppliers" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
-            <ArrowLeft size={16} />
-            Volver
-          </Link>
-        }
-      />
-
-      {isGeneralAdmin && (
+  return <div className="space-y-5">
+    <Link href="/admin/suppliers" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#004e28]"><ArrowLeft size={16} />Volver a proveedores</Link>
+    <CompanyWorkspace key={supplier.id} supplier={supplier} token={token} isDirectory={supplier.is_directory === true} enabledModules={[]} activeTab={activeTab} onNavigate={tab => router.replace(`/admin/suppliers/${supplier.id}?tab=${tab}`, { scroll: false })} onSupplierUpdated={() => fetchSupplier(true)} administration={<div className="space-y-5">
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm" aria-label="Configuración de demostración">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -231,64 +121,13 @@ export default function EditSupplierPage() {
           {savingDemo && <p className="mt-3 text-sm text-gray-600" role="status">Guardando cambio…</p>}
           {demoMessage && <p className={`mt-3 text-sm ${demoMessage.type === "error" ? "text-red-700" : "text-[#168e00]"}`} role="status">{demoMessage.text}</p>}
         </section>
-      )}
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6"><h2 className="font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28]">Administración del proveedor</h2><p className="mt-2 mb-6 text-sm text-gray-500">Conserva las opciones de cuenta, estado y configuración del panel administrativo.</p><SupplierForm initialData={supplier} isEditMode onSaved={() => fetchSupplier(true)} /></section>
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 text-sm leading-6 text-gray-600"><h2 className="font-semibold text-[#004e28]">Módulos y funciones de la cuenta</h2><p className="mt-2">Las funciones de catálogo de servicios, menú, agenda, generación de QR y tarifas de envío opera sobre la cuenta conectada. Para gestionarlos aquí, el backend debe permitir seleccionar este proveedor. No se utilizará la cuenta del administrador como sustituto.</p><Link href="/admin/modules" className="mt-3 inline-flex min-h-11 items-center font-semibold text-[#004e28] underline">Administrar catálogo y asignación de módulos</Link></section>
+    </div>} />
+  </div>;
+}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex space-x-4 border-b border-gray-200 mb-8">
-          <button
-            onClick={() => setActiveTab("info")}
-            className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 ${
-              activeTab === "info"
-                ? "border-primary text-primary"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Información General
-          </button>
-          <button
-            onClick={() => setActiveTab("carousel")}
-            className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 ${
-              activeTab === "carousel"
-                ? "border-primary text-primary"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Encabezado
-          </button>
-          <button
-            onClick={() => setActiveTab("certificates")}
-            className={`py-3 px-6 font-medium text-sm transition-colors border-b-2 ${
-              activeTab === "certificates"
-                ? "border-primary text-primary"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Certificados
-          </button>
-        </div>
-
-        {activeTab === "info" && (
-          <SupplierForm initialData={supplier} isEditMode={true} />
-        )}
-
-        {activeTab === "carousel" && (
-          <StepCarousel
-            supplierId={supplier.id}
-            slug={supplier.slug || supplier.short_name || undefined}
-            token={token}
-            onNext={() => setActiveTab("certificates")}
-          />
-        )}
-
-        {activeTab === "certificates" && (
-          <StepCertificates 
-            supplierId={supplier.id} 
-            slug={supplier.slug || supplier.short_name || undefined}
-            token={token} 
-            onNext={() => {}} 
-          />
-        )}
-      </div>
-    </div>
-  );
+export default function EditSupplierPage() {
+  const { id } = useParams();
+  return <Suspense fallback={<p className="p-6 text-sm text-gray-500">Cargando proveedor…</p>}><EditSupplierContent key={String(id)} /></Suspense>;
 }

@@ -50,7 +50,7 @@
 }
 
 .drooopy-supplier-theme ::selection {
-  background: var(--supplier-primary);
+  background: var(--supplier-primary-action);
   color: var(--supplier-on-primary);
 }
 /* Neutral copy adapts to each local surface; semantic alert and rating colors remain intact. */
@@ -89,7 +89,7 @@
   --supplier-text: #ffffff;
   --supplier-muted: #ffffff;
 }
-.drooopy-supplier-theme [class~="hover:bg-[var(--supplier-primary,#168e00)]"]:hover {
+.drooopy-supplier-theme [class~="hover:bg-[var(--supplier-primary-action,#168e00)]"]:hover {
   --supplier-inverse: var(--supplier-on-primary);
   --supplier-inverse-muted: var(--supplier-on-primary);
   --supplier-text: var(--supplier-on-primary);
@@ -99,7 +99,7 @@
   --supplier-outline: var(--supplier-on-primary);
   color: var(--supplier-on-primary);
 }
-.drooopy-supplier-theme .group:hover [class~="group-hover:bg-[var(--supplier-primary,#168e00)]"] {
+.drooopy-supplier-theme .group:hover [class~="group-hover:bg-[var(--supplier-primary-action,#168e00)]"] {
   --supplier-inverse: var(--supplier-on-primary);
   --supplier-inverse-muted: var(--supplier-on-primary);
   --supplier-text: var(--supplier-on-primary);
