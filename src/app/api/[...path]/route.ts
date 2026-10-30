@@ -389,6 +389,11 @@ function normalizeBackendPath(pathname: string) {
     segments[0] === "agenda" ||
     (segments[0] === "public" && segments[1] === "agenda");
 
+  // Facebook import routes use opaque connection IDs and no trailing slash.
+  // Keep the entire namespace consistent, including connections, pages and AI.
+  const isFacebookImportEndpoint =
+    segments[0] === "integrations" && segments[1] === "facebook";
+
   // El alta pública de prospectos está registrada sin slash final.
   const isPublicLeadsEndpoint =
     segments.length === 2 &&
@@ -403,6 +408,7 @@ function normalizeBackendPath(pathname: string) {
     isSupplierCategorySubcategories ||
     isMenuOrderEndpoint ||
     isAgendaEndpoint ||
+    isFacebookImportEndpoint ||
     isPublicLeadsEndpoint
   ) {
     return relativePath.replace(/\/+$/, "");
