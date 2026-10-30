@@ -17,7 +17,10 @@ export type Preview = {
 export type Connection = { connection_id: string; supplier_id: number; status: string; expires_at: string };
 export type FacebookPage = { id: string; name: string | null; photo_path: string | null };
 export type Proposal = { status: "processing" | "succeeded" | "failed" | "unknown"; proposal: Partial<ImportFields> | null; error_code?: string; retry_after_seconds?: number; warnings: string[] };
-const base = "/api/backend/integrations/facebook/connections";
+// Production routes /api directly to FastAPI. /api/backend is a Next-only
+// alias and is not available behind that ingress. Use the public contract;
+// Next's generic API handler supports the same path in local development.
+const base = "/api/integrations/facebook/connections";
 const part = encodeURIComponent;
 const messages: Record<string, string> = {
   facebook_not_configured: "La conexión con Facebook aún no está configurada. Intenta más tarde.",
@@ -59,7 +62,7 @@ export const connectionPath = (id: string) => `/${part(id)}`;
 export async function importImage(path: string, signal: AbortSignal): Promise<Blob> {
   // Only attach Drooopy credentials to the documented private image endpoints.
   if (!/^\/api\/integrations\/facebook\/connections\/[a-zA-Z0-9_-]+\/(pages\/[0-9]+\/photo|previews\/[a-zA-Z0-9_-]+\/images\/(logo|banner))$/.test(path)) throw new Error("Imagen no disponible");
-  const response = await fetchWithAuth(path.replace("/api/", "/api/backend/"), { signal, cache: "no-store" });
+  const response = await fetchWithAuth(path, { signal, cache: "no-store" });
   if (!response.ok) throw new Error("No se pudo cargar la imagen");
   return response.blob();
 }

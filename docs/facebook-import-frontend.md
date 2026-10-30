@@ -8,7 +8,7 @@ Implementación basada en `safeEasyBackEnd/FACEBOOK_IMPORT_API.md` y su OpenAPI,
 - Retorno público de OAuth: `/mi-negocio/facebook`. Lee y retira el fragmento; conserva solo el ID opaco en sessionStorage y navega a la ruta autenticada. La autorización se verifica con Bearer en el servidor.
 - El backend debe mantener `FACEBOOK_IMPORT_RETURN_URL=https://drooopy.com/mi-negocio/facebook` y el callback de Meta ya registrado: `https://drooopy.com/api/integrations/facebook/callback`.
 - No se agregan claves ni variables de IA al frontend. La conexión requiere el mismo sitio HTTPS que el callback por la cookie privada del backend.
-- Los requests pasan por `/api/backend/integrations/facebook/connections`, mediante fetchWithAuth y credentials include. No se transmiten tokens de Meta al cliente.
+- Los requests usan `/api/integrations/facebook/connections`, mediante fetchWithAuth y credentials include. En producción `/api` llega directamente a FastAPI; no usar el alias `/api/backend`, exclusivo del intermediario de Next. Las imágenes usan también el path público del contrato. No se transmiten tokens de Meta al cliente.
 
 ## Comportamiento
 
