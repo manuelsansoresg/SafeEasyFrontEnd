@@ -1355,6 +1355,8 @@ const contactHref = supplier?.phone
                  playsInline
                  className="absolute inset-0 h-full w-full scale-105 object-cover opacity-90 transition-transform duration-[30s] ease-linear group-hover:scale-100"
                />
+           ) : supplier.header_media_type === 'image' && supplier.header_image ? (
+               <Image src={getImageUrl(supplier.header_image)} alt={`Portada de ${supplier.name}`} fill unoptimized className="object-cover object-center xl:object-contain" />
            ) : (
                <Carousel images={(supplier.carousel_images || []).slice(0, 3)} />
            )}

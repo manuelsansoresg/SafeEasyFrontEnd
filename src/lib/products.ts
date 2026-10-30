@@ -84,6 +84,7 @@ export interface Supplier {
   header_background_color?: string;
   header_media_type?: 'image' | 'video';
   header_video?: string;
+  header_image?: string | null;
   primary_color?: string;
   business_hours?: BusinessHour[];
   is_directory?: boolean;

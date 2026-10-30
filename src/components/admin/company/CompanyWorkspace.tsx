@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, type ComponentProps, type ReactNode } from "react";
-import { Award, Clock3, ExternalLink, Home, Image as ImageIcon, Info, MessageCircle, Package, Paintbrush, PanelTop, QrCode, Truck, ShieldCheck } from "lucide-react";
+import { Award, Facebook, Clock3, ExternalLink, Home, Image as ImageIcon, Info, MessageCircle, Package, Paintbrush, PanelTop, QrCode, Truck, ShieldCheck } from "lucide-react";
 import SupplierForm from "@/components/admin/SupplierForm";
 import StepCarousel from "@/components/sell/wizard/StepCarousel";
 import StepCertificates from "@/components/sell/wizard/StepCertificates";
@@ -68,7 +68,8 @@ export function CompanyWorkspace({ supplier, token, isDirectory, enabledModules,
             <h1 className="mt-1 break-words font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28] sm:text-[1.7rem]">{supplier.name}</h1>
             <div className="mt-2 flex items-center gap-2 text-xs text-gray-500"><div className="h-1.5 w-28 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-[#168e00]" style={{ width: `${completion.percentage}%` }} /></div><span>{completion.percentage}% completo</span></div>
           </div>
-          <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:w-auto xl:gap-6">
+          <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:w-auto xl:grid-cols-3 xl:gap-3">
+            <Link href={`/admin/my-company/import-facebook?supplier_id=${supplier.id}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#004e28]/20 px-4 py-2.5 text-sm font-semibold text-[#004e28] transition hover:bg-[#f2f3f4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00]"><Facebook size={16} aria-hidden="true" />Importar desde Facebook</Link>
             <Link href={customizeHref} className="portal-customizer-cta inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#168e00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2"><Paintbrush size={16} aria-hidden="true" />Personalizar portal</Link>
             {profileUrl ? <Link href={profileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#004e28]/20 px-4 py-2.5 text-sm font-semibold text-[#004e28] transition hover:bg-[#004e28] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#168e00] focus-visible:ring-offset-2">{isAdmin ? "Ver portal" : "Ver mi negocio"} <ExternalLink size={16} aria-hidden="true" /></Link> : null}
           </div>
