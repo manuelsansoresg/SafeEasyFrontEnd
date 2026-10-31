@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/vender/layout,_N_T_/vender/gracias/layout,_N_T_/vender/gracias/page,_N_T_/vender/gracias/"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/vender/gracias/__PAGE__",
+    "/vender/gracias",
+    "/vender",
+    "/_index",
+    "/_head"
+  ]
+}

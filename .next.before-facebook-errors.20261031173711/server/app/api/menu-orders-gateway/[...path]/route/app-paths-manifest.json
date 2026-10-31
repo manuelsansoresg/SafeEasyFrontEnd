@@ -1,0 +1,3 @@
+{
+  "/api/menu-orders-gateway/[...path]/route": "app/api/menu-orders-gateway/[...path]/route.js"
+}

@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/admin/layout,_N_T_/admin/my-company/layout,_N_T_/admin/my-company/import-facebook/layout,_N_T_/admin/my-company/import-facebook/page,_N_T_/admin/my-company/import-facebook/"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/admin/my-company/import-facebook/__PAGE__",
+    "/admin/my-company/import-facebook",
+    "/admin/my-company",
+    "/admin",
+    "/_index",
+    "/_head"
+  ]
+}

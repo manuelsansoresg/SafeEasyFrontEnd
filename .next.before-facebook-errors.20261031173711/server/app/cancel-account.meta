@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/cancel-account/layout,_N_T_/cancel-account/page,_N_T_/cancel-account/"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/cancel-account/__PAGE__",
+    "/cancel-account",
+    "/_index",
+    "/_head"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/supplier/layout,_N_T_/supplier/messages/layout,_N_T_/supplier/messages/page,_N_T_/supplier/messages/"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/supplier/messages/__PAGE__",
+    "/supplier/messages",
+    "/supplier",
+    "/_index",
+    "/_head"
+  ]
+}

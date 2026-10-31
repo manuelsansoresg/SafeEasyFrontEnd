@@ -1,0 +1,17 @@
+User-Agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /proxy/
+Disallow: /client/
+Disallow: /cart/
+Disallow: /checkout/
+Disallow: /login/
+Disallow: /register/
+Disallow: /support/
+Disallow: /payment-info/
+Disallow: /mis-pedidos/
+Disallow: /product/*/similar/
+
+Host: https://drooopy.com/
+Sitemap: https://drooopy.com/sitemap.xml

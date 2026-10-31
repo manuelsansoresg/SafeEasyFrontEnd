@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/menu/layout,_N_T_/menu/gracias/layout,_N_T_/menu/gracias/page,_N_T_/menu/gracias/"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/menu/gracias/__PAGE__",
+    "/menu/gracias",
+    "/menu",
+    "/_index",
+    "/_head"
+  ]
+}

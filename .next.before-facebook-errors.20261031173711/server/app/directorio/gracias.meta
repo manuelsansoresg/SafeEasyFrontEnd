@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/directorio/layout,_N_T_/directorio/gracias/layout,_N_T_/directorio/gracias/page,_N_T_/directorio/gracias/"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/directorio/gracias/__PAGE__",
+    "/directorio/gracias",
+    "/directorio",
+    "/_index",
+    "/_head"
+  ]
+}
