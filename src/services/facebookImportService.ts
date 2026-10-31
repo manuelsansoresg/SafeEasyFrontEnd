@@ -23,6 +23,17 @@ export type Proposal = { status: "processing" | "succeeded" | "failed" | "unknow
 const base = "/api/integrations/facebook/connections";
 const part = encodeURIComponent;
 const messages: Record<string, string> = {
+  draft_version_conflict: "Este borrador cambió en otra pestaña. Recupera la versión guardada para revisar los cambios antes de continuar.",
+  draft_expired: "El borrador venció. Inicia uno nuevo para continuar.",
+  draft_revoked: "Se retiró el acceso a estos datos. Inicia un nuevo borrador.",
+  meta_revalidation_required: "Para guardar los datos de Facebook debes volver a autorizar la misma página. Tu borrador se conserva.",
+  supplier_changed: "La información de tu negocio cambió. Revisa los valores actuales antes de guardar.",
+  draft_limit: "Alcanzaste el máximo de borradores. Descarta uno que ya no necesites.",
+  asset_limit: "Alcanzaste el máximo de imágenes de este borrador. Elimina una alternativa que no uses.",
+  ai_images_not_configured: "La generación de imágenes aún no está disponible. Puedes usar tus imágenes o las de Facebook.",
+  ai_image_reference_required: "Selecciona una imagen de referencia para mejorarla.",
+  ai_image_daily_limit: "Alcanzaste el límite diario de imágenes con IA. Puedes continuar con tus imágenes.",
+  ai_image_budget_exceeded: "Alcanzaste el presupuesto disponible para imágenes. Puedes continuar sin IA.",
   connection_limit: "Tienes varias importaciones abiertas. Para continuar, pulsa «Cancelar importación» en otra pestaña donde la hayas iniciado. Si ya no la tienes abierta, espera hasta 30 minutos desde tu última conexión con Facebook y vuelve a intentarlo.",
   invalid_oauth_state: "La autorización venció o se abrió en otro navegador. Inicia de nuevo la conexión desde Drooopy.",
   meta_permission_denied: "Facebook no permitió leer la página. Vuelve a autorizarla y acepta los permisos solicitados.",
@@ -74,6 +85,7 @@ function detail(value: unknown, status: number): string {
   if (Array.isArray(value)) return "Hay datos que necesitan revisión. Comprueba los campos seleccionados, su longitud, las coordenadas y los horarios antes de guardar.";
   if (value && typeof value === "object") {
     const d = value as Record<string, unknown>;
+    if (typeof d.message === "string" && /[áéíóúñ¿]|\b(puedes|imagen|borrador|datos|solicitud|revisa|servicio|intenta)\b/i.test(d.message)) return d.message;
     return detail(d.detail ?? d.code ?? d.msg ?? d.message ?? d.error_code, status);
   }
   return statusMessage(status);
@@ -96,10 +108,10 @@ function retryDelay(response: Response): number | undefined {
 export class FacebookImportError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
 }
-export async function importRequest<T>(path = "", options: RequestInit = {}): Promise<T> {
+export async function importRequest<T>(path = "", options: RequestInit = {}, endpoint = base): Promise<T> {
   let response: Response;
   try {
-    response = await fetchWithAuth(base + path, { ...options, cache: "no-store", credentials: "include", headers: options.headers as Record<string, string> | undefined });
+    response = await fetchWithAuth(endpoint + path, { ...options, cache: "no-store", credentials: "include", headers: options.headers as Record<string, string> | undefined });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") throw error;
     throw new Error("No pudimos comunicarnos con el servidor. Revisa tu conexión a internet e intenta de nuevo.");
@@ -116,7 +128,7 @@ export async function importRequest<T>(path = "", options: RequestInit = {}): Pr
 export const connectionPath = (id: string) => `/${part(id)}`;
 export async function importImage(path: string, signal: AbortSignal): Promise<Blob> {
   // Only attach Drooopy credentials to the documented private image endpoints.
-  if (!/^\/api\/integrations\/facebook\/connections\/[a-zA-Z0-9_-]+\/(pages\/[0-9]+\/photo|previews\/[a-zA-Z0-9_-]+\/images\/(logo|banner))$/.test(path)) throw new Error("Imagen no disponible");
+  if (!/^\/api\/integrations\/facebook\/connections\/[a-zA-Z0-9_-]+\/(pages\/[0-9]+\/photo|previews\/[a-zA-Z0-9_-]+\/images\/(logo|banner))$/.test(path) && !/^\/api\/integrations\/facebook\/drafts\/[a-zA-Z0-9_-]+\/assets\/[a-zA-Z0-9_-]+$/.test(path)) throw new Error("Imagen no disponible");
   const response = await fetchWithAuth(path, { signal, cache: "no-store" });
   if (!response.ok) throw new Error("No se pudo cargar la imagen");
   return response.blob();
