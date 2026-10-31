@@ -1,1 +1,0 @@
-{"version":3,"sources":["../../../../src/app/account/delete/confirm/page.tsx"],"sourcesContent":["import { redirect } from \"next/navigation\";\n\nexport default function LegacyAccountDeletePage() {\n  redirect(\"/account/delete\");\n}\n"],"names":[],"mappings":"uaAAA,EAAA,CAAA,CAAA,QAAA,IAAA,EAAA,EAAA,CAAA,CAAA,QAEe,SAAS,IACtB,CAAA,EAAA,EAAA,QAAA,AAAQ,EAAC,kBACX"}

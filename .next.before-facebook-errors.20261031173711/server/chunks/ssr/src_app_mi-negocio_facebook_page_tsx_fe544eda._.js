@@ -1,3 +1,0 @@
-module.exports=[932481,a=>{"use strict";var b=a.i(187924),c=a.i(572131);function d(){return(0,c.useEffect)(()=>{let a=new URLSearchParams(window.location.hash.slice(1)).get("facebook_connection");window.history.replaceState(null,"",window.location.pathname),a&&/^[a-zA-Z0-9_-]{16,64}$/.test(a)?sessionStorage.setItem("facebook-import-connection",a):sessionStorage.removeItem("facebook-import-connection"),window.location.replace("/admin/my-company/import-facebook")},[]),(0,b.jsx)("p",{role:"status",className:"p-12 text-center text-[#004e28]",children:"Regresando a tu negocio…"})}a.s(["default",()=>d])}];
-
-//# sourceMappingURL=src_app_mi-negocio_facebook_page_tsx_fe544eda._.js.map

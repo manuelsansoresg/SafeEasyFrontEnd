@@ -50,3 +50,5 @@ planesmd/
 skills-lock.json
 AGENTS.md
 .engram/
+# Local build backups; keep recovery files outside version control
+/.next.*/

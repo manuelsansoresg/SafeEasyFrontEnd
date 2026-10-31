@@ -1,3 +1,0 @@
-{
-  "/api/agenda-gateway/[...path]/route": "app/api/agenda-gateway/[...path]/route.js"
-}
