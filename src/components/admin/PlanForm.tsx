@@ -242,9 +242,9 @@ export default function PlanForm({ initialData }: PlanFormProps) {
       setError("Captura cuántas imágenes permite cada producto.");
       return;
     }
-    if (!Number.isInteger(parsedMaxImagesPerProduct) || parsedMaxImagesPerProduct < 1) {
+    if (!Number.isInteger(parsedMaxImagesPerProduct) || parsedMaxImagesPerProduct < 0) {
       setLoading(false);
-      setError("Las imágenes por producto deben ser un número entero mayor o igual a 1.");
+      setError("Las imágenes por producto deben ser un número entero mayor o igual a 0.");
       return;
     }
 
@@ -477,7 +477,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
               <input
                 id="max_images_per_product"
                 type="number"
-                min={1}
+                min={0}
                 step={1}
                 required
                 inputMode="numeric"
