@@ -23,6 +23,11 @@ export type Proposal = { status: "processing" | "succeeded" | "failed" | "unknow
 const base = "/api/integrations/facebook/connections";
 const part = encodeURIComponent;
 const messages: Record<string, string> = {
+  ai_benefit_not_included: "Tu plan no incluye este uso de IA. Puedes continuar sin IA.",
+  ai_annual_quota_exhausted: "Ya utilizaste las generaciones de este periodo. Puedes continuar con tu contenido actual.",
+  ai_subscription_disabled: "Necesitas una suscripción activa para generar con IA.",
+  ai_temporarily_unavailable: "La IA no está disponible en este momento. Puedes continuar sin IA.",
+  ai_operation_expired: "El contenido de esta propuesta venció. Tus datos guardados se conservan.",
   draft_version_conflict: "Este borrador cambió en otra pestaña. Recupera la versión guardada para revisar los cambios antes de continuar.",
   draft_expired: "El borrador venció. Inicia uno nuevo para continuar.",
   draft_revoked: "Se retiró el acceso a estos datos. Inicia un nuevo borrador.",

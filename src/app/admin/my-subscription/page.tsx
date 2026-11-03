@@ -1,5 +1,6 @@
 "use client";
 
+import { BusinessAIAllowance } from "@/components/admin/ai/AIAllowancePanel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { subscriptionsService } from "@/services/subscriptionsService";
@@ -403,6 +404,7 @@ export default function MySubscriptionPage() {
   return (
     <div className="space-y-6">
       <PageHero title="Mi Subscripción" subtitle="Información de tu plan y pagos." />
+      {!loading && subscription?.supplier_id && <BusinessAIAllowance key={`${subscription.plan_id}:${subscription.status}:${subscription.end_date}`} supplierId={Number(subscription.supplier_id)} />}
 
       {callbackMessage && (
         <div className={`rounded-2xl border p-4 text-sm font-medium ${

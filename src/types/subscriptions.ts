@@ -40,6 +40,8 @@ export interface Plan {
   max_active_products?: number | null;
   max_images_per_product?: number | null;
   max_gallery_images?: number | null;
+  ai_text_generations_per_year?: number;
+  ai_image_generations_per_year?: number;
   created_at?: string;
 }
 

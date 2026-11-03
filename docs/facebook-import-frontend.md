@@ -23,3 +23,15 @@ Backend con rutas de borradores, migración correspondiente y configuración de 
 ## Verificación
 
 TypeScript, ESLint de archivos cambiados y build de producción. No se ejecutan pruebas según AGENTS.md. La prueba real de OAuth y generación requiere backend desplegado, sesión autorizada y cuota de IA.
+
+## Cuotas anuales de IA
+
+`GET /api/suppliers/{supplier_id}/ai-availability` es la única fuente del saldo. Dos contadores compartidos por negocio: textos e imágenes (logo y banner). El frontend muestra asignación, disponible, utilizado, reservado y renovación; no muestra datos de OpenRouter ni incluye compras.
+
+El hook `useAIAvailability` comparte consultas mediante React Query con claves por usuario y negocio, cancelación de consultas sustituidas y actualización al recuperar foco/visibilidad. Se consulta también antes de generar, tras cada respuesta o fallo de generación, durante el seguimiento de operaciones y mediante «Actualizar». No se resta saldo de forma optimista. La URL se construye con el ID autorizado del negocio, sin seguir enlaces externos de respuestas.
+
+Ante error de cuota o consulta pendiente se bloquean únicamente las acciones de generación. Importar, editar, subir imágenes propias y guardar siguen disponibles. Una reserva incierta se muestra como pendiente y no dispara otra solicitud automáticamente. Los motivos públicos del contrato se traducen con mensajes controlados en español.
+
+El panel está en el wizard y en Mi suscripción; se recarga al cambiar el plan/estado de la suscripción. El editor administrativo permite configurar `ai_text_generations_per_year` y `ai_image_generations_per_year` como enteros >= 0, ambos con default 0; advierte que las modificaciones afectan periodos futuros. Las tarjetas públicas muestran beneficios de IA positivos, con unidad anual incluso para planes de cobro mensual.
+
+Requiere backend desplegado con el contrato de cuotas y migración/configuración inicial correspondientes. No se deducen ni inventan cuotas según el nombre del plan.

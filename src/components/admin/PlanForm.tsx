@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { CheckCircle, ChevronDown, Eye, FlaskConical, FolderTree, ImageIcon, Images, KeyRound, Loader2, Package, Repeat2, Search, ShieldCheck, X } from "lucide-react";
+import { CheckCircle, ChevronDown, Eye, FlaskConical, FolderTree, ImageIcon, Images, KeyRound, Loader2, Package, Repeat2, Search, Sparkles, ShieldCheck, X } from "lucide-react";
 
 export type PlanDuration = "monthly" | "yearly";
 
@@ -27,6 +27,8 @@ export interface Plan {
   max_active_products?: number | null;
   max_images_per_product?: number | null;
   max_gallery_images?: number | null;
+  ai_text_generations_per_year?: number;
+  ai_image_generations_per_year?: number;
   seller_commission_type?: "percentage" | "fixed" | null;
   seller_commission_value?: number | null;
   subscription_linked_commission_user_id?: number | null;
@@ -63,6 +65,8 @@ interface PlanFormData {
   max_active_products: string;
   max_images_per_product: string;
   max_gallery_images: string;
+  ai_text_generations_per_year: string;
+  ai_image_generations_per_year: string;
   seller_commission_type: "percentage" | "fixed";
   seller_commission_value: string;
   subscription_linked_commission_user_id: string;
@@ -87,6 +91,8 @@ const initialFormData: PlanFormData = {
   max_active_products: "",
   max_images_per_product: "",
   max_gallery_images: "",
+  ai_text_generations_per_year: "0",
+  ai_image_generations_per_year: "0",
   seller_commission_type: "percentage",
   seller_commission_value: "0",
   subscription_linked_commission_user_id: "",
@@ -139,6 +145,8 @@ export default function PlanForm({ initialData }: PlanFormProps) {
       max_active_products: initialData.max_active_products != null ? String(initialData.max_active_products) : "",
       max_images_per_product: initialData.max_images_per_product != null ? String(initialData.max_images_per_product) : "",
       max_gallery_images: initialData.max_gallery_images != null ? String(initialData.max_gallery_images) : "",
+      ai_text_generations_per_year: String(initialData.ai_text_generations_per_year ?? 0),
+      ai_image_generations_per_year: String(initialData.ai_image_generations_per_year ?? 0),
       seller_commission_type: initialData.seller_commission_type === "fixed" ? "fixed" : "percentage",
       seller_commission_value: String(initialData.seller_commission_value ?? 0),
       subscription_linked_commission_user_id: initialData.subscription_linked_commission_user_id?.toString() || "",
@@ -264,6 +272,13 @@ export default function PlanForm({ initialData }: PlanFormProps) {
       }
     }
 
+    const aiTexts = Number(formData.ai_text_generations_per_year);
+    const aiImages = Number(formData.ai_image_generations_per_year);
+    if ([formData.ai_text_generations_per_year, formData.ai_image_generations_per_year].some(value => !value.trim()) || ![aiTexts, aiImages].every(value => Number.isSafeInteger(value) && value >= 0)) {
+      setLoading(false);
+      setError("Las generaciones anuales de IA deben ser números enteros mayores o iguales a 0.");
+      return;
+    }
     const sellerComm = Number(formData.seller_commission_value);
     const linkedComm = Number(formData.subscription_linked_commission_value);
     const linkedUserId = Number.parseInt(formData.subscription_linked_commission_user_id, 10);
@@ -318,6 +333,8 @@ export default function PlanForm({ initialData }: PlanFormProps) {
           ? { max_gallery_images: parsedMaxGalleryImages }
           : { max_active_products: parsedMaxActiveProducts }),
         max_images_per_product: parsedMaxImagesPerProduct,
+        ai_text_generations_per_year: aiTexts,
+        ai_image_generations_per_year: aiImages,
         seller_commission_type: formData.seller_commission_type,
         seller_commission_value: Number.isFinite(sellerComm) ? sellerComm : 0,
         subscription_linked_commission_user_id: parsedLinkedUserId,
@@ -490,6 +507,12 @@ export default function PlanForm({ initialData }: PlanFormProps) {
             <p className="text-xs leading-5 text-gray-500">Incluye la imagen principal y las imágenes extra.</p>
           </div>
         </div>
+
+        <section aria-labelledby="ai-plan-title" className="rounded-2xl border border-[#004e28]/15 bg-[#f4f8f5] p-5 md:p-6">
+          <div className="mb-5 flex items-start gap-3"><span className="rounded-xl bg-[#004e28] p-2.5 text-white"><Sparkles size={20} /></span><div><h2 id="ai-plan-title" className="font-semibold text-[#004e28]">Inteligencia artificial incluida</h2><p className="mt-1 text-sm leading-6 text-gray-600">Cuotas por negocio para cada periodo de 12 meses, compartidas entre quienes lo administran.</p></div></div>
+          <div className="grid gap-5 md:grid-cols-2">{([{ key: 'ai_text_generations_per_year', label: 'Generaciones de textos al año', help: 'Una generación puede completar varios campos del perfil.' }, { key: 'ai_image_generations_per_year', label: 'Imágenes con IA al año', help: 'Un solo saldo para crear, mejorar o rediseñar logo y banner.' }] as const).map(field => <div key={field.key}><label htmlFor={field.key} className="mb-2 block text-sm font-medium text-[#004e28]">{field.label}</label><input id={field.key} type="number" min={0} step={1} required inputMode="numeric" value={formData[field.key]} onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))} className="min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" /><p className="mt-2 text-xs leading-5 text-gray-600">{field.help} Usa 0 si no está incluido.</p></div>)}</div>
+          <p className="mt-5 border-t border-[#004e28]/10 pt-4 text-xs leading-5 text-gray-600">Estos cambios se aplican a periodos futuros. Las cuotas de los periodos ya iniciados se conservan. No se reinician con cada pago mensual.</p>
+        </section>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">

@@ -20,6 +20,8 @@ type ApiPlan = {
   max_active_products?: number | null;
   max_images_per_product?: number | null;
   max_gallery_images?: number | null;
+  ai_text_generations_per_year?: number;
+  ai_image_generations_per_year?: number;
   module_codes?: string[];
   module_capabilities?: PlanModuleCapabilities;
   modules?: unknown;
@@ -44,6 +46,8 @@ type SellPlan = {
   maxActiveProducts: number | null;
   maxImagesPerProduct: number | null;
   maxGalleryImages: number | null;
+  aiTexts: number;
+  aiImages: number;
   modules: IncludedModule[];
 };
 
@@ -171,6 +175,8 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => {
       typeof plan.max_gallery_images === 'number' && Number.isFinite(plan.max_gallery_images)
         ? plan.max_gallery_images
         : null,
+    aiTexts: Math.max(0, Number(plan.ai_text_generations_per_year) || 0),
+    aiImages: Math.max(0, Number(plan.ai_image_generations_per_year) || 0),
     modules,
   };
 };
@@ -314,6 +320,8 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
           {galleryValue !== null && <LimitStat icon={<Images size={18} />} value={galleryValue} label="Imágenes en galería" highlight={highlight} />}
           {imageValue !== null && <LimitStat icon={plan.isDirectory ? <BriefcaseBusiness size={18} /> : <ImageIcon size={18} />} value={imageValue} label={plan.isDirectory ? 'Alta de servicios' : 'Imágenes por producto'} highlight={highlight} />}
         </div>}
+
+        {(plan.aiTexts > 0 || plan.aiImages > 0) && <section aria-label="Inteligencia artificial incluida" className={`rounded-xl border p-4 ${highlight ? 'border-white/15 bg-white/[0.06]' : 'border-[#004e28]/10 bg-[#f4f8f5]'}`}><h4 className={`flex items-center gap-2 text-xs font-semibold ${highlight ? 'text-[#b7e6a5]' : 'text-[#004e28]'}`}><Sparkles size={14} aria-hidden="true" />IA incluida cada año</h4><ul className="mt-3 space-y-2 text-xs leading-5">{plan.aiTexts > 0 && <li>{plan.aiTexts} generaciones de textos</li>}{plan.aiImages > 0 && <li>{plan.aiImages} imágenes para logo o banner</li>}</ul></section>}
 
         {benefits.length > 0 && <section aria-label={`Beneficios de ${plan.name}`} className={`border-t pt-5 ${highlight ? 'border-white/15' : 'border-[#004e28]/10'}`}>
           <h4 className={`mb-4 text-[10px] font-semibold uppercase tracking-[.18em] ${highlight ? 'text-[#b7e6a5]' : 'text-[#004e28]'}`}>Tu plan incluye</h4>
