@@ -39,7 +39,9 @@ const messages: Record<string, string> = {
   ai_image_reference_required: "Selecciona una imagen de referencia para mejorarla.",
   ai_image_daily_limit: "Alcanzaste el límite diario de imágenes con IA. Puedes continuar con tus imágenes.",
   ai_image_budget_exceeded: "Alcanzaste el presupuesto disponible para imágenes. Puedes continuar sin IA.",
-  connection_limit: "Tienes varias importaciones abiertas. Para continuar, pulsa «Cancelar importación» en otra pestaña donde la hayas iniciado. Si ya no la tienes abierta, espera hasta 30 minutos desde tu última conexión con Facebook y vuelve a intentarlo.",
+  connection_limit: "Hay autorizaciones de Facebook pendientes. Espera un momento y vuelve a pulsar «Conectar con Facebook».",
+  facebook_start_rate_limited: "Has intentado conectar muchas veces. Espera un momento y vuelve a pulsar «Conectar con Facebook».",
+  facebook_authorization_processing: "Facebook está completando la autorización. Espera un momento antes de volver a conectar.",
   invalid_oauth_state: "La autorización venció o se abrió en otro navegador. Inicia de nuevo la conexión desde Drooopy.",
   meta_permission_denied: "Facebook no permitió leer la página. Vuelve a autorizarla y acepta los permisos solicitados.",
   meta_wrong_token: "La autorización de Facebook no corresponde a esta conexión. Vuelve a conectar tu cuenta.",
@@ -125,7 +127,7 @@ export async function importRequest<T>(path = "", options: RequestInit = {}, end
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const delay = retryDelay(response);
-    const wait = delay ? ` El servidor indica que puedes reintentar en ${delay < 60 ? `${Math.ceil(delay)} segundos` : `${Math.ceil(delay / 60)} minutos`}.` : "";
+    const wait = delay ? ` El servidor indica que puedes reintentar en ${Math.ceil(delay)} segundos.` : "";
     throw new FacebookImportError(response.status, data?.detail?.code || data?.error_code || "", detail(data, response.status) + wait);
   }
   return data as T;
