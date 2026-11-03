@@ -285,160 +285,47 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
   const productValue = plan.isDirectory ? null : formatLimitValue(plan.maxActiveProducts);
   const imageValue = formatLimitValue(plan.maxImagesPerProduct);
   const galleryValue = plan.isDirectory ? formatLimitValue(plan.maxGalleryImages) : null;
-  const limitCount = [productValue, galleryValue, imageValue].filter((value) => value !== null).length;
-  const showLimits = limitCount > 0;
+  const limitCount = [productValue, galleryValue, imageValue].filter(value => value !== null).length;
+  const descriptionLines = plan.description.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const benefits = [...new Set([...descriptionLines, ...plan.featureLines])];
+  const PlanIcon = plan.isDirectory ? BriefcaseBusiness : plan.modules.length ? Blocks : Package;
 
   return (
-    <div
-      className={`group relative flex h-full flex-col overflow-hidden rounded-3xl transition-all duration-300 ${
-        highlight
-          ? 'bg-gradient-to-br from-[#004e28] via-[#003d20] to-[#012a16] text-white shadow-2xl shadow-primary/30 ring-1 ring-white/10 md:-translate-y-3 md:scale-[1.02]'
-          : 'border border-gray-200 bg-white shadow-sm hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl'
-      }`}
-    >
-      {highlight && (
-        <div className="absolute right-6 top-6">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white backdrop-blur">
-            <Sparkles className="h-3.5 w-3.5" />
-            Recomendado
-          </span>
+    <article className={`group relative flex h-full flex-col overflow-hidden rounded-[28px] border transition-[box-shadow,border-color] duration-200 ${highlight ? 'border-[#004e28] bg-[#004e28] text-white shadow-[0_20px_60px_-24px_#004e2870]' : 'border-[#004e28]/15 bg-white text-gray-950 shadow-[0_8px_30px_-20px_#004e2830] hover:border-[#004e28]/35 hover:shadow-[0_16px_40px_-24px_#004e2840]'}`}>
+      <div className={`h-1.5 ${highlight ? 'bg-[#87d46a]' : 'bg-[#004e28]/10'}`} aria-hidden="true" />
+      <header className={`relative p-6 pb-0 md:p-7 md:pb-0 ${highlight ? 'bg-[radial-gradient(ellipse_at_top_right,#ffffff12,transparent_70%)]' : ''}`}>
+        <div className="mb-5 flex min-h-11 items-center justify-between gap-2">
+          <span className={`grid size-11 place-items-center rounded-2xl ${highlight ? 'bg-white/10 text-[#b7e6a5]' : 'bg-[#edf6ef] text-[#004e28]'}`}><PlanIcon size={22} strokeWidth={1.7} aria-hidden="true" /></span>
+          {highlight && <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white"><Sparkles size={12} aria-hidden="true" />Recomendado</span>}
         </div>
-      )}
-
-      <div className="flex flex-1 flex-col p-7 md:p-8">
-        <div>
-          <span
-            className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-[0.18em] ${
-              highlight ? 'text-white/70' : 'text-primary'
-            }`}
-          >
-            Plan
-          </span>
-          <h3
-            className={`font-[family-name:var(--font-varela-round)] mt-2 text-2xl md:text-[1.7rem] ${
-              highlight ? 'text-white' : 'text-gray-950'
-            }`}
-          >
-            {plan.name}
-          </h3>
-          {plan.description && (
-            <p
-              className={`mt-2 whitespace-pre-line text-sm leading-6 ${
-                highlight ? 'text-white/75' : 'text-gray-500'
-              }`}
-            >
-              {plan.description}
-            </p>
-          )}
+        <h3 className="font-[family-name:var(--font-varela-round)] text-2xl leading-tight md:text-[1.7rem]">{plan.name}</h3>
+        <div className="mt-5 flex items-baseline gap-1.5">
+          <span className="font-[family-name:var(--font-varela-round)] text-[2.6rem] leading-none tracking-tight md:text-5xl">{plan.price}</span>
+          <span className={`text-sm ${highlight ? 'text-white/75' : 'text-gray-500'}`}>{plan.period}</span>
         </div>
+        <Link href={registerHref} className={`mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#168e00] ${highlight ? 'bg-white text-[#004e28] hover:bg-[#eaf8e5]' : 'bg-[#004e28] text-white hover:bg-[#eaf8e5] hover:text-[#004e28]'}`} aria-label={`Elegir ${plan.name}`}>
+          Elegir este plan<ArrowRight size={16} aria-hidden="true" />
+        </Link>
+      </header>
 
-        <div className="mt-6 flex items-baseline gap-1.5">
-          <span
-            className={`font-[family-name:var(--font-varela-round)] text-4xl md:text-[2.75rem] leading-none ${
-              highlight ? 'text-white' : 'text-gray-950'
-            }`}
-          >
-            {plan.price}
-          </span>
-          <span
-            className={`text-sm font-medium md:text-base ${
-              highlight ? 'text-white/70' : 'text-gray-500'
-            }`}
-          >
-            {plan.period}
-          </span>
-        </div>
+      <div className="flex flex-1 flex-col gap-6 p-6 md:p-7">
+        {limitCount > 0 && <div className={`grid gap-2 ${limitCount > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {productValue !== null && <LimitStat icon={<Package size={18} />} value={productValue} label="Productos activos" highlight={highlight} />}
+          {galleryValue !== null && <LimitStat icon={<Images size={18} />} value={galleryValue} label="Imágenes en galería" highlight={highlight} />}
+          {imageValue !== null && <LimitStat icon={plan.isDirectory ? <BriefcaseBusiness size={18} /> : <ImageIcon size={18} />} value={imageValue} label={plan.isDirectory ? 'Alta de servicios' : 'Imágenes por producto'} highlight={highlight} />}
+        </div>}
 
-        {showLimits && (
-          <div className={`mt-6 grid gap-3 ${limitCount > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {productValue !== null && (
-              <LimitStat
-                icon={<Package className="h-[18px] w-[18px]" />}
-                value={productValue}
-                label="Productos activos"
-                highlight={highlight}
-              />
-            )}
-            {galleryValue !== null && (
-              <LimitStat
-                icon={<Images className="h-[18px] w-[18px]" />}
-                value={galleryValue}
-                label="Imágenes en galería"
-                highlight={highlight}
-              />
-            )}
-            {imageValue !== null && (
-              <LimitStat
-                icon={
-                  plan.isDirectory
-                    ? <BriefcaseBusiness className="h-[18px] w-[18px]" />
-                    : <ImageIcon className="h-[18px] w-[18px]" />
-                }
-                value={imageValue}
-                label={plan.isDirectory ? 'Alta de servicios' : 'Imágenes por producto'}
-                highlight={highlight}
-              />
-            )}
-          </div>
-        )}
+        {benefits.length > 0 && <section aria-label={`Beneficios de ${plan.name}`} className={`border-t pt-5 ${highlight ? 'border-white/15' : 'border-[#004e28]/10'}`}>
+          <h4 className={`mb-4 text-[10px] font-semibold uppercase tracking-[.18em] ${highlight ? 'text-[#b7e6a5]' : 'text-[#004e28]'}`}>Tu plan incluye</h4>
+          <ul className="space-y-3 text-sm leading-6">{benefits.map((line, i) => <BenefitLine key={`${i}-${line}`} line={line} highlight={highlight} />)}</ul>
+        </section>}
 
-        {(plan.featureLines.length > 0 || plan.modules.length > 0) && (
-          <div className={`my-6 h-px w-full ${highlight ? 'bg-white/10' : 'bg-gray-200'}`} />
-        )}
-
-        {plan.featureLines.length > 0 ? (
-          <section aria-label="Beneficios incluidos">
-            <h4 className={`text-[11px] font-bold uppercase tracking-[0.16em] ${highlight ? 'text-white/65' : 'text-[#004e28]'}`}>
-              Beneficios incluidos
-            </h4>
-            <ul className="mt-3 space-y-2.5 text-sm leading-5">
-              {plan.featureLines.slice(0, 4).map((line, lineIndex) => (
-                <BenefitLine key={`${line}-${lineIndex}`} line={line} highlight={highlight} />
-              ))}
-            </ul>
-            {plan.featureLines.length > 4 ? (
-              <details className="group/benefits mt-3">
-                <summary className={`flex cursor-pointer list-none items-center gap-1 text-xs font-semibold [&::-webkit-details-marker]:hidden ${highlight ? 'text-white/75' : 'text-[#0b6d00]'}`}>
-                  Ver más beneficios <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/benefits:rotate-180" aria-hidden="true" />
-                </summary>
-                <ul className="mt-3 space-y-2.5 text-sm leading-5">
-                  {plan.featureLines.slice(4).map((line, lineIndex) => (
-                    <BenefitLine key={`${line}-${lineIndex}`} line={line} highlight={highlight} />
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-          </section>
-        ) : null}
-
-        {plan.modules.length > 0 ? (
-          <section aria-label="Módulos incluidos" className={plan.featureLines.length > 0 ? `mt-6 border-t pt-5 ${highlight ? 'border-white/10' : 'border-gray-200'}` : ''}>
-            <h4 className={`text-[11px] font-bold uppercase tracking-[0.16em] ${highlight ? 'text-white/65' : 'text-[#004e28]'}`}>
-              Módulos incluidos
-            </h4>
-            <div className="mt-3 space-y-2">
-              {plan.modules.map((module) => (
-                <ModuleBlock key={module.code} module={module} highlight={highlight} />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <div className="mt-auto pt-8">
-          <Link
-            href={registerHref}
-            className={`group/cta inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-bold transition-all duration-200 md:text-base ${
-              highlight
-                ? 'bg-white text-primary shadow-lg shadow-black/10 hover:bg-white/95 hover:shadow-xl'
-                : 'border-2 border-primary bg-white text-primary hover:bg-primary hover:text-white'
-            }`}
-          >
-            <span>{highlight ? 'Seleccionar Pro' : 'Empezar Ahora'}</span>
-            <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/cta:translate-x-0.5" />
-          </Link>
-        </div>
+        {plan.modules.length > 0 && <section aria-label="Módulos incluidos" className={benefits.length > 0 ? '' : `border-t pt-5 ${highlight ? 'border-white/15' : 'border-[#004e28]/10'}`}>
+          <div className="mb-3 flex items-center justify-between gap-2"><h4 className={`text-[10px] font-semibold uppercase tracking-[.18em] ${highlight ? 'text-[#b7e6a5]' : 'text-[#004e28]'}`}>Herramientas incluidas</h4><span className={`rounded-full px-2 py-0.5 text-xs ${highlight ? 'bg-white/10 text-white/80' : 'bg-[#edf6ef] text-[#004e28]'}`}>{plan.modules.length}</span></div>
+          <div className="space-y-2">{plan.modules.map(module => <ModuleBlock key={module.code} module={module} highlight={highlight} />)}</div>
+        </section>}
       </div>
-    </div>
+    </article>
   );
 };
 
