@@ -257,9 +257,9 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         setError("Captura cuántas imágenes puede tener la galería del directorio.");
         return;
       }
-      if (!Number.isInteger(parsedMaxGalleryImages) || (parsedMaxGalleryImages as number) < 1) {
+      if (!Number.isInteger(parsedMaxGalleryImages) || (parsedMaxGalleryImages as number) < 0) {
         setLoading(false);
-        setError("Las imágenes de galería deben ser un número entero mayor o igual a 1.");
+        setError("Las imágenes de galería deben ser un número entero mayor o igual a 0.");
         return;
       }
     }
@@ -432,7 +432,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
                 <input
                   id="max_gallery_images"
                   type="number"
-                  min={1}
+                  min={0}
                   step={1}
                   required
                   inputMode="numeric"
