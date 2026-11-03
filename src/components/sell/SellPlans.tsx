@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getPlanFeatureLines } from '@/components/sell/planText';
+import { getPlanFeatureLines, splitPlanText } from '@/components/sell/planText';
 import type { PlanModuleCapabilities } from '@/types/subscriptions';
 import { ArrowRight, Blocks, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ImageIcon, Images, Package, Sparkles, UtensilsCrossed } from 'lucide-react';
 
@@ -129,7 +129,7 @@ const formatPeriod = (duration: PlanDuration) => (duration === 'monthly' ? '/mes
 const formatLimitValue = (value: number | null | undefined) => {
   if (value === null || value === undefined) return null;
   if (!Number.isFinite(value)) return null;
-  if (value < 0) return null;
+  if (value <= 0) return null;
   return new Intl.NumberFormat('es-MX').format(value);
 };
 
@@ -145,8 +145,8 @@ const pickArray = (data: unknown): ApiPlan[] => {
 
 const mapApiPlan = (plan: ApiPlan): SellPlan => {
   const modules = includedModules(plan);
-  const description = (plan.description || '').split(/\r?\n|[•;]+/).map((line) => line.trim())
-    .find((line) => line && !mentionsModule(line, modules)) ?? '';
+  const description = (plan.description || '').trim();
+  const descriptionLines = new Set(splitPlanText(description).map(normalizeText));
 
   return {
     id: plan.id,
@@ -156,9 +156,8 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => {
     description,
     featureLines: getPlanFeatureLines({
       features: plan.features,
-      description: plan.description,
-      isDirectory: plan.is_directory,
-    }).filter((line) => !mentionsModule(line, modules) && line !== description),
+      isDirectory: false,
+    }).filter((line) => !mentionsModule(line, modules) && !descriptionLines.has(normalizeText(line))),
     isDirectory: Boolean(plan.is_directory),
     maxActiveProducts:
       typeof plan.max_active_products === 'number' && Number.isFinite(plan.max_active_products)
@@ -324,7 +323,7 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
           </h3>
           {plan.description && (
             <p
-              className={`mt-2 text-sm leading-6 ${
+              className={`mt-2 whitespace-pre-line text-sm leading-6 ${
                 highlight ? 'text-white/75' : 'text-gray-500'
               }`}
             >
@@ -383,11 +382,9 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
           </div>
         )}
 
-        <div
-          className={`my-6 h-px w-full ${
-            highlight ? 'bg-white/10' : 'bg-gray-200'
-          }`}
-        />
+        {(plan.featureLines.length > 0 || plan.modules.length > 0) && (
+          <div className={`my-6 h-px w-full ${highlight ? 'bg-white/10' : 'bg-gray-200'}`} />
+        )}
 
         {plan.featureLines.length > 0 ? (
           <section aria-label="Beneficios incluidos">
@@ -415,7 +412,7 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
         ) : null}
 
         {plan.modules.length > 0 ? (
-          <section aria-label="Módulos incluidos" className={`mt-6 border-t pt-5 ${highlight ? 'border-white/10' : 'border-gray-200'}`}>
+          <section aria-label="Módulos incluidos" className={plan.featureLines.length > 0 ? `mt-6 border-t pt-5 ${highlight ? 'border-white/10' : 'border-gray-200'}` : ''}>
             <h4 className={`text-[11px] font-bold uppercase tracking-[0.16em] ${highlight ? 'text-white/65' : 'text-[#004e28]'}`}>
               Módulos incluidos
             </h4>
