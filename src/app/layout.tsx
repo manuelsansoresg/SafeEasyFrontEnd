@@ -39,6 +39,9 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
+  other: {
+    "facebook-domain-verification": "lt737vmz7ymoqhvqy5b0gz2qhp0ys9",
+  },
   icons: {
     icon: [
       {
