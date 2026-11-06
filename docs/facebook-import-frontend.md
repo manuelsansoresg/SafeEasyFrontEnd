@@ -4,7 +4,7 @@ El wizard usa `/api/integrations/facebook/drafts` y el contrato `FACEBOOK_IMPORT
 
 ## Flujo
 
-- Habilitación temporal del frontend solo para `manuellorenzosansoresbriceno@gmail.com`, con comparación de correo sin distinguir mayúsculas ni espacios externos. El botón de Mi negocio y el acceso directo al wizard usan la misma regla; las demás cuentas regresan a Mi negocio sin montar el flujo. Esta regla no sustituye la autorización de la API en el backend.
+- Habilitación temporal del frontend solo para `manuellorenzosansoresbriceno@gmail.com` y `estilista@test.com`, con comparación de correo sin distinguir mayúsculas ni espacios externos. El botón de Mi negocio y el acceso directo al wizard usan la misma regla; las demás cuentas regresan a Mi negocio sin montar el flujo. Esta regla no sustituye la autorización de la API en el backend.
 - Cuatro pasos accesibles mediante botones: página, información, imágenes y revisión.
 - Borradores propios o creados desde una página autorizada. Se listan borradores recuperables de la empresa, con vencimiento y opción explícita de descarte.
 - La URL conserva el ID del borrador y de la empresa. SessionStorage contiene solo IDs para volver desde OAuth; los datos, imágenes y propuestas permanecen en el servidor.
