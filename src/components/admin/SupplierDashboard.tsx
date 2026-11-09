@@ -7,7 +7,7 @@ import { PageHero } from '@/components/ui/PageHero';
 import { useMyDirectorySubscription } from '@/hooks/useMyDirectorySubscription';
 
 export default function SupplierDashboard() {
-  const { isDirectory } = useMyDirectorySubscription();
+  const { isDirectory, canManageServices, canManageProducts } = useMyDirectorySubscription();
 
   return (
     <div className="w-full">
@@ -53,7 +53,7 @@ export default function SupplierDashboard() {
             delay={0.3}
           />
 
-          <DashboardCard 
+          {isDirectory || canManageProducts ? <DashboardCard
             href={isDirectory ? "/admin/services" : "/admin/products"}
             icon={
               isDirectory ? (
@@ -69,7 +69,16 @@ export default function SupplierDashboard() {
                 : "Administre su inventario de productos."
             }
             delay={0.4}
-          />
+          /> : null}
+          {!isDirectory && canManageServices ? (
+            <DashboardCard
+              href="/admin/services"
+              icon={<BriefcaseBusiness className="w-8 h-8 text-primary" />}
+              title="Mis Servicios"
+              description="Administra los servicios de tu negocio."
+              delay={0.5}
+            />
+          ) : null}
         </div>
       </motion.div>
     </div>

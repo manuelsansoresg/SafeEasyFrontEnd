@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
-import { isSubscriptionActive } from "@/lib/subscriptionAccess";
+import { canSubscriptionManageProducts } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import type { Subscription } from "@/types/subscriptions";
 import DOMPurify from "isomorphic-dompurify";
@@ -119,7 +119,7 @@ export default function AdminProductsPage() {
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
-  const canCreateProduct = !isSupplierUser || isSubscriptionActive(subscription);
+  const canCreateProduct = !isSupplierUser || canSubscriptionManageProducts(subscription);
 
   useEffect(() => {
     if (!toast) return;
@@ -317,7 +317,7 @@ export default function AdminProductsPage() {
 
       {!canCreateProduct && !subscriptionLoading ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-          Tu subscripción no está activa. Tus productos no deben mostrarse para compra y no puedes subir productos nuevos hasta renovar tu plan.
+          Para administrar productos necesitas una suscripción activa con Imágenes por producto mayor que 0.
         </div>
       ) : null}
 

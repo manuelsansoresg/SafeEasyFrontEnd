@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import { fetchWithAuth } from "@/lib/api";
 import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { getSpanishErrorMessage } from "@/lib/errorMessages";
-import { isSubscriptionActive } from "@/lib/subscriptionAccess";
+import { canSubscriptionManageProducts } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import type { Subscription } from "@/types/subscriptions";
 import { 
@@ -148,8 +148,8 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
-  const isSupplierSubscriptionActive = !isSupplierUser || isSubscriptionActive(subscription);
-  const isCreationBlockedBySubscription = isSupplierUser && !isEditMode && !subscriptionLoading && !isSupplierSubscriptionActive;
+  const canManageProducts = !isSupplierUser || canSubscriptionManageProducts(subscription);
+  const isCreationBlockedBySubscription = isSupplierUser && (subscriptionLoading || !canManageProducts);
 
   useEffect(() => {
     if (!toast) return;
@@ -365,7 +365,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         return;
     }
     if (isCreationBlockedBySubscription) {
-      setError(subscriptionError || "Tu subscripción no está activa. Renueva tu plan para subir productos.");
+      setError(subscriptionError || "Para administrar productos necesitas una suscripción activa con Imágenes por producto mayor que 0.");
       return;
     }
 
@@ -508,6 +508,11 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           </div>
         ) : null}
 
+        {isSupplierUser && !subscriptionLoading && !canManageProducts ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Para administrar productos necesitas una suscripción activa con Imágenes por producto mayor que 0.
+          </p>
+        ) : null}
         {subscriptionLoading && isSupplierUser ? (
           <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
             <Loader2 size={16} className="animate-spin" />

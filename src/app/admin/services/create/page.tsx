@@ -10,7 +10,7 @@ export default function CreateServicePage() {
     <div className="space-y-6">
       <PageHero
         title="Nuevo Servicio"
-        subtitle="Publica un servicio en tu directorio empresarial."
+        subtitle="Publica un servicio de tu negocio."
         actions={
           <Link
             href="/admin/services"

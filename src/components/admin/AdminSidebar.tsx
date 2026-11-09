@@ -41,7 +41,7 @@ export function AdminSidebar({
   const isAdmin = user?.role === "admin" || user?.role === "superuser";
   const isSupplier = user?.role === "supplier";
   const { hasModule } = useSupplierModules(isSupplier);
-  const { isDirectory } = useMyDirectorySubscription(isSupplier);
+  const { isDirectory, canManageServices, canManageProducts } = useMyDirectorySubscription(isSupplier);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const expanded = !isCollapsed || isMobileOpen;
 
@@ -75,12 +75,15 @@ export function AdminSidebar({
         { title: "Eliminados", path: "/admin/deleted-users", icon: Trash2, roles: ["admin", "superuser"] },
       ],
     },
-    {
+    ...(!isSupplier || isDirectory || canManageProducts ? [{
       title: isDirectory ? "Mis Servicios" : "Mis Productos",
       path: isDirectory ? "/admin/services" : "/admin/products",
       icon: isDirectory ? BriefcaseBusiness : Package,
-      roles: ["admin", "superuser", "supplier"],
-    },
+      roles: ["admin", "superuser", "supplier"] as AdminRole[],
+    }] : []),
+    ...(isSupplier && !isDirectory && canManageServices ? [{
+      title: "Mis Servicios", path: "/admin/services", icon: BriefcaseBusiness, roles: ["supplier"] as AdminRole[],
+    }] : []),
     { title: "Mis anuncios", path: "/admin/my-ads", icon: Megaphone, roles: ["supplier"] },
     { title: "Mis categorías", path: "/admin/my-categories", icon: Tags, roles: ["supplier"] },
     ...(isSupplier && hasModule("menu") ? [{

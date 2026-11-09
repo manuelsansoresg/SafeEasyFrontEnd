@@ -1,19 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isDirectorySubscription } from "@/lib/subscriptionAccess";
+import { canSubscriptionManageProducts, canSubscriptionManageServices, isDirectorySubscription } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export function useMyDirectorySubscription(enabled = true) {
   const token = useAuthStore((state) => state.token);
   const [isDirectory, setIsDirectory] = useState(false);
+  const [canManageServices, setCanManageServices] = useState(false);
+  const [canManageProducts, setCanManageProducts] = useState(false);
   const [loading, setLoading] = useState(enabled);
 
   useEffect(() => {
     if (!enabled || !token) {
       const resetId = window.setTimeout(() => {
         setIsDirectory(false);
+        setCanManageServices(false);
+        setCanManageProducts(false);
         setLoading(false);
       }, 0);
       return () => window.clearTimeout(resetId);
@@ -25,11 +29,19 @@ export function useMyDirectorySubscription(enabled = true) {
       subscriptionsService
         .getMySubscription()
         .then((subscription) => {
-          if (!cancelled) setIsDirectory(isDirectorySubscription(subscription));
+          if (!cancelled) {
+            setIsDirectory(isDirectorySubscription(subscription));
+            setCanManageServices(canSubscriptionManageServices(subscription));
+            setCanManageProducts(canSubscriptionManageProducts(subscription));
+          }
         })
         .catch((error) => {
           console.error("Error loading directory subscription:", error);
-          if (!cancelled) setIsDirectory(false);
+          if (!cancelled) {
+            setIsDirectory(false);
+            setCanManageServices(false);
+            setCanManageProducts(false);
+          }
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -42,5 +54,5 @@ export function useMyDirectorySubscription(enabled = true) {
     };
   }, [enabled, token]);
 
-  return { isDirectory, loading };
+  return { isDirectory, canManageServices, canManageProducts, loading };
 }

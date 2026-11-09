@@ -26,7 +26,7 @@ type ToastState = {
 } | null;
 
 export default function AdminServicesPage() {
-  const { isDirectory, loading: subscriptionLoading } =
+  const { canManageServices, loading: subscriptionLoading } =
     useMyDirectorySubscription();
   const [services, setServices] = useState<SupplierService[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,12 +56,12 @@ export default function AdminServicesPage() {
 
   useEffect(() => {
     if (subscriptionLoading) return;
-    if (!isDirectory) {
+    if (!canManageServices) {
       setLoading(false);
       return;
     }
     void loadServices();
-  }, [isDirectory, subscriptionLoading]);
+  }, [canManageServices, subscriptionLoading]);
 
   useEffect(() => {
     if (!toast) return;
@@ -127,7 +127,7 @@ export default function AdminServicesPage() {
     );
   }
 
-  if (!isDirectory) {
+  if (!canManageServices) {
     return (
       <div className="mx-auto max-w-2xl rounded-[1.75rem] border border-amber-200 bg-white p-8 text-center shadow-sm">
         <BriefcaseBusiness
@@ -136,10 +136,10 @@ export default function AdminServicesPage() {
           strokeWidth={1.7}
         />
         <h1 className="mt-4 font-[family-name:var(--font-varela-round)] text-2xl text-[#004e28]">
-          Servicios disponibles con plan Directorio
+          Servicios disponibles con Directorio o Negocio Plus
         </h1>
         <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-gray-600">
-          Tu cuenta necesita una suscripción activa de tipo directorio para
+          Tu cuenta necesita una suscripción activa de Directorio o Negocio Plus para
           administrar servicios.
         </p>
         <Link
@@ -156,7 +156,7 @@ export default function AdminServicesPage() {
     <div className="space-y-6">
       <PageHero
         title="Servicios"
-        subtitle="Gestiona los servicios que se mostrarán en tu directorio empresarial."
+        subtitle="Gestiona los servicios de tu negocio."
         actions={
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
             <label className="relative block sm:w-64">

@@ -22,7 +22,7 @@ export type SupplierPublicTab =
 type SupplierModuleNavigationProps = {
   supplierId: number;
   hasMenu: boolean;
-  isDirectory: boolean;
+  canShowProducts: boolean;
   activeTab: SupplierPublicTab;
   onChangeTab: (tab: SupplierPublicTab, replace?: boolean) => void;
   tabsRef: RefObject<HTMLDivElement | null>;
@@ -33,7 +33,7 @@ type SupplierModuleNavigationProps = {
 export function SupplierModuleNavigation({
   supplierId,
   hasMenu,
-  isDirectory,
+  canShowProducts,
   activeTab,
   onChangeTab,
   tabsRef,
@@ -114,7 +114,7 @@ export function SupplierModuleNavigation({
   };
 
   const showTabs =
-    !isDirectory ||
+    canShowProducts ||
     hasMenu ||
     agendaAvailable ||
     agendaLoading;
@@ -172,7 +172,7 @@ export function SupplierModuleNavigation({
                 </button>
               ) : null}
 
-              {!isDirectory ? (
+              {canShowProducts ? (
                 <button
                   type="button"
                   onClick={() => openTab("products")}

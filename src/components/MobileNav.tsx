@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BriefcaseBusiness, Home, ShoppingCart, MessageSquare, User, Package, Users, Heart, LayoutDashboard } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useSupplierPageModeStore } from "@/store/useSupplierPageModeStore";
 
@@ -15,7 +16,7 @@ interface NavItem {
   icon: React.ComponentType<{ size?: number }>;
 }
 
-function getNavItems(pathname: string, userRole: Role, isDirectorySupplier: boolean, isAuthenticated: boolean): NavItem[] {
+function getNavItems(pathname: string, userRole: Role, isDirectorySupplier: boolean, isAuthenticated: boolean, productsAllowed: boolean, ownProductsAllowed: boolean, ownServicesAllowed: boolean): NavItem[] {
   let accountHref = "/login";
   let accountLabel = "Ingresar";
   if (isAuthenticated) {
@@ -36,11 +37,11 @@ function getNavItems(pathname: string, userRole: Role, isDirectorySupplier: bool
   if (pathname.startsWith("/empresas/")) {
     const items: NavItem[] = [
       { href: "/", label: "Inicio", icon: Home },
-      {
+      ...(isDirectorySupplier || productsAllowed ? [{
         href: `${pathname}${isDirectorySupplier ? "#servicios" : "#productos"}`,
         label: isDirectorySupplier ? "Servicios" : "Productos",
         icon: isDirectorySupplier ? BriefcaseBusiness : Package,
-      },
+      }] : []),
       { href: `${pathname}#nosotros`, label: "Nosotros", icon: Users },
       { href: `${pathname}#contacto`, label: "Contacto", icon: MessageSquare },
       { href: accountHref, label: accountLabel, icon: User },
@@ -59,11 +60,8 @@ function getNavItems(pathname: string, userRole: Role, isDirectorySupplier: bool
     );
   } else if (userRole === "supplier") {
     base.push(
-      {
-        href: isDirectorySupplier ? "/admin/services" : "/admin/products",
-        label: isDirectorySupplier ? "Servicios" : "Productos",
-        icon: isDirectorySupplier ? BriefcaseBusiness : Package,
-      },
+      ...(ownProductsAllowed ? [{ href: "/admin/products", label: "Productos", icon: Package }] : []),
+      ...(ownServicesAllowed ? [{ href: "/admin/services", label: "Servicios", icon: BriefcaseBusiness }] : []),
       ...(isDirectorySupplier
         ? []
         : [{ href: "/admin/orders", label: "Órdenes", icon: ShoppingCart }]),
@@ -98,6 +96,8 @@ function getNavItems(pathname: string, userRole: Role, isDirectorySupplier: bool
 export function MobileNav() {
   const pathname = usePathname();
   const { user, isAuthenticated } = useAuthStore();
+  const { canManageProducts, canManageServices } = useMyDirectorySubscription(user?.role === "supplier" && !pathname.startsWith("/empresas/"));
+  const productsAllowed = useSupplierPageModeStore((state) => state.productsAllowed);
   const isDirectorySupplier = useSupplierPageModeStore((state) => state.isDirectory);
 
   if (isAuthenticated && user?.role === "client" &&
@@ -105,7 +105,7 @@ export function MobileNav() {
     return null;
   }
 
-  const navItems = getNavItems(pathname, user?.role as Role, isDirectorySupplier, isAuthenticated);
+  const navItems = getNavItems(pathname, user?.role as Role, isDirectorySupplier, isAuthenticated, productsAllowed, canManageProducts, canManageServices);
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-50 pb-safe">

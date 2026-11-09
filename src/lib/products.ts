@@ -90,12 +90,15 @@ export interface Supplier {
   is_directory?: boolean;
   subscription_is_directory?: boolean;
   plan_is_directory?: boolean;
+  max_images_per_product?: number | null;
+  plan?: { max_images_per_product?: number | null };
   subscription?: {
     status?: string;
     end_date?: string;
     is_directory?: boolean;
     plan?: {
       is_directory?: boolean;
+      max_images_per_product?: number | null;
     };
   } | null;
 }

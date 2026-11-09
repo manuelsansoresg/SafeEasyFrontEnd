@@ -1,8 +1,10 @@
 "use client";
 
+import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
+
 import Link from "next/link";
 import { useMemo, type ComponentProps, type ReactNode } from "react";
-import { Award, Clock3, ExternalLink, Facebook, Home, Image as ImageIcon, Info, MessageCircle, Package, Paintbrush, PanelTop, QrCode, Truck, ShieldCheck } from "lucide-react";
+import { BriefcaseBusiness, Award, Clock3, ExternalLink, Facebook, Home, Image as ImageIcon, Info, MessageCircle, Package, Paintbrush, PanelTop, QrCode, Truck, ShieldCheck } from "lucide-react";
 import SupplierForm from "@/components/admin/SupplierForm";
 import StepCarousel from "@/components/sell/wizard/StepCarousel";
 import StepCertificates from "@/components/sell/wizard/StepCertificates";
@@ -61,6 +63,7 @@ export function CompanyWorkspace({ supplier, token, isDirectory, enabledModules,
   ], [isSupplierAccount, isAdmin]);
   const slug = getSupplierSlug(supplier);
   const profileUrl = slug ? `/${supplier.is_demo === true ? "demos" : "empresas"}/${encodeURIComponent(slug)}` : null;
+  const { canManageServices, canManageProducts } = useMyDirectorySubscription(isSupplierAccount && !isAdmin);
   const completion = getCompanyProfileCompletion(supplier, { isDirectory });
 
   return (
@@ -88,7 +91,8 @@ export function CompanyWorkspace({ supplier, token, isDirectory, enabledModules,
               const active = activeTab === item.id;
               return <button key={item.id} type="button" onClick={() => navigate(item.id)} aria-current={active ? "page" : undefined} className={`inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium transition xl:w-full ${active ? "bg-[#004e28] text-white shadow-sm" : "bg-white text-gray-600 hover:bg-[#004e28]/[0.06] hover:text-[#004e28] xl:bg-transparent"}`}><Icon size={18} aria-hidden="true" />{item.label}</button>;
             })}
-            {!isAdmin ? <div className="hidden border-t border-gray-200 pt-3 xl:mt-3 xl:block"><Link href={isDirectory ? "/admin/services" : "/admin/products"} className="flex min-h-11 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28]"><Package size={18} aria-hidden="true" />{isDirectory ? "Mis servicios" : "Mis productos"}</Link></div> : null}
+            {!isAdmin && (isDirectory || canManageProducts) ? <div className="hidden border-t border-gray-200 pt-3 xl:mt-3 xl:block"><Link href={isDirectory ? "/admin/services" : "/admin/products"} className="flex min-h-11 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28]"><Package size={18} aria-hidden="true" />{isDirectory ? "Mis servicios" : "Mis productos"}</Link></div> : null}
+            {!isAdmin && !isDirectory && canManageServices ? <Link href="/admin/services" className="inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28] xl:flex xl:w-full"><BriefcaseBusiness size={18} aria-hidden="true" />Mis servicios</Link> : null}
             {enabledModules.length > 0 ? (
               <div className="flex shrink-0 items-center gap-2 border-l border-gray-200 pl-3 xl:mt-3 xl:block xl:space-y-1 xl:border-l-0 xl:border-t xl:pl-0 xl:pt-3">
                 <span className="px-2 text-xs font-semibold uppercase tracking-wide text-[#004e28] xl:block">Módulos</span>
@@ -103,7 +107,7 @@ export function CompanyWorkspace({ supplier, token, isDirectory, enabledModules,
 
         <main className="min-w-0">
           {activeTab === "administration" ? administration : null}
-          {activeTab === "overview" ? <CompanyOverview supplier={supplier} isDirectory={isDirectory} enabledModules={enabledModules} onNavigate={navigate} onSupplierUpdated={onSupplierUpdated} showSupplierModules={!isAdmin} showCatalogLink={!isAdmin} /> : null}
+          {activeTab === "overview" ? <CompanyOverview supplier={supplier} isDirectory={isDirectory} enabledModules={enabledModules} onNavigate={navigate} onSupplierUpdated={onSupplierUpdated} showSupplierModules={!isAdmin} showCatalogLink={!isAdmin && (isDirectory || canManageProducts)} /> : null}
           {activeTab === "information" ? <SectionCard title="Información" description="Los datos principales y la ubicación de tu negocio."><SupplierForm initialData={supplier} isEditMode view="information" onSaved={() => onSupplierUpdated()} /></SectionCard> : null}
           {activeTab === "appearance" ? <SectionCard title="Apariencia" description="Colores, logo e imágenes de identidad de tu negocio."><SupplierPaletteEditor key={JSON.stringify([supplier.id, supplier.primary_color, supplier.header_background_color, supplier.page_background_color, supplier.card_background_color])} supplier={supplier} onSaved={onSupplierUpdated} /><SupplierForm initialData={supplier} isEditMode view="appearance" onSaved={() => onSupplierUpdated()} /></SectionCard> : null}
           {activeTab === "header" && token ? <SectionCard title="Encabezado" description="Elige entre un video de portada o un carrusel de imágenes para presentar tu negocio."><StepCarousel supplierId={supplier.id} slug={slug || undefined} token={token} onNext={() => navigate("hours")} /></SectionCard> : null}

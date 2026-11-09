@@ -51,6 +51,41 @@ export const isDirectorySubscription = (subscription: unknown) => {
   );
 };
 
+export const planAllowsProducts = (plan: unknown) => {
+  const record = asRecord(plan);
+  const value = record?.max_images_per_product;
+  if (value == null || value === "" || typeof value === "boolean") return false;
+  const limit = Number(value);
+  return Number.isFinite(limit) && limit > 0;
+};
+
+export const canSubscriptionManageProducts = (subscription: unknown) => {
+  const record = asRecord(subscription);
+  return isSubscriptionActive(subscription) && planAllowsProducts(record?.plan);
+};
+
+export const supplierAllowsProducts = (supplier: unknown) => {
+  const record = asRecord(supplier);
+  if (!record) return false;
+  // Public supplier responses may flatten plan limits or embed the plan.
+  if (record.max_images_per_product != null) return planAllowsProducts(record);
+  if (record.plan) return planAllowsProducts(record.plan);
+  return [record.subscription, record.active_subscription, record.supplier_subscription, record.supplierSubscription]
+    .some((value) => planAllowsProducts(asRecord(value)?.plan));
+};
+
+// Service publishing is separate from the supplier's directory/store layout.
+export const canSubscriptionManageServices = (subscription: unknown) => {
+  if (isDirectorySubscription(subscription)) return true;
+  const record = asRecord(subscription);
+  if (!record || !isSubscriptionActive(record)) return false;
+
+  const plan = asRecord(record.plan);
+  const title = typeof plan?.title === "string" ? plan.title : "";
+  const normalizedTitle = title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return /\bnegocio\s+plus\b/.test(normalizedTitle);
+};
+
 export const supplierHasDirectorySubscription = (supplier: unknown) => {
   const record = asRecord(supplier);
   if (!record) return false;

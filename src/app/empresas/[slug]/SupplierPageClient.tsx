@@ -15,6 +15,7 @@ import { parseMapLocation } from "@/lib/googleMaps";
 import {
   filterProductsByActiveSupplierSubscription,
   supplierHasDirectorySubscription,
+  supplierAllowsProducts,
 } from "@/lib/subscriptionAccess";
 import DOMPurify from "isomorphic-dompurify";
 import { useSupplierPageModeStore } from "@/store/useSupplierPageModeStore";
@@ -633,6 +634,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   const [ratingsError, setRatingsError] = useState<string | null>(null);
   const [ratingsHasMore, setRatingsHasMore] = useState(false);
   const { syncFavorites } = useFavoritesStore();
+  const setProductsAllowed = useSupplierPageModeStore((state) => state.setProductsAllowed);
   const setDirectoryMode = useSupplierPageModeStore((state) => state.setDirectoryMode);
   const setHideForDirectory = useChromeVisibilityStore((state) => state.setHideForDirectory);
   const resetChromeVisibility = useChromeVisibilityStore((state) => state.reset);
@@ -640,6 +642,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   const observerTarget = useRef<HTMLDivElement | null>(null);
   const supplierId = supplier?.id ?? null;
   const supplierSlug = supplier?.slug ?? null;
+  const canShowProducts = supplierAllowsProducts(supplier);
   const supplierIsDirectory = supplierHasDirectorySubscription(supplier);
 
   const productCategories = useMemo(
@@ -723,10 +726,10 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   }, [activeTab, publicMenusLoading, publicMenus.length, navigateTab]);
 
   useEffect(() => {
-    if (activeTab === "products" && supplierId && supplierIsDirectory) {
+    if (activeTab === "products" && supplierId && !canShowProducts) {
       navigateTab("main", true);
     }
-  }, [activeTab, navigateTab, supplierId, supplierIsDirectory]);
+  }, [activeTab, navigateTab, supplierId, canShowProducts]);
 
   useEffect(() => {
     if (isDemo) return;
@@ -735,7 +738,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
       const identifier = (slug as string) || supplierSlug || String(supplierId);
       
       if (process.env.NODE_ENV === "development") console.log("Fetching products for identifier:", identifier);
-      if (supplierIsDirectory) {
+      if (!canShowProducts) {
         setProducts([]);
         setProductsLoading(false);
         setHasMore(false);
@@ -747,7 +750,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
         setServicesError(null);
       }
     }
-  }, [slug, supplierId, supplierIsDirectory, supplierSlug, isDemo]);
+  }, [slug, supplierId, supplierIsDirectory, supplierSlug, isDemo, canShowProducts]);
 
   useEffect(() => {
     if (isBuilderPreview || isDemo) return;
@@ -942,7 +945,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   };
 
   useEffect(() => {
-    if (!supplierId || supplierIsDirectory || isDemo) return;
+    if (!supplierId || !canShowProducts || isDemo) return;
     const controller = new AbortController();
     const identifier = String(slug || supplierSlug || supplierId);
     const params = new URLSearchParams({ skip: "0", limit: "500" });
@@ -969,10 +972,10 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
       });
 
     return () => controller.abort();
-  }, [slug, supplierId, supplierIsDirectory, supplierSlug, isDemo]);
+  }, [slug, supplierId, supplierIsDirectory, supplierSlug, isDemo, canShowProducts]);
 
   useEffect(() => {
-    if (!supplierId || supplierIsDirectory || isDemo) return;
+    if (!supplierId || !canShowProducts || isDemo) return;
     const controller = new AbortController();
     const identifier = String(slug || supplierSlug || supplierId);
     setPage(1);
@@ -998,12 +1001,13 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
     slug,
     supplierId,
     supplierIsDirectory,
+    canShowProducts,
     supplierSlug,
     isDemo,
   ]);
 
   useEffect(() => {
-    if (!slug || !supplierId || supplierIsDirectory || page === 1 || isDemo) return;
+    if (!slug || !supplierId || !canShowProducts || page === 1 || isDemo) return;
     const controller = new AbortController();
     const identifier = String(slug || supplierSlug || supplierId);
     void fetchProducts(
@@ -1027,6 +1031,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
     slug,
     supplierId,
     supplierIsDirectory,
+    canShowProducts,
     supplierSlug,
     isDemo,
   ]);
@@ -1081,6 +1086,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
     slug,
     supplierId,
     supplierIsDirectory,
+    canShowProducts,
     supplierSlug,
     isDemo,
   ]);
@@ -1291,8 +1297,12 @@ const contactHref = supplier?.phone
   const useDirectoryPresentation = false;
   useEffect(() => {
     setDirectoryMode(isDirectory);
-    return () => setDirectoryMode(false);
-  }, [isDirectory, setDirectoryMode]);
+    setProductsAllowed(canShowProducts);
+    return () => {
+      setDirectoryMode(false);
+      setProductsAllowed(false);
+    };
+  }, [isDirectory, canShowProducts, setDirectoryMode, setProductsAllowed]);
 
   // Cuando el proveedor es directorio, ocultamos el chrome de Drooopy
   // (Header/Footer/MobileNav) y mostraremos el DirectoryTopNav propio del proveedor.
@@ -1470,7 +1480,7 @@ const contactHref = supplier?.phone
       <SupplierModuleNavigation
         supplierId={supplier.id}
         hasMenu={publicMenus.length > 0}
-        isDirectory={isDirectory}
+        canShowProducts={canShowProducts}
         activeTab={activeTab}
         onChangeTab={navigateTab}
         tabsRef={tabsRef}
@@ -1647,7 +1657,7 @@ const contactHref = supplier?.phone
       ) : null}
 
       {/* --- PRODUCTS SECTION (Tab Content) --- */}
-      {!isDirectory && activeTab === 'products' && (
+      {canShowProducts && activeTab === 'products' && (
       <section id={isDirectory ? "servicios" : "productos"} className={`relative scroll-mt-20 overflow-hidden ${isDirectory ? "supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] py-20" : "supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] py-24"}`}>
         {/* Decorative Background Blob */}
         <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[var(--supplier-secondary,#004e28)]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
