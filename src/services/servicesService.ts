@@ -52,7 +52,7 @@ async function readError(response: Response, fallback: string) {
         detail ===
         "Active Agenda access is required to manage store services"
       ) {
-        return "Necesitas tener activo el módulo Agenda para crear servicios en tu tienda.";
+        return "El servidor está exigiendo Agenda para administrar el catálogo de servicios. Es necesario actualizar los permisos del servidor para Directorio y Negocio Plus.";
       }
       if (detail === "A service must keep at least one image") {
         return "El servicio debe conservar al menos una imagen.";

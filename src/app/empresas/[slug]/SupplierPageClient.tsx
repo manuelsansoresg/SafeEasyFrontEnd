@@ -744,11 +744,6 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
         setHasMore(false);
       }
       fetchRatings(identifier, 0, false);
-      if (!supplierIsDirectory) {
-        setServices([]);
-        setServiceCatalog([]);
-        setServicesError(null);
-      }
     }
   }, [slug, supplierId, supplierIsDirectory, supplierSlug, isDemo, canShowProducts]);
 
@@ -1037,7 +1032,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   ]);
 
   useEffect(() => {
-    if (!supplierId || !supplierIsDirectory || isDemo) return;
+    if (!supplierId || isDemo) return;
     let active = true;
     const variants = catalogRequestVariants(
       selectedServiceCategory,
@@ -1419,7 +1414,7 @@ const contactHref = supplier?.phone
                 ) : null}
 
                 <div className="mb-6 flex w-full flex-col flex-wrap items-stretch justify-center gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4 md:justify-start">
-                      {!isDirectory ? (
+                      {canShowProducts ? (
                         <Link href={`${supplierBasePath}productos/`} onClick={(event) => { event.preventDefault(); handleShowProducts(); }} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-7 py-3 text-base font-bold text-[color:var(--supplier-inverse,#ffffff)] shadow-[0_0_30px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_60%,transparent)] transition-all hover:-translate-y-1 hover:bg-[var(--supplier-primary-hover,#137a00)] hover:shadow-[0_0_40px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_80%,transparent)] font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
                             Ver Catálogo <ArrowDown size={20} />
                         </Link>
@@ -1534,7 +1529,7 @@ const contactHref = supplier?.phone
         </section>
       ) : null}
 
-      {isDirectory && activeTab === "main" && (servicesLoading || serviceCatalog.length > 0 || selectedServiceCategory) ? (
+      {activeTab === "main" && (servicesLoading || serviceCatalog.length > 0 || selectedServiceCategory) ? (
         <section
           id="servicios"
           className="relative scroll-mt-20 overflow-hidden supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] py-20"

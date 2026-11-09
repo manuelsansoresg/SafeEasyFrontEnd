@@ -141,7 +141,7 @@ export default function AdminAgendaPage() {
   const { loading: accessLoading, error: accessError, hasModule, getModule, retry } = useSupplierModules();
   const hasAccess = hasModule("agenda");
   const onlinePaymentsEnabled = getModule("agenda")?.online_payments_enabled === true;
-  const { isDirectory, loading: directoryLoading } =
+  const { canManageServices, loading: catalogAccessLoading } =
     useMyDirectorySubscription(Boolean(user));
 
   const [section, setSection] = useState<Section>("general");
@@ -284,7 +284,7 @@ export default function AdminAgendaPage() {
     [],
   );
 
-  if (accessLoading || directoryLoading || (hasAccess && loading)) {
+  if (accessLoading || catalogAccessLoading || (hasAccess && loading)) {
     return (
       <div className="flex min-h-[55vh] items-center justify-center">
         <Loader2 className="animate-spin text-[#168e00]" size={34} />
@@ -1226,7 +1226,7 @@ export default function AdminAgendaPage() {
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
-                {!isDirectory ? (
+                {!canManageServices ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -1256,20 +1256,20 @@ export default function AdminAgendaPage() {
               <CalendarClock className="mx-auto text-[#168e00]" size={36} />
               <h3 className="mt-3 text-xl font-bold text-gray-900">
                 {catalog.length === 0
-                  ? isDirectory
+                  ? canManageServices
                     ? "No tienes servicios creados todavía"
                     : "Crea tu primer servicio para comenzar"
                   : "Todavía no has agregado servicios a tu Agenda"}
               </h3>
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-600">
                 {catalog.length === 0
-                  ? isDirectory
+                  ? canManageServices
                     ? "Crea primero tus servicios y después podrás elegir cuáles aceptar con cita."
                     : "Crea tu primer servicio para comenzar a recibir reservaciones."
                   : "Selecciona uno o varios servicios para que tus clientes puedan reservarlos."}
               </p>
               <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
-                {catalog.length === 0 && isDirectory ? (
+                {catalog.length === 0 && canManageServices ? (
                   <Link
                     href="/admin/services/create"
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#004e28] px-4 py-3 text-sm font-bold text-white"
@@ -1277,7 +1277,7 @@ export default function AdminAgendaPage() {
                     Crear mi primer servicio
                     <ExternalLink aria-hidden="true" size={16} />
                   </Link>
-                ) : !isDirectory && catalog.length === 0 ? (
+                ) : !canManageServices && catalog.length === 0 ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -1363,7 +1363,7 @@ export default function AdminAgendaPage() {
                         <Settings2 aria-hidden="true" size={17} />
                         Configurar cita
                       </button>
-                      {isDirectory ? (
+                      {canManageServices ? (
                         <Link
                           href={`/admin/services/${item.catalog_service_id}`}
                           className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
@@ -1657,7 +1657,7 @@ export default function AdminAgendaPage() {
         <AgendaServiceSelectorModal
           open
           catalog={catalog}
-          isDirectory={isDirectory}
+          canManageServices={canManageServices}
           saving={serviceActionSaving}
           onClose={() => setSelectorOpen(false)}
           onAdd={addCatalogServices}
@@ -1678,7 +1678,7 @@ export default function AdminAgendaPage() {
         />
       ) : null}
 
-      {!isDirectory && storeServiceModalOpen ? (
+      {!canManageServices && storeServiceModalOpen ? (
         <AgendaStoreServiceModal
           open
           service={editingCatalogService}

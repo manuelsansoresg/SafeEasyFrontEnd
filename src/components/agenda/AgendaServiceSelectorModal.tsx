@@ -9,7 +9,7 @@ import type { AgendaCatalogService } from "@/types/agenda";
 type AgendaServiceSelectorModalProps = {
   open: boolean;
   catalog: AgendaCatalogService[];
-  isDirectory: boolean;
+  canManageServices: boolean;
   saving: boolean;
   onClose: () => void;
   onAdd: (serviceIds: string[]) => Promise<void>;
@@ -26,7 +26,7 @@ function money(value: number) {
 export default function AgendaServiceSelectorModal({
   open,
   catalog,
-  isDirectory,
+  canManageServices,
   saving,
   onClose,
   onAdd,
@@ -68,7 +68,7 @@ export default function AgendaServiceSelectorModal({
           <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-gray-600">
             Crea primero tus servicios y después podrás elegir cuáles aceptar con cita.
           </p>
-          {isDirectory ? (
+          {canManageServices ? (
             <Link
               href="/admin/services/create"
               className="mt-5 inline-flex rounded-xl bg-[#004e28] px-4 py-3 text-sm font-semibold text-white"
@@ -134,7 +134,7 @@ export default function AgendaServiceSelectorModal({
                   {!service.is_active ? (
                     <span className="mt-1 block text-xs text-gray-600">
                       Activa primero el servicio.
-                      {isDirectory ? (
+                      {canManageServices ? (
                         <Link
                           href={`/admin/services/${service.service_id}`}
                           className="ml-1 font-semibold text-[#168e00] underline-offset-2 hover:underline"
