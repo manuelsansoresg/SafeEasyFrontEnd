@@ -1,52 +1,61 @@
 import type { Metadata } from 'next';
+import { campaignWhatsAppUrl } from '@/lib/marketingCampaign';
 import { buildMetadata } from '@/lib/seo';
 import SellHero from '@/components/sell/SellHero';
-import SellBenefits from '@/components/sell/SellBenefits';
+import SellExamples from '@/components/sell/SellExamples';
 import SellPlans from '@/components/sell/SellPlans';
-import SellTestimonials from '@/components/sell/SellTestimonials';
 import SellFAQ from '@/components/sell/SellFAQ';
 
 type SearchParams = { [key: string]: string | string[] | undefined };
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Vende en Drooopy',
-  description: 'Conoce las opciones para publicar tu negocio y tus productos en Drooopy.',
+  title: 'Publica tu negocio o crea tu tienda en línea | Drooopy',
+  description: 'Empieza con una página para tu negocio o elige una tienda en línea. Prueba los ejemplos de catálogo, citas y menú antes de elegir tu plan.',
   path: '/sell',
 });
 
-export default async function SellPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
-  const resolvedSearchParams = await searchParams;
-  const accessCode = typeof resolvedSearchParams.code === 'string' ? resolvedSearchParams.code.trim() : '';
-  const referralCode = typeof resolvedSearchParams.referral_code === 'string' ? resolvedSearchParams.referral_code.trim() : '';
+const steps = [
+  { title: 'Elige cómo empezar', text: 'Compara una página para tu negocio con los planes que te permiten publicar productos o usar herramientas como Agenda y Menú.' },
+  { title: 'Personaliza tu página', text: 'Agrega el nombre, las fotos y la información de tu negocio. Publica tus productos o servicios según tu plan.' },
+  { title: 'Comparte tu enlace', text: 'Envíalo por WhatsApp, publícalo en redes o agrégalo a tu perfil para que tus clientes te encuentren.' },
+];
+
+export default async function SellPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const params = await searchParams;
+  const accessCode = typeof params.code === 'string' ? params.code.trim() : '';
+  const intent = params.necesidad === 'products' || params.necesidad === 'agenda' || params.necesidad === 'menu' ? params.necesidad : undefined;
+
+  const campaignParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string' && /^(utm_[a-z0-9_]+|gclid|fbclid|code|referral_code)$/.test(key)) {
+      campaignParams.set(key, value.trim());
+    }
+  }
+  const campaignQuery = campaignParams.toString();
 
   return (
     <main className="min-h-screen pt-24 md:pt-28">
       <SellHero />
-      <SellBenefits />
-      <SellTestimonials />
-      <SellPlans accessCode={accessCode} referralCode={referralCode} />
+      <section className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16" aria-labelledby="sell-how-title">
+        <h2 id="sell-how-title" className="font-[family-name:var(--font-varela-round)] text-3xl text-[#004e28] sm:text-4xl">Cómo funciona Drooopy</h2>
+        <ol className="mt-7 grid gap-5 md:grid-cols-3">
+          {steps.map(({ title, text }, index) => (
+            <li key={title} className="rounded-2xl border border-[#004e28]/10 p-5 sm:p-6">
+              <span className="inline-flex size-9 items-center justify-center rounded-full bg-[#edf6ef] font-semibold text-[#004e28]" aria-hidden="true">{index + 1}</span>
+              <h3 className="mt-3 text-lg font-semibold text-[#004e28]">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-gray-600">{text}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+      <SellExamples campaignQuery={campaignQuery} />
+      <SellPlans accessCode={accessCode} intent={intent} campaignQuery={campaignQuery} />
       <SellFAQ />
-      
-      {/* Call to Action Section */}
-      <section className="py-20 bg-primary text-white">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-5xl font-bold mb-6">
-            ¿Listo para expandir su negocio?
-          </h2>
-          <p className="text-xl md:text-2xl text-white/90 mb-10 max-w-3xl mx-auto">
-            Únase a miles de proveedores que ya confían en Drooopy para sus ventas B2B.
-          </p>
-          <a
-            href="/sell/register"
-            className="inline-block bg-white text-primary font-bold py-4 px-10 rounded-full text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-          >
-            Regístrese Ahora
-          </a>
-        </div>
+      <section className="bg-[#004e28] px-5 py-12 text-center text-white">
+        <h2 className="font-[family-name:var(--font-varela-round)] text-3xl">¿Tienes dudas sobre qué plan elegir?</h2>
+        <a href={campaignWhatsAppUrl(intent ?? 'directory')} target="_blank" rel="noopener noreferrer" className="mt-5 inline-flex min-h-12 items-center rounded-xl bg-white px-5 py-3 font-semibold text-[#004e28] hover:bg-[#eaf8e5]">
+          Preguntar por WhatsApp
+        </a>
       </section>
     </main>
   );

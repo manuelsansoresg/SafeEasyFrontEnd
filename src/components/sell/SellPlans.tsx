@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { trackMetaCustomEvent } from '@/lib/metaPixel';
 import { getPlanFeatureLines, splitPlanText } from '@/components/sell/planText';
 import type { PlanModuleCapabilities } from '@/types/subscriptions';
 import { ArrowRight, Blocks, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ImageIcon, Images, Package, Sparkles, UtensilsCrossed } from 'lucide-react';
+
+type SellIntent = 'products' | 'agenda' | 'menu';
 
 type PlanDuration = 'monthly' | 'yearly';
 
@@ -39,6 +42,7 @@ type SellPlan = {
   id: number;
   name: string;
   price: string;
+  annualizedPrice: number;
   period: string;
   description: string;
   featureLines: string[];
@@ -125,7 +129,7 @@ const formatCurrency = (value: number) =>
   new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency: 'MXN',
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 
 const formatPeriod = (duration: PlanDuration) => (duration === 'monthly' ? '/mes' : '/año');
@@ -156,6 +160,7 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => {
     id: plan.id,
     name: plan.title,
     price: formatCurrency(Number(plan.price || 0)),
+    annualizedPrice: Number(plan.price || 0) * (plan.duration === 'monthly' ? 12 : 1),
     period: formatPeriod(plan.duration),
     description,
     featureLines: getPlanFeatureLines({
@@ -181,13 +186,22 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => {
   };
 };
 
-const buildRegisterHref = (planId: number, referralCode: string) => {
-  const params = new URLSearchParams({
-    plan: String(planId),
-  });
-  if (referralCode) params.set('referral_code', referralCode);
+const buildRegisterHref = (planId: number, campaignQuery: string) => {
+  const params = new URLSearchParams(campaignQuery);
+  params.set('plan', String(planId));
   return `/sell/register?${params.toString()}`;
 };
+
+const intentLabels: Record<SellIntent, string> = {
+  products: 'Planes para vender productos',
+  agenda: 'Planes con Agenda',
+  menu: 'Planes con Menú',
+};
+
+const matchesIntent = (plan: SellPlan, intent: SellIntent) =>
+  intent === 'products'
+    ? !plan.isDirectory && (plan.maxActiveProducts ?? 0) > 0
+    : plan.modules.some(({ code }) => code === intent);
 
 type LimitStatProps = {
   icon: React.ReactNode;
@@ -276,6 +290,7 @@ type PlanCardProps = {
   plan: SellPlan;
   highlight: boolean;
   registerHref: string;
+  isEntryPlan: boolean;
 };
 
 const BenefitLine = ({ line, highlight }: { line: string; highlight: boolean }) => (
@@ -287,7 +302,7 @@ const BenefitLine = ({ line, highlight }: { line: string; highlight: boolean }) 
   </li>
 );
 
-const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
+const PlanCard = ({ plan, highlight, registerHref, isEntryPlan }: PlanCardProps) => {
   const productValue = plan.isDirectory ? null : formatLimitValue(plan.maxActiveProducts);
   const imageValue = formatLimitValue(plan.maxImagesPerProduct);
   const galleryValue = plan.isDirectory ? formatLimitValue(plan.maxGalleryImages) : null;
@@ -302,14 +317,17 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
       <header className={`relative p-6 pb-0 md:p-7 md:pb-0 ${highlight ? 'bg-[radial-gradient(ellipse_at_top_right,#ffffff12,transparent_70%)]' : ''}`}>
         <div className="mb-5 flex min-h-11 items-center justify-between gap-2">
           <span className={`grid size-11 place-items-center rounded-2xl ${highlight ? 'bg-white/10 text-[#b7e6a5]' : 'bg-[#edf6ef] text-[#004e28]'}`}><PlanIcon size={22} strokeWidth={1.7} aria-hidden="true" /></span>
-          {highlight && <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white"><Sparkles size={12} aria-hidden="true" />Recomendado</span>}
+          {highlight && <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white"><Sparkles size={12} aria-hidden="true" />{isEntryPlan ? 'Para empezar' : 'Opción de entrada'}</span>}
         </div>
         <h3 className="font-[family-name:var(--font-varela-round)] text-2xl leading-tight md:text-[1.7rem]">{plan.name}</h3>
-        <div className="mt-5 flex items-baseline gap-1.5">
+        <p className={`mt-2 text-sm leading-6 ${highlight ? 'text-white/80' : 'text-gray-600'}`}>
+          {plan.isDirectory ? 'Para tener una página de tu negocio.' : (plan.maxActiveProducts ?? 0) > 0 ? 'Para publicar productos en tu tienda en línea.' : 'Consulta las herramientas de este plan.'}
+        </p>
+        <div className="mt-5 flex flex-wrap items-baseline gap-1.5">
           <span className="font-[family-name:var(--font-varela-round)] text-[2.6rem] leading-none tracking-tight md:text-5xl">{plan.price}</span>
-          <span className={`text-sm ${highlight ? 'text-white/75' : 'text-gray-500'}`}>{plan.period}</span>
+          <span className={`text-sm ${highlight ? 'text-white/75' : 'text-gray-500'}`}>MXN {plan.period}</span>
         </div>
-        <Link href={registerHref} className={`mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#168e00] ${highlight ? 'bg-white text-[#004e28] hover:bg-[#eaf8e5]' : 'bg-[#004e28] text-white hover:bg-[#eaf8e5] hover:text-[#004e28]'}`} aria-label={`Elegir ${plan.name}`}>
+        <Link href={registerHref} onClick={() => trackMetaCustomEvent('SellPlanSelected', { plan_id: String(plan.id) })} className={`mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#168e00] ${highlight ? 'bg-white text-[#004e28] hover:bg-[#eaf8e5]' : 'bg-[#004e28] text-white hover:bg-[#eaf8e5] hover:text-[#004e28]'}`} aria-label={`Elegir ${plan.name}`}>
           Elegir este plan<ArrowRight size={16} aria-hidden="true" />
         </Link>
       </header>
@@ -339,14 +357,21 @@ const PlanCard = ({ plan, highlight, registerHref }: PlanCardProps) => {
 
 type SellPlansProps = {
   accessCode?: string;
-  referralCode?: string;
+  intent?: SellIntent;
+  campaignQuery?: string;
 };
 
-export default function SellPlans({ accessCode = '', referralCode = '' }: SellPlansProps) {
+export default function SellPlans({ accessCode = '', intent, campaignQuery = '' }: SellPlansProps) {
   const [serverPlans, setServerPlans] = useState<SellPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const normalizedAccessCode = accessCode.trim();
-  const normalizedReferralCode = referralCode.trim();
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const orderedPlans = [...serverPlans].sort((a, b) =>
+    Number(b.isDirectory) - Number(a.isDirectory) || a.annualizedPrice - b.annualizedPrice || a.id - b.id,
+  );
+  const visiblePlans = intent ? orderedPlans.filter((plan) => matchesIntent(plan, intent)) : orderedPlans;
+  const allPlansHref = campaignQuery ? `/sell?${campaignQuery}#plans` : '/sell#plans';
 
   useEffect(() => {
     let mounted = true;
@@ -371,15 +396,15 @@ export default function SellPlans({ accessCode = '', referralCode = '' }: SellPl
           cache: 'no-store',
         });
 
-        if (response.ok) {
-          const data: unknown = await response.json();
-          const plans = pickArray(data).map(mapApiPlan);
-          if (mounted) {
-            setServerPlans(plans);
-          }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data: unknown = await response.json();
+        if (mounted) {
+          setServerPlans(pickArray(data).map(mapApiPlan));
+          setLoadFailed(false);
         }
       } catch (error) {
         console.error('[SellPlans] Error loading plans:', error);
+        if (mounted) setLoadFailed(true);
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -390,26 +415,23 @@ export default function SellPlans({ accessCode = '', referralCode = '' }: SellPl
     return () => {
       mounted = false;
     };
-  }, [normalizedAccessCode]);
+  }, [normalizedAccessCode, attempt]);
 
   return (
-    <section id="plans" className="relative overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white py-20 md:py-28">
+    <section id="plans" className="scroll-mt-24 relative overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white py-20 md:py-28">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-32 left-1/2 h-72 w-[120%] -translate-x-1/2 rounded-full bg-primary/5 blur-3xl" />
       </div>
 
       <div className="container relative mx-auto px-4">
         <div className="mx-auto mb-14 max-w-3xl text-center md:mb-20">
-          <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-            Planes y precios
-          </span>
-          <h2 className="font-[family-name:var(--font-varela-round)] mt-5 text-3xl text-gray-950 md:text-5xl">
-            Elija el plan perfecto para su negocio
+          <h2 className="font-[family-name:var(--font-varela-round)] text-3xl text-[#004e28] md:text-5xl">
+            {intent ? intentLabels[intent] : 'Elige con qué quieres empezar'}
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-gray-500 md:text-lg md:leading-8">
-            Planes anuales diseñados para escalar con usted. Sin contratos forzosos, cancele cuando quiera.
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-gray-600 md:text-lg">
+            Empieza con lo que necesitas hoy. Si tu negocio crece y necesitas más herramientas, puedes explorar otros planes. También puedes elegir una tienda desde el primer día.
           </p>
+          {intent ? <Link href={allPlansHref} className="mt-3 inline-flex min-h-11 items-center font-semibold text-[#004e28] underline underline-offset-4">Ver todos los planes</Link> : null}
         </div>
 
         <div className="mx-auto grid max-w-7xl grid-cols-1 items-stretch gap-6 md:grid-cols-2 md:gap-7 xl:grid-cols-3">
@@ -419,30 +441,32 @@ export default function SellPlans({ accessCode = '', referralCode = '' }: SellPl
             </div>
           )}
 
-          {!isLoading && serverPlans.length === 0 && (
-            <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm md:col-span-2 xl:col-span-3">
-              <h3 className="text-2xl font-bold text-gray-900">No hay planes disponibles</h3>
-              <p className="mt-3 text-gray-600">
-                En este momento no hay planes activos para mostrar.
-              </p>
+          {!isLoading && loadFailed ? (
+            <div role="status" className="col-span-full rounded-2xl border border-gray-200 bg-white p-8 text-center">
+              <p className="text-gray-800">No pudimos cargar los planes en este momento.</p>
+              <button type="button" className="mt-4 min-h-12 rounded-xl bg-[#004e28] px-5 font-semibold text-white" onClick={() => { setIsLoading(true); setAttempt((value) => value + 1); }}>
+                Volver a intentar
+              </button>
             </div>
-          )}
+          ) : null}
 
-          {!isLoading &&
-            serverPlans.map((plan, index) => (
-              <PlanCard
-                key={plan.id}
-                plan={plan}
-                highlight={index === 1}
-                registerHref={buildRegisterHref(plan.id, normalizedReferralCode)}
-              />
-            ))}
+          {!isLoading && !loadFailed && visiblePlans.length === 0 ? (
+            <p className="col-span-full rounded-2xl border border-gray-200 bg-white p-8 text-center text-gray-600">
+              {intent ? 'En este momento no hay planes publicados para esta opción.' : 'En este momento no hay planes activos para mostrar.'}
+            </p>
+          ) : null}
+
+          {!isLoading && !loadFailed && visiblePlans.map((plan) => (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              highlight={plan.id === visiblePlans[0]?.id}
+              isEntryPlan={!intent}
+              registerHref={buildRegisterHref(plan.id, campaignQuery)}
+            />
+          ))}
         </div>
 
-        <p className="mx-auto mt-10 max-w-2xl text-center text-xs text-gray-400 md:text-sm">
-          Los límites de productos e imágenes mostrados son los configurados para cada plan.
-          ¿Necesita algo a la medida? <a href="#faq" className="font-semibold text-primary hover:underline">Contáctenos</a>.
-        </p>
       </div>
     </section>
   );
