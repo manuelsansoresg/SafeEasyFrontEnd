@@ -34,7 +34,7 @@ export default async function SellPage({ searchParams }: { searchParams: Promise
   const campaignQuery = campaignParams.toString();
 
   return (
-    <main className="min-h-screen pt-24 md:pt-28">
+    <main className="min-h-screen pt-20 xl:pt-24">
       <SellHero />
       <section className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16" aria-labelledby="sell-how-title">
         <h2 id="sell-how-title" className="font-[family-name:var(--font-varela-round)] text-3xl text-[#004e28] sm:text-4xl">Cómo funciona Drooopy</h2>
