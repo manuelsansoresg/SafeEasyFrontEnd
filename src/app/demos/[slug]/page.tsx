@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import SupplierPageClient from "@/app/empresas/[slug]/SupplierPageClient";
 import type { Supplier, CarouselImage } from "@/lib/products";
 import { getDemoContent, getDemoSupplier, getSellDemos } from "@/lib/demoProfile";
@@ -29,13 +29,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function DemoSupplierPage({ params, searchParams }: Props) {
-  const [{ slug }, query] = await Promise.all([params, searchParams]);
+  const [{ slug, tab }, query] = await Promise.all([params, searchParams]);
   const demo = await getDemoSupplier(slug);
   if (!demo) notFound();
   const [{ products, services, menus }, featured] = await Promise.all([
     getDemoContent(slug),
     query.desde === "sell" ? getSellDemos() : Promise.resolve([]),
   ]);
+  const agendaEnabled = demo.agenda_enabled === true && services.length > 0;
+  const menuEnabled = demo.menu_enabled === true && menus.length > 0;
+  if ((tab === "agenda" && !agendaEnabled) || (tab === "menu" && !menuEnabled)) {
+    const params = sellCampaignParams(query);
+    if (query.desde === "sell") params.set("desde", "sell");
+    redirect(`/demos/${encodeURIComponent(slug)}/${params.size ? `?${params}` : ""}`);
+  }
+
   const offer = featured.find((item) => item.slug === slug);
   const campaign = sellCampaignParams(query);
   const returnHref = campaign.size ? `/sell?${campaign}#demos` : "/sell#demos";
@@ -105,7 +113,8 @@ export default async function DemoSupplierPage({ params, searchParams }: Props) 
       key={slug}
       initialSupplier={supplier}
       initialProducts={supplierProducts}
-      demoMenus={supplierMenus}
+      demoMenus={menuEnabled ? supplierMenus : []}
+      demoAgendaEnabled={agendaEnabled}
       demoServices={supplierServices}
       demoGalleryImages={demo.gallery_images || []}
       isDemo

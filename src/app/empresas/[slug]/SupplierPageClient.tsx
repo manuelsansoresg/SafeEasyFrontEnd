@@ -333,9 +333,11 @@ interface SupplierProduct {
 function DirectoryServiceCard({
   service,
   demoAgendaHref,
+  isDemo = false,
 }: {
   service: SupplierService;
   demoAgendaHref?: string;
+  isDemo?: boolean;
 }) {
   const price = Number(service.price);
   const hasPrice = Number.isFinite(price) && price > 0;
@@ -379,13 +381,15 @@ function DirectoryServiceCard({
         ) : (
           <div aria-hidden="true" className="mt-3 min-h-6" />
         )}
-        <Link
-          href={demoAgendaHref || `/servicios/${service.id}`}
-          className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-bold text-[var(--supplier-accent,#168e00)] transition-colors hover:text-[var(--supplier-heading,#004e28)]"
-        >
-          {demoAgendaHref ? "Probar reservación" : "Ver más"}
-          <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">→</span>
-        </Link>
+        {!isDemo || demoAgendaHref ? (
+          <Link
+            href={demoAgendaHref || `/servicios/${service.id}`}
+            className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-bold text-[var(--supplier-accent,#168e00)] transition-colors hover:text-[var(--supplier-heading,#004e28)]"
+          >
+            {demoAgendaHref ? "Probar reservación" : "Ver más"}
+            <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">→</span>
+          </Link>
+        ) : null}
       </div>
     </article>
   );
@@ -444,11 +448,12 @@ const mergeById = <T extends { id: number | string }>(items: T[]) =>
 
 import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCarousel";
 
-export default function SupplierPage({ initialSupplier, initialProducts, demoMenus = [], demoServices = [], demoGalleryImages = [], isDemo = false }: {
+export default function SupplierPage({ initialSupplier, initialProducts, demoMenus = [], demoServices = [], demoAgendaEnabled = false, demoGalleryImages = [], isDemo = false }: {
   initialSupplier: Supplier;
   initialProducts: SupplierProduct[];
   demoMenus?: Menu[];
   demoServices?: SupplierService[];
+  demoAgendaEnabled?: boolean;
   demoGalleryImages?: SupplierGalleryImage[];
   isDemo?: boolean;
 }) {
@@ -1484,14 +1489,14 @@ const contactHref = supplier?.phone
         onChangeTab={navigateTab}
         tabsRef={tabsRef}
         isDemo={isDemo}
-        demoHasAgenda={demoServices.length > 0}
+        demoHasAgenda={demoAgendaEnabled}
       />
 
       {activeTab === "menu" && publicMenus.length > 0 ? (
         <PublicSupplierMenu menus={publicMenus} supplierName={supplier.name} isDemo={isDemo} />
       ) : null}
 
-      {activeTab === "agenda" ? isDemo ? (
+      {activeTab === "agenda" && (!isDemo || demoAgendaEnabled) ? isDemo ? (
         <DemoSupplierAgendaTab key={`${supplier.slug || String(slug)}:${searchParams.get("service") || ""}`} services={demoServices} supplierName={supplier.name} initialServiceId={searchParams.get("service")} />
       ) : (
         <PublicSupplierAgendaTab
@@ -1609,7 +1614,7 @@ const contactHref = supplier?.phone
             ) : (
               <div className="grid grid-cols-1 items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredServices.map((service) => (
-                  <DirectoryServiceCard key={service.id} service={service} demoAgendaHref={isDemo ? `${supplierBasePath}agenda/?service=${encodeURIComponent(service.id)}${demoCampaignQuery ? `&${demoCampaignQuery}` : ""}` : undefined} />
+                  <DirectoryServiceCard key={service.id} service={service} isDemo={isDemo} demoAgendaHref={isDemo && demoAgendaEnabled ? `${supplierBasePath}agenda/?service=${encodeURIComponent(service.id)}${demoCampaignQuery ? `&${demoCampaignQuery}` : ""}` : undefined} />
                 ))}
               </div>
             )}

@@ -9,6 +9,8 @@ export type DemoSupplier = Partial<Supplier> & {
   slug: string;
   name: string;
   is_demo: true;
+  agenda_enabled?: boolean;
+  menu_enabled?: boolean;
   logo: string | null;
   header_image: string | null;
   short_description: string | null;

@@ -4,12 +4,6 @@ import { ArrowRight } from 'lucide-react';
 import type { SellDemo } from '@/lib/demoProfile';
 import { absoluteMediaUrl } from '@/lib/seo';
 
-const actions = {
-  productos: 'Visitar tienda',
-  agenda: 'Probar agenda',
-  menu: 'Explorar menú',
-};
-
 export default function SellExamples({ demos, campaignQuery }: { demos: SellDemo[]; campaignQuery: string }) {
   if (!demos.length) return null;
 
@@ -42,17 +36,9 @@ export default function SellExamples({ demos, campaignQuery }: { demos: SellDemo
                   )}
                   <h3 className="mt-4 w-full break-words text-xl font-semibold leading-snug text-[#004e28]">{demo.name}</h3>
                   <p className="mb-5 mt-1.5 text-sm leading-6 text-gray-600">Plan de la demo · {demo.plan_name}</p>
-                  <div className="mt-auto flex flex-wrap justify-center gap-2">
-                    {demo.tabs.length ? demo.tabs.map((tab) => (
-                      <Link key={tab} href={`${basePath}/${tab}/?${params}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#edf6ef] px-4 text-sm font-semibold text-[#004e28] transition-colors hover:bg-[#004e28] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00]">
-                        {actions[tab]} <ArrowRight size={16} aria-hidden="true" />
-                      </Link>
-                    )) : (
-                      <Link href={`${basePath}/?${params}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#edf6ef] px-4 text-sm font-semibold text-[#004e28] transition-colors hover:bg-[#004e28] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00]">
-                        Visitar demo <ArrowRight size={16} aria-hidden="true" />
-                      </Link>
-                    )}
-                  </div>
+                  <Link href={`${basePath}/?${params}`} className="mt-auto inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#edf6ef] px-4 text-sm font-semibold text-[#004e28] transition-colors hover:bg-[#004e28] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#168e00]">
+                    Ver demo <ArrowRight size={16} aria-hidden="true" />
+                  </Link>
                 </div>
               </article>
             );
