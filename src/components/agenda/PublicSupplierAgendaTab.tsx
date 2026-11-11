@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AgendaBookingHeader } from "@/components/agenda/AgendaBookingPickers";
 import {
   CalendarDays,
   Clock3,
@@ -166,26 +167,9 @@ export function PublicSupplierAgendaTab({
   return (
     <section className="supplier-surface-page bg-[var(--supplier-page-background,#f7f9f8)] py-14 md:py-18">
       <div className="mx-auto max-w-6xl px-5 md:px-8">
-        <div className="rounded-[2rem] supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] p-6 text-[color:var(--supplier-inverse,#ffffff)] sm:p-8">
-          <div className="flex items-start gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--supplier-card-background,#ffffff)]/10">
-              <CalendarDays size={25} />
-            </span>
-
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[color:var(--supplier-inverse-muted,#ffffff)]">
-                Agenda
-              </p>
-              <h2 className="mt-1 font-[family-name:var(--font-varela-round)] text-3xl font-black">
-                {title}
-              </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--supplier-inverse-muted,#ffffff)]">
-                Revisa los servicios disponibles y continúa
-                para elegir fecha y horario.
-              </p>
-            </div>
-          </div>
-        </div>
+        <AgendaBookingHeader title={title}>
+          Revisa los servicios disponibles y continúa para elegir fecha y horario.
+        </AgendaBookingHeader>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {services.map((service) => {
