@@ -448,10 +448,11 @@ const mergeById = <T extends { id: number | string }>(items: T[]) =>
 
 import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCarousel";
 
-export default function SupplierPage({ initialSupplier, initialProducts, demoMenus = [], demoServices = [], demoAgendaEnabled = false, demoGalleryImages = [], isDemo = false }: {
+export default function SupplierPage({ initialSupplier, initialProducts, demoMenus = [], demoMenuEnabled = false, demoServices = [], demoAgendaEnabled = false, demoGalleryImages = [], isDemo = false }: {
   initialSupplier: Supplier;
   initialProducts: SupplierProduct[];
   demoMenus?: Menu[];
+  demoMenuEnabled?: boolean;
   demoServices?: SupplierService[];
   demoAgendaEnabled?: boolean;
   demoGalleryImages?: SupplierGalleryImage[];
@@ -476,6 +477,8 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   }, [demoCampaignQuery, isBuilderPreview, router, supplierBasePath]);
   const [supplier, setSupplier] = useState<Supplier | null>(initialSupplier);
   const [publicMenus, setPublicMenus] = useState<Menu[]>(demoMenus);
+  const visibleMenus = isDemo ? demoMenus : publicMenus;
+  const hasMenu = isDemo ? demoMenuEnabled : visibleMenus.length > 0;
   const [publicMenusLoading, setPublicMenusLoading] = useState(!isDemo);
   const headerVideoRef = useRef<HTMLVideoElement>(null);
   const supplierViewSentRef = useRef<Set<string>>(new Set());
@@ -729,10 +732,10 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   }, [slug, isDemo]);
 
   useEffect(() => {
-    if (activeTab === "menu" && !publicMenusLoading && publicMenus.length === 0) {
+    if (activeTab === "menu" && !publicMenusLoading && !hasMenu) {
       navigateTab("main", true);
     }
-  }, [activeTab, publicMenusLoading, publicMenus.length, navigateTab]);
+  }, [activeTab, hasMenu, publicMenusLoading, navigateTab]);
 
   useEffect(() => {
     if (activeTab === "products" && supplierId && !canShowProducts) {
@@ -1483,7 +1486,7 @@ const contactHref = supplier?.phone
 
       <SupplierModuleNavigation
         supplierId={supplier.id}
-        hasMenu={publicMenus.length > 0}
+        hasMenu={hasMenu}
         canShowProducts={canShowProducts}
         activeTab={activeTab}
         onChangeTab={navigateTab}
@@ -1492,8 +1495,15 @@ const contactHref = supplier?.phone
         demoHasAgenda={demoAgendaEnabled}
       />
 
-      {activeTab === "menu" && publicMenus.length > 0 ? (
-        <PublicSupplierMenu menus={publicMenus} supplierName={supplier.name} isDemo={isDemo} />
+      {activeTab === "menu" && hasMenu ? (
+        visibleMenus.length > 0 ? (
+          <PublicSupplierMenu menus={visibleMenus} supplierName={supplier.name} isDemo={isDemo} />
+        ) : (
+          <section className="supplier-surface-page bg-[var(--supplier-page-background,#f7f9f8)] px-5 py-14 text-center">
+            <h2 className="text-xl font-semibold text-[var(--supplier-heading,#004e28)]">Menú</h2>
+            <p className="mt-2 text-gray-600">Este proveedor todavía no ha publicado un menú.</p>
+          </section>
+        )
       ) : null}
 
       {activeTab === "agenda" && (!isDemo || demoAgendaEnabled) ? isDemo ? (

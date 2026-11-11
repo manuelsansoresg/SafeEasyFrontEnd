@@ -32,12 +32,12 @@ export default async function DemoSupplierPage({ params, searchParams }: Props) 
   const [{ slug, tab }, query] = await Promise.all([params, searchParams]);
   const demo = await getDemoSupplier(slug);
   if (!demo) notFound();
+  const agendaEnabled = demo.agenda_enabled === true;
+  const menuEnabled = demo.menu_enabled === true;
   const [{ products, services, menus }, featured] = await Promise.all([
-    getDemoContent(slug),
+    getDemoContent(slug, menuEnabled),
     query.desde === "sell" ? getSellDemos() : Promise.resolve([]),
   ]);
-  const agendaEnabled = demo.agenda_enabled === true && services.length > 0;
-  const menuEnabled = demo.menu_enabled === true && menus.length > 0;
   if ((tab === "agenda" && !agendaEnabled) || (tab === "menu" && !menuEnabled)) {
     const params = sellCampaignParams(query);
     if (query.desde === "sell") params.set("desde", "sell");
@@ -113,7 +113,8 @@ export default async function DemoSupplierPage({ params, searchParams }: Props) 
       key={slug}
       initialSupplier={supplier}
       initialProducts={supplierProducts}
-      demoMenus={menuEnabled ? supplierMenus : []}
+      demoMenus={supplierMenus}
+      demoMenuEnabled={menuEnabled}
       demoAgendaEnabled={agendaEnabled}
       demoServices={supplierServices}
       demoGalleryImages={demo.gallery_images || []}

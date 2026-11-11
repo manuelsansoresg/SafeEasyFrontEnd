@@ -208,7 +208,7 @@ export function SupplierModuleNavigation({
               </h2>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className={`grid gap-4 ${hasMenu && (agendaAvailable || agendaLoading) ? "sm:grid-cols-2" : ""}`}>
               {hasMenu ? (
                 <button
                   type="button"
@@ -265,7 +265,7 @@ export function SupplierModuleNavigation({
 
                   <span className="min-w-0 flex-1">
                     <span className="block font-[family-name:var(--font-varela-round)] text-lg font-black text-[var(--supplier-heading,#004e28)]">
-                      Ver agenda
+                      {isDemo ? "Probar agenda" : "Ver agenda"}
                     </span>
                     <span className="mt-1 block text-sm leading-5 text-gray-500">
                       Consulta servicios y entra a la pestaña de agenda.

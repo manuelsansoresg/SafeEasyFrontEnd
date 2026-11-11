@@ -57,12 +57,12 @@ export const getDemoSupplier = cache(async (slug: string): Promise<DemoSupplier 
   return data;
 });
 
-export async function getDemoContent(slug: string) {
+export async function getDemoContent(slug: string, menuEnabled: boolean) {
   const encoded = encodeURIComponent(slug);
   const [products, services, menuSummaries] = await Promise.all([
     readDemo<DemoProduct[]>(`/demos/${encoded}/products`),
     readDemo<DemoService[]>(`/demos/${encoded}/services`),
-    readDemo<Array<Pick<DemoMenu, "id" | "name" | "description" | "price">>>(`/demos/${encoded}/menus`),
+    menuEnabled ? readDemo<Array<Pick<DemoMenu, "id" | "name" | "description" | "price">>>(`/demos/${encoded}/menus`) : Promise.resolve([]),
   ]);
   if (!Array.isArray(products) || !Array.isArray(services) || !Array.isArray(menuSummaries)) {
     throw new Error("Demo API returned incomplete content");
