@@ -186,9 +186,10 @@ const mapApiPlan = (plan: ApiPlan): SellPlan => {
   };
 };
 
-const buildRegisterHref = (planId: number, campaignQuery: string) => {
+const buildRegisterHref = (planId: number, campaignQuery: string, publicOnly: boolean) => {
   const params = new URLSearchParams(campaignQuery);
   params.set('plan', String(planId));
+  if (publicOnly) params.delete('code');
   return `/sell/register?${params.toString()}`;
 };
 
@@ -317,7 +318,7 @@ const PlanCard = ({ plan, highlight, registerHref, isEntryPlan }: PlanCardProps)
       <header className={`relative p-6 pb-0 md:p-7 md:pb-0 ${highlight ? 'bg-[radial-gradient(ellipse_at_top_right,#ffffff12,transparent_70%)]' : ''}`}>
         <div className="mb-5 flex min-h-11 items-center justify-between gap-2">
           <span className={`grid size-11 place-items-center rounded-2xl ${highlight ? 'bg-white/10 text-[#b7e6a5]' : 'bg-[#edf6ef] text-[#004e28]'}`}><PlanIcon size={22} strokeWidth={1.7} aria-hidden="true" /></span>
-          {highlight && <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white"><Sparkles size={12} aria-hidden="true" />{isEntryPlan ? 'Para empezar' : 'Opción de entrada'}</span>}
+          {highlight && <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white"><Sparkles size={12} aria-hidden="true" />{isEntryPlan ? 'Para empezar' : 'Plan destacado'}</span>}
         </div>
         <h3 className="font-[family-name:var(--font-varela-round)] text-2xl leading-tight md:text-[1.7rem]">{plan.name}</h3>
         <p className={`mt-2 text-sm leading-6 ${highlight ? 'text-white/80' : 'text-gray-600'}`}>
@@ -358,19 +359,21 @@ const PlanCard = ({ plan, highlight, registerHref, isEntryPlan }: PlanCardProps)
 type SellPlansProps = {
   accessCode?: string;
   intent?: SellIntent;
+  featuredPlanId?: number;
   campaignQuery?: string;
 };
 
-export default function SellPlans({ accessCode = '', intent, campaignQuery = '' }: SellPlansProps) {
+export default function SellPlans({ accessCode = '', intent, featuredPlanId, campaignQuery = '' }: SellPlansProps) {
   const [serverPlans, setServerPlans] = useState<SellPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const normalizedAccessCode = accessCode.trim();
+  const normalizedAccessCode = featuredPlanId ? '' : accessCode.trim();
   const [loadFailed, setLoadFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const orderedPlans = [...serverPlans].sort((a, b) =>
     Number(b.isDirectory) - Number(a.isDirectory) || a.annualizedPrice - b.annualizedPrice || a.id - b.id,
   );
-  const visiblePlans = intent ? orderedPlans.filter((plan) => matchesIntent(plan, intent)) : orderedPlans;
+  const featuredPlan = orderedPlans.find((plan) => plan.id === featuredPlanId);
+  const visiblePlans = featuredPlan ? [featuredPlan] : intent ? orderedPlans.filter((plan) => matchesIntent(plan, intent)) : orderedPlans;
   const allPlansHref = campaignQuery ? `/sell?${campaignQuery}#plans` : '/sell#plans';
 
   useEffect(() => {
@@ -426,12 +429,12 @@ export default function SellPlans({ accessCode = '', intent, campaignQuery = '' 
       <div className="container relative mx-auto px-4">
         <div className="mx-auto mb-14 max-w-3xl text-center md:mb-20">
           <h2 className="font-[family-name:var(--font-varela-round)] text-3xl text-[#004e28] md:text-5xl">
-            {intent ? intentLabels[intent] : 'Elige con qué quieres empezar'}
+            {featuredPlan ? 'El plan de la demo' : intent ? intentLabels[intent] : 'Elige con qué quieres empezar'}
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-gray-600 md:text-lg">
             Empieza con lo que necesitas hoy. Si tu negocio crece y necesitas más herramientas, puedes explorar otros planes. También puedes elegir una tienda desde el primer día.
           </p>
-          {intent ? <Link href={allPlansHref} className="mt-3 inline-flex min-h-11 items-center font-semibold text-[#004e28] underline underline-offset-4">Ver todos los planes</Link> : null}
+          {intent || featuredPlan ? <Link href={allPlansHref} className="mt-3 inline-flex min-h-11 items-center font-semibold text-[#004e28] underline underline-offset-4">Ver todos los planes</Link> : null}
         </div>
 
         <div className="mx-auto grid max-w-7xl grid-cols-1 items-stretch gap-6 md:grid-cols-2 md:gap-7 xl:grid-cols-3">
@@ -461,8 +464,8 @@ export default function SellPlans({ accessCode = '', intent, campaignQuery = '' 
               key={plan.id}
               plan={plan}
               highlight={plan.id === visiblePlans[0]?.id}
-              isEntryPlan={!intent}
-              registerHref={buildRegisterHref(plan.id, campaignQuery)}
+              isEntryPlan={!intent && !featuredPlan}
+              registerHref={buildRegisterHref(plan.id, campaignQuery, Boolean(featuredPlanId))}
             />
           ))}
         </div>

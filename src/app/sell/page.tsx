@@ -4,6 +4,8 @@ import { buildMetadata } from '@/lib/seo';
 import SellHero from '@/components/sell/SellHero';
 import SellExamples from '@/components/sell/SellExamples';
 import SellPlans from '@/components/sell/SellPlans';
+import { getSellDemos } from '@/lib/demoProfile';
+import { sellCampaignParams } from '@/lib/sellCampaignParams';
 import SellFAQ from '@/components/sell/SellFAQ';
 
 type SearchParams = { [key: string]: string | string[] | undefined };
@@ -21,21 +23,16 @@ const steps = [
 ];
 
 export default async function SellPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams;
+  const [params, demos] = await Promise.all([searchParams, getSellDemos()]);
   const accessCode = typeof params.code === 'string' ? params.code.trim() : '';
   const intent = params.necesidad === 'products' || params.necesidad === 'agenda' || params.necesidad === 'menu' ? params.necesidad : undefined;
 
-  const campaignParams = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (typeof value === 'string' && /^(utm_[a-z0-9_]+|gclid|fbclid|code|referral_code)$/.test(key)) {
-      campaignParams.set(key, value.trim());
-    }
-  }
-  const campaignQuery = campaignParams.toString();
+  const campaignQuery = sellCampaignParams(params).toString();
+  const demo = demos.find((item) => item.slug === params.demo);
 
   return (
     <main className="min-h-screen pt-20 xl:pt-24">
-      <SellHero />
+      <SellHero hasDemos={demos.length > 0} />
       <section className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16" aria-labelledby="sell-how-title">
         <h2 id="sell-how-title" className="font-[family-name:var(--font-varela-round)] text-3xl text-[#004e28] sm:text-4xl">Cómo funciona Drooopy</h2>
         <ol className="mt-7 grid gap-5 md:grid-cols-3">
@@ -48,8 +45,8 @@ export default async function SellPage({ searchParams }: { searchParams: Promise
           ))}
         </ol>
       </section>
-      <SellExamples campaignQuery={campaignQuery} />
-      <SellPlans accessCode={accessCode} intent={intent} campaignQuery={campaignQuery} />
+      <SellExamples demos={demos} campaignQuery={campaignQuery} />
+      <SellPlans accessCode={accessCode} intent={intent} featuredPlanId={demo?.public_plan_id ?? undefined} campaignQuery={campaignQuery} />
       <SellFAQ />
       <section className="bg-[#004e28] px-5 py-12 text-center text-white">
         <h2 className="font-[family-name:var(--font-varela-round)] text-3xl">¿Tienes dudas sobre qué plan elegir?</h2>

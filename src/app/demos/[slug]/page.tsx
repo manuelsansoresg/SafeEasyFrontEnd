@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import SupplierPageClient from "@/app/empresas/[slug]/SupplierPageClient";
 import type { Supplier, CarouselImage } from "@/lib/products";
-import { getDemoContent, getDemoSupplier } from "@/lib/demoProfile";
+import { getDemoContent, getDemoSupplier, getSellDemos } from "@/lib/demoProfile";
 import { absoluteMediaUrl, absoluteSiteUrl, stripHtml } from "@/lib/seo";
+import { sellCampaignParams } from "@/lib/sellCampaignParams";
 import type { Menu } from "@/types/menu";
 import type { SupplierService } from "@/types/services";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = {
+  params: Promise<{ slug: string; tab?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -23,11 +28,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function DemoSupplierPage({ params }: Props) {
-  const { slug } = await params;
+export default async function DemoSupplierPage({ params, searchParams }: Props) {
+  const [{ slug }, query] = await Promise.all([params, searchParams]);
   const demo = await getDemoSupplier(slug);
   if (!demo) notFound();
-  const { products, services, menus } = await getDemoContent(slug);
+  const [{ products, services, menus }, featured] = await Promise.all([
+    getDemoContent(slug),
+    query.desde === "sell" ? getSellDemos() : Promise.resolve([]),
+  ]);
+  const offer = featured.find((item) => item.slug === slug);
+  const campaign = sellCampaignParams(query);
+  const returnHref = campaign.size ? `/sell?${campaign}#demos` : "/sell#demos";
+  if (offer) campaign.set("demo", offer.slug);
+  const plansHref = campaign.size ? `/sell?${campaign}#plans` : "/sell#plans";
 
   // The demo has the same supplier presentation; its data comes from /demos.
   const carouselImages: CarouselImage[] = demo.carousel_images?.length
@@ -87,13 +100,27 @@ export default async function DemoSupplierPage({ params }: Props) {
     })),
   }));
 
-  return <SupplierPageClient
-    key={slug}
-    initialSupplier={supplier}
-    initialProducts={supplierProducts}
-    demoMenus={supplierMenus}
-    demoServices={supplierServices}
-    demoGalleryImages={demo.gallery_images || []}
-    isDemo
-  />;
+  return <>
+    <SupplierPageClient
+      key={slug}
+      initialSupplier={supplier}
+      initialProducts={supplierProducts}
+      demoMenus={supplierMenus}
+      demoServices={supplierServices}
+      demoGalleryImages={demo.gallery_images || []}
+      isDemo
+    />
+    {query.desde === "sell" ? (
+      <aside aria-label="Navegación de la demo" className="pointer-events-none fixed inset-x-0 bottom-16 z-50 px-3 sm:bottom-5">
+        <div className="pointer-events-auto mx-auto flex max-w-fit flex-wrap items-center justify-center gap-2 rounded-2xl border border-[#004e28]/15 bg-white p-2 shadow-xl">
+          <Link href={returnHref} className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-[#004e28] hover:bg-[#edf6ef]">
+            Volver a los ejemplos
+          </Link>
+          <Link href={plansHref} className="inline-flex min-h-11 items-center rounded-xl bg-[#004e28] px-3 text-sm font-semibold text-white hover:bg-[#116f04]">
+            {offer?.public_plan_id ? "Ver este plan" : "Ver planes para mi negocio"}
+          </Link>
+        </div>
+      </aside>
+    ) : null}
+  </>;
 }

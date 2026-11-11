@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { ArrowDown, ArrowRight } from 'lucide-react';
 
-export default function SellHero() {
+export default function SellHero({ hasDemos }: { hasDemos: boolean }) {
   return (
     <section className="overflow-hidden bg-[#004e28] bg-[radial-gradient(ellipse_at_78%_60%,#17633d_0%,transparent_55%),linear-gradient(150deg,#004e28_0%,#00331f_100%)] text-white">
       <div className="mx-auto grid max-w-7xl items-center gap-8 px-5 py-10 sm:px-8 sm:py-14 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16 lg:py-16">
@@ -16,9 +16,9 @@ export default function SellHero() {
             <a href="#plans" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-[#004e28] hover:bg-[#eaf8e5]">
               Ver planes y precios <ArrowRight size={18} aria-hidden="true" />
             </a>
-            <a href="#demos" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/40 px-5 py-3 font-semibold hover:bg-white/10">
+            {hasDemos ? <a href="#demos" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/40 px-5 py-3 font-semibold hover:bg-white/10">
               Probar Drooopy <ArrowDown size={18} aria-hidden="true" />
-            </a>
+            </a> : null}
           </div>
         </div>
         <figure className="mx-auto w-full max-w-[360px] overflow-hidden rounded-[1.75rem] border border-white/20 bg-[#f2f3f4] shadow-[0_24px_60px_-24px_#001e13] sm:rounded-[2rem]">

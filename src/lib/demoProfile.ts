@@ -72,3 +72,21 @@ export async function getDemoContent(slug: string) {
   }));
   return { products, services, menus };
 }
+
+export type SellDemo = {
+  slug: string;
+  name: string;
+  header_image: string | null;
+  plan_name: string;
+  public_plan_id: number | null;
+  tabs: Array<"productos" | "agenda" | "menu">;
+};
+
+export const getSellDemos = cache(async (): Promise<SellDemo[]> => {
+  try {
+    const demos = await readDemo<SellDemo[]>("/demos/featured/sell");
+    return Array.isArray(demos) ? demos : [];
+  } catch {
+    return [];
+  }
+});

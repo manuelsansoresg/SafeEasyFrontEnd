@@ -45,6 +45,7 @@ import { DirectoryGallerySection } from "@/components/supplier/DirectoryGalleryS
 import type { SupplierGalleryImage } from "@/types/supplierGallery";
 import { SupplierModuleNavigation } from "@/components/supplier/SupplierModuleNavigation";
 import { PublicSupplierMenu } from "@/components/supplier/menu/PublicSupplierMenu";
+import { sellCampaignParams } from "@/lib/sellCampaignParams";
 import { DemoSupplierAgendaTab } from "@/components/agenda/DemoSupplierAgendaTab";
 import { PublicSupplierAgendaTab } from "@/components/agenda/PublicSupplierAgendaTab";
 import { menuService } from "@/services/menuService";
@@ -459,12 +460,15 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   const lastBuilderScrollRef = useRef<SiteBuilderSection | null>(null);
   const activeTab = tab === "menu" ? "menu" : tab === "agenda" ? "agenda" : tab === "productos" ? "products" : "main";
   const supplierBasePath = `/${isDemo ? "demos" : "empresas"}/${encodeURIComponent(String(slug))}/`;
+  const demoCampaign = sellCampaignParams(Object.fromEntries(searchParams.entries()));
+  if (isDemo && searchParams.get("desde") === "sell") demoCampaign.set("desde", "sell");
+  const demoCampaignQuery = demoCampaign.has("desde") ? demoCampaign.toString() : "";
   const navigateTab = useCallback((nextTab: 'main' | 'menu' | 'agenda' | 'products', replace = false) => {
     const basePath = nextTab === 'main' ? supplierBasePath : `${supplierBasePath}${nextTab === 'products' ? 'productos' : nextTab}/`;
-    const path = isBuilderPreview ? `${basePath}?builderPreview=1` : basePath;
+    const path = isBuilderPreview ? `${basePath}?builderPreview=1` : demoCampaignQuery ? `${basePath}?${demoCampaignQuery}` : basePath;
     if (replace) router.replace(path, { scroll: false });
     else router.push(path, { scroll: false });
-  }, [isBuilderPreview, router, supplierBasePath]);
+  }, [demoCampaignQuery, isBuilderPreview, router, supplierBasePath]);
   const [supplier, setSupplier] = useState<Supplier | null>(initialSupplier);
   const [publicMenus, setPublicMenus] = useState<Menu[]>(demoMenus);
   const [publicMenusLoading, setPublicMenusLoading] = useState(!isDemo);
@@ -1605,7 +1609,7 @@ const contactHref = supplier?.phone
             ) : (
               <div className="grid grid-cols-1 items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredServices.map((service) => (
-                  <DirectoryServiceCard key={service.id} service={service} demoAgendaHref={isDemo ? `${supplierBasePath}agenda/?service=${encodeURIComponent(service.id)}` : undefined} />
+                  <DirectoryServiceCard key={service.id} service={service} demoAgendaHref={isDemo ? `${supplierBasePath}agenda/?service=${encodeURIComponent(service.id)}${demoCampaignQuery ? `&${demoCampaignQuery}` : ""}` : undefined} />
                 ))}
               </div>
             )}
