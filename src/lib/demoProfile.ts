@@ -77,6 +77,7 @@ export type SellDemo = {
   slug: string;
   name: string;
   header_image: string | null;
+  logo?: string | null;
   plan_name: string;
   public_plan_id: number | null;
   tabs: Array<"productos" | "agenda" | "menu">;
