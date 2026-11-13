@@ -64,7 +64,13 @@ const pickArray = <T>(data: unknown): T[] => {
 
 const readErrorMessage = async (response: Response, fallback: string) => {
   const text = await response.text().catch(() => "");
-  if (!text) return fallback;
+  if ([502, 503, 504].includes(response.status)) {
+    return `El servidor no está disponible temporalmente (HTTP ${response.status}). Intenta de nuevo en unos minutos.`;
+  }
+  const safeFallback = `${fallback} (HTTP ${response.status})`;
+  if (!text || response.headers.get("content-type")?.includes("text/html") || text.trimStart().startsWith("<")) {
+    return safeFallback;
+  }
   try {
     const data = JSON.parse(text) as { detail?: unknown; message?: unknown; error?: unknown };
     const detail = data.detail ?? data.message ?? data.error;
@@ -80,9 +86,9 @@ const readErrorMessage = async (response: Response, fallback: string) => {
       if (messages.length > 0) return messages.join(". ");
     }
   } catch {
-    return text;
+    return text.length <= 300 ? text.trim() || safeFallback : safeFallback;
   }
-  return fallback;
+  return safeFallback;
 };
 
 const requireOk = async (response: Response, fallback: string) => {
@@ -240,9 +246,19 @@ export const subscriptionsService = {
   },
 
   async listAdminPlans(signal?: AbortSignal): Promise<AdminPlan[]> {
-    const response = await fetchWithAuth("/api/backend/plans/?skip=0&limit=1000&include_special_image_limits=true", { signal, cache: "no-store" });
-    await requireOk(response, "No se pudieron cargar los planes.");
-    return pickArray<AdminPlan>(await readJson<unknown>(response));
+    const path = "/plans/?skip=0&limit=1000";
+    const options = { signal, cache: "no-store", headers: { Accept: "application/json" } } as const;
+    const response = await fetchWithAuth(`/api${path}`, options);
+    const result = [404, 405, 502, 503, 504].includes(response.status)
+      ? await fetchWithAuth(`/api/backend${path}`, options)
+      : response;
+    const usableResult = !result.ok && [502, 503, 504].includes(response.status) ? response : result;
+    await requireOk(usableResult, "No se pudieron cargar los planes.");
+    const data: unknown = await usableResult.json().catch(() => null);
+    const record = asRecord(data);
+    const plans = Array.isArray(data) ? data : record.items ?? record.results ?? record.data ?? record.plans;
+    if (!Array.isArray(plans)) throw new Error("El servidor devolvió un listado de planes inválido.");
+    return plans as AdminPlan[];
   },
 
   async getAdminPlan(id: number, signal?: AbortSignal): Promise<AdminPlan> {

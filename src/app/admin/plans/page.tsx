@@ -63,6 +63,8 @@ export default function AdminPlansPage() {
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [onlyActive, setOnlyActive] = useState(false);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
@@ -91,13 +93,14 @@ export default function AdminPlansPage() {
 
     const run = async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         const data = await subscriptionsService.listAdminPlans(controller.signal);
         if (isMounted) setPlans(data);
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         console.error("Error fetching plans:", error);
-        if (isMounted) setToast({ type: "error", message: error instanceof Error ? error.message : "Error al cargar planes." });
+        if (isMounted) setLoadError(error instanceof Error ? error.message : "Error al cargar planes.");
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -109,7 +112,7 @@ export default function AdminPlansPage() {
       window.clearTimeout(debounceId);
       controller.abort();
     };
-  }, [token]);
+  }, [token, loadAttempt]);
 
   const deletePlan = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este plan?")) return;
@@ -149,6 +152,15 @@ export default function AdminPlansPage() {
       return title.includes(q) || desc.includes(q);
     });
   }, [plans, searchTerm, onlyActive]);
+
+  const loadErrorContent = loadError ? (
+    <div role="alert" className="space-y-2 text-sm text-red-700">
+      <p>{loadError}</p>
+      <button type="button" className="font-semibold underline" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+        Reintentar
+      </button>
+    </div>
+  ) : null;
 
   return (
     <div className="space-y-6">
@@ -218,6 +230,8 @@ export default function AdminPlansPage() {
                     </div>
                   </td>
                 </tr>
+              ) : loadErrorContent ? (
+                <tr><td colSpan={7} className="px-6 py-8 text-center">{loadErrorContent}</td></tr>
               ) : filteredPlans.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
@@ -303,6 +317,8 @@ export default function AdminPlansPage() {
                 Cargando planes...
               </div>
             </div>
+          ) : loadErrorContent ? (
+            <div className="px-4 py-8 text-center">{loadErrorContent}</div>
           ) : filteredPlans.length === 0 ? (
             <div className="px-4 py-8 text-center text-gray-500">No se encontraron planes</div>
           ) : (
