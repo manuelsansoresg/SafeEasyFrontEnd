@@ -264,7 +264,11 @@ export const subscriptionsService = {
   async getAdminPlan(id: number, signal?: AbortSignal): Promise<AdminPlan> {
     const options = { signal, cache: "no-store", headers: { Accept: "application/json" } } as const;
     const path = `/api/plans/${id}`;
-    const query = "include_special_image_limits=true";
+    // Keep authenticated rule reads separate from cached public plan responses.
+    const query = new URLSearchParams({
+      include_special_image_limits: "true",
+      _admin_read: crypto.randomUUID(),
+    });
     const response = await fetchWithAuth(`${path}?${query}`, options);
     if (response.ok) {
       const plan = await readJson<AdminPlan>(response);
