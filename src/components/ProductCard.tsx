@@ -18,6 +18,7 @@ interface ProductCardProps {
   image: string;
   minOrder?: string;
   slug: string;
+  detailHref?: string;
   rating?: number;
   sales?: number;
   supplier?: Supplier;
@@ -31,6 +32,7 @@ export function ProductCard({
   image,
   minOrder = "1 pieza",
   slug,
+  detailHref = `/product/${slug}`,
   rating = 0,
   sales = 500,
   supplier,
@@ -128,7 +130,7 @@ export function ProductCard({
         </button>
 
         <Link 
-            href={`/product/${slug}`} 
+            href={detailHref}
             onClick={handleCardClick}
             className="block w-full h-full relative"
         >
@@ -194,7 +196,7 @@ export function ProductCard({
                 </div>
            </div>
           
-          <Link href={`/product/${slug}`} onClick={handleCardClick} className="block group-hover:text-[var(--supplier-heading,#004e28)] transition-colors">
+          <Link href={detailHref} onClick={handleCardClick} className="block group-hover:text-[var(--supplier-heading,#004e28)] transition-colors">
             <h3 className="text-lg font-bold text-gray-900 leading-tight line-clamp-2 font-[family-name:var(--font-varela-round)]">
               {title}
             </h3>

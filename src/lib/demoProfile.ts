@@ -28,6 +28,7 @@ export type DemoProduct = {
   price: number;
   image: string | null;
   thumbnail_url: string | null;
+  media?: Array<{ type: string; url: string }>;
 };
 
 export type DemoService = {
@@ -55,6 +56,14 @@ export const getDemoSupplier = cache(async (slug: string): Promise<DemoSupplier 
   const data = await readDemo<DemoSupplier>(`/demos/${encodeURIComponent(slug)}`);
   if (!data || data.is_demo !== true || data.slug !== slug || typeof data.id !== "number" || typeof data.name !== "string") return null;
   return data;
+});
+
+export const getDemoProduct = cache(async (supplierSlug: string, productSlug: string) => {
+  const base = `/demos/${encodeURIComponent(supplierSlug)}/products`;
+  const product = await readDemo<DemoProduct>(`${base}/${encodeURIComponent(productSlug)}`);
+  if (product) return product;
+  const products = await readDemo<DemoProduct[]>(base);
+  return products?.find((item) => item.slug === productSlug) ?? null;
 });
 
 export async function getDemoContent(slug: string, menuEnabled: boolean) {

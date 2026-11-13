@@ -1785,6 +1785,7 @@ const contactHref = supplier?.phone
                           }
                           minOrder={`${product.stock > 0 ? "1" : "10"} pzas`}
                           slug={product.slug}
+                          detailHref={isDemo ? `${supplierBasePath}productos/${encodeURIComponent(product.slug)}/${demoCampaign.size ? `?${demoCampaign}` : ""}` : undefined}
                           rating={product.average_rating || 5.0}
                           sales={product.stock}
                           supplier={supplier}
