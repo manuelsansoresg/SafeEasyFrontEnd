@@ -44,7 +44,7 @@ export const businessTypeService = {
     const query = new URLSearchParams({ skip: String(params.skip), limit: String(params.limit) });
     if (params.search.trim()) query.set("search", params.search.trim());
     if (params.is_active !== undefined) query.set("is_active", String(params.is_active));
-    const response = await request(`/api/backend/admin/business-types?${query}`, { signal });
+    const response = await request(`${base}?${query}`, { signal });
     return listItems<BusinessTypeAdminList>(await response.json(), "business_types");
   },
   async listAll(signal?: AbortSignal): Promise<BusinessTypeAdminList[]> {

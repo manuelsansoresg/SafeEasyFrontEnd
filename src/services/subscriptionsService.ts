@@ -262,15 +262,27 @@ export const subscriptionsService = {
   },
 
   async getAdminPlan(id: number, signal?: AbortSignal): Promise<AdminPlan> {
-    const response = await fetchWithAuth(`/api/backend/plans/${id}?include_special_image_limits=true`, { signal, cache: "no-store" });
-    await requireOk(response, "No se pudo cargar el plan.");
-    return response.json();
+    const options = { signal, cache: "no-store", headers: { Accept: "application/json" } } as const;
+    const query = "include_special_image_limits=true";
+    const response = await fetchWithAuth(`/api/plans/${id}?${query}`, options);
+    if (response.ok) {
+      const plan = await readJson<AdminPlan>(response);
+      if (plan?.id === id) return plan;
+    } else if (![404, 405].includes(response.status)) {
+      await requireOk(response, "No se pudo cargar el plan.");
+    }
+
+    const listResponse = await fetchWithAuth(`/api/plans/?skip=0&limit=1000&${query}`, options);
+    await requireOk(listResponse, "No se pudo cargar el plan.");
+    const plan = pickArray<AdminPlan>(await readJson<unknown>(listResponse)).find((item) => item.id === id);
+    if (!plan) throw new Error("No se encontró el plan solicitado.");
+    return plan;
   },
 
   async saveAdminPlan(payload: Partial<Plan> & {
     special_image_limits?: PlanImageLimitInput[];
   }, id?: number): Promise<AdminPlan> {
-    const response = await fetchWithAuth(id === undefined ? "/api/backend/plans/" : `/api/backend/plans/${id}`, {
+    const response = await fetchWithAuth(id === undefined ? "/api/plans/" : `/api/plans/${id}`, {
       method: id === undefined ? "POST" : "PUT",
       body: JSON.stringify(payload),
     });
