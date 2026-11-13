@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { getApiBaseUrl, listFromPayload, fetchSupplierProductsForSeo, fetchSupplierServicesForSeo, type SeoProduct, type SeoSupplier } from "@/lib/seo";
-import { planAllowsProducts, supplierAllowsProducts, supplierHasActiveSubscription, supplierHasDirectorySubscription } from "@/lib/subscriptionAccess";
+import { supplierHasActiveSubscription, supplierHasDirectorySubscription } from "@/lib/subscriptionAccess";
 import type { SupplierService } from "@/types/services";
 
 export type PublicSupplierProfile = {
@@ -39,28 +39,6 @@ const fetchSupplier = async (path: string): Promise<
   if (!data || typeof data !== "object") throw new Error("Supplier API returned an invalid response");
   return { status: "found", data };
 };
-
-async function getPublicProductAccess(supplier: SeoSupplier) {
-  if (supplierHasDirectorySubscription(supplier)) return false;
-  const details = supplier as unknown as Record<string, unknown>;
-  if (details.max_images_per_product != null) return planAllowsProducts(details);
-  if (supplierAllowsProducts(supplier)) return true;
-
-  const planId = details.current_plan_id;
-  if (typeof planId === "number" && Number.isSafeInteger(planId) && planId > 0) {
-    try {
-      const result = await fetchSupplier(`/plans/${planId}`);
-      if (result.status === "found") {
-        const plan = result.data as Record<string, unknown>;
-        if (plan.max_images_per_product != null) return planAllowsProducts(plan);
-      }
-    } catch {
-      // Older deployments may omit the plan limits from the public profile.
-    }
-  }
-
-  return false;
-}
 
 async function getPublicAgendaAvailability(supplierId: number): Promise<boolean | null> {
   try {
@@ -110,6 +88,7 @@ export const getPublicSupplierProfile = cache(async (slug: string): Promise<Publ
       ? Promise.resolve(supplier.agenda_enabled)
       : getPublicAgendaAvailability(supplier.id),
   ]);
-  const canShowProducts = await getPublicProductAccess(supplier);
+  // Public storefronts have a catalog even when the plan limits photo uploads.
+  const canShowProducts = !supplierHasDirectorySubscription(supplier);
   return { supplier, services, products, canShowProducts, publicAgendaAvailable };
 });
