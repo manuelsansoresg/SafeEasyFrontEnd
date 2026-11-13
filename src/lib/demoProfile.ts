@@ -29,6 +29,8 @@ export type DemoProduct = {
   image: string | null;
   thumbnail_url: string | null;
   media?: Array<{ type: string; url: string }>;
+  sku?: string | null;
+  stock?: number;
 };
 
 export type DemoService = {

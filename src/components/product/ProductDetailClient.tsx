@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { registerInteraction, getSimilarProducts } from "@/lib/interactions";
@@ -99,13 +98,13 @@ export interface ProductDetail {
     has_store?: boolean | number | string | null;
     is_directory?: boolean;
   };
-  category_id: number;
-  subcategory_id: number;
+  category_id: number | null;
+  subcategory_id: number | null;
   slug: string;
   average_rating: number;
   image: string | null;
   thumbnail_url: string | null;
-  category: {
+  category?: {
     id: number;
     name: string;
     description: string;
@@ -113,7 +112,7 @@ export interface ProductDetail {
     is_active: boolean;
     slug: string;
   };
-  subcategory: {
+  subcategory?: {
     id: number;
     name: string;
     category_id: number;
@@ -146,9 +145,12 @@ import { useChat } from "@/context/ChatContext";
 import { useChatStore } from "@/store/useChatStore";
 import { chatService } from "@/services/chatService";
 
-export default function ProductDetailPage({ initialProduct }: { initialProduct: ProductDetail }) {
-  const params = useParams();
-  const slug = params?.slug as string;
+export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
+  initialProduct: ProductDetail;
+  demoCatalogHref?: string;
+}) {
+  const isDemo = Boolean(demoCatalogHref);
+  const slug = initialProduct.slug;
   const { openChat, openChats, closeChat } = useChat();
   const { conversations, fetchConversations } = useChatStore();
   const { toggleFavorite, isFavorite, syncFavorites } = useFavoritesStore();
@@ -163,13 +165,13 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
   const productViewSentRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!token) return;
+    if (isDemo || !token) return;
     fetchConversations();
-  }, [token, fetchConversations]);
+  }, [isDemo, token, fetchConversations]);
 
   // Update open chat context when viewing a product
   useEffect(() => {
-    if (!product || !openChats || openChats.length === 0) return;
+    if (isDemo || !product || !openChats || openChats.length === 0) return;
 
     const existingChat = openChats.find(c =>
         String(c.supplier_id) === String(product.supplier_id)
@@ -195,20 +197,20 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
             });
         }
     }
-  }, [product, openChats, openChat, closeChat]);
+  }, [isDemo, product, openChats, openChat, closeChat]);
 
   useEffect(() => {
-    if (product?.id) {
+    if (!isDemo && product?.id) {
         registerInteraction({
             product_id: product.id,
             interaction_type: 'view'
         });
     }
-  }, [product?.id]);
+  }, [isDemo, product?.id]);
 
   useEffect(() => {
     const id = product?.id;
-    if (!id) return;
+    if (isDemo || !id) return;
     const key = String(id);
     if (productViewSentRef.current.has(key)) return;
     productViewSentRef.current.add(key);
@@ -235,10 +237,10 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
         }
       }
     })();
-  }, [product?.id]);
+  }, [isDemo, product?.id]);
 
   useEffect(() => {
-    if (slug) {
+    if (!isDemo && slug) {
         getSimilarProducts(slug).then((data) => {
           if (data && data.length > 0) {
             syncFavorites(data);
@@ -246,7 +248,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
           }
         });
     }
-  }, [slug, syncFavorites]);
+  }, [isDemo, slug, syncFavorites]);
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -281,14 +283,14 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
   }, [cartToast]);
 
   useEffect(() => {
-    if (slug && token) {
+    if (!isDemo && slug && token) {
       fetchProduct();
     }
-  }, [slug, token]);
+  }, [isDemo, slug, token]);
 
   useEffect(() => {
-    syncFavorites([initialProduct]);
-  }, [initialProduct, syncFavorites]);
+    if (!isDemo) syncFavorites([initialProduct]);
+  }, [isDemo, initialProduct, syncFavorites]);
 
   const clampQuantity = (value: number) => {
     const max = Math.max(1, Number(product?.stock ?? 0) || 0);
@@ -697,7 +699,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center text-sm text-gray-500">
-            <Link href="/" className="hover:text-primary">Inicio</Link>
+            <Link href={demoCatalogHref ?? "/"} className="hover:text-primary">{isDemo ? "Volver a productos" : "Inicio"}</Link>
             <ChevronRight size={14} className="mx-2" />
             {product.category?.slug ? (
               <Link
@@ -845,7 +847,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                           <button
                             type="button"
                             onClick={() => setQuantity((prev) => clampQuantity(prev - 1))}
-                            disabled={isAddingToCart || product.stock <= 0 || quantity <= 1}
+                            disabled={isDemo || isAddingToCart || product.stock <= 0 || quantity <= 1}
                             className="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                             aria-label="Disminuir cantidad"
                           >
@@ -862,13 +864,13 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                               if (!Number.isFinite(next)) return;
                               setQuantity(clampQuantity(next));
                             }}
-                            disabled={isAddingToCart || product.stock <= 0}
+                            disabled={isDemo || isAddingToCart || product.stock <= 0}
                             className="w-20 h-9 rounded-lg border border-gray-200 bg-white text-center font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                           <button
                             type="button"
                             onClick={() => setQuantity((prev) => clampQuantity(prev + 1))}
-                            disabled={isAddingToCart || product.stock <= 0 || quantity >= Math.max(1, product.stock)}
+                            disabled={isDemo || isAddingToCart || product.stock <= 0 || quantity >= Math.max(1, product.stock)}
                             className="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                             aria-label="Aumentar cantidad"
                           >
@@ -893,7 +895,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                 {/* Supplier Info Link */}
                 {supplierHasStore && product.supplier && product.supplier.slug && (
                   <div className="mb-6 bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                    <Link href={`/empresas/${product.supplier.slug}`} className="flex items-center gap-4 group">
+                    <Link href={demoCatalogHref ?? `/empresas/${product.supplier.slug}`} className="flex items-center gap-4 group">
                       <div className="w-12 h-12 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
                         {product.supplier.logo ? (
                           <img 
@@ -941,10 +943,10 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                   {supplierHasStore && !isDirectory ? (
                     <button 
                       onClick={handleAddToCart}
-                      disabled={isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive}
+                      disabled={isDemo || isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive}
                       className={cn(
                         "flex-1 px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2",
-                        isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive
+                        isDemo || isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive
                           ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
                           : "bg-[#168e00] text-white hover:bg-[#137500] shadow-[#168e00]/20"
                       )}
@@ -954,14 +956,15 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                       ) : (
                       <ShoppingCart size={24} />
                     )}
-                      {!supplierSubscriptionActive ? "No disponible" : isOwnProduct ? "Tu publicación" : "Agregar al carrito"}
+                      {isDemo ? "Compra de demostración" : !supplierSubscriptionActive ? "No disponible" : isOwnProduct ? "Tu publicación" : "Agregar al carrito"}
                     </button>
                   ) : null}
 
                   <button 
                     onClick={handleChatOpen}
+                    disabled={isDemo}
                     className={cn(
-                      "px-6 py-4 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 font-semibold",
+                      "disabled:opacity-50 px-6 py-4 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 font-semibold",
                       supplierHasStore && !isDirectory
                         ? "border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 text-gray-700"
                         : "flex-1 bg-[#168e00] text-white shadow-lg shadow-[#168e00]/15 hover:bg-[#137500]"
@@ -974,7 +977,8 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
 
                   <button 
                     onClick={handleFavoriteClick}
-                    className="px-6 py-4 rounded-xl border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
+                    disabled={isDemo}
+                    className="disabled:opacity-50 px-6 py-4 rounded-xl border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
                     title={product && isFavorite(product.id) ? "Quitar de favoritos" : "Agregar a favoritos"}
                   >
                     <Heart 
