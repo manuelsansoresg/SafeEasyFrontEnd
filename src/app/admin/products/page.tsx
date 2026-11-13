@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
-import { canSubscriptionManageProducts } from "@/lib/subscriptionAccess";
+import { isSubscriptionActive } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import type { Subscription } from "@/types/subscriptions";
 import DOMPurify from "isomorphic-dompurify";
@@ -34,7 +34,8 @@ interface Product {
   category_id: number;
   subcategory_id: number;
   slug: string;
-  thumbnail_url?: string;
+  image?: string | null;
+  thumbnail_url?: string | null;
 }
 
 function unwrapProducts(data: unknown): Product[] {
@@ -118,8 +119,9 @@ export default function AdminProductsPage() {
   const [totalProducts, setTotalProducts] = useState(0);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [canManageProducts, setCanManageProducts] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
-  const canCreateProduct = !isSupplierUser || canSubscriptionManageProducts(subscription);
+  const canCreateProduct = !isSupplierUser || canManageProducts;
 
   useEffect(() => {
     if (!toast) return;
@@ -160,9 +162,11 @@ export default function AdminProductsPage() {
       try {
         const data = await subscriptionsService.getMySubscription();
         if (!cancelled) setSubscription(data);
+        const allowed = await subscriptionsService.canManageProducts(data);
+        if (!cancelled) setCanManageProducts(allowed);
       } catch (error) {
         console.error("Error loading supplier subscription:", error);
-        if (!cancelled) setSubscription(null);
+        if (!cancelled) setCanManageProducts(false);
       } finally {
         if (!cancelled) setSubscriptionLoading(false);
       }
@@ -315,9 +319,15 @@ export default function AdminProductsPage() {
         }
       />
 
+      {isSupplierUser && isSubscriptionActive(subscription) && subscription?.plan?.max_images_per_product != null && (
+        <p className="text-sm text-gray-600">
+          Límite de tu plan: {subscription.plan.max_images_per_product} imágenes por producto, incluida la portada.
+        </p>
+      )}
+
       {!canCreateProduct && !subscriptionLoading ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-          Para administrar productos necesitas una suscripción activa con Imágenes por producto mayor que 0.
+          Tu suscripción actual no habilita la administración de productos.
         </div>
       ) : null}
 

@@ -6,69 +6,41 @@ import { useParams } from "next/navigation";
 import { PageHero } from "@/components/ui/PageHero";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
-import PlanForm, { type Plan } from "@/components/admin/PlanForm";
-import { fetchWithAuth } from "@/lib/api";
-
-const unwrapPlans = (data: unknown): Plan[] => {
-  if (Array.isArray(data)) return data as Plan[];
-  if (data && typeof data === "object") {
-    const record = data as Record<string, unknown>;
-    const items = record.items ?? record.results ?? record.data ?? record.plans;
-    if (Array.isArray(items)) return items as Plan[];
-  }
-  return [];
-};
+import PlanForm from "@/components/admin/PlanForm";
+import { subscriptionsService } from "@/services/subscriptionsService";
+import type { AdminPlan } from "@/types/subscriptions";
 
 export default function EditPlanPage() {
   const params = useParams();
   const id = params.id;
   const { token } = useAuthStore();
 
-  const [plan, setPlan] = useState<Plan | null>(null);
+  const [plan, setPlan] = useState<AdminPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchPlan = async () => {
-      if (!token || !id) return;
+    if (!token || !id) return;
+    const controller = new AbortController();
 
-      try {
-        const response = await fetchWithAuth(`/api/plans/${id}`, {
-          headers: { Accept: "application/json" },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setPlan(data);
-          return;
-        }
+    subscriptionsService.getAdminPlan(Number(id), controller.signal)
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setError(null);
+        setPlan(data);
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setError(err instanceof Error ? err.message : "No se pudo cargar el plan.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
 
-        const listResponse = await fetchWithAuth(`/api/plans/?skip=0&limit=1000`, {
-          headers: { Accept: "application/json" },
-        });
-        if (listResponse.ok) {
-          const listData = await listResponse.json();
-          const numericId = Number(id);
-          const found = unwrapPlans(listData).find((p) => Number(p?.id) === numericId) || null;
-          if (found) {
-            setPlan(found);
-            return;
-          }
-          setError("Plan no encontrado");
-        } else {
-          setError("No se pudo cargar el plan");
-        }
-      } catch (err) {
-        console.error("Error fetching plan:", err);
-        setError("Error de conexión");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPlan();
+    return () => controller.abort();
   }, [id, token]);
 
-  if (loading) {
+  if (loading || (!error && plan?.id !== Number(id))) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 gap-4">
         <Loader2 className="animate-spin text-primary" size={40} />
@@ -106,7 +78,7 @@ export default function EditPlanPage() {
       />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
-        <PlanForm initialData={plan} />
+        <PlanForm key={plan.id} initialData={plan} />
       </div>
     </div>
   );

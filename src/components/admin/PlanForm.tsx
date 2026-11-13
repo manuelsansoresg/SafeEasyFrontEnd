@@ -1,41 +1,16 @@
 "use client";
 
 import type { ComponentType } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { CheckCircle, ChevronDown, Eye, FlaskConical, FolderTree, ImageIcon, Images, KeyRound, Loader2, Package, Repeat2, Search, Sparkles, ShieldCheck, X } from "lucide-react";
 
-export type PlanDuration = "monthly" | "yearly";
-
-export interface Plan {
-  id: number;
-  title: string;
-  description: string;
-  price: number;
-  display_order?: number | null;
-  duration: PlanDuration;
-  is_active: boolean;
-  is_listed?: boolean;
-  is_renewable?: boolean;
-  is_demo?: boolean;
-  is_directory?: boolean;
-  allowed_once_per_supplier?: boolean;
-  access_code?: string | null;
-  max_active_products?: number | null;
-  max_images_per_product?: number | null;
-  max_gallery_images?: number | null;
-  ai_text_generations_per_year?: number;
-  ai_image_generations_per_year?: number;
-  seller_commission_type?: "percentage" | "fixed" | null;
-  seller_commission_value?: number | null;
-  subscription_linked_commission_user_id?: number | null;
-  subscription_linked_commission_type?: "percentage" | "fixed" | null;
-  subscription_linked_commission_value?: number | null;
-  subscription_linked_commission_is_active?: boolean | null;
-}
+import { subscriptionsService } from "@/services/subscriptionsService";
+import type { AdminPlan, PlanDuration } from "@/types/subscriptions";
+import PlanImageLimitsFields, { emptyImageLimitDraft, parseImageLimitDrafts, type ImageLimitDraft } from "@/components/admin/PlanImageLimitsFields";
 
 type AdminUser = {
   id: number;
@@ -101,17 +76,8 @@ const initialFormData: PlanFormData = {
   subscription_linked_commission_is_active: false,
 };
 
-const apiUrl = (path: string) => {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "https://drooopy.com/api";
-  return `${base.replace(/\/$/, "")}${path}`;
-};
-
-const authHeaders = (token: string) => ({
-  "Authorization": `Bearer ${token.replace(/^bearer\s+/i, "").trim()}`,
-});
-
 interface PlanFormProps {
-  initialData?: Plan;
+  initialData?: AdminPlan;
 }
 
 type PlanToggleKey =
@@ -127,6 +93,19 @@ export default function PlanForm({ initialData }: PlanFormProps) {
   const { token } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const saving = useRef(false);
+  const [rulesEnabled, setRulesEnabled] = useState(Boolean(initialData?.special_image_limits?.length));
+  const [rules, setRules] = useState<ImageLimitDraft[]>(() =>
+    (initialData?.special_image_limits ?? []).map((rule, index) => ({
+      key: index,
+      business_type_id: String(rule.business_type_id),
+      max_gallery_images: String(rule.max_gallery_images),
+      max_images_per_product: String(rule.max_images_per_product),
+      is_active: rule.is_active,
+    })),
+  );
+  const [rulesChanged, setRulesChanged] = useState(false);
+  const [unsupportedSave, setUnsupportedSave] = useState(false);
   const [formData, setFormData] = useState<PlanFormData>(() => {
     if (!initialData) return initialFormData;
     return {
@@ -204,7 +183,24 @@ export default function PlanForm({ initialData }: PlanFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
+    if (!token || saving.current || unsupportedSave) return;
+
+    const savedDrafts = rulesEnabled ? rules : rules.flatMap((rule) => {
+      if (parseImageLimitDrafts([rule])) return [{ ...rule, is_active: false }];
+      const original = initialData?.special_image_limits?.[rule.key];
+      return original ? [{
+        key: rule.key,
+        business_type_id: String(original.business_type_id),
+        max_gallery_images: String(original.max_gallery_images),
+        max_images_per_product: String(original.max_images_per_product),
+        is_active: false,
+      }] : [];
+    });
+    const specialLimits = rulesChanged ? parseImageLimitDrafts(savedDrafts) : undefined;
+    if (specialLimits === null) {
+      setError("Revisa que cada regla tenga una clasificación distinta y cantidades enteras válidas.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -308,8 +304,8 @@ export default function PlanForm({ initialData }: PlanFormProps) {
       }
     }
 
+    saving.current = true;
     try {
-      const method = initialData ? "PUT" : "POST";
 
       const linkedActive = formData.subscription_linked_commission_is_active;
       const parsedLinkedUserId = linkedActive && Number.isFinite(linkedUserId) && linkedUserId > 0 ? linkedUserId : null;
@@ -333,6 +329,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
           ? { max_gallery_images: parsedMaxGalleryImages }
           : { max_active_products: parsedMaxActiveProducts }),
         max_images_per_product: parsedMaxImagesPerProduct,
+        ...(specialLimits && (initialData || specialLimits.length) ? { special_image_limits: specialLimits } : {}),
         ai_text_generations_per_year: aiTexts,
         ai_image_generations_per_year: aiImages,
         seller_commission_type: formData.seller_commission_type,
@@ -343,36 +340,25 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         subscription_linked_commission_is_active: linkedActive,
       };
 
-      const body = JSON.stringify(payload);
-      const urls = initialData
-        ? [apiUrl(`/plans/${initialData.id}`), apiUrl(`/plans/${initialData.id}/`)]
-        : [apiUrl(`/plans/`), apiUrl(`/plans`)];
-
-      let response: Response | null = null;
-      for (const url of urls) {
-        response = await fetch(url, {
-          method,
-          headers: {
-            ...authHeaders(token),
-            "Content-Type": "application/json",
-          },
-          body,
-        });
-        if (response.ok) break;
-        if (response.status !== 404 && response.status !== 405 && response.status < 500) break;
+      const plan = await subscriptionsService.saveAdminPlan(payload, initialData?.id);
+      if (payload.special_image_limits) {
+        const returned = plan?.special_image_limits;
+        const expected = payload.special_image_limits;
+        if (!Array.isArray(returned) || returned.length !== expected.length ||
+          !expected.every((rule) => returned.some((saved) =>
+            saved.business_type_id === rule.business_type_id && saved.is_active === rule.is_active &&
+            saved.max_gallery_images === rule.max_gallery_images && saved.max_images_per_product === rule.max_images_per_product
+          ))) {
+          setUnsupportedSave(true);
+          setError("La API no confirmó las reglas especiales. Los datos generales del plan podrían haberse guardado. Vuelve al listado para verificar antes de reintentar.");
+          return;
+        }
       }
-
-      if (response?.ok) {
-        router.push("/admin/plans");
-        router.refresh();
-      } else {
-        const data = await response?.json().catch(() => null);
-        setError((data && (data.detail || data.message)) || "Error al guardar el plan");
-      }
+      router.push("/admin/plans?guardado=1");
     } catch (err) {
-      console.error("Error saving plan:", err);
-      setError("Error de conexión");
+      setError(err instanceof Error ? err.message : "Error de conexión");
     } finally {
+      saving.current = false;
       setLoading(false);
     }
   };
@@ -438,6 +424,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
           ) : null}
         </div>
 
+        <h2 className="font-semibold text-primary">Límites generales del plan</h2>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {formData.is_directory ? (
             <div className="space-y-2">
@@ -507,6 +494,25 @@ export default function PlanForm({ initialData }: PlanFormProps) {
             <p className="text-xs leading-5 text-gray-500">Incluye la imagen principal y las imágenes extra.</p>
           </div>
         </div>
+
+        <PlanImageLimitsFields
+          enabled={rulesEnabled}
+          supported={!initialData || Array.isArray(initialData.special_image_limits)}
+          disabled={loading || unsupportedSave}
+          rows={rules}
+          onChange={(next) => { setRules(next); setRulesChanged(true); }}
+          onToggle={(checked) => {
+            setRulesEnabled(checked);
+            if (checked && rules.length === 0 && !rulesChanged) {
+              setRules([emptyImageLimitDraft(0)]);
+              setRulesChanged(true);
+            }
+            if (!checked && rules.length) {
+              setRules((current) => current.map((rule) => ({ ...rule, is_active: false })));
+              setRulesChanged(true);
+            }
+          }}
+        />
 
         <section aria-labelledby="ai-plan-title" className="rounded-2xl border border-[#004e28]/15 bg-[#f4f8f5] p-5 md:p-6">
           <div className="mb-5 flex items-start gap-3"><span className="rounded-xl bg-[#004e28] p-2.5 text-white"><Sparkles size={20} /></span><div><h2 id="ai-plan-title" className="font-semibold text-[#004e28]">Inteligencia artificial incluida</h2><p className="mt-1 text-sm leading-6 text-gray-600">Cuotas por negocio para cada periodo de 12 meses, compartidas entre quienes lo administran.</p></div></div>
@@ -801,7 +807,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         </section>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
+          <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
             <X size={20} />
             <span>{error}</span>
           </div>
@@ -809,7 +815,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || unsupportedSave}
           className="w-full bg-primary text-white py-3 rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 flex items-center justify-center gap-2 font-medium disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {loading ? (

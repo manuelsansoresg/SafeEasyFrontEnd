@@ -24,7 +24,8 @@ interface Product {
   supplier_category_id?: number | null;
   supplier_subcategory_id?: number | null;
   slug: string;
-  thumbnail_url?: string;
+  image?: string | null;
+  thumbnail_url?: string | null;
 }
 
 const EDIT_PRODUCT_CACHE_KEY = "admin-edit-product";

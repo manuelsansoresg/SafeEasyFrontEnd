@@ -45,6 +45,23 @@ export interface Plan {
   created_at?: string;
 }
 
+export interface PlanImageLimitInput {
+  business_type_id: number;
+  max_gallery_images: number;
+  max_images_per_product: number;
+  is_active: boolean;
+}
+
+export interface AdminPlan extends Plan {
+  special_image_limits?: Array<PlanImageLimitInput & { id: number }>;
+  seller_commission_type?: "percentage" | "fixed" | null;
+  seller_commission_value?: number | null;
+  subscription_linked_commission_user_id?: number | null;
+  subscription_linked_commission_type?: "percentage" | "fixed" | null;
+  subscription_linked_commission_value?: number | null;
+  subscription_linked_commission_is_active?: boolean | null;
+}
+
 export interface Subscription {
   id: number;
   supplier_id: number;

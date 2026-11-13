@@ -298,11 +298,9 @@ export default function MySubscriptionPage() {
     ? Math.min(100, Math.max(0, (activeProductsCount / productLimit) * 100))
     : 0;
 
-  const imagesPerProductLimit = Number(subscription?.plan?.max_images_per_product ?? 0);
-  const hasImagesPerProductLimit = Number.isFinite(imagesPerProductLimit) && imagesPerProductLimit > 0;
+  const imagesPerProductLimit = subscription?.plan?.max_images_per_product ?? null;
 
-  const galleryImagesLimit = Number(subscription?.plan?.max_gallery_images ?? 0);
-  const hasGalleryImagesLimit = Number.isFinite(galleryImagesLimit) && galleryImagesLimit > 0;
+  const galleryImagesLimit = subscription?.plan?.max_gallery_images ?? null;
 
   const handlePaySelectedPlan = async () => {
     if (!selectedPlan) {
@@ -600,49 +598,20 @@ export default function MySubscriptionPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Directorio: Alta de servicios (max_images_per_product) + Imágenes en galería */}
+                  <div className="rounded-xl bg-gray-50 p-4">
+                    <div className="text-sm text-gray-500">Imágenes por producto</div>
+                    {imagesPerProductLimit != null ? (
+                      <>
+                        <div className="mt-1 text-2xl font-bold text-gray-950">{formatNumber(imagesPerProductLimit)}</div>
+                        <p className="mt-2 text-xs text-gray-500">Incluye la imagen principal y las imágenes extra.</p>
+                      </>
+                    ) : (
+                      <p className="mt-2 text-xs text-gray-500">Límite no disponible.</p>
+                    )}
+                  </div>
                   {isDirectory ? (
                     <>
-                      {hasImagesPerProductLimit ? (
-                        <div className="rounded-xl bg-gray-50 p-4">
-                          <div className="flex items-end justify-between gap-4">
-                            <div>
-                              <div className="text-sm text-gray-500">Alta de servicios</div>
-                              <div className="mt-1 text-2xl font-bold text-gray-950">
-                                {formatNumber(activeProductsCount)}
-                                <span className="text-base font-semibold text-gray-400"> / {formatNumber(imagesPerProductLimit)}</span>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm text-gray-500">Restantes</div>
-                              <div className="mt-1 text-lg font-bold text-primary">
-                                {formatNumber(Math.max(0, imagesPerProductLimit - activeProductsCount))}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
-                            <div
-                              className={`h-full rounded-full transition-all duration-700 ${
-                                activeProductsCount >= imagesPerProductLimit ? "bg-amber-400" : "bg-primary"
-                              }`}
-                              style={{ width: `${Math.min(100, Math.max(0, (activeProductsCount / imagesPerProductLimit) * 100))}%` }}
-                            />
-                          </div>
-
-                          <p className="mt-2 text-xs text-gray-500">
-                            {activeProductsCount >= imagesPerProductLimit
-                              ? "Ya alcanzaste el límite de servicios de tu plan."
-                              : `Puedes registrar ${formatNumber(imagesPerProductLimit - activeProductsCount)} servicio${imagesPerProductLimit - activeProductsCount === 1 ? "" : "s"} más.`}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
-                          Este plan no tiene un límite de alta de servicios configurado.
-                        </div>
-                      )}
-
-                      {hasGalleryImagesLimit ? (
+                      {galleryImagesLimit != null ? (
                         <div className="rounded-xl bg-gray-50 p-4">
                           {loadingGalleryImages ? (
                             <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -672,12 +641,14 @@ export default function MySubscriptionPage() {
                                   className={`h-full rounded-full transition-all duration-700 ${
                                     galleryImagesCount >= galleryImagesLimit ? "bg-amber-400" : "bg-primary"
                                   }`}
-                                  style={{ width: `${Math.min(100, Math.max(0, (galleryImagesCount / galleryImagesLimit) * 100))}%` }}
+                                  style={{ width: `${Math.min(100, Math.max(0, (galleryImagesLimit === 0 ? 100 : (galleryImagesCount / galleryImagesLimit) * 100)))}%` }}
                                 />
                               </div>
 
                               <p className="mt-2 text-xs text-gray-500">
-                                {galleryImagesCount >= galleryImagesLimit
+                                {galleryImagesCount > galleryImagesLimit
+                                  ? "Superaste el límite actual. Elimina imágenes antes de agregar más."
+                                  : galleryImagesCount === galleryImagesLimit
                                   ? "Ya alcanzaste el límite de imágenes de tu plan."
                                   : `Puedes subir ${formatNumber(galleryImagesLimit - galleryImagesCount)} imagen${galleryImagesLimit - galleryImagesCount === 1 ? "" : "es"} más.`}
                               </p>
@@ -692,7 +663,6 @@ export default function MySubscriptionPage() {
                     </>
                   ) : (
                     <>
-                      {/* No directorio: Productos activos + Imágenes por producto */}
                       {hasProductLimit ? (
                         <div className="rounded-xl bg-gray-50 p-4">
                           <div className="flex items-end justify-between gap-4">
@@ -730,19 +700,6 @@ export default function MySubscriptionPage() {
                         </div>
                       )}
 
-                      {hasImagesPerProductLimit ? (
-                        <div className="rounded-xl bg-gray-50 p-4">
-                          <div className="text-sm text-gray-500">Imágenes por producto</div>
-                          <div className="mt-1 text-2xl font-bold text-gray-950">{formatNumber(imagesPerProductLimit)}</div>
-                          <p className="mt-2 text-xs text-gray-500">
-                            Incluye la imagen principal y las imágenes extra.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500">
-                          Este plan no tiene un límite de imágenes por producto configurado.
-                        </div>
-                      )}
                     </>
                   )}
                 </div>

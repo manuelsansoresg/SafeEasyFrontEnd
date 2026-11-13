@@ -44,8 +44,17 @@ export const businessTypeService = {
     const query = new URLSearchParams({ skip: String(params.skip), limit: String(params.limit) });
     if (params.search.trim()) query.set("search", params.search.trim());
     if (params.is_active !== undefined) query.set("is_active", String(params.is_active));
-    const response = await request(`${base}?${query}`, { signal });
+    const response = await request(`/api/backend/admin/business-types?${query}`, { signal });
     return listItems<BusinessTypeAdminList>(await response.json(), "business_types");
+  },
+  async listAll(signal?: AbortSignal): Promise<BusinessTypeAdminList[]> {
+    const limit = 100;
+    const items: BusinessTypeAdminList[] = [];
+    while (true) {
+      const page = await businessTypeService.list({ search: "", skip: items.length, limit }, signal);
+      items.push(...page);
+      if (page.length < limit) return items;
+    }
   },
   async detail(id: number, signal?: AbortSignal): Promise<BusinessTypeAdminDetail> {
     const response = await request(`${base}/${id}`, { signal });

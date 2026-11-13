@@ -1,5 +1,8 @@
 import { fetchWithAuth } from "@/lib/api";
+import { canSubscriptionManageProducts, isSubscriptionActive } from "@/lib/subscriptionAccess";
 import type {
+  AdminPlan,
+  PlanImageLimitInput,
   ManualSubscriptionPayload,
   Plan,
   PurchaseResponse,
@@ -237,6 +240,39 @@ export const subscriptionsService = {
     return pickArray<Subscription>(json);
   },
 
+  async listAdminPlans(signal?: AbortSignal): Promise<AdminPlan[]> {
+    const response = await fetchWithAuth("/api/backend/plans/?skip=0&limit=1000&include_special_image_limits=true", { signal, cache: "no-store" });
+    await requireOk(response, "No se pudieron cargar los planes.");
+    return pickArray<AdminPlan>(await readJson<unknown>(response));
+  },
+
+  async getAdminPlan(id: number, signal?: AbortSignal): Promise<AdminPlan> {
+    const response = await fetchWithAuth(`/api/backend/plans/${id}?include_special_image_limits=true`, { signal, cache: "no-store" });
+    await requireOk(response, "No se pudo cargar el plan.");
+    return response.json();
+  },
+
+  async saveAdminPlan(payload: Partial<Plan> & {
+    special_image_limits?: PlanImageLimitInput[];
+  }, id?: number): Promise<AdminPlan> {
+    const response = await fetchWithAuth(id === undefined ? "/api/backend/plans/" : `/api/backend/plans/${id}`, {
+      method: id === undefined ? "POST" : "PUT",
+      body: JSON.stringify(payload),
+    });
+    await requireOk(response, "No se pudo guardar el plan.");
+    return response.json();
+  },
+
+  // The public plan keeps the original image allowance used by legacy product access.
+  // The subscription plan can override that number for uploads.
+  async canManageProducts(subscription: Subscription | null): Promise<boolean> {
+    if (!subscription || !isSubscriptionActive(subscription)) return false;
+    const response = await fetchWithAuth(`/api/backend/plans/${subscription.plan_id}`, { cache: "no-store" });
+    await requireOk(response, "No se pudo verificar el acceso a productos.");
+    const plan: Plan = await response.json();
+    return canSubscriptionManageProducts({ ...subscription, plan });
+  },
+
   async listPlans(params: ListPlansParams = {}): Promise<Plan[]> {
     const qs = new URLSearchParams({ skip: "0", limit: "1000" });
     if (params.onlyActive) qs.set("only_active", "true");
@@ -340,6 +376,7 @@ export const subscriptionsService = {
 
   async getMySubscription(): Promise<Subscription | null> {
     const tryUrls = [
+      "/api/backend/subscriptions/my",
       `/api/subscriptions/my`,
       `/api/subscriptions/my/`,
       apiUrl(`/subscriptions/my`),
@@ -347,7 +384,7 @@ export const subscriptionsService = {
     ];
     let response: Response | null = null;
     for (const url of tryUrls) {
-      response = await fetchWithAuth(url);
+      response = await fetchWithAuth(url, { cache: "no-store" });
       if (response.ok) break;
       if (response.status !== 404 && response.status !== 405) break;
     }

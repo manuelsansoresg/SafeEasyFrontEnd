@@ -16,17 +16,8 @@ import {
   XCircle,
 } from "lucide-react";
 
-interface Plan {
-  id: number;
-  title: string;
-  description: string;
-  price: number;
-  duration: "monthly" | "yearly";
-  is_active: boolean;
-  is_demo?: boolean;
-  max_active_products?: number | null;
-  max_images_per_product?: number | null;
-}
+import { subscriptionsService } from "@/services/subscriptionsService";
+import type { AdminPlan as Plan } from "@/types/subscriptions";
 
 const formatPrice = (value: unknown) => {
   const num = typeof value === "number" ? value : Number(value);
@@ -55,23 +46,6 @@ const apiUrl = (path: string) => {
   return `${base.replace(/\/$/, "")}${path}`;
 };
 
-const unwrapPlans = (data: unknown): Plan[] => {
-  if (Array.isArray(data)) return data as Plan[];
-  if (data && typeof data === "object") {
-    const record = data as Record<string, unknown>;
-    const items = record.items ?? record.results ?? record.data ?? record.plans;
-    if (Array.isArray(items)) return items as Plan[];
-  }
-  return [];
-};
-
-const buildAdminPlanParams = () => {
-  const params = new URLSearchParams();
-  params.set("skip", String(0));
-  params.set("limit", String(1000));
-  return params;
-};
-
 const readErrorMessage = async (response: Response) => {
   const text = await response.text().catch(() => "");
   if (!text) return "";
@@ -94,6 +68,17 @@ export default function AdminPlansPage() {
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
 
   useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("guardado") !== "1") return;
+    const timer = window.setTimeout(() => {
+      url.searchParams.delete("guardado");
+      window.history.replaceState(window.history.state, "", url);
+      setToast({ type: "success", message: "Plan guardado correctamente." });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(null), 3500);
     return () => window.clearTimeout(id);
@@ -107,23 +92,12 @@ export default function AdminPlansPage() {
     const run = async () => {
       setLoading(true);
       try {
-        const commonRequest = {
-          signal: controller.signal,
-          headers: { Accept: "application/json" },
-        };
-        const response = await fetchWithAuth(`/api/plans/?${buildAdminPlanParams().toString()}`, commonRequest);
-        if (!isMounted) return;
-        if (response.ok) {
-          const data = await response.json();
-          setPlans(unwrapPlans(data));
-        } else {
-          setPlans([]);
-          setToast({ type: "error", message: "No se pudieron cargar los planes." });
-        }
+        const data = await subscriptionsService.listAdminPlans(controller.signal);
+        if (isMounted) setPlans(data);
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         console.error("Error fetching plans:", error);
-        if (isMounted) setToast({ type: "error", message: "Error al cargar planes." });
+        if (isMounted) setToast({ type: "error", message: error instanceof Error ? error.message : "Error al cargar planes." });
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -154,11 +128,7 @@ export default function AdminPlansPage() {
 
       if (response?.ok) {
         setToast({ type: "success", message: "Plan eliminado correctamente." });
-        const refresh = await fetchWithAuth(`/api/plans/?${buildAdminPlanParams().toString()}`);
-        if (refresh.ok) {
-          const data = await refresh.json();
-          setPlans(unwrapPlans(data));
-        }
+        setPlans((current) => current.filter((plan) => plan.id !== id));
       } else {
         const message = response ? await readErrorMessage(response) : "";
         setToast({ type: "error", message: message || "Error al eliminar plan." });

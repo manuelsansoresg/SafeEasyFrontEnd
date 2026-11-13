@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { canSubscriptionManageProducts, canSubscriptionManageServices, isDirectorySubscription } from "@/lib/subscriptionAccess";
+import { canSubscriptionManageServices, isDirectorySubscription } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -28,11 +28,17 @@ export function useMyDirectorySubscription(enabled = true) {
       setLoading(true);
       subscriptionsService
         .getMySubscription()
-        .then((subscription) => {
+        .then(async (subscription) => {
           if (!cancelled) {
             setIsDirectory(isDirectorySubscription(subscription));
             setCanManageServices(canSubscriptionManageServices(subscription));
-            setCanManageProducts(canSubscriptionManageProducts(subscription));
+          }
+          const allowed = await subscriptionsService.canManageProducts(subscription).catch((error) => {
+            console.error("Error loading product access:", error);
+            return false;
+          });
+          if (!cancelled) {
+            setCanManageProducts(allowed);
           }
         })
         .catch((error) => {

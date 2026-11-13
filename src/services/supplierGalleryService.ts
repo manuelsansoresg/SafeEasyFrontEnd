@@ -54,9 +54,6 @@ async function readError(response: Response, fallback: string) {
         return "Se requiere una suscripción de directorio activa para administrar la galería.";
       }
       if (detail === "Gallery image not found") return "Imagen no encontrada.";
-      if (detail.startsWith("Gallery limit reached")) {
-        return "Has alcanzado el límite de imágenes de tu plan.";
-      }
       if (detail === "At least one image file is required") {
         return "Selecciona al menos una imagen para subir.";
       }
