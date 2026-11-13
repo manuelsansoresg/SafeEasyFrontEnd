@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import { fetchWithAuth } from "@/lib/api";
 import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
 import { getSpanishErrorMessage } from "@/lib/errorMessages";
-import { isSubscriptionActive } from "@/lib/subscriptionAccess";
+import { canSubscriptionManageProducts, isSubscriptionActive } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import type { Subscription } from "@/types/subscriptions";
 import { 
@@ -161,9 +161,8 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
-  const [planAllowsProducts, setPlanAllowsProducts] = useState(false);
   const activeSubscription = isSubscriptionActive(subscription);
-  const canManageProducts = !isSupplierUser || planAllowsProducts;
+  const canManageProducts = !isSupplierUser || canSubscriptionManageProducts(subscription);
   const imageLimit = isSupplierUser && activeSubscription ? subscription?.plan?.max_images_per_product ?? null : null;
   const isCreationBlockedBySubscription = isSupplierUser && (subscriptionLoading || !canManageProducts);
 
@@ -183,12 +182,10 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       try {
         const data = await subscriptionsService.getMySubscription();
         if (!cancelled) setSubscription(data);
-        const allowed = await subscriptionsService.canManageProducts(data);
-        if (!cancelled) setPlanAllowsProducts(allowed);
       } catch (error) {
         console.error("Error loading supplier subscription:", error);
         if (!cancelled) {
-          setPlanAllowsProducts(false);
+          setSubscription(null);
           setSubscriptionError(error instanceof Error ? error.message : "No pudimos validar tu suscripción.");
         }
       } finally {

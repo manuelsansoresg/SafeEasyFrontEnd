@@ -61,7 +61,12 @@ export const planAllowsProducts = (plan: unknown) => {
 
 export const canSubscriptionManageProducts = (subscription: unknown) => {
   const record = asRecord(subscription);
-  return isSubscriptionActive(subscription) && planAllowsProducts(record?.plan);
+  if (!isSubscriptionActive(subscription) || isDirectorySubscription(subscription)) return false;
+
+  const quota = asRecord(record?.plan)?.max_active_products;
+  if (typeof quota !== "number" && typeof quota !== "string") return false;
+  const limit = Number(quota);
+  return Number.isSafeInteger(limit) && limit > 0;
 };
 
 export const supplierAllowsProducts = (supplier: unknown) => {

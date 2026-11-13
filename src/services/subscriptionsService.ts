@@ -1,5 +1,4 @@
 import { fetchWithAuth } from "@/lib/api";
-import { canSubscriptionManageProducts, isSubscriptionActive } from "@/lib/subscriptionAccess";
 import type {
   AdminPlan,
   PlanImageLimitInput,
@@ -261,16 +260,6 @@ export const subscriptionsService = {
     });
     await requireOk(response, "No se pudo guardar el plan.");
     return response.json();
-  },
-
-  // The public plan keeps the original image allowance used by legacy product access.
-  // The subscription plan can override that number for uploads.
-  async canManageProducts(subscription: Subscription | null): Promise<boolean> {
-    if (!subscription || !isSubscriptionActive(subscription)) return false;
-    const response = await fetchWithAuth(`/api/backend/plans/${subscription.plan_id}`, { cache: "no-store" });
-    await requireOk(response, "No se pudo verificar el acceso a productos.");
-    const plan: Plan = await response.json();
-    return canSubscriptionManageProducts({ ...subscription, plan });
   },
 
   async listPlans(params: ListPlansParams = {}): Promise<Plan[]> {

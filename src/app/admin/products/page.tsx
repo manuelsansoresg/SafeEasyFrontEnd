@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
-import { isSubscriptionActive } from "@/lib/subscriptionAccess";
+import { canSubscriptionManageProducts, isSubscriptionActive } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import type { Subscription } from "@/types/subscriptions";
 import DOMPurify from "isomorphic-dompurify";
@@ -119,9 +119,8 @@ export default function AdminProductsPage() {
   const [totalProducts, setTotalProducts] = useState(0);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [canManageProducts, setCanManageProducts] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
-  const canCreateProduct = !isSupplierUser || canManageProducts;
+  const canCreateProduct = !isSupplierUser || canSubscriptionManageProducts(subscription);
 
   useEffect(() => {
     if (!toast) return;
@@ -162,11 +161,9 @@ export default function AdminProductsPage() {
       try {
         const data = await subscriptionsService.getMySubscription();
         if (!cancelled) setSubscription(data);
-        const allowed = await subscriptionsService.canManageProducts(data);
-        if (!cancelled) setCanManageProducts(allowed);
       } catch (error) {
         console.error("Error loading supplier subscription:", error);
-        if (!cancelled) setCanManageProducts(false);
+        if (!cancelled) setSubscription(null);
       } finally {
         if (!cancelled) setSubscriptionLoading(false);
       }
