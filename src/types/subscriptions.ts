@@ -47,7 +47,8 @@ export interface Plan {
 
 export interface PlanImageLimitInput {
   business_type_id: number;
-  max_gallery_images: number;
+  max_gallery_images?: number | null;
+  max_active_products?: number | null;
   max_images_per_product: number;
   is_active: boolean;
 }

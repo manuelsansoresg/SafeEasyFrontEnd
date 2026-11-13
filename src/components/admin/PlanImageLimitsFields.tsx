@@ -7,15 +7,17 @@ import type { BusinessTypeAdminList } from "@/types/businessType";
 import type { PlanImageLimitInput } from "@/types/subscriptions";
 
 const MAX_LIMIT = 2_147_483_647;
-const limitFields = [
-  { key: "max_gallery_images", label: "Imágenes en galería" },
-  { key: "max_images_per_product", label: "Imágenes por producto" },
-] as const;
+const galleryField = { key: "max_gallery_images", label: "Imágenes en galería" } as const;
+const productsField = { key: "max_active_products", label: "Productos activos" } as const;
+const imageField = { key: "max_images_per_product", label: "Imágenes por producto" } as const;
+
+const fieldsForPlan = (isDirectory: boolean) => [isDirectory ? galleryField : productsField, imageField];
 
 export type ImageLimitDraft = {
   key: number;
   business_type_id: string;
   max_gallery_images: string;
+  max_active_products: string;
   max_images_per_product: string;
   is_active: boolean;
 };
@@ -25,26 +27,32 @@ export function emptyImageLimitDraft(key: number): ImageLimitDraft {
     key,
     business_type_id: "",
     max_gallery_images: "",
+    max_active_products: "",
     max_images_per_product: "",
     is_active: true,
   };
 }
 
-export function parseImageLimitDrafts(rows: ImageLimitDraft[]): PlanImageLimitInput[] | null {
-  const rules = rows.map(({ business_type_id, max_gallery_images, max_images_per_product, is_active }) => ({
-    business_type_id: Number(business_type_id),
-    max_gallery_images: max_gallery_images.trim() ? Number(max_gallery_images) : NaN,
-    max_images_per_product: max_images_per_product.trim() ? Number(max_images_per_product) : NaN,
-    is_active,
+export function parseImageLimitDrafts(rows: ImageLimitDraft[], isDirectory: boolean): PlanImageLimitInput[] | null {
+  const rules = rows.map((row) => ({
+    business_type_id: Number(row.business_type_id),
+    max_gallery_images: row.max_gallery_images.trim() ? Number(row.max_gallery_images) : null,
+    max_active_products: row.max_active_products.trim() ? Number(row.max_active_products) : null,
+    max_images_per_product: row.max_images_per_product.trim() ? Number(row.max_images_per_product) : NaN,
+    is_active: row.is_active,
   }));
   const valid = rules.every((rule) =>
     Number.isInteger(rule.business_type_id) && rule.business_type_id > 0 && rule.business_type_id <= MAX_LIMIT &&
-    limitFields.every(({ key }) => Number.isInteger(rule[key]) && rule[key] >= 0 && rule[key] <= MAX_LIMIT),
+    fieldsForPlan(isDirectory).every(({ key }) => {
+      const value = rule[key];
+      return value === null || (Number.isInteger(value) && value >= 0 && value <= MAX_LIMIT);
+    }),
   );
   return valid && new Set(rules.map((rule) => rule.business_type_id)).size === rules.length ? rules : null;
 }
 
 interface Props {
+  isDirectory: boolean;
   enabled: boolean;
   disabled: boolean;
   supported: boolean;
@@ -55,7 +63,7 @@ interface Props {
 
 const fieldClass = "block w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
-export default function PlanImageLimitsFields({ enabled, disabled, supported, rows, onToggle, onChange }: Props) {
+export default function PlanImageLimitsFields({ isDirectory, enabled, disabled, supported, rows, onToggle, onChange }: Props) {
   const [catalog, setCatalog] = useState<BusinessTypeAdminList[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -90,7 +98,7 @@ export default function PlanImageLimitsFields({ enabled, disabled, supported, ro
       <div>
         <h2 className="font-semibold text-primary">Límites especiales por tipo de negocio</h2>
         <p className="mt-1 text-sm text-gray-600">
-          Configura límites de imágenes diferentes para tipos de negocio específicos. Los proveedores que no coincidan con estas configuraciones conservarán los límites generales del plan.
+          Cada regla activa sustituye los límites generales de arriba para su clasificación. Las demás clasificaciones conservan los límites generales.
         </p>
       </div>
 
@@ -146,10 +154,10 @@ export default function PlanImageLimitsFields({ enabled, disabled, supported, ro
                   </select>
                 </label>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {limitFields.map(({ key, label }) => (
+                  {fieldsForPlan(isDirectory).map(({ key, label }) => (
                     <label key={key} className="block space-y-1 text-sm">
                       <span>{label}</span>
-                      <input required type="number" inputMode="numeric" min={0} max={MAX_LIMIT} step={1} className={fieldClass}
+                      <input required={key === "max_images_per_product"} placeholder={key === "max_images_per_product" ? undefined : "Límite general"} type="number" inputMode="numeric" min={0} max={MAX_LIMIT} step={1} className={fieldClass}
                         value={row[key]} onChange={(event) => updateRow(row.key, { [key]: event.target.value })}
                       />
                     </label>
@@ -170,7 +178,7 @@ export default function PlanImageLimitsFields({ enabled, disabled, supported, ro
           {catalog && !catalog.some((item) => item.is_active) && (
             <p className="text-sm text-gray-600">El catálogo no tiene clasificaciones activas disponibles.</p>
           )}
-          <p className="text-xs text-gray-600">Usa 0 para impedir nuevas cargas de imágenes en el campo correspondiente.</p>
+          <p className="text-xs text-gray-600">Usa 0 para impedir nuevas cargas o activaciones en el campo correspondiente.</p>
           <button type="button" disabled={!catalog?.some((item) => item.is_active && !rows.some((row) => Number(row.business_type_id) === item.id))}
             onClick={addRow} className="inline-flex items-center gap-1 text-sm font-semibold text-[#004e28] disabled:opacity-50"
           >

@@ -99,7 +99,8 @@ export default function PlanForm({ initialData }: PlanFormProps) {
     (initialData?.special_image_limits ?? []).map((rule, index) => ({
       key: index,
       business_type_id: String(rule.business_type_id),
-      max_gallery_images: String(rule.max_gallery_images),
+      max_gallery_images: rule.max_gallery_images == null ? "" : String(rule.max_gallery_images),
+      max_active_products: rule.max_active_products == null ? "" : String(rule.max_active_products),
       max_images_per_product: String(rule.max_images_per_product),
       is_active: rule.is_active,
     })),
@@ -186,17 +187,20 @@ export default function PlanForm({ initialData }: PlanFormProps) {
     if (!token || saving.current || unsupportedSave) return;
 
     const savedDrafts = rulesEnabled ? rules : rules.flatMap((rule) => {
-      if (parseImageLimitDrafts([rule])) return [{ ...rule, is_active: false }];
+      if (parseImageLimitDrafts([rule], formData.is_directory)) return [{ ...rule, is_active: false }];
       const original = initialData?.special_image_limits?.[rule.key];
       return original ? [{
         key: rule.key,
         business_type_id: String(original.business_type_id),
-        max_gallery_images: String(original.max_gallery_images),
+        max_gallery_images: original.max_gallery_images == null ? "" : String(original.max_gallery_images),
+        max_active_products: original.max_active_products == null ? "" : String(original.max_active_products),
         max_images_per_product: String(original.max_images_per_product),
         is_active: false,
       }] : [];
     });
-    const specialLimits = rulesChanged ? parseImageLimitDrafts(savedDrafts) : undefined;
+    const specialLimits = rulesChanged
+      ? parseImageLimitDrafts(savedDrafts, formData.is_directory)
+      : undefined;
     if (specialLimits === null) {
       setError("Revisa que cada regla tenga una clasificación distinta y cantidades enteras válidas.");
       return;
@@ -347,7 +351,9 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         if (!Array.isArray(returned) || returned.length !== expected.length ||
           !expected.every((rule) => returned.some((saved) =>
             saved.business_type_id === rule.business_type_id && saved.is_active === rule.is_active &&
-            saved.max_gallery_images === rule.max_gallery_images && saved.max_images_per_product === rule.max_images_per_product
+            (saved.max_gallery_images ?? null) === rule.max_gallery_images &&
+            (saved.max_active_products ?? null) === rule.max_active_products &&
+            saved.max_images_per_product === rule.max_images_per_product
           ))) {
           setUnsupportedSave(true);
           setError("La API no confirmó las reglas especiales. Los datos generales del plan podrían haberse guardado. Vuelve al listado para verificar antes de reintentar.");
@@ -496,6 +502,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
         </div>
 
         <PlanImageLimitsFields
+          isDirectory={formData.is_directory}
           enabled={rulesEnabled}
           supported={!initialData || Array.isArray(initialData.special_image_limits)}
           disabled={loading || unsupportedSave}
