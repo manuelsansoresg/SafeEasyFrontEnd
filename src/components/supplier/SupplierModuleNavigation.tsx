@@ -11,7 +11,7 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { agendaBookingService } from "@/services/agendaBookingService";
+import { AgendaBookingRequestError, agendaBookingService } from "@/services/agendaBookingService";
 
 export type SupplierPublicTab =
   | "main"
@@ -41,10 +41,11 @@ export function SupplierModuleNavigation({
   demoHasAgenda = false,
 }: SupplierModuleNavigationProps) {
   const [liveAgendaAvailable, setAgendaAvailable] =
-    useState(false);
+    useState<boolean | null>(null);
   const [liveAgendaLoading, setAgendaLoading] =
     useState(true);
-  const agendaAvailable = isDemo ? demoHasAgenda : liveAgendaAvailable;
+  const agendaAvailable = isDemo ? demoHasAgenda : liveAgendaAvailable === true;
+  const agendaUnavailable = isDemo ? !demoHasAgenda : liveAgendaAvailable === false;
   const agendaLoading = !isDemo && liveAgendaLoading;
 
   useEffect(() => {
@@ -55,26 +56,17 @@ export function SupplierModuleNavigation({
       setAgendaLoading(true);
 
       try {
-        await agendaBookingService.listPublicServices(
-          supplierId,
-          controller.signal,
-        );
-
-        if (controller.signal.aborted) return;
-
-        // Una respuesta correcta significa que el negocio tiene Agenda
-        // publicada. La pestaña no debe desaparecer sólo porque el proveedor
-        // todavía no ha creado su primer servicio.
-        setAgendaAvailable(true);
-      } catch (error) {
-        if (
-          error instanceof DOMException &&
-          error.name === "AbortError"
-        ) {
-          return;
+        try {
+          await agendaBookingService.checkPublicAgendaAccess(supplierId, controller.signal);
+        } catch {
+          if (controller.signal.aborted) return;
+          // The public services endpoint also checks whether Agenda is published.
+          await agendaBookingService.listPublicServices(supplierId, controller.signal);
         }
-
-        setAgendaAvailable(false);
+        if (!controller.signal.aborted) setAgendaAvailable(true);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setAgendaAvailable(error instanceof AgendaBookingRequestError && error.status === 404 ? false : null);
       } finally {
         if (!controller.signal.aborted) {
           setAgendaLoading(false);
@@ -91,13 +83,13 @@ export function SupplierModuleNavigation({
     if (
       activeTab === "agenda" &&
       !agendaLoading &&
-      !agendaAvailable
+      agendaUnavailable
     ) {
       onChangeTab("main", true);
     }
   }, [
     activeTab,
-    agendaAvailable,
+    agendaUnavailable,
     agendaLoading,
     onChangeTab,
   ]);

@@ -1,11 +1,12 @@
 import { cache } from "react";
 import { getApiBaseUrl, listFromPayload, fetchSupplierProductsForSeo, fetchSupplierServicesForSeo, type SeoProduct, type SeoSupplier } from "@/lib/seo";
-import { supplierHasActiveSubscription } from "@/lib/subscriptionAccess";
+import { planAllowsProducts, supplierAllowsProducts, supplierHasActiveSubscription, supplierHasDirectorySubscription } from "@/lib/subscriptionAccess";
 import type { SupplierService } from "@/types/services";
 
 export type PublicSupplierProfile = {
   supplier: SeoSupplier;
   products: SeoProduct[];
+  canShowProducts: boolean;
   services: SupplierService[];
 };
 
@@ -37,6 +38,28 @@ const fetchSupplier = async (path: string): Promise<
   if (!data || typeof data !== "object") throw new Error("Supplier API returned an invalid response");
   return { status: "found", data };
 };
+
+async function getPublicProductAccess(supplier: SeoSupplier, hasPublicProducts: boolean) {
+  if (supplierHasDirectorySubscription(supplier)) return false;
+  const details = supplier as unknown as Record<string, unknown>;
+  if (details.max_images_per_product != null) return planAllowsProducts(details);
+  if (supplierAllowsProducts(supplier)) return true;
+
+  const planId = details.current_plan_id;
+  if (typeof planId === "number" && Number.isSafeInteger(planId) && planId > 0) {
+    try {
+      const result = await fetchSupplier(`/plans/${planId}`);
+      if (result.status === "found") {
+        const plan = result.data as Record<string, unknown>;
+        if (plan.max_images_per_product != null) return planAllowsProducts(plan);
+      }
+    } catch {
+      // Keep an already published catalog available if the plan lookup fails.
+    }
+  }
+
+  return hasPublicProducts;
+}
 
 export const getPublicSupplierProfile = cache(async (slug: string): Promise<PublicSupplierProfile | null> => {
   const encoded = encodeURIComponent(slug);
@@ -73,5 +96,6 @@ export const getPublicSupplierProfile = cache(async (slug: string): Promise<Publ
     fetchSupplierServicesForSeo(supplier.id),
     fetchSupplierProductsForSeo(supplier),
   ]);
-  return { supplier, services, products };
+  const canShowProducts = await getPublicProductAccess(supplier, products.length > 0);
+  return { supplier, services, products, canShowProducts };
 });

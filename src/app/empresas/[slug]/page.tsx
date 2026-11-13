@@ -29,14 +29,14 @@ export default async function SupplierPage({ params }: {
 
   return <>
     <nav aria-label={`Catálogo público de ${profile.supplier.name}`} className="sr-only focus-within:not-sr-only">
-      {!profile.supplier.is_directory && <Link href={`/empresas/${profile.supplier.slug || profile.supplier.id}/productos`}>Ver catálogo de {profile.supplier.name}</Link>}
-      {profile.products.filter((product) => product.is_active === true && product.slug).map((product) => (
+      {profile.canShowProducts && <Link href={`/empresas/${profile.supplier.slug || profile.supplier.id}/productos`}>Ver catálogo de {profile.supplier.name}</Link>}
+      {profile.canShowProducts && profile.products.filter((product) => product.is_active === true && product.slug).map((product) => (
         <Link key={String(product.id)} href={`/product/${product.slug}`}>{product.title}</Link>
       ))}
       {profile.services.filter((service) => service.is_active === true && !service.is_agenda_only).map((service) => (
         <Link key={service.id} href={`/servicios/${service.id}`}>{service.title}</Link>
       ))}
     </nav>
-    <SupplierPageClient key={slug} initialSupplier={profile.supplier as unknown as Supplier} initialProducts={products} />
+    <SupplierPageClient key={slug} initialSupplier={profile.supplier as unknown as Supplier} initialProducts={products} publicProductAccess={profile.canShowProducts} />
   </>;
 }

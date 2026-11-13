@@ -448,9 +448,10 @@ const mergeById = <T extends { id: number | string }>(items: T[]) =>
 
 import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCarousel";
 
-export default function SupplierPage({ initialSupplier, initialProducts, demoMenus = [], demoMenuEnabled = false, demoServices = [], demoAgendaEnabled = false, demoGalleryImages = [], isDemo = false }: {
+export default function SupplierPage({ initialSupplier, initialProducts, publicProductAccess, demoMenus = [], demoMenuEnabled = false, demoServices = [], demoAgendaEnabled = false, demoGalleryImages = [], isDemo = false }: {
   initialSupplier: Supplier;
   initialProducts: SupplierProduct[];
+  publicProductAccess?: boolean;
   demoMenus?: Menu[];
   demoMenuEnabled?: boolean;
   demoServices?: SupplierService[];
@@ -654,8 +655,8 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   const observerTarget = useRef<HTMLDivElement | null>(null);
   const supplierId = supplier?.id ?? null;
   const supplierSlug = supplier?.slug ?? null;
-  const canShowProducts = supplierAllowsProducts(supplier);
   const supplierIsDirectory = supplierHasDirectorySubscription(supplier);
+  const canShowProducts = publicProductAccess ?? (supplierAllowsProducts(supplier) || (isDemo && !supplierIsDirectory && initialProducts.length > 0));
 
   const productCategories = useMemo(
     () => buildCatalogFilterOptions(productCatalog),
