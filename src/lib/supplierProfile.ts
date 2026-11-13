@@ -7,6 +7,7 @@ export type PublicSupplierProfile = {
   supplier: SeoSupplier;
   products: SeoProduct[];
   canShowProducts: boolean;
+  publicAgendaAvailable: boolean | null;
   services: SupplierService[];
 };
 
@@ -39,7 +40,7 @@ const fetchSupplier = async (path: string): Promise<
   return { status: "found", data };
 };
 
-async function getPublicProductAccess(supplier: SeoSupplier, hasPublicProducts: boolean) {
+async function getPublicProductAccess(supplier: SeoSupplier) {
   if (supplierHasDirectorySubscription(supplier)) return false;
   const details = supplier as unknown as Record<string, unknown>;
   if (details.max_images_per_product != null) return planAllowsProducts(details);
@@ -54,11 +55,21 @@ async function getPublicProductAccess(supplier: SeoSupplier, hasPublicProducts: 
         if (plan.max_images_per_product != null) return planAllowsProducts(plan);
       }
     } catch {
-      // Keep an already published catalog available if the plan lookup fails.
+      // Older deployments may omit the plan limits from the public profile.
     }
   }
 
-  return hasPublicProducts;
+  return false;
+}
+
+async function getPublicAgendaAvailability(supplierId: number): Promise<boolean | null> {
+  try {
+    // This endpoint checks the published Agenda without loading its payment configuration.
+    const result = await fetchSupplier(`/public/agenda/${supplierId}/services`);
+    return result.status === "found" ? Array.isArray(result.data) || null : false;
+  } catch {
+    return null;
+  }
 }
 
 export const getPublicSupplierProfile = cache(async (slug: string): Promise<PublicSupplierProfile | null> => {
@@ -92,10 +103,13 @@ export const getPublicSupplierProfile = cache(async (slug: string): Promise<Publ
     throw new Error("Supplier API returned an incomplete profile");
   }
 
-  const [services, products] = await Promise.all([
+  const [services, products, publicAgendaAvailable] = await Promise.all([
     fetchSupplierServicesForSeo(supplier.id),
     fetchSupplierProductsForSeo(supplier),
+    typeof supplier.agenda_enabled === "boolean"
+      ? Promise.resolve(supplier.agenda_enabled)
+      : getPublicAgendaAvailability(supplier.id),
   ]);
-  const canShowProducts = await getPublicProductAccess(supplier, products.length > 0);
-  return { supplier, services, products, canShowProducts };
+  const canShowProducts = await getPublicProductAccess(supplier);
+  return { supplier, services, products, canShowProducts, publicAgendaAvailable };
 });

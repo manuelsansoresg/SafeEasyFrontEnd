@@ -95,6 +95,8 @@ export interface SeoSupplier {
   is_active?: boolean;
   is_demo?: boolean;
   is_directory?: boolean;
+  agenda_enabled?: boolean | null;
+  menu_enabled?: boolean | null;
   is_verified?: boolean;
   average_rating?: number | null;
   rating_count?: number | null;

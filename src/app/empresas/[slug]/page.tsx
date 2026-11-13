@@ -37,6 +37,6 @@ export default async function SupplierPage({ params }: {
         <Link key={service.id} href={`/servicios/${service.id}`}>{service.title}</Link>
       ))}
     </nav>
-    <SupplierPageClient key={slug} initialSupplier={profile.supplier as unknown as Supplier} initialProducts={products} publicProductAccess={profile.canShowProducts} />
+    <SupplierPageClient key={slug} initialSupplier={profile.supplier as unknown as Supplier} initialProducts={products} publicProductAccess={profile.canShowProducts} publicAgendaAvailable={profile.publicAgendaAvailable} publicMenuEnabled={profile.supplier.menu_enabled} />
   </>;
 }

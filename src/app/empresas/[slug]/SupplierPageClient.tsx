@@ -448,10 +448,12 @@ const mergeById = <T extends { id: number | string }>(items: T[]) =>
 
 import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCarousel";
 
-export default function SupplierPage({ initialSupplier, initialProducts, publicProductAccess, demoMenus = [], demoMenuEnabled = false, demoServices = [], demoAgendaEnabled = false, demoGalleryImages = [], isDemo = false }: {
+export default function SupplierPage({ initialSupplier, initialProducts, publicProductAccess, publicAgendaAvailable, publicMenuEnabled, demoMenus = [], demoMenuEnabled = false, demoServices = [], demoAgendaEnabled = false, demoGalleryImages = [], isDemo = false }: {
   initialSupplier: Supplier;
   initialProducts: SupplierProduct[];
   publicProductAccess?: boolean;
+  publicAgendaAvailable?: boolean | null;
+  publicMenuEnabled?: boolean | null;
   demoMenus?: Menu[];
   demoMenuEnabled?: boolean;
   demoServices?: SupplierService[];
@@ -479,7 +481,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, publicP
   const [supplier, setSupplier] = useState<Supplier | null>(initialSupplier);
   const [publicMenus, setPublicMenus] = useState<Menu[]>(demoMenus);
   const visibleMenus = isDemo ? demoMenus : publicMenus;
-  const hasMenu = isDemo ? demoMenuEnabled : visibleMenus.length > 0;
+  const hasMenu = isDemo ? demoMenuEnabled : (publicMenuEnabled ?? (visibleMenus.length > 0));
   const [publicMenusLoading, setPublicMenusLoading] = useState(!isDemo);
   const headerVideoRef = useRef<HTMLVideoElement>(null);
   const supplierViewSentRef = useRef<Set<string>>(new Set());
@@ -714,7 +716,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, publicP
   }, [slug, initialProducts, isDemo]);
 
   useEffect(() => {
-    if (!slug || isDemo) return;
+    if (!slug || isDemo || publicMenuEnabled === false) return;
 
     const controller = new AbortController();
     setPublicMenusLoading(true);
@@ -730,13 +732,13 @@ export default function SupplierPage({ initialSupplier, initialProducts, publicP
       .finally(() => { if (!controller.signal.aborted) setPublicMenusLoading(false); });
 
     return () => controller.abort();
-  }, [slug, isDemo]);
+  }, [slug, isDemo, publicMenuEnabled]);
 
   useEffect(() => {
-    if (activeTab === "menu" && !publicMenusLoading && !hasMenu) {
+    if (activeTab === "menu" && (publicMenuEnabled === false || (!publicMenusLoading && !hasMenu))) {
       navigateTab("main", true);
     }
-  }, [activeTab, hasMenu, publicMenusLoading, navigateTab]);
+  }, [activeTab, hasMenu, publicMenuEnabled, publicMenusLoading, navigateTab]);
 
   useEffect(() => {
     if (activeTab === "products" && supplierId && !canShowProducts) {
@@ -1494,10 +1496,13 @@ const contactHref = supplier?.phone
         tabsRef={tabsRef}
         isDemo={isDemo}
         demoHasAgenda={demoAgendaEnabled}
+        publicAgendaAvailable={publicAgendaAvailable}
       />
 
       {activeTab === "menu" && hasMenu ? (
-        visibleMenus.length > 0 ? (
+        !isDemo && publicMenusLoading ? (
+          <p role="status" className="px-5 py-14 text-center text-gray-600">Cargando menú…</p>
+        ) : visibleMenus.length > 0 ? (
           <PublicSupplierMenu menus={visibleMenus} supplierName={supplier.name} isDemo={isDemo} />
         ) : (
           <section className="supplier-surface-page bg-[var(--supplier-page-background,#f7f9f8)] px-5 py-14 text-center">

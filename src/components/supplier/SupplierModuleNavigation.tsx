@@ -28,6 +28,7 @@ type SupplierModuleNavigationProps = {
   tabsRef: RefObject<HTMLDivElement | null>;
   isDemo?: boolean;
   demoHasAgenda?: boolean;
+  publicAgendaAvailable?: boolean | null;
 };
 
 export function SupplierModuleNavigation({
@@ -39,17 +40,19 @@ export function SupplierModuleNavigation({
   tabsRef,
   isDemo = false,
   demoHasAgenda = false,
+  publicAgendaAvailable = null,
 }: SupplierModuleNavigationProps) {
   const [liveAgendaAvailable, setAgendaAvailable] =
     useState<boolean | null>(null);
   const [liveAgendaLoading, setAgendaLoading] =
     useState(true);
-  const agendaAvailable = isDemo ? demoHasAgenda : liveAgendaAvailable === true;
-  const agendaUnavailable = isDemo ? !demoHasAgenda : liveAgendaAvailable === false;
-  const agendaLoading = !isDemo && liveAgendaLoading;
+  const publishedAgenda = publicAgendaAvailable ?? liveAgendaAvailable;
+  const agendaAvailable = isDemo ? demoHasAgenda : publishedAgenda === true;
+  const agendaUnavailable = isDemo ? !demoHasAgenda : publishedAgenda === false;
+  const agendaLoading = !isDemo && publishedAgenda === null && liveAgendaLoading;
 
   useEffect(() => {
-    if (isDemo) return;
+    if (isDemo || publicAgendaAvailable !== null) return;
     const controller = new AbortController();
 
     const loadAgenda = async () => {
@@ -77,7 +80,7 @@ export function SupplierModuleNavigation({
     void loadAgenda();
 
     return () => controller.abort();
-  }, [supplierId, isDemo]);
+  }, [supplierId, isDemo, publicAgendaAvailable]);
 
   useEffect(() => {
     if (
