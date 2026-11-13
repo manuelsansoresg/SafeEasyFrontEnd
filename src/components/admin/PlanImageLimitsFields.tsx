@@ -100,7 +100,7 @@ export default function PlanImageLimitsFields({ enabled, disabled, supported, ro
           Configurar límites especiales
         </label>
       ) : (
-        <p role="status" className="text-sm text-amber-800">La API no devolvió las reglas especiales de este plan. Puedes editar sus datos generales.</p>
+        <p role="status" className="text-sm text-amber-800">Las reglas especiales no están disponibles para esta sesión. Puedes editar los datos generales del plan y las reglas guardadas se conservarán.</p>
       )}
 
       {!enabled && rows.length > 0 && (

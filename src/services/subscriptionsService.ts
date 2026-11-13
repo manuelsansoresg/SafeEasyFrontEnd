@@ -263,16 +263,35 @@ export const subscriptionsService = {
 
   async getAdminPlan(id: number, signal?: AbortSignal): Promise<AdminPlan> {
     const options = { signal, cache: "no-store", headers: { Accept: "application/json" } } as const;
+    const path = `/api/plans/${id}`;
     const query = "include_special_image_limits=true";
-    const response = await fetchWithAuth(`/api/plans/${id}?${query}`, options);
+    const response = await fetchWithAuth(`${path}?${query}`, options);
     if (response.ok) {
       const plan = await readJson<AdminPlan>(response);
       if (plan?.id === id) return plan;
+    } else if (response.status === 403) {
+      // A denial on the extra rules must not prevent loading the general plan.
+      const generalResponse = await fetchWithAuth(path, options);
+      if (generalResponse.ok) {
+        const plan = await readJson<AdminPlan>(generalResponse);
+        if (plan?.id === id) return { ...plan, special_image_limits: undefined };
+      }
+      if (!generalResponse.ok && ![404, 405].includes(generalResponse.status)) {
+        await requireOk(generalResponse, "No se pudo cargar el plan.");
+      }
+      const generalPlan = (await subscriptionsService.listAdminPlans(signal)).find((item) => item.id === id);
+      if (!generalPlan) throw new Error("No se encontró el plan solicitado.");
+      return { ...generalPlan, special_image_limits: undefined };
     } else if (![404, 405].includes(response.status)) {
       await requireOk(response, "No se pudo cargar el plan.");
     }
 
     const listResponse = await fetchWithAuth(`/api/plans/?skip=0&limit=1000&${query}`, options);
+    if (listResponse.status === 403) {
+      const generalPlan = (await subscriptionsService.listAdminPlans(signal)).find((item) => item.id === id);
+      if (!generalPlan) throw new Error("No se encontró el plan solicitado.");
+      return { ...generalPlan, special_image_limits: undefined };
+    }
     await requireOk(listResponse, "No se pudo cargar el plan.");
     const plan = pickArray<AdminPlan>(await readJson<unknown>(listResponse)).find((item) => item.id === id);
     if (!plan) throw new Error("No se encontró el plan solicitado.");
