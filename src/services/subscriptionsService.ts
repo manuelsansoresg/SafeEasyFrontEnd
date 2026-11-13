@@ -264,6 +264,15 @@ export const subscriptionsService = {
   async getAdminPlan(id: number, signal?: AbortSignal): Promise<AdminPlan> {
     const options = { signal, cache: "no-store", headers: { Accept: "application/json" } } as const;
     const path = `/api/plans/${id}`;
+    const adminResponse = await fetchWithAuth(`/api/admin/plans/${id}`, options);
+    if (adminResponse.ok) {
+      const plan = await readJson<AdminPlan>(adminResponse);
+      if (plan?.id === id && Array.isArray(plan.special_image_limits)) return plan;
+      throw new Error("La API devolvió un plan sin sus reglas especiales.");
+    }
+    if (![404, 405].includes(adminResponse.status)) {
+      await requireOk(adminResponse, "No se pudieron cargar las reglas especiales del plan.");
+    }
     // Keep authenticated rule reads separate from cached public plan responses.
     const query = new URLSearchParams({
       include_special_image_limits: "true",
