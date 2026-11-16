@@ -11,7 +11,6 @@ import { isAdminRole, isSupplierRole, resolveCurrentSupplier, type SupplierBusin
 import { getSpanishErrorMessage } from "@/lib/errorMessages";
 import { canSubscriptionManageProducts, isSubscriptionActive } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
-import type { Subscription } from "@/types/subscriptions";
 import { 
   Loader2, 
   CheckCircle, 
@@ -219,13 +218,27 @@ export default function ProductForm({
     supplierCategoryId: formData.supplier_category_id,
     supplierSubcategoryId: formData.supplier_subcategory_id,
   };
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
-  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const subscriptionQuery = useQuery({
+    queryKey: ["product-form-subscription", user?.id],
+    queryFn: () => subscriptionsService.getMySubscription(),
+    enabled: isSupplierUser && Boolean(token),
+    retry: false,
+  });
+  const subscription = subscriptionQuery.data ?? null;
+  const subscriptionLoading = isSupplierUser && subscriptionQuery.isPending;
   const activeSubscription = isSubscriptionActive(subscription);
   const canManageProducts = !isSupplierUser || canSubscriptionManageProducts(subscription);
   const imageLimit = isSupplierUser && activeSubscription ? subscription?.plan?.max_images_per_product ?? null : null;
-  const isCreationBlockedBySubscription = isSupplierUser && (subscriptionLoading || !canManageProducts);
+  const subscriptionNotice = !isSupplierUser || subscriptionLoading
+    ? null
+    : subscriptionQuery.isError
+      ? "No pudimos validar tu suscripción. Recarga la página para intentarlo de nuevo."
+      : !activeSubscription
+        ? `Tu suscripción no está activa. Renueva tu plan para publicar ${catalog.plural}.`
+        : !canManageProducts
+          ? `Tu suscripción actual no habilita la administración de ${catalog.plural}.`
+          : null;
+  const isCreationBlockedBySubscription = subscriptionLoading || subscriptionNotice !== null;
 
   useEffect(() => {
     if (!toast) return;
@@ -233,33 +246,6 @@ export default function ProductForm({
     return () => window.clearTimeout(id);
   }, [toast]);
 
-  useEffect(() => {
-    if (!token || !isSupplierUser) return;
-    let cancelled = false;
-
-    const loadSubscription = async () => {
-      setSubscriptionLoading(true);
-      setSubscriptionError(null);
-      try {
-        const data = await subscriptionsService.getMySubscription();
-        if (!cancelled) setSubscription(data);
-      } catch (error) {
-        console.error("Error loading supplier subscription:", error);
-        if (!cancelled) {
-          setSubscription(null);
-          setSubscriptionError(error instanceof Error ? error.message : "No pudimos validar tu suscripción.");
-        }
-      } finally {
-        if (!cancelled) setSubscriptionLoading(false);
-      }
-    };
-
-    loadSubscription();
-    return () => {
-      cancelled = true;
-    };
-  }, [isSupplierUser, token]);
-  
   // Media Upload
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
@@ -470,7 +456,7 @@ export default function ProductForm({
         return;
     }
     if (isCreationBlockedBySubscription) {
-      setError(subscriptionError || `Tu suscripción actual no habilita la administración de ${catalog.plural}.`);
+      if (subscriptionNotice) setError(subscriptionNotice);
       return;
     }
 
@@ -634,21 +620,15 @@ export default function ProductForm({
     <>
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        {isCreationBlockedBySubscription ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            Tu subscripción no está activa. Renueva tu plan para publicar {catalog.plural}.
-          </div>
-        ) : null}
-
-        {isSupplierUser && !subscriptionLoading && !canManageProducts ? (
-          <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            {subscriptionError || `Tu suscripción actual no habilita la administración de ${catalog.plural}.`}
+        {subscriptionNotice ? (
+          <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            {subscriptionNotice}
           </p>
         ) : null}
-        {subscriptionLoading && isSupplierUser ? (
+        {subscriptionLoading ? (
           <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
             <Loader2 size={16} className="animate-spin" />
-            Validando subscripción...
+            Validando suscripción…
           </div>
         ) : null}
 
@@ -881,7 +861,7 @@ export default function ProductForm({
           </button>
           <button
             type="submit"
-            disabled={isSubmitting || subscriptionLoading || isCreationBlockedBySubscription}
+            disabled={isSubmitting || isCreationBlockedBySubscription}
             className="cursor-pointer px-6 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 flex items-center gap-2"
           >
             {isSubmitting ? (
