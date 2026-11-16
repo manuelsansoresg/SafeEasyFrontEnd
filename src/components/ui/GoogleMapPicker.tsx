@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { LatLngLiteral, loadGoogleMaps } from "@/lib/googleMaps";
 import type { GooglePlaceSelection } from "@/lib/deliveryAddress";
@@ -16,7 +16,7 @@ type Props = {
   zoom?: number;
   className?: string;
   addressLabel?: string;
-  searchOverlay?: ReactNode;
+  previewPlaces?: boolean;
 };
 
 type RemovableListener = { remove?: () => void };
@@ -61,7 +61,7 @@ export default function GoogleMapPicker({
   zoom = 15,
   className,
   addressLabel,
-  searchOverlay,
+  previewPlaces = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -76,7 +76,6 @@ export default function GoogleMapPicker({
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState(() => addressLabel?.trim() || "");
-  const hasCustomSearch = searchOverlay != null;
   const displayedQuery = addressLabel === undefined ? query : addressLabel;
 
   const defaultCenter = useMemo<LatLngLiteral>(() => {
@@ -136,6 +135,11 @@ export default function GoogleMapPicker({
             if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
             const address = place.formatted_address || input.value || "";
             setQuery(address);
+            if (previewPlaces) {
+              // Places coordinates are used only to navigate the Google map.
+              map.setCenter?.({ lat, lng });
+              return;
+            }
             onAddressChangeRef.current?.(address);
             onChangeRef.current?.({ lat, lng }, "place");
             onPlaceChangeRef.current?.({
@@ -201,7 +205,7 @@ export default function GoogleMapPicker({
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         onChangeRef.current?.({ lat, lng }, "click");
       }) ?? null;
-    } else if (!hasCustomSearch) {
+    } else if (!previewPlaces) {
       marker.setDraggable?.(false);
       clickListenerRef.current = map.addListener?.("click", () => {
         const pos = marker.getPosition?.();
@@ -211,13 +215,12 @@ export default function GoogleMapPicker({
         window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
       }) ?? null;
     }
-  }, [hasCustomSearch, readOnly, ready]);
+  }, [previewPlaces, readOnly, ready]);
 
   return (
     <div className={cn("w-full rounded-lg border border-gray-200 overflow-hidden bg-white", className)}>
       <div className="relative" style={{ height }}>
         <div className="absolute left-3 right-3 top-3 z-10">
-          {searchOverlay ?? (
           <div className="relative">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
             <input
@@ -248,7 +251,6 @@ export default function GoogleMapPicker({
               </button>
             ) : null}
           </div>
-          )}
         </div>
         <div ref={containerRef} className="h-full w-full" />
         {!ready && !loadError && (

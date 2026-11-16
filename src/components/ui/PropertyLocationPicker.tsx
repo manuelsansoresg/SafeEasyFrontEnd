@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, MapPin, Search, X } from "lucide-react";
+import { useId, useMemo, useState } from "react";
+import { CheckCircle2, MapPin, X } from "lucide-react";
 import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
-import { fetchWithAuth } from "@/lib/api";
 import { validPropertyCoordinates, type PropertyLocation } from "@/lib/propertyLocation";
 
 type Props = {
@@ -15,43 +14,10 @@ type Props = {
 export default function PropertyLocationPicker({ value, onChange, disabled }: Props) {
   const addressId = useId();
   const titleId = useId();
-  const [query, setQuery] = useState("");
   const lat = value?.lat;
   const lng = value?.lng;
   const mapPoint = useMemo(() => lat != null && lng != null ? { lat, lng } : null, [lat, lng]);
-  const [search, setSearch] = useState<{
-    query: string;
-    results: PropertyLocation[];
-    failed?: boolean;
-  } | null>(null);
   const [selectionError, setSelectionError] = useState("");
-  const term = query.trim();
-  const currentSearch = search?.query === term ? search : null;
-  const searching = term.length >= 4 && !currentSearch && !disabled;
-  const results = currentSearch?.results ?? [];
-
-  useEffect(() => {
-    if (term.length < 4 || disabled) return;
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      try {
-        const response = await fetchWithAuth(`/api/property-address-search/?q=${encodeURIComponent(term)}`, {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        if (!response.ok) throw new Error("Address search failed");
-        const { results }: { results: PropertyLocation[] } = await response.json();
-        if (!controller.signal.aborted) setSearch({ query: term, results });
-      } catch {
-        if (!controller.signal.aborted) setSearch({ query: term, results: [], failed: true });
-      }
-    }, 450);
-
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [term, disabled]);
 
   function choosePoint(point: PropertyLocation | null) {
     if (point && !validPropertyCoordinates(point.lat, point.lng)) {
@@ -59,8 +25,6 @@ export default function PropertyLocationPicker({ value, onChange, disabled }: Pr
       return;
     }
     setSelectionError("");
-    setQuery("");
-    setSearch(null);
     onChange(point);
   }
 
@@ -71,51 +35,14 @@ export default function PropertyLocationPicker({ value, onChange, disabled }: Pr
         <h2 id={titleId} className="font-semibold text-primary">Ubicación del inmueble</h2>
         <span className="text-sm text-gray-500">(Opcional)</span>
       </div>
-      <p className="text-sm text-gray-600">Busca una dirección o toca el mapa para colocar el marcador. Arrástralo para ajustar el punto.</p>
+      <p className="text-sm text-gray-600">Busca una dirección y elige una sugerencia para acercarte. Luego toca el mapa para marcar la ubicación exacta del inmueble.</p>
       <GoogleMapPicker
         location={mapPoint}
         readOnly={disabled}
         height="300px"
+        previewPlaces
         onChange={(point, source) => choosePoint({ ...point, address: source === "drag" ? value?.address ?? null : null })}
-        searchOverlay={
-          <div className="space-y-1.5">
-            <div className="relative">
-              <Search size={16} className="pointer-events-none absolute top-2.5 left-3 text-gray-500" aria-hidden="true" />
-              <input
-                aria-label="Buscar dirección"
-                type="search"
-                autoComplete="off"
-                maxLength={160}
-                disabled={disabled}
-                value={query}
-                placeholder="Buscar dirección"
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") event.preventDefault();
-                }}
-                className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
-            </div>
-            {results.length > 0 && !disabled && (
-              <ul aria-label="Sugerencias de dirección" className="max-h-48 divide-y divide-gray-100 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-                {results.map((point, index) => (
-                  <li key={`${point.lat},${point.lng},${index}`}>
-                    <button type="button" onClick={() => choosePoint(point)} className="min-h-11 w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus-visible:bg-gray-50">
-                      {point.address}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        }
       />
-      <div aria-live="polite" className="text-sm text-gray-600">
-        {searching && <span className="inline-flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Buscando direcciones…</span>}
-        {currentSearch?.failed && "No se pudo buscar la dirección. Marca el punto en el mapa y escribe la dirección debajo."}
-        {currentSearch && !currentSearch.failed && !results.length && "Sin coincidencias. Prueba otra dirección o marca el punto en el mapa."}
-      </div>
-      <p className="text-xs text-gray-500">Búsqueda de direcciones por <a href="https://www.geoapify.com/" className="underline" target="_blank" rel="noreferrer">Geoapify</a>.</p>
       {selectionError && <p role="alert" className="text-sm text-red-600">{selectionError}</p>}
       {value && (
         <div className="flex flex-wrap items-center justify-between gap-2">
