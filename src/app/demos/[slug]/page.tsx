@@ -58,6 +58,7 @@ export default async function DemoSupplierPage({ params, searchParams }: Props) 
       : [];
   const supplier = {
     ...demo,
+    business_type: demo.business_type ?? (products.some((product) => product.is_real_estate === true) ? "inmuebles" : undefined),
     slug,
     is_active: true,
     carousel_images: carouselImages,

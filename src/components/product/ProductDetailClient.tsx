@@ -268,8 +268,10 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [cartToast, setCartToast] = useState<null | { type: "success" | "error"; message: string }>(null);
   const catalog = catalogLabels(
-    businessType ?? product?.supplier?.business_type ?? product?.supplier_business_type ??
-    initialProduct.supplier?.business_type ?? initialProduct.supplier_business_type,
+    (product?.is_real_estate === true || initialProduct.is_real_estate === true)
+      ? "inmuebles"
+      : businessType ?? product?.supplier?.business_type ?? product?.supplier_business_type ??
+        initialProduct.supplier?.business_type ?? initialProduct.supplier_business_type,
   );
   const supplierSlug = product?.supplier?.slug || initialProduct.supplier?.slug;
   const catalogHref = demoCatalogHref ?? (catalog.isRealEstate && supplierSlug
@@ -282,6 +284,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
     true;
   const supplierSubscriptionActive = productHasActiveSupplierSubscription(product);
   const isDirectory = supplierHasDirectorySubscription(product?.supplier);
+  const showStoreCommerce = supplierHasStore && !isDirectory && !catalog.isRealEstate;
   const isOwnProduct = Boolean(
     user &&
       product &&
@@ -729,17 +732,21 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
           <div className="flex items-center text-sm text-gray-500">
             <Link href={catalogHref ?? "/"} className="hover:text-primary">{catalogHref ? `Volver a ${catalog.plural}` : "Inicio"}</Link>
             <ChevronRight size={14} className="mx-2" />
-            {product.category?.slug ? (
-              <Link
-                href={`/categorias/${product.category.slug}`}
-                className="truncate text-gray-900 hover:text-primary"
-              >
-                {product.category.name}
-              </Link>
-            ) : (
-              <span className="text-gray-900 truncate">{product.category?.name}</span>
+            {product.category?.name && (
+              <>
+                {product.category?.slug ? (
+                  <Link
+                    href={`/categorias/${product.category.slug}`}
+                    className="truncate text-gray-900 hover:text-primary"
+                  >
+                    {product.category.name}
+                  </Link>
+                ) : (
+                  <span className="text-gray-900 truncate">{product.category?.name}</span>
+                )}
+                <ChevronRight size={14} className="mx-2" />
+              </>
             )}
-            <ChevronRight size={14} className="mx-2" />
             <span className="text-gray-900 font-medium truncate">{product.title}</span>
           </div>
         </div>
@@ -836,21 +843,23 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
                   <span className="text-sm text-gray-500">({product.average_rating ? Number(product.average_rating).toFixed(1) : '0.0'})</span>
                 </div>
 
-                {supplierHasStore ? (
+                {supplierHasStore || catalog.isRealEstate ? (
                   <div className="flex items-center gap-4 mb-6 text-sm text-gray-500">
                     <div className="flex items-center gap-1">
                       <span className="font-medium text-gray-900">{catalog.reference}:</span>
                       <span className="font-mono">{product.sku}</span>
                     </div>
+                    {!catalog.isRealEstate && <>
                       <div className="w-px h-4 bg-gray-300"></div>
                       <div className="flex items-center gap-1">
                          <span className={`inline-block w-2 h-2 rounded-full ${product.stock > 0 ? 'bg-green-500' : 'bg-red-500'}`}></span>
                          <span>{product.stock > 0 ? 'En Stock' : 'Agotado'}</span>
                       </div>
+                    </> }
                   </div>
                 ) : null}
 
-                {supplierHasStore ? (
+                {supplierHasStore || catalog.isRealEstate ? (
                   <div className="mb-8">
                     <div className="flex items-baseline gap-2">
                       <span className="text-4xl font-bold text-primary">
@@ -858,11 +867,11 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
                       </span>
                       <span className="text-sm text-gray-500 font-medium">MXN</span>
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">Precio por unidad (IVA incluido)</p>
+                    {!catalog.isRealEstate && <p className="text-sm text-gray-500 mt-1">Precio por unidad (IVA incluido)</p>}
                   </div>
                 ) : null}
 
-                {supplierHasStore && !isDirectory ? (
+                {showStoreCommerce ? (
                   <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mb-8">
                     <div className="flex flex-col gap-4">
                       <div className="flex justify-between items-center">
@@ -921,7 +930,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
                 ) : null}
 
                 {/* Supplier Info Link */}
-                {supplierHasStore && product.supplier && product.supplier.slug && (
+                {(supplierHasStore || catalog.isRealEstate) && product.supplier && product.supplier.slug && (
                   <div className="mb-6 bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
                     <Link href={demoCatalogHref ?? `/empresas/${product.supplier.slug}`} className="flex items-center gap-4 group">
                       <div className="w-12 h-12 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
@@ -936,7 +945,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-500 mb-0.5">Vendido por</p>
+                        <p className="text-xs text-gray-500 mb-0.5">{catalog.isRealEstate ? "Publicado por" : "Vendido por"}</p>
                         <h3 className="font-bold text-gray-900 group-hover:text-primary transition-colors truncate pr-2 flex items-center gap-2">
                           <span className="truncate">{product.supplier.name || "Tienda"}</span>
                           {product.supplier.is_verified ? (
@@ -952,7 +961,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
                 )}
 
                 {/* Actions */}
-                {!supplierHasStore && !propertyLocation ? (
+                {!supplierHasStore && !catalog.isRealEstate && !propertyLocation ? (
                   <div className="mb-8 border-l-4 border-[#004e28] bg-[#f2f3f4] px-6 py-5">
                     <p className="mb-4 text-base font-bold text-gray-900">{catalog.isRealEstate ? "Detalles de la propiedad" : "Descripción"}</p>
                     <div className="text-[15px] leading-7 text-gray-700">
@@ -968,7 +977,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
                 ) : null}
 
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                  {supplierHasStore && !isDirectory ? (
+                  {showStoreCommerce ? (
                     <button 
                       onClick={handleAddToCart}
                       disabled={isDemo || isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive}
@@ -993,14 +1002,14 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
                     disabled={isDemo}
                     className={cn(
                       "disabled:opacity-50 px-6 py-4 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 font-semibold",
-                      supplierHasStore && !isDirectory
+                      showStoreCommerce
                         ? "border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 text-gray-700"
                         : "flex-1 bg-[#168e00] text-white shadow-lg shadow-[#168e00]/15 hover:bg-[#137500]"
                     )}
-                    title="Chat con la tienda"
+                    title={catalog.isRealEstate ? "Contactar al anunciante" : "Chat con la tienda"}
                   >
-                    <MessageCircle size={22} className={supplierHasStore && !isDirectory ? "text-primary" : "text-white"} />
-                    {supplierHasStore && !isDirectory ? "Chat" : "Contactar"}
+                    <MessageCircle size={22} className={showStoreCommerce ? "text-primary" : "text-white"} />
+                    {showStoreCommerce ? "Chat" : "Contactar"}
                   </button>
 
                   <button 
@@ -1020,7 +1029,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
                 </div>
 
                 {/* Safety Badges */}
-                {supplierHasStore && !isDirectory ? (
+                {showStoreCommerce ? (
                   <div className="grid grid-cols-2 gap-4 pt-6 border-t border-gray-100">
                     <div className="flex items-start gap-3">
                       <ShieldCheck className="text-green-600 shrink-0" size={20} />
@@ -1043,7 +1052,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
           </div>
 
           {/* Description Section */}
-          {supplierHasStore || propertyLocation ? (
+          {supplierHasStore || catalog.isRealEstate || propertyLocation ? (
           <div className="border-t border-gray-100 p-6 lg:p-8 bg-gray-50/50">
             <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Package size={20} className="text-primary" />
@@ -1115,7 +1124,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
         </div>
         {similarProducts.length > 0 && (
           <section className="mt-16 border-t pt-10">
-             <h2 className="text-2xl font-bold mb-6 text-gray-800">{catalog.isRealEstate ? "Publicaciones similares" : "Productos Similares"}</h2>
+             <h2 className="text-2xl font-bold mb-6 text-gray-800">{catalog.isRealEstate ? "Propiedades similares" : "Productos Similares"}</h2>
              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                {similarProducts.map((p) => (
                  <ProductCard 
@@ -1125,6 +1134,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
                     price={p.price}
                     image={p.thumbnail_url || ""}
                     minOrder="1 pieza"
+                    isRealEstate={p.is_real_estate === true ? true : undefined}
                     slug={p.slug}
                     rating={Number(p.average_rating || 0)}
                  />

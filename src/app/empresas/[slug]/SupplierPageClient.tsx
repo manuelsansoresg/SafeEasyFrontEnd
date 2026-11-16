@@ -1730,6 +1730,7 @@ const contactHref = supplier?.phone
             <div className="mb-10 md:mb-12">
               <SupplierCatalogFilters
                 label={isDirectory ? "servicios" : catalog.plural}
+                allLabel={!isDirectory && catalog.isRealEstate ? "Todas" : undefined}
                 categories={productCategories}
                 selectedCategory={selectedProductCategory}
                 selectedSubcategory={selectedProductSubcategory}
@@ -1774,7 +1775,7 @@ const contactHref = supplier?.phone
                     </p>
                 </div>
             ) : (
-                <div className={`grid gap-8 md:gap-10 ${isDirectory ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"}`}>
+                <div className={`grid gap-8 md:gap-10 ${isDirectory || catalog.isRealEstate ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"}`}>
                     {visibleProducts.map((product) => (
                       <div key={product.id} className="h-full">
                         <ProductCard
@@ -1812,9 +1813,9 @@ const contactHref = supplier?.phone
         {/* Recommended Carousels */}
         {!isDirectory ? (
         <div className="mx-auto max-w-6xl space-y-8 bg-gray-50/30 px-5 py-12 md:px-8">
-             <SupplierProductCarousel supplierId={supplier.id} kind="most_searched" title="Más Buscados" />
-             <SupplierProductCarousel supplierId={supplier.id} kind="most_purchased" title="Más Comprados" />
-             <SupplierProductCarousel supplierId={supplier.id} kind="best_rated" title="Mejor Calificados" />
+             <SupplierProductCarousel supplierId={supplier.id} kind="most_searched" title={catalog.isRealEstate ? "Más buscadas" : "Más Buscados"} isRealEstate={catalog.isRealEstate || undefined} />
+             {!catalog.isRealEstate && <SupplierProductCarousel supplierId={supplier.id} kind="most_purchased" title="Más Comprados" />}
+             <SupplierProductCarousel supplierId={supplier.id} kind="best_rated" title={catalog.isRealEstate ? "Mejor calificadas" : "Mejor Calificados"} isRealEstate={catalog.isRealEstate || undefined} />
         </div>
         ) : null}
 

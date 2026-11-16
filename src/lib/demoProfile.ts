@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { getApiBaseUrl } from "@/lib/seo";
+import type { ProductPropertyLocation } from "@/lib/propertyLocation";
 import type { Supplier } from "@/lib/products";
 import type { SupplierGalleryImage } from "@/types/supplierGallery";
 import type { Menu } from "@/types/menu";
@@ -20,7 +21,7 @@ export type DemoSupplier = Partial<Supplier> & {
   gallery_images?: SupplierGalleryImage[];
 };
 
-export type DemoProduct = {
+export type DemoProduct = ProductPropertyLocation & {
   id?: number | string;
   slug: string;
   title: string;
