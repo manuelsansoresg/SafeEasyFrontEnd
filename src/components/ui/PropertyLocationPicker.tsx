@@ -35,7 +35,7 @@ export default function PropertyLocationPicker({ value, onChange, disabled }: Pr
         <h2 id={titleId} className="font-semibold text-primary">Ubicación del inmueble</h2>
         <span className="text-sm text-gray-500">(Opcional)</span>
       </div>
-      <p className="text-sm text-gray-600">Busca una dirección y elige una sugerencia para acercarte. Luego toca el mapa para marcar la ubicación exacta del inmueble.</p>
+      <p className="text-sm text-gray-600">Elige una dirección para ver el pin. Para guardar la ubicación, arrastra el pin al punto exacto o toca el mapa donde está el inmueble.</p>
       <GoogleMapPicker
         location={mapPoint}
         readOnly={disabled}

@@ -136,8 +136,10 @@ export default function GoogleMapPicker({
             const address = place.formatted_address || input.value || "";
             setQuery(address);
             if (previewPlaces) {
-              // Places coordinates are used only to navigate the Google map.
-              map.setCenter?.({ lat, lng });
+              // Keep the suggestion on the Google map until the user places the property pin.
+              const point = { lat, lng };
+              markerRef.current?.setPosition?.(point);
+              map.setCenter?.(point);
               return;
             }
             onAddressChangeRef.current?.(address);
@@ -241,6 +243,7 @@ export default function GoogleMapPicker({
                 onClick={() => {
                   setQuery("");
                   onAddressChangeRef.current?.("");
+                  if (previewPlaces) markerRef.current?.setPosition?.(location ?? null);
                   inputRef.current?.focus();
                 }}
                 className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/40"
