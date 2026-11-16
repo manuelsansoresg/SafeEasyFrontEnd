@@ -20,6 +20,7 @@ export default function PropertyLocationPicker({ value, onChange, disabled }: Pr
   const [selectionError, setSelectionError] = useState("");
 
   function choosePoint(point: PropertyLocation | null) {
+    if (disabled) return;
     if (point && !validPropertyCoordinates(point.lat, point.lng)) {
       setSelectionError("Ese punto no es válido. Selecciona otra ubicación en el mapa.");
       return;
@@ -35,13 +36,21 @@ export default function PropertyLocationPicker({ value, onChange, disabled }: Pr
         <h2 id={titleId} className="font-semibold text-primary">Ubicación del inmueble</h2>
         <span className="text-sm text-gray-500">(Opcional)</span>
       </div>
-      <p className="text-sm text-gray-600">Elige una dirección para ver el pin. Para guardar la ubicación, arrastra el pin al punto exacto o toca el mapa donde está el inmueble.</p>
+      <p className="text-sm text-gray-600">Elige una dirección o toca el mapa para marcar la ubicación. Puedes arrastrar el pin para ajustarlo.</p>
       <GoogleMapPicker
         location={mapPoint}
         readOnly={disabled}
         height="300px"
-        previewPlaces
-        onChange={(point, source) => choosePoint({ ...point, address: source === "drag" ? value?.address ?? null : null })}
+        openOnReadOnly={false}
+        onPlaceChange={({ location, formattedAddress }) => choosePoint({
+          ...location,
+          address: formattedAddress || null,
+        })}
+        onChange={(point, source) => {
+          if (source !== "place") {
+            choosePoint({ ...point, address: source === "drag" ? value?.address ?? null : null });
+          }
+        }}
       />
       {selectionError && <p role="alert" className="text-sm text-red-600">{selectionError}</p>}
       {value && (

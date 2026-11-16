@@ -16,7 +16,7 @@ type Props = {
   zoom?: number;
   className?: string;
   addressLabel?: string;
-  previewPlaces?: boolean;
+  openOnReadOnly?: boolean;
 };
 
 type RemovableListener = { remove?: () => void };
@@ -61,7 +61,7 @@ export default function GoogleMapPicker({
   zoom = 15,
   className,
   addressLabel,
-  previewPlaces = false,
+  openOnReadOnly = true,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -135,13 +135,6 @@ export default function GoogleMapPicker({
             if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
             const address = place.formatted_address || input.value || "";
             setQuery(address);
-            if (previewPlaces) {
-              // Keep the suggestion on the Google map until the user places the property pin.
-              const point = { lat, lng };
-              markerRef.current?.setPosition?.(point);
-              map.setCenter?.(point);
-              return;
-            }
             onAddressChangeRef.current?.(address);
             onChangeRef.current?.({ lat, lng }, "place");
             onPlaceChangeRef.current?.({
@@ -207,7 +200,7 @@ export default function GoogleMapPicker({
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         onChangeRef.current?.({ lat, lng }, "click");
       }) ?? null;
-    } else if (!previewPlaces) {
+    } else if (openOnReadOnly) {
       marker.setDraggable?.(false);
       clickListenerRef.current = map.addListener?.("click", () => {
         const pos = marker.getPosition?.();
@@ -217,7 +210,7 @@ export default function GoogleMapPicker({
         window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
       }) ?? null;
     }
-  }, [previewPlaces, readOnly, ready]);
+  }, [openOnReadOnly, readOnly, ready]);
 
   return (
     <div className={cn("w-full rounded-lg border border-gray-200 overflow-hidden bg-white", className)}>
@@ -243,7 +236,6 @@ export default function GoogleMapPicker({
                 onClick={() => {
                   setQuery("");
                   onAddressChangeRef.current?.("");
-                  if (previewPlaces) markerRef.current?.setPosition?.(location ?? null);
                   inputRef.current?.focus();
                 }}
                 className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/40"
