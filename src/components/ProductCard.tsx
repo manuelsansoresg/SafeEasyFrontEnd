@@ -5,6 +5,8 @@ import { CheckCircle, Heart, Star } from "lucide-react";
 import slugify from "slugify";
 import { Supplier } from "@/lib/products";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
+import { getPropertyOperationLabels, type PropertyOperationType } from "@/lib/propertyOperation";
+import { PropertyOperationBadge } from "@/components/product/PropertyOperationBadge";
 import { catalogLabels } from "@/lib/catalogLabels";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
@@ -19,6 +21,7 @@ interface ProductCardProps {
   image: string;
   minOrder?: string;
   isRealEstate?: boolean;
+  propertyOperationType?: PropertyOperationType | null;
   slug: string;
   detailHref?: string;
   rating?: number;
@@ -34,6 +37,7 @@ export function ProductCard({
   image,
   minOrder = "1 pieza",
   isRealEstate,
+  propertyOperationType,
   slug,
   detailHref = `/product/${slug}`,
   rating = 0,
@@ -106,6 +110,7 @@ export function ProductCard({
   };
 
   const isProperty = isRealEstate ?? catalogLabels(supplier?.business_type).isRealEstate;
+  const operationLabels = isProperty ? getPropertyOperationLabels(propertyOperationType) : null;
   const displayPrice = (typeof price === 'number' ? price : 0).toLocaleString(isProperty ? 'es-MX' : 'en-US', { useGrouping: isProperty, maximumFractionDigits: 0 });
 
   const handleImgError = () => {
@@ -208,9 +213,11 @@ export function ProductCard({
             </h3>
           </Link>
           
-          <div className="flex items-baseline gap-1 mt-2">
+          {isProperty && <PropertyOperationBadge operation={propertyOperationType} />}
+          <div className="mt-2 flex flex-wrap items-baseline gap-1">
              <span className="text-sm font-medium text-gray-400">$</span>
              <span className="text-2xl font-black text-[var(--supplier-heading,#004e28)] tracking-tight font-[family-name:var(--font-poppins)]">{displayPrice}</span>
+             {operationLabels && <span className="text-xs text-gray-500">{operationLabels.priceUnit}</span>}
              {!isProperty && minOrder && <span className="text-xs text-gray-400 ml-1 font-normal">/ {minOrder}</span>}
           </div>
         </div>

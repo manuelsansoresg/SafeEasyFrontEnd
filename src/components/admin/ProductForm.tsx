@@ -25,6 +25,7 @@ import { Toast } from "@/components/ui/Toast";
 import { SupplierClassificationPicker } from "@/components/admin/SupplierClassificationPicker";
 import type { SupplierClassification } from "@/types/supplierCategories";
 
+import { getPropertyOperationLabels, type PropertyOperationType } from "@/lib/propertyOperation";
 import { appendPropertyLocation, readPropertyLocation, type ProductPropertyLocation, type PropertyLocation } from "@/lib/propertyLocation";
 
 const PropertyLocationPicker = dynamic(() => import("@/components/ui/PropertyLocationPicker"), {
@@ -57,6 +58,7 @@ interface Supplier {
 }
 
 export interface EditableProduct extends ProductPropertyLocation {
+  property_operation_type?: PropertyOperationType | null;
   id: string;
   title: string;
   description: string;
@@ -166,6 +168,7 @@ export default function ProductForm({
   const [savedProduct, setSavedProduct] = useState<EditableProduct | null>(null);
   const product = savedProduct ?? initialData;
   const editing = isEditMode || savedProduct !== null;
+  const [operationDraft, setOperationDraft] = useState<PropertyOperationType | "">();
   const [locationDraft, setLocationDraft] = useState<PropertyLocation | null | undefined>();
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(initialData?.supplier ?? null);
   const supplierId = formData.supplier_id;
@@ -205,6 +208,8 @@ export default function ProductForm({
     : classifiedSupplier?.business_type_id !== null && productRealEstate;
   const catalog = catalogLabels(isRealEstate ? "inmuebles" : null);
   const canSetLocation = isRealEstate && (hasFreshProductData || savedProduct !== null);
+  const operation = operationDraft ?? product?.property_operation_type ?? "";
+  const operationLabels = catalog.isRealEstate ? getPropertyOperationLabels(operation) : null;
   const location = locationDraft === undefined ? readPropertyLocation(product) : locationDraft;
 
   useEffect(() => {
@@ -434,7 +439,10 @@ export default function ProductForm({
   }
 
   const selectSupplier = (supplier: Supplier) => {
-    if (supplier.id !== supplierId) setLocationDraft(undefined);
+    if (supplier.id !== supplierId) {
+      setLocationDraft(undefined);
+      setOperationDraft(undefined);
+    }
     setSelectedSupplier(supplier);
     setFormData(prev => ({
       ...prev,
@@ -489,6 +497,9 @@ export default function ProductForm({
       const slug = savedProduct?.slug || slugify(`${formData.title}-${randomSuffix}`, { lower: true, strict: true });
 
       const payload = new FormData();
+      if (catalog.isRealEstate && operationDraft !== undefined && (editing || operationDraft !== "")) {
+        payload.append("property_operation_type", operationDraft);
+      }
       if (canSetLocation && locationDraft !== undefined) {
         appendPropertyLocation(payload, locationDraft, product);
       }
@@ -576,6 +587,13 @@ export default function ProductForm({
           throw new Error("El servidor no confirmó el cambio de ubicación. Revisa el punto y vuelve a guardar.");
         }
         setLocationDraft(undefined);
+      }
+
+      if (payload.has("property_operation_type")) {
+        if (persisted.property_operation_type !== (operationDraft || null)) {
+          throw new Error("El servidor no confirmó el tipo de operación. Vuelve a intentarlo.");
+        }
+        setOperationDraft(undefined);
       }
 
       // Handle Media Upload
@@ -696,12 +714,35 @@ export default function ProductForm({
             />
           </div>
 
+          {catalog.isRealEstate && (
+            <div className="space-y-2">
+              <label htmlFor="property-operation-type" className="text-sm font-medium text-gray-700">
+                Tipo de operación <span className="font-normal text-gray-500">(opcional)</span>
+              </label>
+              <select
+                id="property-operation-type"
+                value={operation}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setOperationDraft(value === "sale" || value === "rent" ? value : "");
+                }}
+                disabled={isSubmitting}
+                className={`${fieldClassName} bg-white`}
+              >
+                <option value="">Sin especificar</option>
+                <option value="sale">Venta</option>
+                <option value="rent">Renta</option>
+              </select>
+            </div>
+          )}
+
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Precio *</label>
+            <label htmlFor="product-price" className="text-sm font-medium text-gray-700">{operationLabels?.priceLabel ?? "Precio"} *</label>
             <div className="relative">
               <span className="absolute left-3 top-2 text-gray-400">$</span>
               <input
                 type="number"
+                id="product-price"
                 name="price"
                 required
                 min="0"

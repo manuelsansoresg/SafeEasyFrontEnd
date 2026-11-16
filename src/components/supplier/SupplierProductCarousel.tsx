@@ -3,9 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
+import type { PropertyOperationType } from "@/lib/propertyOperation";
 import { ProductCard } from "@/components/ProductCard";
 
 interface SupplierProduct {
+  property_operation_type?: PropertyOperationType | null;
   id: string | number;
   title: string;
   price: number;
@@ -173,6 +175,7 @@ export function SupplierProductCarousel({
                 image={product.thumbnail_url || ""}
                 minOrder="1 pza"
                 isRealEstate={isRealEstate}
+                propertyOperationType={product.property_operation_type}
                 slug={product.slug}
                 rating={product.average_rating || 0}
                 sales={product.sales_count || product.stock}
