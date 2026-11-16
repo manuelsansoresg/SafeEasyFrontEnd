@@ -1,12 +1,13 @@
 "use client";
 
-import { useSupplierCatalogLabels } from "@/hooks/useSupplierCatalogLabels";
+import { useQuery } from "@tanstack/react-query";
+import { catalogLabels } from "@/lib/catalogLabels";
 import { useState, useEffect, useRef, type ClipboardEvent } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { fetchWithAuth } from "@/lib/api";
-import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
+import { isAdminRole, isSupplierRole, resolveCurrentSupplier, type SupplierBusinessType } from "@/lib/currentSupplier";
 import { getSpanishErrorMessage } from "@/lib/errorMessages";
 import { canSubscriptionManageProducts, isSubscriptionActive } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
@@ -24,6 +25,13 @@ import MultiFileUpload from "@/components/ui/MultiFileUpload";
 import { Toast } from "@/components/ui/Toast";
 import { SupplierClassificationPicker } from "@/components/admin/SupplierClassificationPicker";
 import type { SupplierClassification } from "@/types/supplierCategories";
+
+import { appendPropertyLocation, readPropertyLocation, type ProductPropertyLocation, type PropertyLocation } from "@/lib/propertyLocation";
+
+const PropertyLocationPicker = dynamic(() => import("@/components/ui/PropertyLocationPicker"), {
+  ssr: false,
+  loading: () => <p className="col-span-2 text-sm text-gray-600">Cargando mapa…</p>,
+});
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
@@ -46,10 +54,10 @@ interface Supplier {
   rfc?: string;
   user_id: number; 
   business_type_id?: number | null;
-  business_type?: { id: number } | null;
+  business_type?: SupplierBusinessType | null;
 }
 
-interface Product {
+export interface EditableProduct extends ProductPropertyLocation {
   id: string;
   title: string;
   description: string;
@@ -58,6 +66,7 @@ interface Product {
   sku: string;
   is_active: boolean;
   supplier_id: number;
+  supplier?: Supplier | null;
   category_id: number | null;
   subcategory_id: number | null;
   supplier_category_id?: number | null;
@@ -108,8 +117,10 @@ const initialFormData: ProductFormData = {
 };
 
 interface ProductFormProps {
-  initialData?: Product;
+  initialData?: EditableProduct;
   isEditMode?: boolean;
+  hasFreshProductData?: boolean;
+  onRealEstateChange?: (isRealEstate: boolean) => void;
 }
 
 async function readProductError(response: Response, fallback: string) {
@@ -121,8 +132,12 @@ async function readProductError(response: Response, fallback: string) {
   }
 }
 
-export default function ProductForm({ initialData, isEditMode = false }: ProductFormProps) {
-  const catalog = useSupplierCatalogLabels();
+export default function ProductForm({
+  initialData,
+  isEditMode = false,
+  hasFreshProductData = true,
+  onRealEstateChange,
+}: ProductFormProps) {
   const { token, user } = useAuthStore();
   const router = useRouter();
   const isAdminUser = isAdminRole(user?.role);
@@ -149,9 +164,53 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitting = useRef(false);
-  const [savedProduct, setSavedProduct] = useState<Product | null>(null);
+  const [savedProduct, setSavedProduct] = useState<EditableProduct | null>(null);
   const product = savedProduct ?? initialData;
   const editing = isEditMode || savedProduct !== null;
+  const [locationDraft, setLocationDraft] = useState<PropertyLocation | null | undefined>();
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(initialData?.supplier ?? null);
+  const supplierId = formData.supplier_id;
+  const supplier = selectedSupplier?.id === supplierId ? selectedSupplier : null;
+  const { data: supplierDetail } = useQuery({
+    queryKey: ["product-location-supplier", user?.id, supplierId],
+    queryFn: async ({ signal }) => {
+      const response = await fetchWithAuth(`/api/suppliers/${supplierId}`, { signal, cache: "no-store" });
+      if (!response.ok) throw new Error("No se pudo consultar el tipo de negocio.");
+      return response.json() as Promise<Supplier>;
+    },
+    enabled: Boolean(token && supplierId && (!supplier || supplier.business_type_id === undefined)),
+    staleTime: 30_000,
+    retry: false,
+  });
+  const classifiedSupplier = supplierDetail?.id === supplierId ? supplierDetail : supplier;
+  const businessTypeId = classifiedSupplier?.business_type_id === null
+    ? null
+    : classifiedSupplier?.business_type_id ?? classifiedSupplier?.business_type?.id;
+  const nestedType = classifiedSupplier?.business_type;
+  const embeddedSlug = businessTypeId && nestedType?.id === businessTypeId ? nestedType.slug : undefined;
+  const { data: businessTypes } = useQuery({
+    queryKey: ["product-location-business-types"],
+    queryFn: async ({ signal }) => {
+      const response = await fetchWithAuth("/api/business-types", { signal, cache: "no-store" });
+      if (!response.ok) throw new Error("No se pudieron consultar los tipos de negocio.");
+      return response.json() as Promise<SupplierBusinessType[]>;
+    },
+    enabled: Boolean(token && businessTypeId && !embeddedSlug),
+    staleTime: 30_000,
+    retry: false,
+  });
+  const businessTypeSlug = embeddedSlug ?? businessTypes?.find((type) => type.id === businessTypeId)?.slug;
+  const productRealEstate = product?.supplier_id === supplierId && product?.is_real_estate === true;
+  const isRealEstate = businessTypeSlug
+    ? businessTypeSlug === "inmuebles" || businessTypeSlug === "inmueble"
+    : classifiedSupplier?.business_type_id !== null && productRealEstate;
+  const catalog = catalogLabels(isRealEstate ? "inmuebles" : null);
+  const canSetLocation = isRealEstate && (hasFreshProductData || savedProduct !== null);
+  const location = locationDraft === undefined ? readPropertyLocation(product) : locationDraft;
+
+  useEffect(() => {
+    onRealEstateChange?.(isRealEstate);
+  }, [isRealEstate, onRealEstateChange]);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
   const classification: SupplierClassification = {
@@ -263,6 +322,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           setError("No se encontró el proveedor asociado a tu cuenta.");
           return;
         }
+        setSelectedSupplier(supplier as Supplier);
         setSuppliers([supplier as Supplier]);
         setFormData((prev) => ({ ...prev, supplier_id: supplier.id }));
         setSelectedSupplierDisplay(supplier.name);
@@ -388,6 +448,8 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   }
 
   const selectSupplier = (supplier: Supplier) => {
+    if (supplier.id !== supplierId) setLocationDraft(undefined);
+    setSelectedSupplier(supplier);
     setFormData(prev => ({
       ...prev,
       supplier_id: supplier.id,
@@ -441,6 +503,9 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       const slug = savedProduct?.slug || slugify(`${formData.title}-${randomSuffix}`, { lower: true, strict: true });
 
       const payload = new FormData();
+      if (canSetLocation && locationDraft !== undefined) {
+        appendPropertyLocation(payload, locationDraft, product);
+      }
       payload.append('title', formData.title);
       payload.append('description', formData.description);
       payload.append('price', String(formData.price));
@@ -503,11 +568,29 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         throw new Error(await readProductError(response, `Error al guardar ${catalog.theItem}`));
       }
 
-      const persisted: Product = await response.json();
+      const persisted: EditableProduct = await response.json();
       const productId = product?.id ?? persisted.id;
       setSavedProduct(persisted);
       setCoverPreview(persisted.thumbnail_url ?? persisted.image ?? null);
       setCoverImage(null);
+
+      if (payload.has("property_latitude") || payload.has("clear_property_location")) {
+        const expected = locationDraft ?? null;
+        if (
+          persisted.property_latitude !== (expected?.lat ?? null) ||
+          persisted.property_longitude !== (expected?.lng ?? null) ||
+          persisted.property_address !== (expected?.address?.trim() || null)
+        ) {
+          setSavedProduct({
+            ...persisted,
+            property_latitude: product?.property_latitude,
+            property_longitude: product?.property_longitude,
+            property_address: product?.property_address,
+          });
+          throw new Error("El servidor no confirmó el cambio de ubicación. Revisa el punto y vuelve a guardar.");
+        }
+        setLocationDraft(undefined);
+      }
 
       // Handle Media Upload
       if (selectedFiles.length > 0) {
@@ -674,6 +757,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                 <button
                   type="button"
                   onClick={() => setIsSupplierModalOpen(true)}
+                  disabled={isSubmitting}
                   className="h-11 rounded-xl bg-gray-100 px-4 text-gray-600 transition-colors hover:bg-gray-200"
                 >
                   Buscar
@@ -696,6 +780,20 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
             disabled={isSubmitting}
           />
           
+          {canSetLocation && (
+            <PropertyLocationPicker
+              key={supplierId}
+              value={location}
+              onChange={setLocationDraft}
+              disabled={isSubmitting}
+            />
+          )}
+          {isRealEstate && !canSetLocation && (
+            <p role="status" className="col-span-2 text-sm text-amber-800">
+              No se pudo consultar la ubicación guardada. Recarga la página para editarla.
+            </p>
+          )}
+
           <div className="col-span-2 space-y-2">
              {imageLimit != null && (
                <div className="space-y-1 text-sm text-gray-600" aria-live="polite">

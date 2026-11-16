@@ -1,13 +1,15 @@
 "use client";
 
-import { useSupplierCatalogLabels } from "@/hooks/useSupplierCatalogLabels";
+import { useState } from "react";
+import { catalogLabels } from "@/lib/catalogLabels";
 import ProductForm from "@/components/admin/ProductForm";
 import { PageHero } from "@/components/ui/PageHero";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 export default function CreateProductPage() {
-  const catalog = useSupplierCatalogLabels();
+  const [isRealEstate, setIsRealEstate] = useState(false);
+  const catalog = catalogLabels(isRealEstate ? "inmuebles" : null);
   return (
     <div className="space-y-6">
       <PageHero
@@ -21,7 +23,7 @@ export default function CreateProductPage() {
         }
       />
 
-      <ProductForm />
+      <ProductForm onRealEstateChange={setIsRealEstate} />
     </div>
   );
 }
