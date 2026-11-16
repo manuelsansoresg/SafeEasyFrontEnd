@@ -35,6 +35,10 @@ import { Toast } from "@/components/ui/Toast";
 import { productHasActiveSupplierSubscription, supplierHasDirectorySubscription } from "@/lib/subscriptionAccess";
 import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
 import DOMPurify from "isomorphic-dompurify";
+import PropertyLocationSection, {
+  getPublicPropertyLocation,
+  type PublicPropertyLocationFields,
+} from "@/components/product/PropertyLocationSection";
 
 // Interfaces
 interface ProductMedia {
@@ -67,7 +71,7 @@ interface Rating {
   };
 }
 
-export interface ProductDetail {
+export interface ProductDetail extends PublicPropertyLocationFields {
   id: string;
   title: string;
   description: string;
@@ -162,6 +166,10 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
   const { user, token } = useAuthStore();
   
   const [product, setProduct] = useState<ProductDetail | null>(initialProduct);
+  const [locationRefresh, setLocationRefresh] = useState<{
+    source: ProductDetail;
+    product: PublicPropertyLocationFields;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
@@ -458,6 +466,9 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
 
             if (found) {
               if (process.env.NODE_ENV === "development") console.log("[ProductDetail] Found product via list fallback by slug.", found);
+              if (String(initialProduct.id) === String(found.id)) {
+                setLocationRefresh({ source: initialProduct, product: found });
+              }
               setProduct(found as any);
               return;
             } else {
@@ -505,6 +516,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
 
       const data = await res.json();
       syncFavorites([data]);
+      setLocationRefresh({ source: initialProduct, product: data });
       setProduct(data);
     } catch (err) {
       console.error("[ProductDetail] Error:", err);
@@ -701,6 +713,9 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
     );
   }
 
+  const propertyLocation = getPublicPropertyLocation(
+    locationRefresh?.source === initialProduct ? locationRefresh.product : initialProduct,
+  );
   const mediaList = getMediaList();
   const currentMedia = mediaList.length > 0 
     ? mediaList[selectedMediaIndex] 
@@ -937,7 +952,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
                 )}
 
                 {/* Actions */}
-                {!supplierHasStore ? (
+                {!supplierHasStore && !propertyLocation ? (
                   <div className="mb-8 border-l-4 border-[#004e28] bg-[#f2f3f4] px-6 py-5">
                     <p className="mb-4 text-base font-bold text-gray-900">{catalog.isRealEstate ? "Detalles de la propiedad" : "Descripción"}</p>
                     <div className="text-[15px] leading-7 text-gray-700">
@@ -1028,7 +1043,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
           </div>
 
           {/* Description Section */}
-          {supplierHasStore ? (
+          {supplierHasStore || propertyLocation ? (
           <div className="border-t border-gray-100 p-6 lg:p-8 bg-gray-50/50">
             <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Package size={20} className="text-primary" />
@@ -1045,6 +1060,10 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
             </div>
           </div>
           ) : null}
+
+          {propertyLocation && (
+            <PropertyLocationSection location={propertyLocation} propertyName={product.title} />
+          )}
 
           {/* Reviews List */}
           <div className="mt-8 border-t border-gray-100 pt-8 p-6 lg:p-8">

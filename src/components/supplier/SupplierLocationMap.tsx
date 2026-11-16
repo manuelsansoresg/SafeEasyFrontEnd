@@ -9,6 +9,7 @@ import type { LatLngLiteral } from "@/lib/googleMaps";
 type SupplierLocationMapProps = {
   location: LatLngLiteral;
   supplierName: string;
+  variant?: "supplier" | "property";
 };
 
 function ResizeMap() {
@@ -25,7 +26,9 @@ function ResizeMap() {
 export default function SupplierLocationMap({
   location,
   supplierName,
+  variant = "supplier",
 }: SupplierLocationMapProps) {
+  const isProperty = variant === "property";
   const googleMapsUrl = useMemo(() => {
     const query = encodeURIComponent(`${location.lat},${location.lng}`);
     return `https://www.google.com/maps/search/?api=1&query=${query}`;
@@ -51,7 +54,7 @@ export default function SupplierLocationMap({
     <div className="supplier-location-map relative h-full w-full">
       <MapContainer
         center={location}
-        zoom={15}
+        zoom={isProperty ? 16 : 15}
         scrollWheelZoom={false}
         dragging
         zoomControl
@@ -66,9 +69,9 @@ export default function SupplierLocationMap({
         <Marker
           position={location}
           icon={markerIcon}
-          title={`Abrir ubicación de ${supplierName} en Google Maps`}
+          title={isProperty ? "Ubicación del inmueble" : `Abrir ubicación de ${supplierName} en Google Maps`}
           alt={`Ubicación exacta de ${supplierName}`}
-          eventHandlers={{ click: openGoogleMaps }}
+          eventHandlers={isProperty ? undefined : { click: openGoogleMaps }}
         >
           <Popup>
             <a
@@ -78,7 +81,7 @@ export default function SupplierLocationMap({
               className="supplier-location-popup-link"
             >
               <strong>{supplierName}</strong>
-              <span>Abrir ubicación exacta en Google Maps</span>
+              <span>{isProperty ? "Cómo llegar" : "Abrir ubicación exacta en Google Maps"}</span>
             </a>
           </Popup>
         </Marker>
