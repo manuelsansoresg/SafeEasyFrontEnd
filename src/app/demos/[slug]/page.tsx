@@ -70,6 +70,7 @@ export default async function DemoSupplierPage({ params, searchParams }: Props) 
     title: product.title,
     description: product.description || "",
     price: Number(product.price) || 0,
+    property_operation_type: product.property_operation_type,
     stock: Number((product as { stock?: number }).stock) || 0,
     sku: String((product as { sku?: string }).sku || ""),
     is_active: true,

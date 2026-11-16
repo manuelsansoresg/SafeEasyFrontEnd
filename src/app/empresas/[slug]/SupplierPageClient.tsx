@@ -1,5 +1,6 @@
 "use client";
 
+import type { PropertyOperationType } from "@/lib/propertyOperation";
 import { catalogLabels } from "@/lib/catalogLabels";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -310,6 +311,7 @@ interface SupplierProductSubcategory extends DrooopySubcategory {
 }
 
 interface SupplierProduct {
+  property_operation_type?: PropertyOperationType | null;
   id: string | number;
   title: string;
   description: string;
@@ -1782,6 +1784,7 @@ const contactHref = supplier?.phone
                           id={String(product.id)}
                           title={product.title}
                           price={product.price}
+                          propertyOperationType={product.property_operation_type}
                           image={
                             product.thumbnail_url ||
                             product.subcategory?.thumbnail_url ||

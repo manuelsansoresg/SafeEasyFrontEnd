@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
 import { productHasActiveSupplierSubscription, supplierHasDirectorySubscription } from "@/lib/subscriptionAccess";
 import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
+import { getPropertyOperationLabels, type PropertyOperationType } from "@/lib/propertyOperation";
 import DOMPurify from "isomorphic-dompurify";
 import PropertyLocationSection, {
   getPublicPropertyLocation,
@@ -72,6 +73,7 @@ interface Rating {
 }
 
 export interface ProductDetail extends PublicPropertyLocationFields {
+  property_operation_type?: PropertyOperationType | null;
   id: string;
   title: string;
   description: string;
@@ -273,6 +275,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
       : businessType ?? product?.supplier?.business_type ?? product?.supplier_business_type ??
         initialProduct.supplier?.business_type ?? initialProduct.supplier_business_type,
   );
+  const operationLabels = catalog.isRealEstate ? getPropertyOperationLabels(product?.property_operation_type) : null;
   const supplierSlug = product?.supplier?.slug || initialProduct.supplier?.slug;
   const catalogHref = demoCatalogHref ?? (catalog.isRealEstate && supplierSlug
     ? `/empresas/${encodeURIComponent(supplierSlug)}/productos/`
@@ -861,11 +864,12 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
 
                 {supplierHasStore || catalog.isRealEstate ? (
                   <div className="mb-8">
-                    <div className="flex items-baseline gap-2">
+                    {operationLabels && <p className="mb-1 text-sm font-semibold text-primary">{operationLabels.listingLabel}</p>}
+                    <div className="flex flex-wrap items-baseline gap-2">
                       <span className="text-4xl font-bold text-primary">
                         ${product.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                       </span>
-                      <span className="text-sm text-gray-500 font-medium">MXN</span>
+                      <span className="text-sm text-gray-500 font-medium">{operationLabels?.priceUnit ?? "MXN"}</span>
                     </div>
                     {!catalog.isRealEstate && <p className="text-sm text-gray-500 mt-1">Precio por unidad (IVA incluido)</p>}
                   </div>
@@ -1135,6 +1139,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
                     image={p.thumbnail_url || ""}
                     minOrder="1 pieza"
                     isRealEstate={p.is_real_estate === true ? true : undefined}
+                    propertyOperationType={p.property_operation_type}
                     slug={p.slug}
                     rating={Number(p.average_rating || 0)}
                  />

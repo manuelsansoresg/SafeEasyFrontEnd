@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { getApiBaseUrl } from "@/lib/seo";
+import type { PropertyOperationType } from "@/lib/propertyOperation";
 import type { ProductPropertyLocation } from "@/lib/propertyLocation";
 import type { Supplier } from "@/lib/products";
 import type { SupplierGalleryImage } from "@/types/supplierGallery";
@@ -22,6 +23,7 @@ export type DemoSupplier = Partial<Supplier> & {
 };
 
 export type DemoProduct = ProductPropertyLocation & {
+  property_operation_type?: PropertyOperationType | null;
   id?: number | string;
   slug: string;
   title: string;
