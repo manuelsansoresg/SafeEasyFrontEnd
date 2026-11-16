@@ -1,27 +1,10 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { CheckCircle2, Loader2, MapPin, Search, X } from "lucide-react";
-import { icon } from "leaflet";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerIconRetina from "leaflet/dist/images/marker-icon-2x.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import { MapContainer, Marker, TileLayer, useMapEvents } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
-
+import GoogleMapPicker from "@/components/ui/GoogleMapPicker";
 import { fetchWithAuth } from "@/lib/api";
-import { validPropertyCoordinates, type PropertyCoordinates, type PropertyLocation } from "@/lib/propertyLocation";
-
-const merida: PropertyCoordinates = { lat: 20.9674, lng: -89.5926 };
-const pointZoom = 17;
-const pin = icon({
-  iconUrl: markerIcon.src,
-  iconRetinaUrl: markerIconRetina.src,
-  shadowUrl: markerShadow.src,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  shadowSize: [41, 41],
-});
+import { validPropertyCoordinates, type PropertyLocation } from "@/lib/propertyLocation";
 
 type Props = {
   value: PropertyLocation | null;
@@ -29,44 +12,13 @@ type Props = {
   disabled?: boolean;
 };
 
-function MapPoint({ value, onChange, disabled, focus }: Props & { focus: PropertyCoordinates | null }) {
-  const map = useMapEvents({
-    click({ latlng }) {
-      if (disabled) return;
-      const { lat, lng } = latlng.wrap();
-      onChange({ lat, lng, address: null });
-    },
-  });
-
-  useEffect(() => {
-    if (focus) map.setView(focus, pointZoom);
-  }, [focus, map]);
-
-  if (!value) return null;
-
-  return (
-    <Marker
-      position={value}
-      icon={pin}
-      title="Ubicación del inmueble"
-      alt="Ubicación del inmueble"
-      draggable={!disabled}
-      eventHandlers={{
-        dragend({ target }) {
-          const { lat, lng } = target.getLatLng().wrap();
-          onChange({ lat, lng, address: value.address });
-        },
-      }}
-    />
-  );
-}
-
 export default function PropertyLocationPicker({ value, onChange, disabled }: Props) {
-  const searchId = useId();
   const addressId = useId();
   const titleId = useId();
   const [query, setQuery] = useState("");
-  const [focus, setFocus] = useState<PropertyCoordinates | null>(null);
+  const lat = value?.lat;
+  const lng = value?.lng;
+  const mapPoint = useMemo(() => lat != null && lng != null ? { lat, lng } : null, [lat, lng]);
   const [search, setSearch] = useState<{
     query: string;
     results: PropertyLocation[];
@@ -101,7 +53,7 @@ export default function PropertyLocationPicker({ value, onChange, disabled }: Pr
     };
   }, [term, disabled]);
 
-  function choosePoint(point: PropertyLocation | null, recenter = false) {
+  function choosePoint(point: PropertyLocation | null) {
     if (point && !validPropertyCoordinates(point.lat, point.lng)) {
       setSelectionError("Ese punto no es válido. Selecciona otra ubicación en el mapa.");
       return;
@@ -109,7 +61,6 @@ export default function PropertyLocationPicker({ value, onChange, disabled }: Pr
     setSelectionError("");
     setQuery("");
     setSearch(null);
-    if (recenter) setFocus(point);
     onChange(point);
   }
 
@@ -121,51 +72,48 @@ export default function PropertyLocationPicker({ value, onChange, disabled }: Pr
         <span className="text-sm text-gray-500">(Opcional)</span>
       </div>
       <p className="text-sm text-gray-600">Busca una dirección o toca el mapa para colocar el marcador. Arrástralo para ajustar el punto.</p>
-      <div className="space-y-1.5">
-        <label htmlFor={searchId} className="text-sm font-medium text-gray-700">Buscar dirección</label>
-        <div className="relative">
-          <Search size={16} className="pointer-events-none absolute top-3.5 left-3 text-gray-500" aria-hidden="true" />
-          <input
-            id={searchId}
-            type="search"
-            autoComplete="off"
-            maxLength={160}
-            disabled={disabled}
-            value={query}
-            placeholder="Calle, colonia o código postal"
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") event.preventDefault();
-            }}
-            className="h-11 w-full rounded-xl border border-gray-200 pr-4 pl-9 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-          />
-        </div>
-        {results.length > 0 && !disabled && (
-          <ul aria-label="Sugerencias de dirección" className="max-h-48 divide-y divide-gray-100 overflow-y-auto rounded-xl border border-gray-200">
-            {results.map((point, index) => (
-              <li key={`${point.lat},${point.lng},${index}`}>
-                <button type="button" onClick={() => choosePoint(point, true)} className="min-h-11 w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus-visible:bg-gray-50">
-                  {point.address}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div aria-live="polite" className="text-sm text-gray-600">
-          {searching && <span className="inline-flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Buscando direcciones…</span>}
-          {currentSearch?.failed && "No pudimos buscar direcciones. Puedes elegir el punto en el mapa."}
-          {currentSearch && !currentSearch.failed && !results.length && "Sin coincidencias. Prueba otra dirección o elige un punto en el mapa."}
-        </div>
-      </div>
-      <div className="isolate h-[280px] overflow-hidden rounded-lg border border-gray-300 sm:h-[340px]">
-        <MapContainer center={value ?? merida} zoom={value ? pointZoom : 13} scrollWheelZoom={false} className="h-full w-full">
-          <TileLayer
-            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maxZoom={19}
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          />
-          <MapPoint value={value} onChange={choosePoint} focus={focus} disabled={disabled} />
-        </MapContainer>
+      <GoogleMapPicker
+        location={mapPoint}
+        readOnly={disabled}
+        height="300px"
+        onChange={(point, source) => choosePoint({ ...point, address: source === "drag" ? value?.address ?? null : null })}
+        searchOverlay={
+          <div className="space-y-1.5">
+            <div className="relative">
+              <Search size={16} className="pointer-events-none absolute top-2.5 left-3 text-gray-500" aria-hidden="true" />
+              <input
+                aria-label="Buscar dirección"
+                type="search"
+                autoComplete="off"
+                maxLength={160}
+                disabled={disabled}
+                value={query}
+                placeholder="Buscar dirección"
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.preventDefault();
+                }}
+                className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+            {results.length > 0 && !disabled && (
+              <ul aria-label="Sugerencias de dirección" className="max-h-48 divide-y divide-gray-100 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+                {results.map((point, index) => (
+                  <li key={`${point.lat},${point.lng},${index}`}>
+                    <button type="button" onClick={() => choosePoint(point)} className="min-h-11 w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus-visible:bg-gray-50">
+                      {point.address}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        }
+      />
+      <div aria-live="polite" className="text-sm text-gray-600">
+        {searching && <span className="inline-flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Buscando direcciones…</span>}
+        {currentSearch?.failed && "No se pudo buscar la dirección. Marca el punto en el mapa y escribe la dirección debajo."}
+        {currentSearch && !currentSearch.failed && !results.length && "Sin coincidencias. Prueba otra dirección o marca el punto en el mapa."}
       </div>
       <p className="text-xs text-gray-500">Búsqueda de direcciones por <a href="https://www.geoapify.com/" className="underline" target="_blank" rel="noreferrer">Geoapify</a>.</p>
       {selectionError && <p role="alert" className="text-sm text-red-600">{selectionError}</p>}

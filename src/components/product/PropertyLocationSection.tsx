@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { MapPin, Navigation } from "lucide-react";
+import { MapPin } from "lucide-react";
 import type { LatLngLiteral } from "@/lib/googleMaps";
 
 const LocationMap = dynamic(() => import("@/components/supplier/SupplierLocationMap"), { ssr: false });
@@ -61,22 +61,22 @@ export default function PropertyLocationSection({
           </h3>
           {address && <p className="mt-1 break-words text-sm text-gray-600">{address}</p>}
         </div>
+      </div>
+      <div
+        ref={mapFrame}
+        className="group relative isolate h-[300px] w-full overflow-hidden rounded-[2rem] border border-gray-200 bg-[#eef2ef] sm:h-[400px]"
+      >
+        {showMap && <LocationMap key={`${lat},${lng}`} location={location} supplierName={propertyName} variant="property" />}
         <a
           href={directionsUrl}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Cómo llegar (abre Google Maps en otra pestaña)"
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 px-4 text-sm font-semibold text-primary transition-colors hover:border-primary/30 hover:bg-primary/5"
+          className="absolute bottom-6 left-4 z-[500] inline-flex items-center gap-2 rounded-xl bg-white/90 px-4 py-2 text-sm font-bold text-[#004e28] shadow-lg backdrop-blur transition-transform group-hover:scale-105"
         >
-          <Navigation size={16} aria-hidden="true" />
+          <MapPin size={16} aria-hidden="true" />
           Cómo llegar
         </a>
-      </div>
-      <div
-        ref={mapFrame}
-        className="isolate h-64 w-full overflow-hidden rounded-xl border border-gray-200 bg-[#eef2ef] sm:h-[340px]"
-      >
-        {showMap && <LocationMap key={`${lat},${lng}`} location={location} supplierName={propertyName} variant="property" />}
       </div>
     </section>
   );

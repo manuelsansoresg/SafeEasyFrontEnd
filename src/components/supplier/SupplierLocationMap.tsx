@@ -69,9 +69,9 @@ export default function SupplierLocationMap({
         <Marker
           position={location}
           icon={markerIcon}
-          title={isProperty ? "Ubicación del inmueble" : `Abrir ubicación de ${supplierName} en Google Maps`}
+          title={`Abrir ubicación de ${supplierName} en Google Maps`}
           alt={`Ubicación exacta de ${supplierName}`}
-          eventHandlers={isProperty ? undefined : { click: openGoogleMaps }}
+          eventHandlers={{ click: openGoogleMaps }}
         >
           <Popup>
             <a
