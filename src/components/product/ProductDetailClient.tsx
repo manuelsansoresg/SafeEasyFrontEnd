@@ -35,6 +35,7 @@ import { Toast } from "@/components/ui/Toast";
 import { productHasActiveSupplierSubscription, supplierHasDirectorySubscription } from "@/lib/subscriptionAccess";
 import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
 import { getPropertyOperationLabels, type PropertyOperationType } from "@/lib/propertyOperation";
+import { PropertyOperationBadge } from "@/components/product/PropertyOperationBadge";
 import DOMPurify from "isomorphic-dompurify";
 import PropertyLocationSection, {
   getPublicPropertyLocation,
@@ -864,7 +865,9 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref, bus
 
                 {supplierHasStore || catalog.isRealEstate ? (
                   <div className="mb-8">
-                    {operationLabels && <p className="mb-1 text-sm font-semibold text-primary">{operationLabels.listingLabel}</p>}
+                    {catalog.isRealEstate && (
+                      <PropertyOperationBadge operation={product.property_operation_type} className="mb-2" />
+                    )}
                     <div className="flex flex-wrap items-baseline gap-2">
                       <span className="text-4xl font-bold text-primary">
                         ${product.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}

@@ -6,6 +6,7 @@ import slugify from "slugify";
 import { Supplier } from "@/lib/products";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { getPropertyOperationLabels, type PropertyOperationType } from "@/lib/propertyOperation";
+import { PropertyOperationBadge } from "@/components/product/PropertyOperationBadge";
 import { catalogLabels } from "@/lib/catalogLabels";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
@@ -212,9 +213,7 @@ export function ProductCard({
             </h3>
           </Link>
           
-          {operationLabels && (
-            <p className="text-xs font-semibold text-[var(--supplier-heading,#004e28)]">{operationLabels.listingLabel}</p>
-          )}
+          {isProperty && <PropertyOperationBadge operation={propertyOperationType} />}
           <div className="mt-2 flex flex-wrap items-baseline gap-1">
              <span className="text-sm font-medium text-gray-400">$</span>
              <span className="text-2xl font-black text-[var(--supplier-heading,#004e28)] tracking-tight font-[family-name:var(--font-poppins)]">{displayPrice}</span>
