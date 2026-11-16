@@ -47,6 +47,15 @@ export const businessTypeService = {
     const response = await request(`${base}?${query}`, { signal });
     return listItems<BusinessTypeAdminList>(await response.json(), "business_types");
   },
+  async listAll(signal?: AbortSignal): Promise<BusinessTypeAdminList[]> {
+    const limit = 100;
+    const items: BusinessTypeAdminList[] = [];
+    while (true) {
+      const page = await businessTypeService.list({ search: "", skip: items.length, limit }, signal);
+      items.push(...page);
+      if (page.length < limit) return items;
+    }
+  },
   async detail(id: number, signal?: AbortSignal): Promise<BusinessTypeAdminDetail> {
     const response = await request(`${base}/${id}`, { signal });
     return response.json();

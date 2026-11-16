@@ -11,7 +11,8 @@ interface MultiFileUploadProps {
   accept?: string;
   className?: string;
   helperText?: string;
-  maxFiles?: number;
+  maxFiles?: number | null;
+  disabled?: boolean;
 }
 
 export default function MultiFileUpload({
@@ -21,7 +22,8 @@ export default function MultiFileUpload({
   accept = "image/*,video/*",
   className = "",
   helperText = "Arrastra y suelta o haz clic para seleccionar",
-  maxFiles = 10
+  maxFiles = 10,
+  disabled = false
 }: MultiFileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,7 +37,7 @@ export default function MultiFileUpload({
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    if (!disabled) setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -63,8 +65,9 @@ export default function MultiFileUpload({
   };
 
   const addFiles = (newFiles: File[]) => {
+    if (disabled) return;
     const totalFiles = value.length + newFiles.length;
-    if (totalFiles > maxFiles) {
+    if (maxFiles != null && totalFiles > maxFiles) {
       setToast({ type: "info", message: `Solo puedes subir un máximo de ${maxFiles} archivos.` });
       const allowed = newFiles.slice(0, maxFiles - value.length);
       if (allowed.length > 0) {
@@ -96,13 +99,14 @@ export default function MultiFileUpload({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => !disabled && inputRef.current?.click()}
       >
         <input
           ref={inputRef}
           type="file"
           className="hidden"
           accept={accept}
+          disabled={disabled}
           multiple
           onChange={handleChange}
         />
@@ -115,7 +119,7 @@ export default function MultiFileUpload({
             <span className="text-primary">Haz clic para subir</span> o arrastra y suelta
           </p>
           <p className="text-xs text-gray-500 mt-1">{helperText}</p>
-          <p className="text-xs text-gray-400 mt-2">Máximo {maxFiles} archivos</p>
+          {maxFiles != null && <p className="text-xs text-gray-400 mt-2">Máximo {maxFiles} archivos</p>}
         </div>
       </div>
       
@@ -130,6 +134,9 @@ export default function MultiFileUpload({
                       )}
                       <span className="truncate max-w-[150px]">{file.name}</span>
                       <button 
+                        type="button"
+                        disabled={disabled}
+                        aria-label={`Quitar ${file.name}`}
                         onClick={(e) => { e.stopPropagation(); removeFile(index); }}
                         className="text-gray-400 hover:text-red-500 ml-1 p-0.5 rounded-full hover:bg-red-50 transition-colors"
                       >

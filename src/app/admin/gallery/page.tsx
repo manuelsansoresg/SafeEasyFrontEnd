@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   Images,
@@ -64,15 +64,12 @@ export default function AdminGalleryPage() {
 
   const [subscription, setSubscription] = useState<Subscription | null>(null);
 
-  const limit = useMemo(() => {
-    const fromPlan = subscription?.plan?.max_gallery_images;
-    if (typeof fromPlan === "number" && fromPlan > 0) return fromPlan;
-    return null;
-  }, [subscription]);
-
-  const remaining = limit ? Math.max(0, limit - images.length) : null;
-  const isFull = typeof remaining === "number" && remaining <= 0;
-  const canAddMore = !isFull;
+  const [uploadLimit, setUploadLimit] = useState<number | null>(null);
+  const uploadInProgress = useRef(false);
+  const limit = uploadLimit ?? subscription?.plan?.max_gallery_images ?? null;
+  const remaining = limit == null || loading || error ? null : Math.max(0, limit - images.length);
+  const isFull = remaining === 0;
+  const canAddMore = !isFull && !uploading && deletingId === null && !loading && !error;
 
   // Resolve current supplier (admin also has a supplier id from resolveCurrentSupplier when relevant)
   useEffect(() => {
@@ -166,20 +163,16 @@ export default function AdminGalleryPage() {
     return () => window.clearTimeout(id);
   }, [toast]);
 
-  // Revoke object URLs on unmount or when previews change
   useEffect(() => {
-    return () => {
-      previews.forEach((url) => URL.revokeObjectURL(url));
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => previews.forEach((url) => URL.revokeObjectURL(url));
+  }, [previews]);
 
   const updatePreviews = (files: File[]) => {
-    previews.forEach((url) => URL.revokeObjectURL(url));
     setPreviews(files.map((file) => URL.createObjectURL(file)));
   };
 
   const addFiles = (newFiles: File[]) => {
+    if (!canAddMore) return;
     const imageFiles = newFiles.filter((f) => ALLOWED_IMAGE_TYPES.has(f.type));
     if (imageFiles.length === 0) {
       setToast({ type: "error", message: "Solo se permiten imágenes JPG, PNG o WebP." });
@@ -191,30 +184,14 @@ export default function AdminGalleryPage() {
       return;
     }
     const totalAfter = pendingFiles.length + imageFiles.length;
-    if (totalAfter > MAX_PER_BATCH) {
+    const maxSelection = Math.min(MAX_PER_BATCH, remaining ?? MAX_PER_BATCH);
+    if (totalAfter > maxSelection) {
       setToast({
         type: "info",
-        message: `Solo puedes subir hasta ${MAX_PER_BATCH} imágenes a la vez.`,
+        message: remaining != null && remaining < MAX_PER_BATCH
+          ? `Tu plan tiene ${remaining} espacios disponibles en la galería.`
+          : `Solo puedes subir hasta ${MAX_PER_BATCH} imágenes a la vez.`,
       });
-      const allowed = imageFiles.slice(0, MAX_PER_BATCH - pendingFiles.length);
-      if (allowed.length === 0) return;
-      const next = [...pendingFiles, ...allowed];
-      setPendingFiles(next);
-      updatePreviews(next);
-      return;
-    }
-    if (typeof remaining === "number" && totalAfter > remaining) {
-      setToast({
-        type: "info",
-        message: `Solo puedes agregar ${remaining} imagen${
-          remaining === 1 ? "" : "es"
-        } más según tu plan.`,
-      });
-      const allowed = imageFiles.slice(0, Math.max(0, remaining - pendingFiles.length));
-      if (allowed.length === 0) return;
-      const next = [...pendingFiles, ...allowed];
-      setPendingFiles(next);
-      updatePreviews(next);
       return;
     }
     const next = [...pendingFiles, ...imageFiles];
@@ -223,15 +200,12 @@ export default function AdminGalleryPage() {
   };
 
   const removePending = (index: number) => {
-    URL.revokeObjectURL(previews[index]);
     const nextFiles = pendingFiles.filter((_, i) => i !== index);
-    const nextPreviews = previews.filter((_, i) => i !== index);
     setPendingFiles(nextFiles);
-    setPreviews(nextPreviews);
+    updatePreviews(nextFiles);
   };
 
   const clearPending = () => {
-    previews.forEach((url) => URL.revokeObjectURL(url));
     setPendingFiles([]);
     setPreviews([]);
   };
@@ -252,37 +226,18 @@ export default function AdminGalleryPage() {
   };
 
   const handleUpload = async () => {
-    if (!supplierId || pendingFiles.length === 0 || uploading) return;
+    if (!supplierId || pendingFiles.length === 0 || uploadInProgress.current || deletingId !== null || loading || error) return;
+    if (remaining != null && pendingFiles.length > remaining) {
+      setToast({ type: "error", message: `Tu plan tiene ${remaining} espacios disponibles en la galería.` });
+      return;
+    }
+    uploadInProgress.current = true;
     setUploading(true);
-
-    // Mostramos la preview local (blob URL) para feedback inmediato.
-    // El ID negativo activa el badge "Sincronizando" en la card.
-    const localPreviews: SupplierGalleryImage[] = pendingFiles.map((file, index) => ({
-      id: -Date.now() - index,
-      supplier_id: supplierId,
-      image_url: URL.createObjectURL(file),
-      thumbnail_url: URL.createObjectURL(file),
-      position: 0,
-      created_at: new Date().toISOString(),
-    }));
-    setImages((current) => {
-      const next = [...current, ...localPreviews];
-      return next.map((img, idx) => ({ ...img, position: idx }));
-    });
-    clearPending();
-
     try {
-      // Subimos al backend con POST /api/suppliers/{id}/gallery (multipart/form-data).
-      // El service hace la llamada y devuelve las imágenes ya persistidas con su id real.
       const result = await supplierGalleryService.upload(supplierId, pendingFiles);
-      setImages((current) => {
-        // Reemplazamos las previews locales (id < 0) por las del servidor (id > 0).
-        const serverOnly = current.filter((img) => img.id > 0);
-        return [...serverOnly, ...result.uploaded].map((img, idx) => ({
-          ...img,
-          position: idx,
-        }));
-      });
+      setUploadLimit(result.limit);
+      clearPending();
+      await loadGallery();
       setToast({
         type: "success",
         message: `${result.uploaded.length} imagen${
@@ -290,7 +245,6 @@ export default function AdminGalleryPage() {
         } subida${result.uploaded.length === 1 ? "" : "s"}.`,
       });
     } catch (err) {
-      // Si falla la subida, dejamos la preview local y avisamos.
       setToast({
         type: "error",
         message:
@@ -299,6 +253,7 @@ export default function AdminGalleryPage() {
             : "No se pudieron subir las imágenes.",
       });
     } finally {
+      uploadInProgress.current = false;
       setUploading(false);
     }
   };
@@ -312,15 +267,7 @@ export default function AdminGalleryPage() {
     }
     setDeletingId(image.id);
     try {
-      if (image.id > 0) {
-        // Imagen real del servidor: DELETE normal
-        await supplierGalleryService.remove(supplierId, image.id);
-      } else {
-        // Preview local (ID negativo): solo limpiamos el blob URL y el estado
-        if (image.image_url.startsWith("blob:")) {
-          URL.revokeObjectURL(image.image_url);
-        }
-      }
+      await supplierGalleryService.remove(supplierId, image.id);
       setImages((current) => current.filter((item) => item.id !== image.id));
       setToast({ type: "success", message: "Imagen eliminada." });
     } catch (err) {
@@ -402,12 +349,14 @@ export default function AdminGalleryPage() {
             </p>
             {remaining != null ? (
               <p className="mt-1 text-xs text-gray-500">
-                {isFull
+                {images.length > (limit ?? Infinity)
+                  ? "Superaste el límite actual. Elimina imágenes antes de agregar más."
+                  : isFull
                   ? "Has alcanzado el límite de tu plan."
                   : `${remaining} disponibles`}
               </p>
             ) : (
-              <p className="mt-1 text-xs text-gray-500">Sin límite definido</p>
+              <p className="mt-1 text-xs text-gray-500">Límite no disponible</p>
             )}
           </div>
         }
@@ -494,6 +443,7 @@ export default function AdminGalleryPage() {
                         removePending(index);
                       }}
                       className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-gray-600 shadow-sm transition hover:bg-red-500 hover:text-white"
+                      disabled={uploading}
                       aria-label={`Quitar imagen ${index + 1}`}
                     >
                       <X size={16} />
@@ -513,7 +463,7 @@ export default function AdminGalleryPage() {
                 <button
                   type="button"
                   onClick={handleUpload}
-                  disabled={uploading || pendingFiles.length === 0}
+                  disabled={uploading || deletingId !== null || loading || Boolean(error) || pendingFiles.length === 0 || (remaining != null && pendingFiles.length > remaining)}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#004e28] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#004e28]/15 transition hover:-translate-y-0.5 hover:bg-[#168e00] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {uploading ? (
@@ -585,11 +535,6 @@ export default function AdminGalleryPage() {
                       Principal
                     </span>
                   ) : null}
-                  {image.id < 0 ? (
-                    <span className="absolute right-2 top-2 rounded-full bg-amber-500/95 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow-sm">
-                      Sincronizando
-                    </span>
-                  ) : null}
                 </div>
                 <div className="flex items-center justify-between gap-2 px-3 py-2">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-gray-400">
@@ -598,7 +543,7 @@ export default function AdminGalleryPage() {
                   <button
                     type="button"
                     onClick={() => void handleDelete(image)}
-                    disabled={deletingId === image.id}
+                    disabled={uploading || deletingId !== null}
                     className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label="Eliminar imagen"
                     title="Eliminar"

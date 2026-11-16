@@ -1,3 +1,20 @@
+export function startOfMonthInput(dateInput: string) {
+  return `${dateInput.slice(0, 7)}-01`;
+}
+
+export function endOfMonthInput(monthInput: string) {
+  const [year, month] = monthInput.split("-").map(Number);
+  return new Date(Date.UTC(year, month, 0, 12))
+    .toISOString()
+    .slice(0, 10);
+}
+
+export function addMonthsToInput(monthInput: string, months: number) {
+  const [year, month] = monthInput.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1 + months, 1, 12));
+  return date.toISOString().slice(0, 10);
+}
+
 export function humanizeMinutes(totalMinutes: number): string {
   const numeric = Number(totalMinutes);
 

@@ -951,7 +951,7 @@ function ProviderCreateModal({
             Servicio
           </span>
           <select
-            className={inputClass}
+            className={`${inputClass} h-12`}
             value={serviceId ?? ""}
             onChange={(event) =>
               setServiceId(Number(event.target.value))
@@ -1051,7 +1051,7 @@ function ProviderCreateModal({
               Estado inicial
             </span>
             <select
-              className={inputClass}
+              className={`${inputClass} h-12`}
               value={status}
               onChange={(event) =>
                 setStatus(

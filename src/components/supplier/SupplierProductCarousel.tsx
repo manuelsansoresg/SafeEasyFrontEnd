@@ -23,6 +23,7 @@ interface SupplierProductCarouselProps {
   kind: "most_searched" | "most_purchased" | "best_rated";
   title: string;
   limit?: number;
+  isRealEstate?: boolean;
 }
 
 export function SupplierProductCarousel({
@@ -30,6 +31,7 @@ export function SupplierProductCarousel({
   kind,
   title,
   limit = 12,
+  isRealEstate,
 }: SupplierProductCarouselProps) {
   const [products, setProducts] = useState<SupplierProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,6 +172,7 @@ export function SupplierProductCarousel({
                 price={product.price}
                 image={product.thumbnail_url || ""}
                 minOrder="1 pza"
+                isRealEstate={isRealEstate}
                 slug={product.slug}
                 rating={product.average_rating || 0}
                 sales={product.sales_count || product.stock}

@@ -5,6 +5,7 @@ import { CheckCircle, Heart, Star } from "lucide-react";
 import slugify from "slugify";
 import { Supplier } from "@/lib/products";
 import { useFavoritesStore } from "@/store/useFavoritesStore";
+import { catalogLabels } from "@/lib/catalogLabels";
 import { cn } from "@/lib/utils";
 import { Toast } from "@/components/ui/Toast";
 import Image from "next/image";
@@ -17,7 +18,9 @@ interface ProductCardProps {
   price: number;
   image: string;
   minOrder?: string;
+  isRealEstate?: boolean;
   slug: string;
+  detailHref?: string;
   rating?: number;
   sales?: number;
   supplier?: Supplier;
@@ -30,7 +33,9 @@ export function ProductCard({
   price,
   image,
   minOrder = "1 pieza",
+  isRealEstate,
   slug,
+  detailHref = `/product/${slug}`,
   rating = 0,
   sales = 500,
   supplier,
@@ -100,7 +105,8 @@ export function ProductCard({
     });
   };
 
-  const displayPrice = (typeof price === 'number' ? price : 0).toFixed(0);
+  const isProperty = isRealEstate ?? catalogLabels(supplier?.business_type).isRealEstate;
+  const displayPrice = (typeof price === 'number' ? price : 0).toLocaleString(isProperty ? 'es-MX' : 'en-US', { useGrouping: isProperty, maximumFractionDigits: 0 });
 
   const handleImgError = () => {
     console.warn(`[ProductCard] Image load failed for "${title}":`, getImageUrl(image));
@@ -110,7 +116,7 @@ export function ProductCard({
   return (
     <div className="group block h-full relative supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] rounded-[2rem] overflow-hidden transition-all duration-500 hover:shadow-[0_20px_40px_-15px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_20%,transparent)] hover:-translate-y-2">
       {/* Image Container - Premium Aspect Ratio */}
-      <div className="supplier-media relative aspect-[4/5] supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] overflow-hidden">
+      <div className={cn("supplier-media relative overflow-hidden supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)]", isProperty ? "aspect-[4/3]" : "aspect-[4/5]")}>
         {/* Favorite Button - Floating Glass Effect */}
         <button
             onClick={handleFavoriteClick}
@@ -128,7 +134,7 @@ export function ProductCard({
         </button>
 
         <Link 
-            href={`/product/${slug}`} 
+            href={detailHref}
             onClick={handleCardClick}
             className="block w-full h-full relative"
         >
@@ -149,11 +155,13 @@ export function ProductCard({
             {/* Quick View Overlay (Optional Premium Touch) */}
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--supplier-secondary,#004e28)]/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             
-            {/* Floating Action Button on Hover */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 translate-y-10 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-500 delay-75">
-                <span className="supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] text-[var(--supplier-heading,#004e28)] px-6 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2 font-[family-name:var(--font-varela-round)]">
-                    Ver Detalles
-                </span>
+            <div className={cn(
+              "absolute inset-x-3 bottom-4 flex justify-center",
+              !isProperty && "translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100",
+            )}>
+              <span className="supplier-surface-card inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full bg-[var(--supplier-card-background,#ffffff)] px-4 text-center text-sm font-bold text-[var(--supplier-heading,#004e28)] shadow-lg font-[family-name:var(--font-varela-round)]">
+                Ver detalles
+              </span>
             </div>
         </Link>
       </div>
@@ -194,7 +202,7 @@ export function ProductCard({
                 </div>
            </div>
           
-          <Link href={`/product/${slug}`} onClick={handleCardClick} className="block group-hover:text-[var(--supplier-heading,#004e28)] transition-colors">
+          <Link href={detailHref} onClick={handleCardClick} className="block group-hover:text-[var(--supplier-heading,#004e28)] transition-colors">
             <h3 className="text-lg font-bold text-gray-900 leading-tight line-clamp-2 font-[family-name:var(--font-varela-round)]">
               {title}
             </h3>
@@ -203,7 +211,7 @@ export function ProductCard({
           <div className="flex items-baseline gap-1 mt-2">
              <span className="text-sm font-medium text-gray-400">$</span>
              <span className="text-2xl font-black text-[var(--supplier-heading,#004e28)] tracking-tight font-[family-name:var(--font-poppins)]">{displayPrice}</span>
-             <span className="text-xs text-gray-400 ml-1 font-normal">/ {minOrder}</span>
+             {!isProperty && minOrder && <span className="text-xs text-gray-400 ml-1 font-normal">/ {minOrder}</span>}
           </div>
         </div>
       </div>

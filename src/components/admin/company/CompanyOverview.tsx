@@ -1,5 +1,8 @@
 "use client";
 
+import { catalogLabels } from "@/lib/catalogLabels";
+import { useQueryClient } from "@tanstack/react-query";
+import { supplierCatalogTypeQueryKey } from "@/hooks/useSupplierCatalogLabels";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -82,6 +85,8 @@ export function CompanyOverview({
   showSupplierModules = true,
   showCatalogLink = true,
 }: CompanyOverviewProps) {
+  const queryClient = useQueryClient();
+  const catalog = catalogLabels(supplier.business_type);
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const completion = getCompanyProfileCompletion(supplier, { isDirectory });
@@ -97,7 +102,10 @@ export function CompanyOverview({
   }, [toast]);
 
   async function handleBusinessTypeSaved() {
-    await onSupplierUpdated();
+    await Promise.all([
+      onSupplierUpdated(),
+      queryClient.invalidateQueries({ queryKey: supplierCatalogTypeQueryKey }),
+    ]);
     setTypePickerOpen(false);
     setToast("Tipo de negocio actualizado.");
   }
@@ -316,7 +324,7 @@ export function CompanyOverview({
           <Store size={22} className="text-[#004e28]" aria-hidden="true" />
           <span>
             <span className="block font-semibold text-gray-900">
-              {isDirectory ? "Administrar servicios" : "Administrar productos"}
+              {isDirectory ? "Administrar servicios" : `Administrar ${catalog.plural}`}
             </span>
             <span className="block text-sm text-gray-500">Abre el módulo que ya conoces</span>
           </span>

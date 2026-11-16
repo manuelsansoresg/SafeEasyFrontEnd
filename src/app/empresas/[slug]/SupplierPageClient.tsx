@@ -1,5 +1,6 @@
 "use client";
 
+import { catalogLabels } from "@/lib/catalogLabels";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -45,6 +46,7 @@ import { DirectoryGallerySection } from "@/components/supplier/DirectoryGalleryS
 import type { SupplierGalleryImage } from "@/types/supplierGallery";
 import { SupplierModuleNavigation } from "@/components/supplier/SupplierModuleNavigation";
 import { PublicSupplierMenu } from "@/components/supplier/menu/PublicSupplierMenu";
+import { sellCampaignParams } from "@/lib/sellCampaignParams";
 import { DemoSupplierAgendaTab } from "@/components/agenda/DemoSupplierAgendaTab";
 import { PublicSupplierAgendaTab } from "@/components/agenda/PublicSupplierAgendaTab";
 import { menuService } from "@/services/menuService";
@@ -332,9 +334,11 @@ interface SupplierProduct {
 function DirectoryServiceCard({
   service,
   demoAgendaHref,
+  isDemo = false,
 }: {
   service: SupplierService;
   demoAgendaHref?: string;
+  isDemo?: boolean;
 }) {
   const price = Number(service.price);
   const hasPrice = Number.isFinite(price) && price > 0;
@@ -378,13 +382,15 @@ function DirectoryServiceCard({
         ) : (
           <div aria-hidden="true" className="mt-3 min-h-6" />
         )}
-        <Link
-          href={demoAgendaHref || `/servicios/${service.id}`}
-          className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-bold text-[var(--supplier-accent,#168e00)] transition-colors hover:text-[var(--supplier-heading,#004e28)]"
-        >
-          {demoAgendaHref ? "Probar reservación" : "Ver más"}
-          <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">→</span>
-        </Link>
+        {!isDemo || demoAgendaHref ? (
+          <Link
+            href={demoAgendaHref || `/servicios/${service.id}`}
+            className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-bold text-[var(--supplier-accent,#168e00)] transition-colors hover:text-[var(--supplier-heading,#004e28)]"
+          >
+            {demoAgendaHref ? "Probar reservación" : "Ver más"}
+            <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">→</span>
+          </Link>
+        ) : null}
       </div>
     </article>
   );
@@ -443,11 +449,16 @@ const mergeById = <T extends { id: number | string }>(items: T[]) =>
 
 import { SupplierProductCarousel } from "@/components/supplier/SupplierProductCarousel";
 
-export default function SupplierPage({ initialSupplier, initialProducts, demoMenus = [], demoServices = [], demoGalleryImages = [], isDemo = false }: {
+export default function SupplierPage({ initialSupplier, initialProducts, publicProductAccess, publicAgendaAvailable, publicMenuEnabled, demoMenus = [], demoMenuEnabled = false, demoServices = [], demoAgendaEnabled = false, demoGalleryImages = [], isDemo = false }: {
   initialSupplier: Supplier;
   initialProducts: SupplierProduct[];
+  publicProductAccess?: boolean;
+  publicAgendaAvailable?: boolean | null;
+  publicMenuEnabled?: boolean | null;
   demoMenus?: Menu[];
+  demoMenuEnabled?: boolean;
   demoServices?: SupplierService[];
+  demoAgendaEnabled?: boolean;
   demoGalleryImages?: SupplierGalleryImage[];
   isDemo?: boolean;
 }) {
@@ -459,14 +470,19 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   const lastBuilderScrollRef = useRef<SiteBuilderSection | null>(null);
   const activeTab = tab === "menu" ? "menu" : tab === "agenda" ? "agenda" : tab === "productos" ? "products" : "main";
   const supplierBasePath = `/${isDemo ? "demos" : "empresas"}/${encodeURIComponent(String(slug))}/`;
+  const demoCampaign = sellCampaignParams(Object.fromEntries(searchParams.entries()));
+  if (isDemo && searchParams.get("desde") === "sell") demoCampaign.set("desde", "sell");
+  const demoCampaignQuery = demoCampaign.has("desde") ? demoCampaign.toString() : "";
   const navigateTab = useCallback((nextTab: 'main' | 'menu' | 'agenda' | 'products', replace = false) => {
     const basePath = nextTab === 'main' ? supplierBasePath : `${supplierBasePath}${nextTab === 'products' ? 'productos' : nextTab}/`;
-    const path = isBuilderPreview ? `${basePath}?builderPreview=1` : basePath;
+    const path = isBuilderPreview ? `${basePath}?builderPreview=1` : demoCampaignQuery ? `${basePath}?${demoCampaignQuery}` : basePath;
     if (replace) router.replace(path, { scroll: false });
     else router.push(path, { scroll: false });
-  }, [isBuilderPreview, router, supplierBasePath]);
+  }, [demoCampaignQuery, isBuilderPreview, router, supplierBasePath]);
   const [supplier, setSupplier] = useState<Supplier | null>(initialSupplier);
   const [publicMenus, setPublicMenus] = useState<Menu[]>(demoMenus);
+  const visibleMenus = isDemo ? demoMenus : publicMenus;
+  const hasMenu = isDemo ? demoMenuEnabled : (publicMenuEnabled ?? (visibleMenus.length > 0));
   const [publicMenusLoading, setPublicMenusLoading] = useState(!isDemo);
   const headerVideoRef = useRef<HTMLVideoElement>(null);
   const supplierViewSentRef = useRef<Set<string>>(new Set());
@@ -642,8 +658,9 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   const observerTarget = useRef<HTMLDivElement | null>(null);
   const supplierId = supplier?.id ?? null;
   const supplierSlug = supplier?.slug ?? null;
-  const canShowProducts = supplierAllowsProducts(supplier);
+  const catalog = catalogLabels(supplier?.business_type);
   const supplierIsDirectory = supplierHasDirectorySubscription(supplier);
+  const canShowProducts = publicProductAccess ?? (supplierAllowsProducts(supplier) || (isDemo && !supplierIsDirectory && initialProducts.length > 0));
 
   const productCategories = useMemo(
     () => buildCatalogFilterOptions(productCatalog),
@@ -701,7 +718,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
   }, [slug, initialProducts, isDemo]);
 
   useEffect(() => {
-    if (!slug || isDemo) return;
+    if (!slug || isDemo || publicMenuEnabled === false) return;
 
     const controller = new AbortController();
     setPublicMenusLoading(true);
@@ -717,13 +734,13 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
       .finally(() => { if (!controller.signal.aborted) setPublicMenusLoading(false); });
 
     return () => controller.abort();
-  }, [slug, isDemo]);
+  }, [slug, isDemo, publicMenuEnabled]);
 
   useEffect(() => {
-    if (activeTab === "menu" && !publicMenusLoading && publicMenus.length === 0) {
+    if (activeTab === "menu" && (publicMenuEnabled === false || (!publicMenusLoading && !hasMenu))) {
       navigateTab("main", true);
     }
-  }, [activeTab, publicMenusLoading, publicMenus.length, navigateTab]);
+  }, [activeTab, hasMenu, publicMenuEnabled, publicMenusLoading, navigateTab]);
 
   useEffect(() => {
     if (activeTab === "products" && supplierId && !canShowProducts) {
@@ -813,7 +830,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
         if (!supplierId) {
           if (!append) setProducts([]);
           setHasMore(false);
-          setProductsError("No se pudieron cargar los productos.");
+          setProductsError(`No se pudieron cargar ${catalog.theItems}.`);
           return;
         }
 
@@ -830,7 +847,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
         if (!fallback.ok) {
           if (!append) setProducts([]);
           setHasMore(false);
-          setProductsError("No se pudieron cargar los productos.");
+          setProductsError(`No se pudieron cargar ${catalog.theItems}.`);
           return;
         }
 
@@ -890,13 +907,13 @@ export default function SupplierPage({ initialSupplier, initialProducts, demoMen
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Error fetching supplier products", error);
-      setProductsError("No se pudieron cargar los productos.");
+      setProductsError(`No se pudieron cargar ${catalog.theItems}.`);
       if (!append) setProducts([]);
       setHasMore(false);
     } finally {
       if (!signal?.aborted) setProductsLoading(false);
     }
-  }, [limit, supplierId, syncFavorites]);
+  }, [catalog.theItems, limit, supplierId, syncFavorites]);
 
   const fetchRatings = async (supplierSlug: string, skip: number = 0, append: boolean = false) => {
     try {
@@ -1416,7 +1433,7 @@ const contactHref = supplier?.phone
                 <div className="mb-6 flex w-full flex-col flex-wrap items-stretch justify-center gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4 md:justify-start">
                       {canShowProducts ? (
                         <Link href={`${supplierBasePath}productos/`} onClick={(event) => { event.preventDefault(); handleShowProducts(); }} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-7 py-3 text-base font-bold text-[color:var(--supplier-inverse,#ffffff)] shadow-[0_0_30px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_60%,transparent)] transition-all hover:-translate-y-1 hover:bg-[var(--supplier-primary-hover,#137a00)] hover:shadow-[0_0_40px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_80%,transparent)] font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
-                            Ver Catálogo <ArrowDown size={20} />
+                            {catalog.view} <ArrowDown size={20} />
                         </Link>
                       ) : null}
                       {isDirectory ? (
@@ -1473,21 +1490,32 @@ const contactHref = supplier?.phone
       </section>
 
       <SupplierModuleNavigation
+        catalogTitle={catalog.title}
         supplierId={supplier.id}
-        hasMenu={publicMenus.length > 0}
+        hasMenu={hasMenu}
         canShowProducts={canShowProducts}
         activeTab={activeTab}
         onChangeTab={navigateTab}
         tabsRef={tabsRef}
         isDemo={isDemo}
-        demoHasAgenda={demoServices.length > 0}
+        demoHasAgenda={demoAgendaEnabled}
+        publicAgendaAvailable={publicAgendaAvailable}
       />
 
-      {activeTab === "menu" && publicMenus.length > 0 ? (
-        <PublicSupplierMenu menus={publicMenus} supplierName={supplier.name} isDemo={isDemo} />
+      {activeTab === "menu" && hasMenu ? (
+        !isDemo && publicMenusLoading ? (
+          <p role="status" className="px-5 py-14 text-center text-gray-600">Cargando menú…</p>
+        ) : visibleMenus.length > 0 ? (
+          <PublicSupplierMenu menus={visibleMenus} supplierName={supplier.name} isDemo={isDemo} />
+        ) : (
+          <section className="supplier-surface-page bg-[var(--supplier-page-background,#f7f9f8)] px-5 py-14 text-center">
+            <h2 className="text-xl font-semibold text-[var(--supplier-heading,#004e28)]">Menú</h2>
+            <p className="mt-2 text-gray-600">Este proveedor todavía no ha publicado un menú.</p>
+          </section>
+        )
       ) : null}
 
-      {activeTab === "agenda" ? isDemo ? (
+      {activeTab === "agenda" && (!isDemo || demoAgendaEnabled) ? isDemo ? (
         <DemoSupplierAgendaTab key={`${supplier.slug || String(slug)}:${searchParams.get("service") || ""}`} services={demoServices} supplierName={supplier.name} initialServiceId={searchParams.get("service")} />
       ) : (
         <PublicSupplierAgendaTab
@@ -1605,7 +1633,7 @@ const contactHref = supplier?.phone
             ) : (
               <div className="grid grid-cols-1 items-stretch gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredServices.map((service) => (
-                  <DirectoryServiceCard key={service.id} service={service} demoAgendaHref={isDemo ? `${supplierBasePath}agenda/?service=${encodeURIComponent(service.id)}` : undefined} />
+                  <DirectoryServiceCard key={service.id} service={service} isDemo={isDemo} demoAgendaHref={isDemo && demoAgendaEnabled ? `${supplierBasePath}agenda/?service=${encodeURIComponent(service.id)}${demoCampaignQuery ? `&${demoCampaignQuery}` : ""}` : undefined} />
                 ))}
               </div>
             )}
@@ -1661,7 +1689,7 @@ const contactHref = supplier?.phone
             <div className={`flex flex-col md:flex-row items-center justify-between gap-6 ${isDirectory ? "mb-10" : "mb-16"}`}>
                 <div className="max-w-2xl">
                     <h2 className={`${isDirectory ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl"} font-black text-[var(--supplier-heading,#004e28)] mb-4 font-[family-name:var(--font-varela-round)]`}>
-                        {isDirectory ? "Servicios" : "Productos"}
+                        {isDirectory ? "Servicios" : catalog.title}
                     </h2>
                 </div>
                 
@@ -1673,7 +1701,7 @@ const contactHref = supplier?.phone
                         </div>
                         <input
                             type="text"
-                            placeholder={isDirectory ? "Buscar servicios..." : "Buscar productos..."}
+                            placeholder={isDirectory ? "Buscar servicios..." : `Buscar ${catalog.plural}...`}
                             value={productSearchQuery}
                             onChange={(event) => {
                               setProductSearchQuery(event.target.value);
@@ -1688,7 +1716,7 @@ const contactHref = supplier?.phone
                                   setProductSearchQuery("");
                                   setPage(1);
                                 }}
-                                aria-label="Limpiar búsqueda de productos"
+                                aria-label={`Limpiar búsqueda de ${isDirectory ? "servicios" : catalog.plural}`}
                                 className="absolute inset-y-0 right-0 pr-3 flex items-center"
                             >
                                 <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
@@ -1701,7 +1729,8 @@ const contactHref = supplier?.phone
 
             <div className="mb-10 md:mb-12">
               <SupplierCatalogFilters
-                label="productos"
+                label={isDirectory ? "servicios" : catalog.plural}
+                allLabel={!isDirectory && catalog.isRealEstate ? "Todas" : undefined}
                 categories={productCategories}
                 selectedCategory={selectedProductCategory}
                 selectedSubcategory={selectedProductSubcategory}
@@ -1739,14 +1768,14 @@ const contactHref = supplier?.phone
                 <div className="rounded-[3rem] supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] py-20 text-center shadow-sm">
                     <p className="text-xl font-bold text-gray-400">
                       {productSearchQuery
-                        ? "No encontramos productos con esos filtros."
+                        ? `No encontramos ${catalog.plural} con esos filtros.`
                         : selectedProductCategory
-                          ? "No hay productos disponibles en esta categoría."
-                          : "No hay productos disponibles en este momento."}
+                          ? `No hay ${catalog.plural} disponibles en esta categoría.`
+                          : `No hay ${catalog.plural} disponibles en este momento.`}
                     </p>
                 </div>
             ) : (
-                <div className={`grid gap-8 md:gap-10 ${isDirectory ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"}`}>
+                <div className={`grid gap-8 md:gap-10 ${isDirectory || catalog.isRealEstate ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"}`}>
                     {visibleProducts.map((product) => (
                       <div key={product.id} className="h-full">
                         <ProductCard
@@ -1758,8 +1787,9 @@ const contactHref = supplier?.phone
                             product.subcategory?.thumbnail_url ||
                             ""
                           }
-                          minOrder={`${product.stock > 0 ? "1" : "10"} pzas`}
+                          minOrder={catalog.isRealEstate ? "" : `${product.stock > 0 ? "1" : "10"} pzas`}
                           slug={product.slug}
+                          detailHref={isDemo ? `${supplierBasePath}productos/${encodeURIComponent(product.slug)}/${demoCampaign.size ? `?${demoCampaign}` : ""}` : undefined}
                           rating={product.average_rating || 5.0}
                           sales={product.stock}
                           supplier={supplier}
@@ -1783,9 +1813,9 @@ const contactHref = supplier?.phone
         {/* Recommended Carousels */}
         {!isDirectory ? (
         <div className="mx-auto max-w-6xl space-y-8 bg-gray-50/30 px-5 py-12 md:px-8">
-             <SupplierProductCarousel supplierId={supplier.id} kind="most_searched" title="Más Buscados" />
-             <SupplierProductCarousel supplierId={supplier.id} kind="most_purchased" title="Más Comprados" />
-             <SupplierProductCarousel supplierId={supplier.id} kind="best_rated" title="Mejor Calificados" />
+             <SupplierProductCarousel supplierId={supplier.id} kind="most_searched" title={catalog.isRealEstate ? "Más buscadas" : "Más Buscados"} isRealEstate={catalog.isRealEstate || undefined} />
+             {!catalog.isRealEstate && <SupplierProductCarousel supplierId={supplier.id} kind="most_purchased" title="Más Comprados" />}
+             <SupplierProductCarousel supplierId={supplier.id} kind="best_rated" title={catalog.isRealEstate ? "Mejor calificadas" : "Mejor Calificados"} isRealEstate={catalog.isRealEstate || undefined} />
         </div>
         ) : null}
 
@@ -2063,7 +2093,7 @@ const contactHref = supplier?.phone
                   <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
                       <div className="text-left">
                           <h3 className="text-2xl md:text-3xl font-black mb-2 font-[family-name:var(--font-varela-round)]">
-                            ¿Tienes preguntas sobre nuestros {isDirectory ? "servicios" : "productos"}?
+                            ¿Tienes preguntas sobre {isDirectory ? "nuestros servicios" : catalog.isRealEstate ? "nuestras propiedades" : "nuestros productos"}?
                           </h3>
                           <p className="text-[color:var(--supplier-inverse-muted,#ffffff)] text-lg">Estamos listos para atenderte y resolver todas tus dudas al instante.</p>
                       </div>

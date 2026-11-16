@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { getApiBaseUrl } from "@/lib/seo";
+import type { ProductPropertyLocation } from "@/lib/propertyLocation";
 import type { Supplier } from "@/lib/products";
 import type { SupplierGalleryImage } from "@/types/supplierGallery";
 import type { Menu } from "@/types/menu";
@@ -9,6 +10,8 @@ export type DemoSupplier = Partial<Supplier> & {
   slug: string;
   name: string;
   is_demo: true;
+  agenda_enabled?: boolean;
+  menu_enabled?: boolean;
   logo: string | null;
   header_image: string | null;
   short_description: string | null;
@@ -18,7 +21,7 @@ export type DemoSupplier = Partial<Supplier> & {
   gallery_images?: SupplierGalleryImage[];
 };
 
-export type DemoProduct = {
+export type DemoProduct = ProductPropertyLocation & {
   id?: number | string;
   slug: string;
   title: string;
@@ -26,6 +29,9 @@ export type DemoProduct = {
   price: number;
   image: string | null;
   thumbnail_url: string | null;
+  media?: Array<{ type: string; url: string }>;
+  sku?: string | null;
+  stock?: number;
 };
 
 export type DemoService = {
@@ -55,12 +61,20 @@ export const getDemoSupplier = cache(async (slug: string): Promise<DemoSupplier 
   return data;
 });
 
-export async function getDemoContent(slug: string) {
+export const getDemoProduct = cache(async (supplierSlug: string, productSlug: string) => {
+  const base = `/demos/${encodeURIComponent(supplierSlug)}/products`;
+  const product = await readDemo<DemoProduct>(`${base}/${encodeURIComponent(productSlug)}`);
+  if (product) return product;
+  const products = await readDemo<DemoProduct[]>(base);
+  return products?.find((item) => item.slug === productSlug) ?? null;
+});
+
+export async function getDemoContent(slug: string, menuEnabled: boolean) {
   const encoded = encodeURIComponent(slug);
   const [products, services, menuSummaries] = await Promise.all([
     readDemo<DemoProduct[]>(`/demos/${encoded}/products`),
     readDemo<DemoService[]>(`/demos/${encoded}/services`),
-    readDemo<Array<Pick<DemoMenu, "id" | "name" | "description" | "price">>>(`/demos/${encoded}/menus`),
+    menuEnabled ? readDemo<Array<Pick<DemoMenu, "id" | "name" | "description" | "price">>>(`/demos/${encoded}/menus`) : Promise.resolve([]),
   ]);
   if (!Array.isArray(products) || !Array.isArray(services) || !Array.isArray(menuSummaries)) {
     throw new Error("Demo API returned incomplete content");
@@ -72,3 +86,22 @@ export async function getDemoContent(slug: string) {
   }));
   return { products, services, menus };
 }
+
+export type SellDemo = {
+  slug: string;
+  name: string;
+  header_image: string | null;
+  logo?: string | null;
+  plan_name: string;
+  public_plan_id: number | null;
+  tabs: Array<"productos" | "agenda" | "menu">;
+};
+
+export const getSellDemos = cache(async (): Promise<SellDemo[]> => {
+  try {
+    const demos = await readDemo<SellDemo[]>("/demos/featured/sell");
+    return Array.isArray(demos) ? demos : [];
+  } catch {
+    return [];
+  }
+});

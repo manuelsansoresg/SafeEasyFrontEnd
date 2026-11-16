@@ -1,7 +1,8 @@
 "use client";
 
+import { catalogLabels } from "@/lib/catalogLabels";
 import { useState, useEffect } from "react";
-import ProductForm from "@/components/admin/ProductForm";
+import ProductForm, { type EditableProduct } from "@/components/admin/ProductForm";
 import { PageHero } from "@/components/ui/PageHero";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -10,32 +11,15 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
 
-interface Product {
-  id: string;
-  title: string;
-  description: string;
-  price: number;
-  stock: number;
-  sku: string;
-  is_active: boolean;
-  supplier_id: number;
-  category_id: number | null;
-  subcategory_id: number | null;
-  supplier_category_id?: number | null;
-  supplier_subcategory_id?: number | null;
-  slug: string;
-  thumbnail_url?: string;
-}
-
 const EDIT_PRODUCT_CACHE_KEY = "admin-edit-product";
 
-function unwrapProducts(data: unknown): Product[] {
-  if (Array.isArray(data)) return data as Product[];
+function unwrapProducts(data: unknown): EditableProduct[] {
+  if (Array.isArray(data)) return data as EditableProduct[];
   if (!data || typeof data !== "object") return [];
   const record = data as Record<string, unknown>;
   const candidates = [record.items, record.results, record.data, record.products];
   for (const candidate of candidates) {
-    if (Array.isArray(candidate)) return candidate as Product[];
+    if (Array.isArray(candidate)) return candidate as EditableProduct[];
   }
   return [];
 }
@@ -45,116 +29,90 @@ export default function EditProductPage() {
   const id = params.id;
   const { token, user } = useAuthStore();
   
-  const [product, setProduct] = useState<Product | null>(null);
+  const [product, setProduct] = useState<EditableProduct | null>(null);
+  const [hasFreshProductData, setHasFreshProductData] = useState(false);
+  const [isRealEstate, setIsRealEstate] = useState(false);
+  const catalog = catalogLabels(isRealEstate ? "inmuebles" : null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchProduct = async () => {
-      if (!token || !id) return;
-      
+    if (!token || typeof id !== "string") return;
+    const productKey = id;
+    const controller = new AbortController();
+    const options = { cache: "no-store" as const, signal: controller.signal };
+    const matches = (item: EditableProduct) => String(item.id) === productKey || item.slug === productKey;
+
+    async function fetchProduct() {
       try {
         const isAdminUser = isAdminRole(user?.role);
         const isSupplierUser = isSupplierRole(user?.role) && !isAdminUser;
-        const currentSupplier = isSupplierUser ? await resolveCurrentSupplier(user) : null;
-        if (isSupplierUser && !currentSupplier?.id) {
+        const supplier = isSupplierUser ? await resolveCurrentSupplier(user, options) : null;
+        if (controller.signal.aborted) return;
+        if (isSupplierUser && !supplier) {
           setError("No se encontró el proveedor asociado a tu cuenta.");
           return;
         }
 
-        const assertCanEdit = (item: Product | null) => {
-          if (!item) return null;
-          if (currentSupplier?.id && Number(item.supplier_id) !== Number(currentSupplier.id)) {
-            setError("No puedes editar un producto que pertenece a otro proveedor.");
-            return null;
-          }
-          return item;
-        };
-
-        const readCachedProduct = () => {
-          try {
-            const raw = window.sessionStorage.getItem(EDIT_PRODUCT_CACHE_KEY);
-            if (!raw) return null;
-            const cached = JSON.parse(raw) as Product;
-            const matches = String(cached.id) === String(id) || String(cached.slug) === String(id);
-            return matches ? cached : null;
-          } catch {
-            return null;
-          }
-        };
-
-        // Try to fetch specific product first
-        const encodedId = encodeURIComponent(String(id));
-        let response: Response | null = null;
-        const detailUrls = [
-          `/api/products/${encodedId}`,
-          `/api/products/${encodedId}/`,
-        ];
-
-        for (const url of detailUrls) {
-          response = await fetchWithAuth(url);
-          if (response.ok) break;
-        }
-        
-        if (response?.ok) {
-          const data = await response.json();
-          const allowedProduct = assertCanEdit(data);
-          if (allowedProduct) {
-            setProduct(allowedProduct);
+        function applyProduct(item: EditableProduct, fresh: boolean) {
+          if (controller.signal.aborted) return;
+          if (supplier && Number(item.supplier_id) !== Number(supplier.id)) {
+            setError("Esta publicación pertenece a otro proveedor.");
             return;
           }
-        } else {
-            const directStatus = response?.status ?? "sin respuesta";
-            console.warn(`Direct fetch failed (${directStatus}), trying fallback via list...`);
-            
-            const listUrl = currentSupplier?.id
-              ? "/api/products/?skip=0&limit=1000&include_inactive=true"
-              : "/api/products/?skip=0&limit=1000";
+          setError(null);
+          setProduct(item);
+          setIsRealEstate(item.is_real_estate === true);
+          setHasFreshProductData(fresh);
+        }
 
-            const listResponse = await fetchWithAuth(listUrl);
+        const detail = await fetchWithAuth(`/api/products/${encodeURIComponent(productKey)}`, options);
+        if (detail.ok) {
+          applyProduct(await detail.json(), true);
+          return;
+        }
 
-            if (listResponse.ok) {
-                const listData = await listResponse.json();
-                const listItems = unwrapProducts(listData);
-                const found = listItems.length > 0
-                    ? listItems.find((p: Product) => String(p.id) === String(id) || String(p.slug) === String(id))
-                    : null;
-                
-                const allowedProduct = assertCanEdit(found ?? null);
-                if (allowedProduct) {
-                    setProduct(allowedProduct);
-                    return;
-                } else {
-                    console.warn(`Product ${id} not found in fallback list (checked ${listItems.length} items)`);
-                }
-            } else {
-                console.warn(`Fallback list fetch failed: ${listResponse.status}`);
-            }
+        // Product detail accepts a slug and only returns public, active items.
+        // The authenticated list also supports inactive items and UUID matches.
+        const limit = 100;
+        const inactive = isAdminUser || isSupplierUser ? "&include_inactive=true" : "";
+        for (let skip = 0; !controller.signal.aborted; skip += limit) {
+          const response = await fetchWithAuth(`/api/products/?skip=${skip}&limit=${limit}${inactive}`, options);
+          if (!response.ok) break;
+          const items = unwrapProducts(await response.json());
+          const found = items.find(matches);
+          if (found) {
+            applyProduct(found, true);
+            return;
+          }
+          if (items.length < limit) break;
+        }
 
-            const cachedProduct = assertCanEdit(readCachedProduct());
-            if (cachedProduct) {
-              setProduct(cachedProduct);
+        if (controller.signal.aborted) return;
+        try {
+          const raw = window.sessionStorage.getItem(EDIT_PRODUCT_CACHE_KEY);
+          if (raw) {
+            const cached: EditableProduct = JSON.parse(raw);
+            if (matches(cached)) {
+              applyProduct(cached, false);
               return;
             }
-
-            // If we are here, both direct and fallback failed.
-            // We don't use console.error to avoid Next.js overlay for expected API limitations
-            const text = response ? await response.text() : "";
-            console.warn("Direct fetch error response:", text); 
-            
-            // Set a user-friendly error
-            setError(`No se pudo cargar el producto. El servidor no permite acceso directo (${directStatus}) y no se encontró en el listado.`);
+          }
+        } catch {
+          // A cached list item is only a fallback for the general form fields.
         }
+        setError(`No se pudo cargar la publicación desde el servidor (${detail.status}).`);
       } catch (err: unknown) {
-        console.error(err);
-        const message = err instanceof Error ? err.message : String(err);
-        setError(`Connection error: ${message}`);
+        if (!controller.signal.aborted) {
+          setError(err instanceof Error ? err.message : "No se pudo conectar con el servidor.");
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
-    };
+    }
 
-    fetchProduct();
+    void fetchProduct();
+    return () => controller.abort();
   }, [id, token, user]);
 
   if (loading) {
@@ -168,7 +126,7 @@ export default function EditProductPage() {
   if (error || !product) {
     return (
       <div className="text-center py-12">
-        <p className="text-red-500 mb-4">{error || "Producto no encontrado"}</p>
+        <p className="text-red-500 mb-4">{error || catalog.notFound}</p>
         <Link href="/admin/products" className="text-primary hover:underline">
           Volver a la lista
         </Link>
@@ -179,8 +137,8 @@ export default function EditProductPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        title="Editar Producto"
-        subtitle={`Modifica los datos del producto ${product.title}.`}
+        title={catalog.isRealEstate ? "Editar propiedad" : "Editar Producto"}
+        subtitle={catalog.isRealEstate ? "Modifica los datos de esta propiedad." : `Modifica los datos del producto ${product.title}.`}
         actions={
           <Link href="/admin/products" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
             <ArrowLeft size={16} />
@@ -189,7 +147,13 @@ export default function EditProductPage() {
         }
       />
 
-      <ProductForm initialData={product} isEditMode={true} />
+      <ProductForm
+        key={product.id}
+        initialData={product}
+        isEditMode
+        hasFreshProductData={hasFreshProductData}
+        onRealEstateChange={setIsRealEstate}
+      />
     </div>
   );
 }

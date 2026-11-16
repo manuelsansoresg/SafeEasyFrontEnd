@@ -1,5 +1,7 @@
 import { fetchWithAuth } from "@/lib/api";
 import type {
+  AdminPlan,
+  PlanImageLimitInput,
   ManualSubscriptionPayload,
   Plan,
   PurchaseResponse,
@@ -62,7 +64,13 @@ const pickArray = <T>(data: unknown): T[] => {
 
 const readErrorMessage = async (response: Response, fallback: string) => {
   const text = await response.text().catch(() => "");
-  if (!text) return fallback;
+  if ([502, 503, 504].includes(response.status)) {
+    return `El servidor no está disponible temporalmente (HTTP ${response.status}). Intenta de nuevo en unos minutos.`;
+  }
+  const safeFallback = `${fallback} (HTTP ${response.status})`;
+  if (!text || response.headers.get("content-type")?.includes("text/html") || text.trimStart().startsWith("<")) {
+    return safeFallback;
+  }
   try {
     const data = JSON.parse(text) as { detail?: unknown; message?: unknown; error?: unknown };
     const detail = data.detail ?? data.message ?? data.error;
@@ -78,9 +86,9 @@ const readErrorMessage = async (response: Response, fallback: string) => {
       if (messages.length > 0) return messages.join(". ");
     }
   } catch {
-    return text;
+    return text.length <= 300 ? text.trim() || safeFallback : safeFallback;
   }
-  return fallback;
+  return safeFallback;
 };
 
 const requireOk = async (response: Response, fallback: string) => {
@@ -237,6 +245,83 @@ export const subscriptionsService = {
     return pickArray<Subscription>(json);
   },
 
+  async listAdminPlans(signal?: AbortSignal): Promise<AdminPlan[]> {
+    const path = "/plans/?skip=0&limit=1000";
+    const options = { signal, cache: "no-store", headers: { Accept: "application/json" } } as const;
+    const response = await fetchWithAuth(`/api${path}`, options);
+    const result = [404, 405, 502, 503, 504].includes(response.status)
+      ? await fetchWithAuth(`/api/backend${path}`, options)
+      : response;
+    const usableResult = !result.ok && [502, 503, 504].includes(response.status) ? response : result;
+    await requireOk(usableResult, "No se pudieron cargar los planes.");
+    const data: unknown = await usableResult.json().catch(() => null);
+    const record = asRecord(data);
+    const plans = Array.isArray(data) ? data : record.items ?? record.results ?? record.data ?? record.plans;
+    if (!Array.isArray(plans)) throw new Error("El servidor devolvió un listado de planes inválido.");
+    return plans as AdminPlan[];
+  },
+
+  async getAdminPlan(id: number, signal?: AbortSignal): Promise<AdminPlan> {
+    const options = { signal, cache: "no-store", headers: { Accept: "application/json" } } as const;
+    const path = `/api/plans/${id}`;
+    const adminResponse = await fetchWithAuth(`/api/admin/plans/${id}`, options);
+    if (adminResponse.ok) {
+      const plan = await readJson<AdminPlan>(adminResponse);
+      if (plan?.id === id && Array.isArray(plan.special_image_limits)) return plan;
+      throw new Error("La API devolvió un plan sin sus reglas especiales.");
+    }
+    if (![404, 405].includes(adminResponse.status)) {
+      await requireOk(adminResponse, "No se pudieron cargar las reglas especiales del plan.");
+    }
+    // Keep authenticated rule reads separate from cached public plan responses.
+    const query = new URLSearchParams({
+      include_special_image_limits: "true",
+      _admin_read: crypto.randomUUID(),
+    });
+    const response = await fetchWithAuth(`${path}?${query}`, options);
+    if (response.ok) {
+      const plan = await readJson<AdminPlan>(response);
+      if (plan?.id === id) return plan;
+    } else if (response.status === 403) {
+      // A denial on the extra rules must not prevent loading the general plan.
+      const generalResponse = await fetchWithAuth(path, options);
+      if (generalResponse.ok) {
+        const plan = await readJson<AdminPlan>(generalResponse);
+        if (plan?.id === id) return { ...plan, special_image_limits: undefined };
+      }
+      if (!generalResponse.ok && ![404, 405].includes(generalResponse.status)) {
+        await requireOk(generalResponse, "No se pudo cargar el plan.");
+      }
+      const generalPlan = (await subscriptionsService.listAdminPlans(signal)).find((item) => item.id === id);
+      if (!generalPlan) throw new Error("No se encontró el plan solicitado.");
+      return { ...generalPlan, special_image_limits: undefined };
+    } else if (![404, 405].includes(response.status)) {
+      await requireOk(response, "No se pudo cargar el plan.");
+    }
+
+    const listResponse = await fetchWithAuth(`/api/plans/?skip=0&limit=1000&${query}`, options);
+    if (listResponse.status === 403) {
+      const generalPlan = (await subscriptionsService.listAdminPlans(signal)).find((item) => item.id === id);
+      if (!generalPlan) throw new Error("No se encontró el plan solicitado.");
+      return { ...generalPlan, special_image_limits: undefined };
+    }
+    await requireOk(listResponse, "No se pudo cargar el plan.");
+    const plan = pickArray<AdminPlan>(await readJson<unknown>(listResponse)).find((item) => item.id === id);
+    if (!plan) throw new Error("No se encontró el plan solicitado.");
+    return plan;
+  },
+
+  async saveAdminPlan(payload: Partial<Plan> & {
+    special_image_limits?: PlanImageLimitInput[];
+  }, id?: number): Promise<AdminPlan> {
+    const response = await fetchWithAuth(id === undefined ? "/api/plans/" : `/api/plans/${id}`, {
+      method: id === undefined ? "POST" : "PUT",
+      body: JSON.stringify(payload),
+    });
+    await requireOk(response, "No se pudo guardar el plan.");
+    return response.json();
+  },
+
   async listPlans(params: ListPlansParams = {}): Promise<Plan[]> {
     const qs = new URLSearchParams({ skip: "0", limit: "1000" });
     if (params.onlyActive) qs.set("only_active", "true");
@@ -340,6 +425,7 @@ export const subscriptionsService = {
 
   async getMySubscription(): Promise<Subscription | null> {
     const tryUrls = [
+      "/api/backend/subscriptions/my",
       `/api/subscriptions/my`,
       `/api/subscriptions/my/`,
       apiUrl(`/subscriptions/my`),
@@ -347,7 +433,7 @@ export const subscriptionsService = {
     ];
     let response: Response | null = null;
     for (const url of tryUrls) {
-      response = await fetchWithAuth(url);
+      response = await fetchWithAuth(url, { cache: "no-store" });
       if (response.ok) break;
       if (response.status !== 404 && response.status !== 405) break;
     }

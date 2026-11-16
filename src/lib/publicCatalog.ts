@@ -18,7 +18,11 @@ async function readPublicApi<T>(path: string): Promise<T | null> {
 // The detail endpoints enforce active products, suppliers, subscriptions, and services.
 export const getPublicProduct = cache(async (slug: string) => {
   const product = await readPublicApi<ProductDetail>(`/products/${encodeURIComponent(slug)}`);
-  return product?.is_active === false ? null : product;
+  if (!product || product.is_active === false) return null;
+  if (product.supplier?.business_type !== undefined || product.supplier_business_type || !product.supplier_id) return product;
+
+  const supplier = await readPublicApi<SeoSupplier>(`/suppliers/${product.supplier_id}`).catch(() => null);
+  return supplier?.business_type ? { ...product, supplier_business_type: supplier.business_type } : product;
 });
 
 export const getPublicService = cache(async (id: string) => {

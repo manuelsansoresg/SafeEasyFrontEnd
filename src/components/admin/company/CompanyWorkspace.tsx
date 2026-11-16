@@ -1,5 +1,6 @@
 "use client";
 
+import { catalogLabels } from "@/lib/catalogLabels";
 import { useMyDirectorySubscription } from "@/hooks/useMyDirectorySubscription";
 
 import Link from "next/link";
@@ -91,7 +92,7 @@ export function CompanyWorkspace({ supplier, token, isDirectory, enabledModules,
               const active = activeTab === item.id;
               return <button key={item.id} type="button" onClick={() => navigate(item.id)} aria-current={active ? "page" : undefined} className={`inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium transition xl:w-full ${active ? "bg-[#004e28] text-white shadow-sm" : "bg-white text-gray-600 hover:bg-[#004e28]/[0.06] hover:text-[#004e28] xl:bg-transparent"}`}><Icon size={18} aria-hidden="true" />{item.label}</button>;
             })}
-            {!isAdmin && (isDirectory || canManageProducts) ? <div className="hidden border-t border-gray-200 pt-3 xl:mt-3 xl:block"><Link href={isDirectory ? "/admin/services" : "/admin/products"} className="flex min-h-11 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28]"><Package size={18} aria-hidden="true" />{isDirectory ? "Mis servicios" : "Mis productos"}</Link></div> : null}
+            {!isAdmin && (isDirectory || canManageProducts) ? <div className="hidden border-t border-gray-200 pt-3 xl:mt-3 xl:block"><Link href={isDirectory ? "/admin/services" : "/admin/products"} className="flex min-h-11 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28]"><Package size={18} aria-hidden="true" />{isDirectory ? "Mis servicios" : `Mis ${catalogLabels(supplier.business_type).plural}`}</Link></div> : null}
             {!isAdmin && !isDirectory && canManageServices ? <Link href="/admin/services" className="inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-[#004e28]/[0.06] hover:text-[#004e28] xl:flex xl:w-full"><BriefcaseBusiness size={18} aria-hidden="true" />Mis servicios</Link> : null}
             {enabledModules.length > 0 ? (
               <div className="flex shrink-0 items-center gap-2 border-l border-gray-200 pl-3 xl:mt-3 xl:block xl:space-y-1 xl:border-l-0 xl:border-t xl:pl-0 xl:pt-3">

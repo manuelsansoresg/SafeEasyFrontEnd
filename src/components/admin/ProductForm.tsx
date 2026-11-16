@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useEffect, type ClipboardEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { catalogLabels } from "@/lib/catalogLabels";
+import { useState, useEffect, useRef, type ClipboardEvent } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { fetchWithAuth } from "@/lib/api";
-import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
+import { isAdminRole, isSupplierRole, resolveCurrentSupplier, type SupplierBusinessType } from "@/lib/currentSupplier";
 import { getSpanishErrorMessage } from "@/lib/errorMessages";
-import { canSubscriptionManageProducts } from "@/lib/subscriptionAccess";
+import { canSubscriptionManageProducts, isSubscriptionActive } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
-import type { Subscription } from "@/types/subscriptions";
 import { 
   Loader2, 
   CheckCircle, 
@@ -24,9 +25,15 @@ import { Toast } from "@/components/ui/Toast";
 import { SupplierClassificationPicker } from "@/components/admin/SupplierClassificationPicker";
 import type { SupplierClassification } from "@/types/supplierCategories";
 
+import { appendPropertyLocation, readPropertyLocation, type ProductPropertyLocation, type PropertyLocation } from "@/lib/propertyLocation";
+
+const PropertyLocationPicker = dynamic(() => import("@/components/ui/PropertyLocationPicker"), {
+  ssr: false,
+  loading: () => <p className="col-span-2 text-sm text-gray-600">Cargando mapa…</p>,
+});
+
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
-const MAX_IMAGES = 6; // Variable para controlar el número máximo de imágenes
 const fieldClassName = "h-11 w-full rounded-xl border border-gray-200 px-4 text-gray-900 transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
 const pasteAsPlainText = (event: ClipboardEvent<HTMLDivElement>) => {
@@ -46,10 +53,10 @@ interface Supplier {
   rfc?: string;
   user_id: number; 
   business_type_id?: number | null;
-  business_type?: { id: number } | null;
+  business_type?: SupplierBusinessType | null;
 }
 
-interface Product {
+export interface EditableProduct extends ProductPropertyLocation {
   id: string;
   title: string;
   description: string;
@@ -58,12 +65,14 @@ interface Product {
   sku: string;
   is_active: boolean;
   supplier_id: number;
+  supplier?: Supplier | null;
   category_id: number | null;
   subcategory_id: number | null;
   supplier_category_id?: number | null;
   supplier_subcategory_id?: number | null;
   slug: string;
-  thumbnail_url?: string;
+  image?: string | null;
+  thumbnail_url?: string | null;
 }
 
 interface ProductMedia {
@@ -107,11 +116,27 @@ const initialFormData: ProductFormData = {
 };
 
 interface ProductFormProps {
-  initialData?: Product;
+  initialData?: EditableProduct;
   isEditMode?: boolean;
+  hasFreshProductData?: boolean;
+  onRealEstateChange?: (isRealEstate: boolean) => void;
 }
 
-export default function ProductForm({ initialData, isEditMode = false }: ProductFormProps) {
+async function readProductError(response: Response, fallback: string) {
+  const body = await response.text().catch(() => "");
+  try {
+    return getSpanishErrorMessage(JSON.parse(body), fallback);
+  } catch {
+    return body && !body.trimStart().startsWith("<") ? body : `${fallback} (${response.status})`;
+  }
+}
+
+export default function ProductForm({
+  initialData,
+  isEditMode = false,
+  hasFreshProductData = true,
+  onRealEstateChange,
+}: ProductFormProps) {
   const { token, user } = useAuthStore();
   const router = useRouter();
   const isAdminUser = isAdminRole(user?.role);
@@ -137,6 +162,54 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitting = useRef(false);
+  const [savedProduct, setSavedProduct] = useState<EditableProduct | null>(null);
+  const product = savedProduct ?? initialData;
+  const editing = isEditMode || savedProduct !== null;
+  const [locationDraft, setLocationDraft] = useState<PropertyLocation | null | undefined>();
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(initialData?.supplier ?? null);
+  const supplierId = formData.supplier_id;
+  const supplier = selectedSupplier?.id === supplierId ? selectedSupplier : null;
+  const { data: supplierDetail } = useQuery({
+    queryKey: ["product-location-supplier", user?.id, supplierId],
+    queryFn: async ({ signal }) => {
+      const response = await fetchWithAuth(`/api/suppliers/${supplierId}`, { signal, cache: "no-store" });
+      if (!response.ok) throw new Error("No se pudo consultar el tipo de negocio.");
+      return response.json() as Promise<Supplier>;
+    },
+    enabled: Boolean(token && supplierId && (!supplier || supplier.business_type_id === undefined)),
+    staleTime: 30_000,
+    retry: false,
+  });
+  const classifiedSupplier = supplierDetail?.id === supplierId ? supplierDetail : supplier;
+  const businessTypeId = classifiedSupplier?.business_type_id === null
+    ? null
+    : classifiedSupplier?.business_type_id ?? classifiedSupplier?.business_type?.id;
+  const nestedType = classifiedSupplier?.business_type;
+  const embeddedSlug = businessTypeId && nestedType?.id === businessTypeId ? nestedType.slug : undefined;
+  const { data: businessTypes } = useQuery({
+    queryKey: ["product-location-business-types"],
+    queryFn: async ({ signal }) => {
+      const response = await fetchWithAuth("/api/business-types", { signal, cache: "no-store" });
+      if (!response.ok) throw new Error("No se pudieron consultar los tipos de negocio.");
+      return response.json() as Promise<SupplierBusinessType[]>;
+    },
+    enabled: Boolean(token && businessTypeId && !embeddedSlug),
+    staleTime: 30_000,
+    retry: false,
+  });
+  const businessTypeSlug = embeddedSlug ?? businessTypes?.find((type) => type.id === businessTypeId)?.slug;
+  const productRealEstate = product?.supplier_id === supplierId && product?.is_real_estate === true;
+  const isRealEstate = businessTypeSlug
+    ? businessTypeSlug === "inmuebles" || businessTypeSlug === "inmueble"
+    : classifiedSupplier?.business_type_id !== null && productRealEstate;
+  const catalog = catalogLabels(isRealEstate ? "inmuebles" : null);
+  const canSetLocation = isRealEstate && (hasFreshProductData || savedProduct !== null);
+  const location = locationDraft === undefined ? readPropertyLocation(product) : locationDraft;
+
+  useEffect(() => {
+    onRealEstateChange?.(isRealEstate);
+  }, [isRealEstate, onRealEstateChange]);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
   const classification: SupplierClassification = {
@@ -145,11 +218,27 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     supplierCategoryId: formData.supplier_category_id,
     supplierSubcategoryId: formData.supplier_subcategory_id,
   };
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
-  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const subscriptionQuery = useQuery({
+    queryKey: ["product-form-subscription", user?.id],
+    queryFn: () => subscriptionsService.getMySubscription(),
+    enabled: isSupplierUser && Boolean(token),
+    retry: false,
+  });
+  const subscription = subscriptionQuery.data ?? null;
+  const subscriptionLoading = isSupplierUser && subscriptionQuery.isPending;
+  const activeSubscription = isSubscriptionActive(subscription);
   const canManageProducts = !isSupplierUser || canSubscriptionManageProducts(subscription);
-  const isCreationBlockedBySubscription = isSupplierUser && (subscriptionLoading || !canManageProducts);
+  const imageLimit = isSupplierUser && activeSubscription ? subscription?.plan?.max_images_per_product ?? null : null;
+  const subscriptionNotice = !isSupplierUser || subscriptionLoading
+    ? null
+    : subscriptionQuery.isError
+      ? "No pudimos validar tu suscripción. Recarga la página para intentarlo de nuevo."
+      : !activeSubscription
+        ? `Tu suscripción no está activa. Renueva tu plan para publicar ${catalog.plural}.`
+        : !canManageProducts
+          ? `Tu suscripción actual no habilita la administración de ${catalog.plural}.`
+          : null;
+  const isCreationBlockedBySubscription = subscriptionLoading || subscriptionNotice !== null;
 
   useEffect(() => {
     if (!toast) return;
@@ -157,41 +246,42 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     return () => window.clearTimeout(id);
   }, [toast]);
 
-  useEffect(() => {
-    if (!token || !isSupplierUser) return;
-    let cancelled = false;
-
-    const loadSubscription = async () => {
-      setSubscriptionLoading(true);
-      setSubscriptionError(null);
-      try {
-        const data = await subscriptionsService.getMySubscription();
-        if (!cancelled) setSubscription(data);
-      } catch (error) {
-        console.error("Error loading supplier subscription:", error);
-        if (!cancelled) {
-          setSubscription(null);
-          setSubscriptionError("No pudimos validar tu subscripción.");
-        }
-      } finally {
-        if (!cancelled) setSubscriptionLoading(false);
-      }
-    };
-
-    loadSubscription();
-    return () => {
-      cancelled = true;
-    };
-  }, [isSupplierUser, token]);
-  
   // Media Upload
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [mediaList, setMediaList] = useState<ProductMedia[]>([]);
+  const [mediaCountKnown, setMediaCountKnown] = useState(!initialData);
 
   // Cover Image
   const [coverImage, setCoverImage] = useState<File | null>(null);
-  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(initialData?.thumbnail_url ?? initialData?.image ?? null);
+  const hasCover = Boolean(product?.image === undefined ? product?.thumbnail_url : product.image);
+  const currentImages = Number(hasCover) + mediaList.filter((media) => media.type === "image").length;
+  const coverAddsImage = Boolean(coverImage) && !hasCover;
+  const imageLimitMessage = `El límite de tu plan es de ${imageLimit} imágenes por ${catalog.singular}, incluida la portada.`;
+
+  const exceedsImageLimit = (files: File[], addsCover: boolean) => {
+    const addedImages = Number(addsCover) + files.filter((file) => !file.type.toLowerCase().startsWith("video/")).length;
+    return imageLimit != null && addedImages > 0 && (
+      imageLimit === 0 || (mediaCountKnown && currentImages + addedImages > imageLimit)
+    );
+  };
+
+  const changeAdditionalFiles = (files: File[]) => {
+    if (files.length > selectedFiles.length && exceedsImageLimit(files, coverAddsImage)) {
+      setToast({ type: "error", message: imageLimitMessage });
+      return;
+    }
+    setSelectedFiles(files);
+  };
+
+  const changeCover = (file: File | null) => {
+    if (file && !hasCover && exceedsImageLimit(selectedFiles, true)) {
+      setToast({ type: "error", message: imageLimitMessage });
+      return;
+    }
+    setCoverImage(file);
+  };
 
   // Aux Data
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -218,6 +308,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           setError("No se encontró el proveedor asociado a tu cuenta.");
           return;
         }
+        setSelectedSupplier(supplier as Supplier);
         setSuppliers([supplier as Supplier]);
         setFormData((prev) => ({ ...prev, supplier_id: supplier.id }));
         setSelectedSupplierDisplay(supplier.name);
@@ -244,9 +335,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         setSelectedSupplierDisplay(`ID: ${initialData.supplier_id}`);
         fetchMedia(initialData.id);
         
-        if (initialData.thumbnail_url) {
-            setCoverPreview(initialData.thumbnail_url);
-        }
+        setCoverPreview(initialData.thumbnail_url ?? initialData.image ?? null);
     }
   }, [initialData, token]);
 
@@ -286,13 +375,12 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     if (!token) return;
     try {
       if (process.env.NODE_ENV === "development") console.log(`Fetching media for product ${productId}...`);
-      const response = await fetch(`/api/products/${productId}/media`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await fetchWithAuth(`/api/products/${productId}/media`, { cache: "no-store" });
       if (response.ok) {
         const data = await response.json();
         if (process.env.NODE_ENV === "development") console.log("Media fetched:", data);
         setMediaList(Array.isArray(data) ? data : []);
+        setMediaCountKnown(Array.isArray(data));
       } else {
         console.error("Error fetching media:", await response.text());
       }
@@ -346,6 +434,8 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   }
 
   const selectSupplier = (supplier: Supplier) => {
+    if (supplier.id !== supplierId) setLocationDraft(undefined);
+    setSelectedSupplier(supplier);
     setFormData(prev => ({
       ...prev,
       supplier_id: supplier.id,
@@ -360,15 +450,22 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting.current) return;
     if (!token) {
         setError("No hay sesión activa");
         return;
     }
     if (isCreationBlockedBySubscription) {
-      setError(subscriptionError || "Para administrar productos necesitas una suscripción activa con Imágenes por producto mayor que 0.");
+      if (subscriptionNotice) setError(subscriptionNotice);
       return;
     }
 
+    if (exceedsImageLimit(selectedFiles, coverAddsImage)) {
+      setError(imageLimitMessage);
+      return;
+    }
+
+    submitting.current = true;
     setIsSubmitting(true);
     setError(null);
     setUploadProgress(null);
@@ -389,9 +486,12 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
       // Generate slug from title with random suffix to ensure uniqueness and avoid 500 errors
       const randomSuffix = Math.floor(Math.random() * 10000);
-      const slug = slugify(`${formData.title}-${randomSuffix}`, { lower: true, strict: true });
+      const slug = savedProduct?.slug || slugify(`${formData.title}-${randomSuffix}`, { lower: true, strict: true });
 
       const payload = new FormData();
+      if (canSetLocation && locationDraft !== undefined) {
+        appendPropertyLocation(payload, locationDraft, product);
+      }
       payload.append('title', formData.title);
       payload.append('description', formData.description);
       payload.append('price', String(formData.price));
@@ -401,26 +501,26 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       if (formData.supplier_id) payload.append('supplier_id', String(formData.supplier_id));
       if (formData.supplier_category_id) {
         payload.append('supplier_category_id', String(formData.supplier_category_id));
-        if (isEditMode) {
+        if (editing) {
           payload.append('category_id', '0');
           payload.append('subcategory_id', '0');
         }
         if (formData.supplier_subcategory_id) {
           payload.append('supplier_subcategory_id', String(formData.supplier_subcategory_id));
-        } else if (isEditMode) {
+        } else if (editing) {
           payload.append('supplier_subcategory_id', '0');
         }
       } else if (formData.category_id) {
         payload.append('category_id', String(formData.category_id));
         if (formData.supplier_subcategory_id) {
           payload.append('supplier_subcategory_id', String(formData.supplier_subcategory_id));
-          if (isEditMode) payload.append('subcategory_id', '0');
+          if (editing) payload.append('subcategory_id', '0');
         } else if (formData.subcategory_id) {
           payload.append('subcategory_id', String(formData.subcategory_id));
-        } else if (isEditMode) {
+        } else if (editing) {
           payload.append('subcategory_id', '0');
         }
-        if (isEditMode) {
+        if (editing) {
           payload.append('supplier_category_id', '0');
           if (!formData.supplier_subcategory_id) {
             payload.append('supplier_subcategory_id', '0');
@@ -431,19 +531,19 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
 
       if (coverImage) {
         payload.append('image', coverImage);
-      } else if (coverPreview === null && initialData?.thumbnail_url) {
-         if (isEditMode) {
+      } else if (coverPreview === null && product?.thumbnail_url) {
+         if (editing) {
               payload.append('delete_image', 'true');
          }
       }
 
       if (process.env.NODE_ENV === "development") console.log("Sending payload (FormData)");
 
-      const url = isEditMode && initialData
-        ? `/api/products/${initialData.id}` 
+      const url = editing && product
+        ? `/api/products/${product.id}`
         : '/api/products/';
       
-      const method = isEditMode ? 'PUT' : 'POST';
+      const method = editing ? 'PUT' : 'POST';
 
       const response = await fetchWithAuth(url, {
         method,
@@ -451,40 +551,57 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       });
 
       if (!response.ok) {
-        let errorMessage = "Error al guardar producto";
-        try {
-            const text = await response.text();
-            try {
-                const errorDataUnknown: unknown = JSON.parse(text);
-                errorMessage = getSpanishErrorMessage(errorDataUnknown, errorMessage);
-            } catch {
-                errorMessage = `Error ${response.status}: ${text || response.statusText}`;
-            }
-        } catch (e) {
-            errorMessage = `Error ${response.status}: ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
+        throw new Error(await readProductError(response, `Error al guardar ${catalog.theItem}`));
       }
 
-      const savedProduct = await response.json();
-      const productId = isEditMode && initialData ? initialData.id : savedProduct.id;
+      const persisted: EditableProduct = await response.json();
+      const productId = product?.id ?? persisted.id;
+      setSavedProduct(persisted);
+      setCoverPreview(persisted.thumbnail_url ?? persisted.image ?? null);
+      setCoverImage(null);
+
+      if (payload.has("property_latitude") || payload.has("clear_property_location")) {
+        const expected = locationDraft ?? null;
+        if (
+          persisted.property_latitude !== (expected?.lat ?? null) ||
+          persisted.property_longitude !== (expected?.lng ?? null) ||
+          persisted.property_address !== (expected?.address?.trim() || null)
+        ) {
+          setSavedProduct({
+            ...persisted,
+            property_latitude: product?.property_latitude,
+            property_longitude: product?.property_longitude,
+            property_address: product?.property_address,
+          });
+          throw new Error("El servidor no confirmó el cambio de ubicación. Revisa el punto y vuelve a guardar.");
+        }
+        setLocationDraft(undefined);
+      }
 
       // Handle Media Upload
       if (selectedFiles.length > 0) {
         setUploadProgress("Subiendo imágenes...");
-        for (let i = 0; i < selectedFiles.length; i++) {
-          const file = selectedFiles[i];
-          const mediaFormData = new FormData();
-          mediaFormData.append('file', file);
-          
-          const mediaRes = await fetchWithAuth(`/api/products/${productId}/media`, {
-            method: 'POST',
-            body: mediaFormData
-          });
-
-          if (!mediaRes.ok) {
-            console.error(`Failed to upload ${file.name}`);
+        let uploaded = 0;
+        try {
+          for (const file of selectedFiles) {
+            const mediaFormData = new FormData();
+            mediaFormData.append("file", file);
+            const mediaResponse = await fetchWithAuth(`/api/products/${productId}/media`, {
+              method: "POST",
+              body: mediaFormData,
+            });
+            if (!mediaResponse.ok) {
+              throw new Error(await readProductError(mediaResponse, "No se pudo subir el archivo."));
+            }
+            uploaded += 1;
           }
+        } catch (err) {
+          setSelectedFiles(selectedFiles.slice(uploaded));
+          setMediaCountKnown(false);
+          await fetchMedia(productId);
+          const detail = err instanceof Error ? err.message : "Error de conexión.";
+          const partial = uploaded ? ` Se subieron ${uploaded} de ${selectedFiles.length} archivos.` : "";
+          throw new Error(`${catalog.isRealEstate ? "La propiedad" : "El producto"} se guardó, pero quedaron archivos pendientes.${partial} ${detail}`);
         }
       }
 
@@ -493,6 +610,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
       setUploadProgress(null);
     }
@@ -502,26 +620,20 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
     <>
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        {isCreationBlockedBySubscription ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            Tu subscripción no está activa. Tus productos no deben mostrarse para compra y necesitas renovar tu plan para subir productos nuevos.
-          </div>
-        ) : null}
-
-        {isSupplierUser && !subscriptionLoading && !canManageProducts ? (
-          <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            Para administrar productos necesitas una suscripción activa con Imágenes por producto mayor que 0.
+        {subscriptionNotice ? (
+          <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            {subscriptionNotice}
           </p>
         ) : null}
-        {subscriptionLoading && isSupplierUser ? (
+        {subscriptionLoading ? (
           <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
             <Loader2 size={16} className="animate-spin" />
-            Validando subscripción...
+            Validando suscripción…
           </div>
         ) : null}
 
         {error && (
-          <div className="p-4 bg-red-50 text-red-600 text-sm rounded-xl">
+          <div role="alert" className="p-4 bg-red-50 text-red-600 text-sm rounded-xl">
             {error}
           </div>
         )}
@@ -543,7 +655,8 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
             <FileUpload
                 label="Imagen de Portada"
                 value={coverImage}
-                onChange={setCoverImage}
+                onChange={changeCover}
+                disabled={isSubmitting}
                 currentImageUrl={coverPreview}
                 helperText="Formatos: JPG, PNG, WEBP. Máx: 2MB."
             />
@@ -572,7 +685,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">SKU *</label>
+            <label className="text-sm font-medium text-gray-700">{catalog.reference} *</label>
             <input
               type="text"
               name="sku"
@@ -624,6 +737,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                 <button
                   type="button"
                   onClick={() => setIsSupplierModalOpen(true)}
+                  disabled={isSubmitting}
                   className="h-11 rounded-xl bg-gray-100 px-4 text-gray-600 transition-colors hover:bg-gray-200"
                 >
                   Buscar
@@ -646,13 +760,39 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
             disabled={isSubmitting}
           />
           
+          {canSetLocation && (
+            <PropertyLocationPicker
+              key={supplierId}
+              value={location}
+              onChange={setLocationDraft}
+              disabled={isSubmitting}
+            />
+          )}
+          {isRealEstate && !canSetLocation && (
+            <p role="status" className="col-span-2 text-sm text-amber-800">
+              No se pudo consultar la ubicación guardada. Recarga la página para editarla.
+            </p>
+          )}
+
           <div className="col-span-2 space-y-2">
+             {imageLimit != null && (
+               <div className="space-y-1 text-sm text-gray-600" aria-live="polite">
+                 <p>{mediaCountKnown ? `${currentImages} de ${imageLimit} imágenes utilizadas` : imageLimitMessage}</p>
+                 {mediaCountKnown && currentImages > imageLimit && (
+                   <p className="text-amber-800">Superaste el límite actual. Puedes reemplazar la portada o eliminar imágenes existentes.</p>
+                 )}
+                 {mediaCountKnown && currentImages === imageLimit && (
+                   <p className="text-amber-800">Has alcanzado el límite de imágenes de tu plan.</p>
+                 )}
+               </div>
+             )}
              <MultiFileUpload
                 label="Imágenes / Videos (Opcional)"
                 value={selectedFiles}
-                onChange={setSelectedFiles}
-                maxFiles={MAX_IMAGES}
-                helperText={`Soporta imágenes y videos (Máx. ${MAX_IMAGES} archivos en total)`}
+                onChange={changeAdditionalFiles}
+                maxFiles={null}
+                disabled={isSubmitting}
+                helperText="Las imágenes adicionales cuentan para el límite de tu plan."
              />
 
              {/* Existing Media List */}
@@ -681,6 +821,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
                          </a>
                          <button
                           type="button"
+                          disabled={isSubmitting}
                           onClick={() => handleDeleteMedia(media.id)}
                           className="p-2 bg-white/90 rounded-full text-gray-700 hover:text-red-600 hover:bg-white transition-colors"
                           title="Eliminar imagen"
@@ -704,7 +845,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
               className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
             />
             <label htmlFor="is_active" className="text-sm font-medium text-gray-700 select-none cursor-pointer">
-              Producto Activo
+              {catalog.active}
             </label>
           </div>
         </div>
@@ -720,7 +861,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           </button>
           <button
             type="submit"
-            disabled={isSubmitting || subscriptionLoading || isCreationBlockedBySubscription}
+            disabled={isSubmitting || isCreationBlockedBySubscription}
             className="cursor-pointer px-6 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 flex items-center gap-2"
           >
             {isSubmitting ? (
@@ -731,7 +872,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
             ) : (
               <>
                 <CheckCircle size={18} />
-                Guardar Producto
+                {catalog.isRealEstate ? "Guardar propiedad" : "Guardar Producto"}
               </>
             )}
           </button>

@@ -1,10 +1,11 @@
 "use client";
 
+import { useSupplierCatalogLabels } from "@/hooks/useSupplierCatalogLabels";
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { isAdminRole, isSupplierRole, resolveCurrentSupplier } from "@/lib/currentSupplier";
-import { canSubscriptionManageProducts } from "@/lib/subscriptionAccess";
+import { canSubscriptionManageProducts, isSubscriptionActive } from "@/lib/subscriptionAccess";
 import { subscriptionsService } from "@/services/subscriptionsService";
 import type { Subscription } from "@/types/subscriptions";
 import DOMPurify from "isomorphic-dompurify";
@@ -34,7 +35,8 @@ interface Product {
   category_id: number;
   subcategory_id: number;
   slug: string;
-  thumbnail_url?: string;
+  image?: string | null;
+  thumbnail_url?: string | null;
 }
 
 function unwrapProducts(data: unknown): Product[] {
@@ -100,6 +102,9 @@ function AdminProductImage({ src, alt, className }: { src: string; alt: string; 
 const EDIT_PRODUCT_CACHE_KEY = "admin-edit-product";
 
 export default function AdminProductsPage() {
+  const catalog = useSupplierCatalogLabels();
+  const activeLabel = catalog.isRealEstate ? "Activa" : "Activo";
+  const inactiveLabel = catalog.isRealEstate ? "Inactiva" : "Inactivo";
   const { token, user } = useAuthStore();
   const isAdminUser = isAdminRole(user?.role);
   const isSupplierUser = isSupplierRole(user?.role) && !isAdminUser;
@@ -224,13 +229,13 @@ export default function AdminProductsPage() {
         }
       } else {
         const text = await response.text().catch(() => "");
-        setError(`No se pudieron cargar los productos (${response.status}). ${text}`.trim());
+        setError(`No se pudieron cargar ${catalog.theItems} (${response.status}). ${text}`.trim());
         setProducts([]);
         setTotalProducts(0);
       }
     } catch (error) {
       console.error("Error fetching products:", error);
-      setError("No se pudieron cargar los productos.");
+      setError(`No se pudieron cargar ${catalog.theItems}.`);
       setProducts([]);
       setTotalProducts(0);
     } finally {
@@ -239,7 +244,7 @@ export default function AdminProductsPage() {
   };
 
   const deleteProduct = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar este producto?")) return;
+    if (!confirm(`¿Estás seguro de eliminar ${catalog.thisItem}?`)) return;
     if (!token) return;
     try {
     const res = await fetchWithAuth(`/api/products/${id}`, { method: 'DELETE' });
@@ -248,7 +253,7 @@ export default function AdminProductsPage() {
     if (res.ok) {
       fetchProducts();
     } else {
-      setToast({ type: "error", message: `Error al eliminar producto (${res.status}).` });
+      setToast({ type: "error", message: `Error al eliminar ${catalog.theItem} (${res.status}).` });
     }
     } catch (error) {
       console.error("Error deleting product:", error);
@@ -267,15 +272,15 @@ export default function AdminProductsPage() {
     <div className="space-y-6">
       {toast ? <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} /> : null}
       <PageHero
-        title="Productos"
-        subtitle="Gestiona el catálogo de productos."
+        title={catalog.title}
+        subtitle={catalog.isRealEstate ? "Administra las propiedades de tu negocio." : "Gestiona el catálogo de productos."}
         actions={
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input 
                     type="text"
-                    placeholder="Buscar producto..."
+                    placeholder={`Buscar ${catalog.singular}...`}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
@@ -299,7 +304,7 @@ export default function AdminProductsPage() {
                 className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20 shrink-0"
               >
                 <Plus size={20} />
-                <span className="hidden sm:inline">Nuevo Producto</span>
+                <span className="hidden sm:inline">{catalog.add}</span>
               </Link>
             ) : (
               <button
@@ -315,9 +320,15 @@ export default function AdminProductsPage() {
         }
       />
 
+      {isSupplierUser && isSubscriptionActive(subscription) && subscription?.plan?.max_images_per_product != null && (
+        <p className="text-sm text-gray-600">
+          Límite de tu plan: {subscription.plan.max_images_per_product} imágenes por {catalog.singular}, incluida la portada.
+        </p>
+      )}
+
       {!canCreateProduct && !subscriptionLoading ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-          Para administrar productos necesitas una suscripción activa con Imágenes por producto mayor que 0.
+          Tu suscripción actual no habilita la administración de {catalog.plural}.
         </div>
       ) : null}
 
@@ -341,9 +352,9 @@ export default function AdminProductsPage() {
                 <tr className="bg-gray-50/50 border-b border-gray-100">
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-[80px]">Imagen</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]">Nombre</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">SKU</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">{catalog.reference}</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Precio</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock</th>
+                  {!catalog.isRealEstate && <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock</th>}
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Estado</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Acciones</th>
                 </tr>
@@ -351,8 +362,8 @@ export default function AdminProductsPage() {
               <tbody className="divide-y divide-gray-100">
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-500">
-                      No hay productos registrados.
+                    <td colSpan={catalog.isRealEstate ? 6 : 7} className="p-8 text-center text-gray-500">
+                      {catalog.isRealEstate ? "No hay propiedades registradas." : "No hay productos registrados."}
                     </td>
                   </tr>
                 ) : (
@@ -380,13 +391,13 @@ export default function AdminProductsPage() {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{product.sku}</td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-800">{formatPrice(product.price)}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{product.stock}</td>
+                      {!catalog.isRealEstate && <td className="px-6 py-4 text-sm text-gray-600">{product.stock}</td>}
                       <td className="px-6 py-4 text-center">
                         <span className={cn(
                           "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border",
                           product.is_active ? "bg-green-50 text-green-700 border-green-100" : "bg-gray-50 text-gray-600 border-gray-100"
                         )}>
-                          {product.is_active ? "Activo" : "Inactivo"}
+                          {product.is_active ? activeLabel : inactiveLabel}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -417,7 +428,7 @@ export default function AdminProductsPage() {
           <div className="divide-y divide-gray-100 md:hidden">
             {products.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                No hay productos registrados.
+                {catalog.isRealEstate ? "No hay propiedades registradas." : "No hay productos registrados."}
               </div>
             ) : (
               products.map((product) => (
@@ -454,23 +465,25 @@ export default function AdminProductsPage() {
                               : "border-gray-100 bg-gray-50 text-gray-600"
                           )}
                         >
-                          {product.is_active ? "Activo" : "Inactivo"}
+                          {product.is_active ? activeLabel : inactiveLabel}
                         </span>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                      <div className={cn("mt-4 grid gap-2 text-xs", catalog.isRealEstate ? "grid-cols-2" : "grid-cols-3")}>
                         <div className="rounded-xl bg-gray-50 p-2">
-                          <div className="font-semibold uppercase tracking-wide text-gray-400">SKU</div>
+                          <div className="font-semibold uppercase tracking-wide text-gray-400">{catalog.reference}</div>
                           <div className="mt-1 break-words text-gray-700">{product.sku || "-"}</div>
                         </div>
                         <div className="rounded-xl bg-gray-50 p-2">
                           <div className="font-semibold uppercase tracking-wide text-gray-400">Precio</div>
                           <div className="mt-1 font-semibold text-gray-900">{formatPrice(product.price)}</div>
                         </div>
-                        <div className="rounded-xl bg-gray-50 p-2">
-                          <div className="font-semibold uppercase tracking-wide text-gray-400">Stock</div>
-                          <div className="mt-1 text-gray-700">{product.stock}</div>
-                        </div>
+                        {!catalog.isRealEstate && (
+                          <div className="rounded-xl bg-gray-50 p-2">
+                            <div className="font-semibold uppercase tracking-wide text-gray-400">Stock</div>
+                            <div className="mt-1 text-gray-700">{product.stock}</div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="mt-3 flex justify-end gap-2">

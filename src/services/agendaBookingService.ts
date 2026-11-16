@@ -314,6 +314,13 @@ export const agendaBookingService = {
     );
   },
 
+  async checkPublicAgendaAccess(supplierId: number, signal?: AbortSignal): Promise<void> {
+    await request<unknown>(
+      `${publicAgendaGateway}/${supplierId}/payment-settings`,
+      { signal, retryOnAuthFailure: false },
+    );
+  },
+
   async listPublicServices(
     supplierId: number,
     signal?: AbortSignal,

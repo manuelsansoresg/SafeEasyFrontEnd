@@ -1,3 +1,4 @@
+import { catalogLabels } from "@/lib/catalogLabels";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ProductDetailClient from "@/components/product/ProductDetailClient";
@@ -59,6 +60,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
   const product = await getPublicProduct(slug);
   if (!product) notFound();
+  const catalog = catalogLabels(product.supplier?.business_type ?? product.supplier_business_type);
   const productSlug = product.slug || slug;
   const productUrl = absoluteSiteUrl(`/product/${productSlug}`);
   const image = getProductImage(product);
@@ -127,7 +129,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {
               "@type": "ListItem",
               position: 2,
-              name: product.category?.name || "Productos",
+              name: product.category?.name || catalog.title,
               item: product.category?.slug
                 ? absoluteSiteUrl(`/categorias/${product.category.slug}`)
                 : absoluteSiteUrl("/"),

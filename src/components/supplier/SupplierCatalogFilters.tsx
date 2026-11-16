@@ -9,6 +9,7 @@ type SupplierCatalogFiltersProps = {
   onCategoryChange: (category: CatalogFilterOption | null) => void;
   onSubcategoryChange: (subcategory: CatalogFilterOption | null) => void;
   label: string;
+  allLabel?: string;
 };
 
 const chipClass = (selected: boolean) =>
@@ -23,11 +24,13 @@ function FilterRow({
   selected,
   onChange,
   ariaLabel,
+  allLabel = "Todos",
 }: {
   options: CatalogFilterOption[];
   selected: CatalogFilterOption | null;
   onChange: (option: CatalogFilterOption | null) => void;
   ariaLabel: string;
+  allLabel?: string;
 }) {
   return (
     <div
@@ -41,7 +44,7 @@ function FilterRow({
         className={`${chipClass(!selected)} snap-start`}
         onClick={() => onChange(null)}
       >
-        Todos
+        {allLabel}
       </button>
       {options.map((option) => (
         <button
@@ -65,6 +68,7 @@ export function SupplierCatalogFilters({
   onCategoryChange,
   onSubcategoryChange,
   label,
+  allLabel,
 }: SupplierCatalogFiltersProps) {
   const subcategories = selectedCategory?.subcategories ?? [];
 
@@ -75,6 +79,7 @@ export function SupplierCatalogFilters({
         selected={selectedCategory}
         onChange={onCategoryChange}
         ariaLabel={`Categorías de ${label}`}
+        allLabel={allLabel}
       />
       {subcategories.length ? (
         <FilterRow

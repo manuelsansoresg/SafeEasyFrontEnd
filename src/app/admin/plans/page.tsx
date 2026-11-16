@@ -16,17 +16,8 @@ import {
   XCircle,
 } from "lucide-react";
 
-interface Plan {
-  id: number;
-  title: string;
-  description: string;
-  price: number;
-  duration: "monthly" | "yearly";
-  is_active: boolean;
-  is_demo?: boolean;
-  max_active_products?: number | null;
-  max_images_per_product?: number | null;
-}
+import { subscriptionsService } from "@/services/subscriptionsService";
+import type { AdminPlan as Plan } from "@/types/subscriptions";
 
 const formatPrice = (value: unknown) => {
   const num = typeof value === "number" ? value : Number(value);
@@ -55,23 +46,6 @@ const apiUrl = (path: string) => {
   return `${base.replace(/\/$/, "")}${path}`;
 };
 
-const unwrapPlans = (data: unknown): Plan[] => {
-  if (Array.isArray(data)) return data as Plan[];
-  if (data && typeof data === "object") {
-    const record = data as Record<string, unknown>;
-    const items = record.items ?? record.results ?? record.data ?? record.plans;
-    if (Array.isArray(items)) return items as Plan[];
-  }
-  return [];
-};
-
-const buildAdminPlanParams = () => {
-  const params = new URLSearchParams();
-  params.set("skip", String(0));
-  params.set("limit", String(1000));
-  return params;
-};
-
 const readErrorMessage = async (response: Response) => {
   const text = await response.text().catch(() => "");
   if (!text) return "";
@@ -89,9 +63,22 @@ export default function AdminPlansPage() {
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [onlyActive, setOnlyActive] = useState(false);
   const [toast, setToast] = useState<null | { type: "success" | "error" | "info"; message: string }>(null);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("guardado") !== "1") return;
+    const timer = window.setTimeout(() => {
+      url.searchParams.delete("guardado");
+      window.history.replaceState(window.history.state, "", url);
+      setToast({ type: "success", message: "Plan guardado correctamente." });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -106,24 +93,14 @@ export default function AdminPlansPage() {
 
     const run = async () => {
       setLoading(true);
+      setLoadError(null);
       try {
-        const commonRequest = {
-          signal: controller.signal,
-          headers: { Accept: "application/json" },
-        };
-        const response = await fetchWithAuth(`/api/plans/?${buildAdminPlanParams().toString()}`, commonRequest);
-        if (!isMounted) return;
-        if (response.ok) {
-          const data = await response.json();
-          setPlans(unwrapPlans(data));
-        } else {
-          setPlans([]);
-          setToast({ type: "error", message: "No se pudieron cargar los planes." });
-        }
+        const data = await subscriptionsService.listAdminPlans(controller.signal);
+        if (isMounted) setPlans(data);
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         console.error("Error fetching plans:", error);
-        if (isMounted) setToast({ type: "error", message: "Error al cargar planes." });
+        if (isMounted) setLoadError(error instanceof Error ? error.message : "Error al cargar planes.");
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -135,7 +112,7 @@ export default function AdminPlansPage() {
       window.clearTimeout(debounceId);
       controller.abort();
     };
-  }, [token]);
+  }, [token, loadAttempt]);
 
   const deletePlan = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este plan?")) return;
@@ -154,11 +131,7 @@ export default function AdminPlansPage() {
 
       if (response?.ok) {
         setToast({ type: "success", message: "Plan eliminado correctamente." });
-        const refresh = await fetchWithAuth(`/api/plans/?${buildAdminPlanParams().toString()}`);
-        if (refresh.ok) {
-          const data = await refresh.json();
-          setPlans(unwrapPlans(data));
-        }
+        setPlans((current) => current.filter((plan) => plan.id !== id));
       } else {
         const message = response ? await readErrorMessage(response) : "";
         setToast({ type: "error", message: message || "Error al eliminar plan." });
@@ -179,6 +152,15 @@ export default function AdminPlansPage() {
       return title.includes(q) || desc.includes(q);
     });
   }, [plans, searchTerm, onlyActive]);
+
+  const loadErrorContent = loadError ? (
+    <div role="alert" className="space-y-2 text-sm text-red-700">
+      <p>{loadError}</p>
+      <button type="button" className="font-semibold underline" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+        Reintentar
+      </button>
+    </div>
+  ) : null;
 
   return (
     <div className="space-y-6">
@@ -248,6 +230,8 @@ export default function AdminPlansPage() {
                     </div>
                   </td>
                 </tr>
+              ) : loadErrorContent ? (
+                <tr><td colSpan={7} className="px-6 py-8 text-center">{loadErrorContent}</td></tr>
               ) : filteredPlans.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
@@ -333,6 +317,8 @@ export default function AdminPlansPage() {
                 Cargando planes...
               </div>
             </div>
+          ) : loadErrorContent ? (
+            <div className="px-4 py-8 text-center">{loadErrorContent}</div>
           ) : filteredPlans.length === 0 ? (
             <div className="px-4 py-8 text-center text-gray-500">No se encontraron planes</div>
           ) : (

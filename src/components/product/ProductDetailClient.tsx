@@ -1,7 +1,8 @@
 "use client";
 
+import { catalogLabels } from "@/lib/catalogLabels";
+import type { AgendaBusinessType } from "@/lib/agendaTitle";
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
 import { registerInteraction, getSimilarProducts } from "@/lib/interactions";
@@ -34,6 +35,10 @@ import { Toast } from "@/components/ui/Toast";
 import { productHasActiveSupplierSubscription, supplierHasDirectorySubscription } from "@/lib/subscriptionAccess";
 import { getSpanishErrorMessage, translateStockErrorMessage } from "@/lib/errorMessages";
 import DOMPurify from "isomorphic-dompurify";
+import PropertyLocationSection, {
+  getPublicPropertyLocation,
+  type PublicPropertyLocationFields,
+} from "@/components/product/PropertyLocationSection";
 
 // Interfaces
 interface ProductMedia {
@@ -66,7 +71,7 @@ interface Rating {
   };
 }
 
-export interface ProductDetail {
+export interface ProductDetail extends PublicPropertyLocationFields {
   id: string;
   title: string;
   description: string;
@@ -76,6 +81,7 @@ export interface ProductDetail {
   is_active: boolean;
   supplier_id: number;
   supplier_user_id?: number | string | null;
+  supplier_business_type?: AgendaBusinessType | null;
   has_store?: boolean | number | string | null;
   supplier_has_store?: boolean | number | string | null;
   accepts_delivery?: boolean | number | string | null;
@@ -98,14 +104,15 @@ export interface ProductDetail {
     transfer_accepted?: boolean;
     has_store?: boolean | number | string | null;
     is_directory?: boolean;
+    business_type?: AgendaBusinessType | null;
   };
-  category_id: number;
-  subcategory_id: number;
+  category_id: number | null;
+  subcategory_id: number | null;
   slug: string;
   average_rating: number;
   image: string | null;
   thumbnail_url: string | null;
-  category: {
+  category?: {
     id: number;
     name: string;
     description: string;
@@ -113,7 +120,7 @@ export interface ProductDetail {
     is_active: boolean;
     slug: string;
   };
-  subcategory: {
+  subcategory?: {
     id: number;
     name: string;
     category_id: number;
@@ -146,15 +153,23 @@ import { useChat } from "@/context/ChatContext";
 import { useChatStore } from "@/store/useChatStore";
 import { chatService } from "@/services/chatService";
 
-export default function ProductDetailPage({ initialProduct }: { initialProduct: ProductDetail }) {
-  const params = useParams();
-  const slug = params?.slug as string;
+export default function ProductDetailPage({ initialProduct, demoCatalogHref, businessType }: {
+  initialProduct: ProductDetail;
+  demoCatalogHref?: string;
+  businessType?: AgendaBusinessType | null;
+}) {
+  const isDemo = Boolean(demoCatalogHref);
+  const slug = initialProduct.slug;
   const { openChat, openChats, closeChat } = useChat();
   const { conversations, fetchConversations } = useChatStore();
   const { toggleFavorite, isFavorite, syncFavorites } = useFavoritesStore();
   const { user, token } = useAuthStore();
   
   const [product, setProduct] = useState<ProductDetail | null>(initialProduct);
+  const [locationRefresh, setLocationRefresh] = useState<{
+    source: ProductDetail;
+    product: PublicPropertyLocationFields;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
@@ -163,13 +178,13 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
   const productViewSentRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!token) return;
+    if (isDemo || !token) return;
     fetchConversations();
-  }, [token, fetchConversations]);
+  }, [isDemo, token, fetchConversations]);
 
   // Update open chat context when viewing a product
   useEffect(() => {
-    if (!product || !openChats || openChats.length === 0) return;
+    if (isDemo || !product || !openChats || openChats.length === 0) return;
 
     const existingChat = openChats.find(c =>
         String(c.supplier_id) === String(product.supplier_id)
@@ -195,20 +210,20 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
             });
         }
     }
-  }, [product, openChats, openChat, closeChat]);
+  }, [isDemo, product, openChats, openChat, closeChat]);
 
   useEffect(() => {
-    if (product?.id) {
+    if (!isDemo && product?.id) {
         registerInteraction({
             product_id: product.id,
             interaction_type: 'view'
         });
     }
-  }, [product?.id]);
+  }, [isDemo, product?.id]);
 
   useEffect(() => {
     const id = product?.id;
-    if (!id) return;
+    if (isDemo || !id) return;
     const key = String(id);
     if (productViewSentRef.current.has(key)) return;
     productViewSentRef.current.add(key);
@@ -235,10 +250,10 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
         }
       }
     })();
-  }, [product?.id]);
+  }, [isDemo, product?.id]);
 
   useEffect(() => {
-    if (slug) {
+    if (!isDemo && slug) {
         getSimilarProducts(slug).then((data) => {
           if (data && data.length > 0) {
             syncFavorites(data);
@@ -246,12 +261,22 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
           }
         });
     }
-  }, [slug, syncFavorites]);
+  }, [isDemo, slug, syncFavorites]);
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [cartToast, setCartToast] = useState<null | { type: "success" | "error"; message: string }>(null);
+  const catalog = catalogLabels(
+    (product?.is_real_estate === true || initialProduct.is_real_estate === true)
+      ? "inmuebles"
+      : businessType ?? product?.supplier?.business_type ?? product?.supplier_business_type ??
+        initialProduct.supplier?.business_type ?? initialProduct.supplier_business_type,
+  );
+  const supplierSlug = product?.supplier?.slug || initialProduct.supplier?.slug;
+  const catalogHref = demoCatalogHref ?? (catalog.isRealEstate && supplierSlug
+    ? `/empresas/${encodeURIComponent(supplierSlug)}/productos/`
+    : null);
   const supplierHasStore =
     readOptionalBoolean(product?.has_store) ??
     readOptionalBoolean(product?.supplier_has_store) ??
@@ -259,6 +284,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
     true;
   const supplierSubscriptionActive = productHasActiveSupplierSubscription(product);
   const isDirectory = supplierHasDirectorySubscription(product?.supplier);
+  const showStoreCommerce = supplierHasStore && !isDirectory && !catalog.isRealEstate;
   const isOwnProduct = Boolean(
     user &&
       product &&
@@ -281,14 +307,14 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
   }, [cartToast]);
 
   useEffect(() => {
-    if (slug && token) {
+    if (!isDemo && slug && token) {
       fetchProduct();
     }
-  }, [slug, token]);
+  }, [isDemo, slug, token]);
 
   useEffect(() => {
-    syncFavorites([initialProduct]);
-  }, [initialProduct, syncFavorites]);
+    if (!isDemo) syncFavorites([initialProduct]);
+  }, [isDemo, initialProduct, syncFavorites]);
 
   const clampQuantity = (value: number) => {
     const max = Math.max(1, Number(product?.stock ?? 0) || 0);
@@ -443,7 +469,12 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
 
             if (found) {
               if (process.env.NODE_ENV === "development") console.log("[ProductDetail] Found product via list fallback by slug.", found);
-              setProduct(found as any);
+              if (String(initialProduct.id) === String(found.id)) {
+                setLocationRefresh({ source: initialProduct, product: found });
+              }
+              setProduct((current) => current && String(current.id) === String(found.id)
+                ? { ...current, ...found, media: current.media }
+                : current);
               return;
             } else {
               console.warn("[ProductDetail] List fallback did not find product with slug:", slug);
@@ -464,7 +495,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
         const errorData = await res.json().catch(() => null);
         console.error(`[ProductDetail] Final fetch failed. Status: ${res.status}`, errorData);
 
-        let message = "El producto no se pudo cargar en este momento.";
+        let message = `No se pudo cargar ${catalog.theItem} en este momento.`;
 
         if (errorData && typeof errorData === "object") {
           const detail =
@@ -473,14 +504,14 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
             (typeof errorData.backend_response === "string" ? errorData.backend_response : null);
 
           if (detail && typeof detail === "string") {
-            message = `Producto no encontrado (${res.status}). ${detail}`;
+            message = `${catalog.notFound} (${res.status}). ${detail}`;
           } else if (errorData.status) {
-            message = `Producto no encontrado (${errorData.status}).`;
+            message = `${catalog.notFound} (${errorData.status}).`;
           }
         } else if (res.status === 404) {
-          message = "El producto que buscas no existe o ha sido eliminado.";
+          message = catalog.isRealEstate ? "La propiedad que buscas ya no está disponible." : "El producto que buscas no existe o ha sido eliminado.";
         } else if (res.status >= 500) {
-          message = "Tenemos un problema en el servidor al cargar este producto. Intenta de nuevo más tarde.";
+          message = `Tenemos un problema en el servidor al cargar ${catalog.thisItem}. Intenta de nuevo más tarde.`;
         }
 
         setError(message);
@@ -490,10 +521,14 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
 
       const data = await res.json();
       syncFavorites([data]);
-      setProduct(data);
+      setLocationRefresh({ source: initialProduct, product: data });
+      setProduct((current) => ({
+        ...data,
+        media: Array.isArray(data.media) ? data.media : current?.media ?? [],
+      }));
     } catch (err) {
       console.error("[ProductDetail] Error:", err);
-      setError(err instanceof Error ? err.message : "Error al cargar el producto");
+      setError(err instanceof Error ? err.message : `Error al cargar ${catalog.theItem}`);
     } finally {
       setLoading(false);
     }
@@ -509,37 +544,40 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
 
   const getMediaList = () => {
     if (!product) return [];
-    if (product.media && product.media.length > 0) return product.media;
-    
-    // Fallback if media is empty but image/thumbnail exists
-    if (product.image || product.thumbnail_url) {
-       return [{
-         id: 0,
-         product_id: product.id,
-         type: 'image' as const,
-         filename: 'main-image',
-         path: product.image || product.thumbnail_url || '',
-         url: product.image || product.thumbnail_url || '',
-         thumbnail_url: product.thumbnail_url,
-         is_primary: true,
-         position: 0
-       }] as ProductMedia[];
+    const cover = product.image || product.thumbnail_url;
+    const media = [...(product.media ?? [])].sort((a, b) =>
+      Number(b.is_primary) - Number(a.is_primary) || a.position - b.position,
+    );
+    const coverUrl = getFullImageUrl(cover);
+    if (!cover || media.some((item) => item.type === "image" && getFullImageUrl(item.url) === coverUrl)) {
+      return media;
     }
-    return [];
+
+    return [{
+      id: -1,
+      product_id: product.id,
+      type: "image" as const,
+      filename: "main-image",
+      path: cover,
+      url: cover,
+      thumbnail_url: product.thumbnail_url,
+      is_primary: !media.some((item) => item.is_primary),
+      position: 0,
+    }, ...media].sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
   };
 
   const handlePrevMedia = (e: React.MouseEvent) => {
     e.stopPropagation();
     const mediaList = getMediaList();
     if (mediaList.length === 0) return;
-    setSelectedMediaIndex((prev) => (prev === 0 ? mediaList.length - 1 : prev - 1));
+    setSelectedMediaIndex((prev) => (prev <= 0 || prev >= mediaList.length ? mediaList.length - 1 : prev - 1));
   };
 
   const handleNextMedia = (e: React.MouseEvent) => {
     e.stopPropagation();
     const mediaList = getMediaList();
     if (mediaList.length === 0) return;
-    setSelectedMediaIndex((prev) => (prev === mediaList.length - 1 ? 0 : prev + 1));
+    setSelectedMediaIndex((prev) => (prev >= mediaList.length - 1 ? 0 : prev + 1));
   };
 
   const handleFavoriteClick = async (e: React.MouseEvent) => {
@@ -662,7 +700,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-gray-500 font-medium">Cargando producto...</p>
+          <p className="text-gray-500 font-medium">Cargando {catalog.singular}...</p>
         </div>
       </div>
     );
@@ -673,22 +711,25 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md mx-auto p-6 bg-white rounded-2xl shadow-sm">
           <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Producto no encontrado</h2>
-          <p className="text-gray-500 mb-6">{error || "El producto que buscas no existe o ha sido eliminado."}</p>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">{catalog.notFound}</h2>
+          <p className="text-gray-500 mb-6">{error || (catalog.isRealEstate ? "La propiedad que buscas ya no está disponible." : "El producto que buscas no existe o ha sido eliminado.")}</p>
           <Link 
-            href="/"
+            href={catalogHref ?? "/"}
             className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-primary hover:bg-primary/90 transition-colors"
           >
-            Volver al catálogo
+            {catalog.isRealEstate ? "Volver a propiedades" : "Volver al catálogo"}
           </Link>
         </div>
       </div>
     );
   }
 
+  const propertyLocation = getPublicPropertyLocation(
+    locationRefresh?.source === initialProduct ? locationRefresh.product : initialProduct,
+  );
   const mediaList = getMediaList();
   const currentMedia = mediaList.length > 0 
-    ? mediaList[selectedMediaIndex] 
+    ? (mediaList[selectedMediaIndex] ?? mediaList[0])
     : null;
 
   return (
@@ -697,19 +738,23 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center text-sm text-gray-500">
-            <Link href="/" className="hover:text-primary">Inicio</Link>
+            <Link href={catalogHref ?? "/"} className="hover:text-primary">{catalogHref ? `Volver a ${catalog.plural}` : "Inicio"}</Link>
             <ChevronRight size={14} className="mx-2" />
-            {product.category?.slug ? (
-              <Link
-                href={`/categorias/${product.category.slug}`}
-                className="truncate text-gray-900 hover:text-primary"
-              >
-                {product.category.name}
-              </Link>
-            ) : (
-              <span className="text-gray-900 truncate">{product.category?.name}</span>
+            {product.category?.name && (
+              <>
+                {product.category?.slug ? (
+                  <Link
+                    href={`/categorias/${product.category.slug}`}
+                    className="truncate text-gray-900 hover:text-primary"
+                  >
+                    {product.category.name}
+                  </Link>
+                ) : (
+                  <span className="text-gray-900 truncate">{product.category?.name}</span>
+                )}
+                <ChevronRight size={14} className="mx-2" />
+              </>
             )}
-            <ChevronRight size={14} className="mx-2" />
             <span className="text-gray-900 font-medium truncate">{product.title}</span>
           </div>
         </div>
@@ -806,21 +851,23 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                   <span className="text-sm text-gray-500">({product.average_rating ? Number(product.average_rating).toFixed(1) : '0.0'})</span>
                 </div>
 
-                {supplierHasStore ? (
+                {supplierHasStore || catalog.isRealEstate ? (
                   <div className="flex items-center gap-4 mb-6 text-sm text-gray-500">
                     <div className="flex items-center gap-1">
-                      <span className="font-medium text-gray-900">SKU:</span>
+                      <span className="font-medium text-gray-900">{catalog.reference}:</span>
                       <span className="font-mono">{product.sku}</span>
                     </div>
+                    {!catalog.isRealEstate && <>
                       <div className="w-px h-4 bg-gray-300"></div>
                       <div className="flex items-center gap-1">
                          <span className={`inline-block w-2 h-2 rounded-full ${product.stock > 0 ? 'bg-green-500' : 'bg-red-500'}`}></span>
                          <span>{product.stock > 0 ? 'En Stock' : 'Agotado'}</span>
                       </div>
+                    </> }
                   </div>
                 ) : null}
 
-                {supplierHasStore ? (
+                {supplierHasStore || catalog.isRealEstate ? (
                   <div className="mb-8">
                     <div className="flex items-baseline gap-2">
                       <span className="text-4xl font-bold text-primary">
@@ -828,11 +875,11 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                       </span>
                       <span className="text-sm text-gray-500 font-medium">MXN</span>
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">Precio por unidad (IVA incluido)</p>
+                    {!catalog.isRealEstate && <p className="text-sm text-gray-500 mt-1">Precio por unidad (IVA incluido)</p>}
                   </div>
                 ) : null}
 
-                {supplierHasStore && !isDirectory ? (
+                {showStoreCommerce ? (
                   <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 mb-8">
                     <div className="flex flex-col gap-4">
                       <div className="flex justify-between items-center">
@@ -845,7 +892,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                           <button
                             type="button"
                             onClick={() => setQuantity((prev) => clampQuantity(prev - 1))}
-                            disabled={isAddingToCart || product.stock <= 0 || quantity <= 1}
+                            disabled={isDemo || isAddingToCart || product.stock <= 0 || quantity <= 1}
                             className="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                             aria-label="Disminuir cantidad"
                           >
@@ -862,13 +909,13 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                               if (!Number.isFinite(next)) return;
                               setQuantity(clampQuantity(next));
                             }}
-                            disabled={isAddingToCart || product.stock <= 0}
+                            disabled={isDemo || isAddingToCart || product.stock <= 0}
                             className="w-20 h-9 rounded-lg border border-gray-200 bg-white text-center font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                           <button
                             type="button"
                             onClick={() => setQuantity((prev) => clampQuantity(prev + 1))}
-                            disabled={isAddingToCart || product.stock <= 0 || quantity >= Math.max(1, product.stock)}
+                            disabled={isDemo || isAddingToCart || product.stock <= 0 || quantity >= Math.max(1, product.stock)}
                             className="w-9 h-9 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                             aria-label="Aumentar cantidad"
                           >
@@ -891,9 +938,9 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                 ) : null}
 
                 {/* Supplier Info Link */}
-                {supplierHasStore && product.supplier && product.supplier.slug && (
+                {(supplierHasStore || catalog.isRealEstate) && product.supplier && product.supplier.slug && (
                   <div className="mb-6 bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                    <Link href={`/empresas/${product.supplier.slug}`} className="flex items-center gap-4 group">
+                    <Link href={demoCatalogHref ?? `/empresas/${product.supplier.slug}`} className="flex items-center gap-4 group">
                       <div className="w-12 h-12 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center overflow-hidden shrink-0">
                         {product.supplier.logo ? (
                           <img 
@@ -906,7 +953,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-500 mb-0.5">Vendido por</p>
+                        <p className="text-xs text-gray-500 mb-0.5">{catalog.isRealEstate ? "Publicado por" : "Vendido por"}</p>
                         <h3 className="font-bold text-gray-900 group-hover:text-primary transition-colors truncate pr-2 flex items-center gap-2">
                           <span className="truncate">{product.supplier.name || "Tienda"}</span>
                           {product.supplier.is_verified ? (
@@ -922,9 +969,9 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                 )}
 
                 {/* Actions */}
-                {!supplierHasStore ? (
+                {!supplierHasStore && !catalog.isRealEstate && !propertyLocation ? (
                   <div className="mb-8 border-l-4 border-[#004e28] bg-[#f2f3f4] px-6 py-5">
-                    <p className="mb-4 text-base font-bold text-gray-900">Descripción</p>
+                    <p className="mb-4 text-base font-bold text-gray-900">{catalog.isRealEstate ? "Detalles de la propiedad" : "Descripción"}</p>
                     <div className="text-[15px] leading-7 text-gray-700">
                       <div className="ql-snow w-full">
                         <div
@@ -938,13 +985,13 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                 ) : null}
 
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                  {supplierHasStore && !isDirectory ? (
+                  {showStoreCommerce ? (
                     <button 
                       onClick={handleAddToCart}
-                      disabled={isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive}
+                      disabled={isDemo || isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive}
                       className={cn(
                         "flex-1 px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2",
-                        isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive
+                        isDemo || isAddingToCart || product.stock <= 0 || isOwnProduct || !supplierSubscriptionActive
                           ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
                           : "bg-[#168e00] text-white hover:bg-[#137500] shadow-[#168e00]/20"
                       )}
@@ -954,27 +1001,29 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                       ) : (
                       <ShoppingCart size={24} />
                     )}
-                      {!supplierSubscriptionActive ? "No disponible" : isOwnProduct ? "Tu publicación" : "Agregar al carrito"}
+                      {isDemo ? "Compra de demostración" : !supplierSubscriptionActive ? "No disponible" : isOwnProduct ? "Tu publicación" : "Agregar al carrito"}
                     </button>
                   ) : null}
 
                   <button 
                     onClick={handleChatOpen}
+                    disabled={isDemo}
                     className={cn(
-                      "px-6 py-4 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 font-semibold",
-                      supplierHasStore && !isDirectory
+                      "disabled:opacity-50 px-6 py-4 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 font-semibold",
+                      showStoreCommerce
                         ? "border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 text-gray-700"
                         : "flex-1 bg-[#168e00] text-white shadow-lg shadow-[#168e00]/15 hover:bg-[#137500]"
                     )}
-                    title="Chat con la tienda"
+                    title={catalog.isRealEstate ? "Contactar al anunciante" : "Chat con la tienda"}
                   >
-                    <MessageCircle size={22} className={supplierHasStore && !isDirectory ? "text-primary" : "text-white"} />
-                    {supplierHasStore && !isDirectory ? "Chat" : "Contactar"}
+                    <MessageCircle size={22} className={showStoreCommerce ? "text-primary" : "text-white"} />
+                    {showStoreCommerce ? "Chat" : "Contactar"}
                   </button>
 
                   <button 
                     onClick={handleFavoriteClick}
-                    className="px-6 py-4 rounded-xl border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
+                    disabled={isDemo}
+                    className="disabled:opacity-50 px-6 py-4 rounded-xl border-2 border-gray-100 hover:border-primary/20 hover:bg-primary/5 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group"
                     title={product && isFavorite(product.id) ? "Quitar de favoritos" : "Agregar a favoritos"}
                   >
                     <Heart 
@@ -988,7 +1037,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                 </div>
 
                 {/* Safety Badges */}
-                {supplierHasStore && !isDirectory ? (
+                {showStoreCommerce ? (
                   <div className="grid grid-cols-2 gap-4 pt-6 border-t border-gray-100">
                     <div className="flex items-start gap-3">
                       <ShieldCheck className="text-green-600 shrink-0" size={20} />
@@ -1011,11 +1060,11 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
           </div>
 
           {/* Description Section */}
-          {supplierHasStore ? (
+          {supplierHasStore || catalog.isRealEstate || propertyLocation ? (
           <div className="border-t border-gray-100 p-6 lg:p-8 bg-gray-50/50">
             <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Package size={20} className="text-primary" />
-              Descripción
+              {catalog.isRealEstate ? "Detalles de la propiedad" : "Descripción"}
             </h3>
             <div className="text-gray-600 w-full">
               <div className="ql-snow w-full">
@@ -1028,6 +1077,10 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
             </div>
           </div>
           ) : null}
+
+          {propertyLocation && (
+            <PropertyLocationSection location={propertyLocation} propertyName={product.title} />
+          )}
 
           {/* Reviews List */}
           <div className="mt-8 border-t border-gray-100 pt-8 p-6 lg:p-8">
@@ -1079,7 +1132,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
         </div>
         {similarProducts.length > 0 && (
           <section className="mt-16 border-t pt-10">
-             <h2 className="text-2xl font-bold mb-6 text-gray-800">Productos Similares</h2>
+             <h2 className="text-2xl font-bold mb-6 text-gray-800">{catalog.isRealEstate ? "Propiedades similares" : "Productos Similares"}</h2>
              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                {similarProducts.map((p) => (
                  <ProductCard 
@@ -1089,6 +1142,7 @@ export default function ProductDetailPage({ initialProduct }: { initialProduct: 
                     price={p.price}
                     image={p.thumbnail_url || ""}
                     minOrder="1 pieza"
+                    isRealEstate={p.is_real_estate === true ? true : undefined}
                     slug={p.slug}
                     rating={Number(p.average_rating || 0)}
                  />

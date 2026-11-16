@@ -8,7 +8,7 @@ import { Loader2, Search, X } from "lucide-react";
 
 type Props = {
   location?: LatLngLiteral | null;
-  onChange?: (location: LatLngLiteral) => void;
+  onChange?: (location: LatLngLiteral, source: "click" | "drag" | "place") => void;
   onAddressChange?: (address: string) => void;
   onPlaceChange?: (place: GooglePlaceSelection) => void;
   readOnly?: boolean;
@@ -16,6 +16,7 @@ type Props = {
   zoom?: number;
   className?: string;
   addressLabel?: string;
+  openOnReadOnly?: boolean;
 };
 
 type RemovableListener = { remove?: () => void };
@@ -60,6 +61,7 @@ export default function GoogleMapPicker({
   zoom = 15,
   className,
   addressLabel,
+  openOnReadOnly = true,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -134,7 +136,7 @@ export default function GoogleMapPicker({
             const address = place.formatted_address || input.value || "";
             setQuery(address);
             onAddressChangeRef.current?.(address);
-            onChangeRef.current?.({ lat, lng });
+            onChangeRef.current?.({ lat, lng }, "place");
             onPlaceChangeRef.current?.({
               formattedAddress: address,
               location: { lat, lng },
@@ -189,16 +191,16 @@ export default function GoogleMapPicker({
         const lat = Number(position?.lat?.());
         const lng = Number(position?.lng?.());
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        onChangeRef.current?.({ lat, lng });
+        onChangeRef.current?.({ lat, lng }, "drag");
       }) ?? null;
 
       clickListenerRef.current = map.addListener?.("click", (e) => {
         const lat = Number(e?.latLng?.lat?.());
         const lng = Number(e?.latLng?.lng?.());
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        onChangeRef.current?.({ lat, lng });
+        onChangeRef.current?.({ lat, lng }, "click");
       }) ?? null;
-    } else {
+    } else if (openOnReadOnly) {
       marker.setDraggable?.(false);
       clickListenerRef.current = map.addListener?.("click", () => {
         const pos = marker.getPosition?.();
@@ -208,7 +210,7 @@ export default function GoogleMapPicker({
         window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
       }) ?? null;
     }
-  }, [readOnly, ready]);
+  }, [openOnReadOnly, readOnly, ready]);
 
   return (
     <div className={cn("w-full rounded-lg border border-gray-200 overflow-hidden bg-white", className)}>

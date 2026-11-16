@@ -7,8 +7,6 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CalendarDays,
-  CheckCircle2,
-  Clock3,
   Info,
   Loader2,
   LogIn,
@@ -18,7 +16,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import AgendaMonthlyCalendar from "@/components/agenda/AgendaMonthlyCalendar";
+import { AgendaBookingHeader, agendaBookingButtonClass, agendaPanelClass, AgendaDateTimePicker, AgendaServicePicker, formatAgendaDate } from "@/components/agenda/AgendaBookingPickers";
 import { clearFinancialAttempt, readFinancialAttempt, writeFinancialAttempt } from '@/lib/agendaFinancialAttempt';
 import AgendaBookingQuoteSummary from '@/components/agenda/AgendaBookingQuoteSummary';
 import { bookingTermsPayload, cents, isTermsVersionError, refreshRejectedBookingTerms } from '@/lib/agendaFinance';
@@ -27,6 +25,9 @@ import { AgendaBookingRequestError } from '@/services/agendaBookingService';
 import AgendaPaymentMethodSelector from "@/components/agenda/AgendaPaymentMethodSelector";
 import {
   addDaysToDateInput,
+  addMonthsToInput,
+  endOfMonthInput,
+  startOfMonthInput,
   dateInputInTimeZone,
   humanizeDays,
   humanizeMinutes,
@@ -58,32 +59,6 @@ function todayInput() {
   return local.toISOString().slice(0, 10);
 }
 
-function startOfMonthInput(dateInput: string) {
-  return `${dateInput.slice(0, 7)}-01`;
-}
-
-function endOfMonthInput(monthInput: string) {
-  const [year, month] = monthInput.split("-").map(Number);
-  return new Date(Date.UTC(year, month, 0, 12))
-    .toISOString()
-    .slice(0, 10);
-}
-
-function addMonthsToInput(monthInput: string, months: number) {
-  const [year, month] = monthInput.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1 + months, 1, 12));
-  return date.toISOString().slice(0, 10);
-}
-
-function formatMoney(value: number | null) {
-  if (value == null) return "Consultar precio";
-
-  return new Intl.NumberFormat("es-MX", {
-    style: "currency",
-    currency: "MXN",
-  }).format(value);
-}
-
 function formatSlot(
   iso: string,
   timezone: string,
@@ -94,17 +69,6 @@ function formatSlot(
     minute: "2-digit",
     hour12: true,
   }).format(new Date(iso));
-}
-
-function formatDate(
-  dateValue: string,
-) {
-  const [year, month, day] = dateValue.split("-").map(Number);
-
-  return new Intl.DateTimeFormat("es-MX", {
-    dateStyle: "full",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
 function nextPaymentMethod(
@@ -736,25 +700,9 @@ export default function PublicAgendaBookingPage() {
         </button>
       </div>
 
-      <section className="rounded-3xl supplier-surface-secondary bg-[var(--supplier-secondary,#004e28)] p-6 text-[color:var(--supplier-inverse,#ffffff)] sm:p-8">
-        <div className="flex items-start gap-4">
-          <div className="rounded-2xl bg-[var(--supplier-card-background,#ffffff)]/10 p-3">
-            <CalendarDays size={30} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-[color:var(--supplier-inverse-muted,#ffffff)]">
-              Agenda
-            </p>
-            <h1 className="mt-1 text-3xl font-bold">
-              {publicAgendaTitle(savedPublicTitle, businessType)}
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-[color:var(--supplier-inverse-muted,#ffffff)]">
-              Elige el servicio, la fecha y uno de los horarios
-              disponibles.
-            </p>
-          </div>
-        </div>
-      </section>
+      <AgendaBookingHeader title={publicAgendaTitle(savedPublicTitle, businessType)} pageHeading>
+        Elige el servicio, la fecha y uno de los horarios disponibles.
+      </AgendaBookingHeader>
 
       {error ? (
         <div
@@ -865,192 +813,80 @@ export default function PublicAgendaBookingPage() {
         </section>
       ) : null}
 
-      <section className="rounded-3xl border border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 shadow-sm sm:p-6">
-        <h2 className="text-xl font-bold text-gray-900">
-          1. Selecciona el servicio
-        </h2>
+      <AgendaServicePicker
+        services={services}
+        selectedServiceId={selectedServiceId}
+        onSelectService={(id) => {
+          setError(null);
+          setSelectedServiceId(id);
+          setSelectedSlot(null);
+          setAvailability(null);
+          setPaymentMethod("none");
+        }}
+      />
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {services.map((service) => {
-            const selected =
-              service.id === selectedServiceId;
-
-            return (
+      <AgendaDateTimePicker
+        calendar={{
+          month: visibleMonth,
+          availableDates,
+          selectedDate,
+          minDate: calendarMinDate,
+          maxDate: calendarMaxDate,
+          loading: loadingSlots,
+          onSelectDate: (date) => {
+            setError(null);
+            setSelectedDate(date);
+            setSelectedSlot(null);
+          },
+          onPreviousMonth: () => {
+            setError(null);
+            setVisibleMonth((current) => addMonthsToInput(current, -1));
+            setSelectedDate(null);
+            setSelectedSlot(null);
+            setAvailability(null);
+          },
+          onNextMonth: () => {
+            setError(null);
+            setVisibleMonth((current) => addMonthsToInput(current, 1));
+            setSelectedDate(null);
+            setSelectedSlot(null);
+            setAvailability(null);
+          },
+        }}
+        hasAvailability={Boolean(availability)}
+        slots={availability ? selectedDateSlots.map((slot) => ({
+          id: slot.start_at,
+          label: formatSlot(slot.start_at, availability.timezone),
+        })) : []}
+        selectedSlotId={selectedSlot?.start_at ?? null}
+        onSelectSlot={(id) => {
+          setError(null);
+          setSelectedSlot(selectedDateSlots.find((slot) => slot.start_at === id) ?? null);
+        }}
+        emptyState={availability ? (
+          <>
+            <p className="font-semibold text-gray-800">
+              No hay horarios disponibles en este periodo.
+            </p>
+            {calendarMaxDate && addMonthsToInput(visibleMonth, 1) <= calendarMaxDate ? (
               <button
-                key={service.id}
                 type="button"
                 onClick={() => {
                   setError(null);
-                  setSelectedServiceId(service.id);
+                  setVisibleMonth((current) => addMonthsToInput(current, 1));
+                  setSelectedDate(null);
                   setSelectedSlot(null);
-                  setAvailability(null);
-                  setPaymentMethod("none");
                 }}
-                aria-pressed={selected}
-                className={
-                  selected
-                    ? "rounded-2xl border-2 border-[var(--supplier-outline,#168e00)] bg-[var(--supplier-primary,#168e00)]/5 p-4 text-left"
-                    : "rounded-2xl border border-gray-200 p-4 text-left transition hover:border-[var(--supplier-outline,#168e00)]/40"
-                }
+                className="mt-3 font-bold text-[var(--supplier-accent,#168e00)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-outline,#168e00)]"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-bold text-gray-900">
-                      {service.name}
-                    </h3>
-                    {service.description ? (
-                      <p className="mt-1 line-clamp-2 text-sm text-gray-500">
-                        {service.description}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  {selected ? (
-                    <CheckCircle2
-                      className="shrink-0 text-[var(--supplier-accent,#168e00)]"
-                      size={20}
-                    />
-                  ) : null}
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-gray-500">
-                  <span className="rounded-full bg-gray-100 px-3 py-1">
-                    {humanizeMinutes(service.duration_minutes)}
-                  </span>
-                  <span className="rounded-full bg-gray-100 px-3 py-1">
-                    {formatMoney(service.price)}
-                  </span>
-                </div>
+                Ver siguiente periodo
               </button>
-            );
-          })}
-        </div>
-      </section>
+            ) : null}
+          </>
+        ) : "Selecciona un servicio para consultar horarios."}
+      />
 
-      <section className="rounded-3xl border border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 shadow-sm sm:p-6">
-        <h2 className="text-xl font-bold text-gray-900">
-          2. Elige fecha y horario
-        </h2>
-
-        <div className="mt-5 grid items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
-          <AgendaMonthlyCalendar
-            month={visibleMonth}
-            availableDates={availableDates}
-            selectedDate={selectedDate}
-            minDate={calendarMinDate}
-            maxDate={calendarMaxDate}
-            loading={loadingSlots}
-            onSelectDate={(date) => {
-              setError(null);
-              setSelectedDate(date);
-              setSelectedSlot(null);
-            }}
-            onPreviousMonth={() => {
-              setError(null);
-              setVisibleMonth((current) => addMonthsToInput(current, -1));
-              setSelectedDate(null);
-              setSelectedSlot(null);
-              setAvailability(null);
-            }}
-            onNextMonth={() => {
-              setError(null);
-              setVisibleMonth((current) => addMonthsToInput(current, 1));
-              setSelectedDate(null);
-              setSelectedSlot(null);
-              setAvailability(null);
-            }}
-          />
-
-          <div className="min-w-0 rounded-2xl supplier-surface-page bg-[var(--supplier-page-background,#f2f3f4)] p-4 sm:p-5">
-            {selectedDate && availability ? (
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--supplier-accent,#168e00)]">
-                  Fecha seleccionada
-                </p>
-                <p className="mt-1 font-[family-name:var(--font-varela-round)] text-lg font-bold text-[var(--supplier-heading,#004e28)]">
-                  {formatDate(selectedDate)}
-                </p>
-              </div>
-            ) : (
-              <p className="font-semibold text-gray-700">
-                Selecciona un día disponible
-              </p>
-            )}
-
-            <h3 className="mt-5 text-sm font-bold text-gray-800">
-              Horarios disponibles
-            </h3>
-
-            {loadingSlots ? (
-              <div className="flex min-h-28 items-center gap-2 py-6 text-sm text-gray-500" role="status">
-                <Loader2 size={20} className="animate-spin" aria-hidden="true" />
-                Consultando horarios...
-              </div>
-            ) : selectedDateSlots.length && availability ? (
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
-                {selectedDateSlots.map((slot) => {
-                  const selected =
-                    selectedSlot?.start_at === slot.start_at;
-
-                  return (
-                    <button
-                      key={slot.start_at}
-                      type="button"
-                      onClick={() => {
-                        setError(null);
-                        setSelectedSlot(slot);
-                      }}
-                      aria-pressed={selected}
-                      aria-label={`Elegir horario ${formatSlot(slot.start_at, availability.timezone)}`}
-                      className={
-                        selected
-                          ? "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-3 py-3 text-sm font-semibold text-[color:var(--supplier-inverse,#ffffff)] shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-heading,#004e28)]"
-                          : "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] px-3 py-3 text-sm font-semibold text-gray-700 transition hover:border-[var(--supplier-outline,#168e00)] hover:text-[var(--supplier-accent,#168e00)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-outline,#168e00)]"
-                      }
-                    >
-                      <Clock3 size={16} aria-hidden="true" />
-                      {formatSlot(
-                        slot.start_at,
-                        availability.timezone,
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : availability ? (
-              <div className="mt-3 rounded-xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-4 text-sm text-gray-600">
-                <p className="font-semibold text-gray-800">
-                  No hay horarios disponibles en este periodo.
-                </p>
-
-                {calendarMaxDate &&
-                addMonthsToInput(visibleMonth, 1) <= calendarMaxDate ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError(null);
-                      setVisibleMonth((current) =>
-                        addMonthsToInput(current, 1),
-                      );
-                      setSelectedDate(null);
-                      setSelectedSlot(null);
-                    }}
-                    className="mt-3 font-bold text-[var(--supplier-accent,#168e00)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--supplier-outline,#168e00)]"
-                  >
-                    Ver siguiente periodo
-                  </button>
-                ) : null}
-              </div>
-            ) : (
-              <div className="mt-3 rounded-xl border border-gray-200 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-4 text-sm text-gray-500">
-                Selecciona un servicio para consultar horarios.
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 shadow-sm sm:p-6">
+      <section className={agendaPanelClass}>
         <h2 className="text-xl font-bold text-gray-900">
           3. Tus datos
         </h2>
@@ -1154,7 +990,7 @@ export default function PublicAgendaBookingPage() {
         {quoteState.serviceId === selectedServiceId && quoteState.error ? <p role="alert" className="text-sm text-amber-900">{quoteState.error} {!legacy ? <button type="button" className="underline" onClick={() => setQuoteRefresh(n => n + 1)}>Volver a consultar</button> : null}</p> : null}
         {financialAttempt.current ? <p className="text-sm text-amber-900">Hay un intento de reservación pendiente. El siguiente clic comprobará ese mismo intento con los datos originales.</p> : null}
       </section>
-      <section className="rounded-3xl border border-gray-100 supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] p-5 shadow-sm sm:p-6">
+      <section className={agendaPanelClass}>
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <p className="text-sm font-semibold text-gray-500">
@@ -1165,7 +1001,7 @@ export default function PublicAgendaBookingPage() {
             </p>
             {selectedSlot && availability ? (
               <p className="mt-1 text-sm text-gray-500">
-                {selectedDate ? formatDate(selectedDate) : ""}{" "}
+                {selectedDate ? formatAgendaDate(selectedDate) : ""}{" "}
                 ·{" "}
                 {formatSlot(
                   selectedSlot.start_at,
@@ -1195,7 +1031,7 @@ export default function PublicAgendaBookingPage() {
               guestBlocked ||
               (legacy && availability?.accepts_payments === true && selectedPaymentMethod === "none")))
             }
-            className="inline-flex items-center justify-center gap-2 rounded-xl supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-6 py-3.5 font-bold text-[color:var(--supplier-inverse,#ffffff)] transition hover:bg-[var(--supplier-primary-hover,#117500)] disabled:cursor-not-allowed disabled:opacity-50"
+            className={agendaBookingButtonClass}
           >
             {saving ? (
               <Loader2

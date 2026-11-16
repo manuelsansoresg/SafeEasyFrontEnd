@@ -1,11 +1,13 @@
 import { cache } from "react";
 import { getApiBaseUrl, listFromPayload, fetchSupplierProductsForSeo, fetchSupplierServicesForSeo, type SeoProduct, type SeoSupplier } from "@/lib/seo";
-import { supplierHasActiveSubscription } from "@/lib/subscriptionAccess";
+import { supplierHasActiveSubscription, supplierHasDirectorySubscription } from "@/lib/subscriptionAccess";
 import type { SupplierService } from "@/types/services";
 
 export type PublicSupplierProfile = {
   supplier: SeoSupplier;
   products: SeoProduct[];
+  canShowProducts: boolean;
+  publicAgendaAvailable: boolean | null;
   services: SupplierService[];
 };
 
@@ -38,6 +40,16 @@ const fetchSupplier = async (path: string): Promise<
   return { status: "found", data };
 };
 
+async function getPublicAgendaAvailability(supplierId: number): Promise<boolean | null> {
+  try {
+    // This endpoint checks the published Agenda without loading its payment configuration.
+    const result = await fetchSupplier(`/public/agenda/${supplierId}/services`);
+    return result.status === "found" ? Array.isArray(result.data) || null : false;
+  } catch {
+    return null;
+  }
+}
+
 export const getPublicSupplierProfile = cache(async (slug: string): Promise<PublicSupplierProfile | null> => {
   const encoded = encodeURIComponent(slug);
   // FastAPI detail routes omit the final slash. A legacy deployment may still
@@ -69,9 +81,14 @@ export const getPublicSupplierProfile = cache(async (slug: string): Promise<Publ
     throw new Error("Supplier API returned an incomplete profile");
   }
 
-  const [services, products] = await Promise.all([
+  const [services, products, publicAgendaAvailable] = await Promise.all([
     fetchSupplierServicesForSeo(supplier.id),
     fetchSupplierProductsForSeo(supplier),
+    typeof supplier.agenda_enabled === "boolean"
+      ? Promise.resolve(supplier.agenda_enabled)
+      : getPublicAgendaAvailability(supplier.id),
   ]);
-  return { supplier, services, products };
+  // Public storefronts have a catalog even when the plan limits photo uploads.
+  const canShowProducts = !supplierHasDirectorySubscription(supplier);
+  return { supplier, services, products, canShowProducts, publicAgendaAvailable };
 });

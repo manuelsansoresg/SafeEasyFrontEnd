@@ -11,7 +11,7 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { agendaBookingService } from "@/services/agendaBookingService";
+import { AgendaBookingRequestError, agendaBookingService } from "@/services/agendaBookingService";
 
 export type SupplierPublicTab =
   | "main"
@@ -23,58 +23,55 @@ type SupplierModuleNavigationProps = {
   supplierId: number;
   hasMenu: boolean;
   canShowProducts: boolean;
+  catalogTitle: string;
   activeTab: SupplierPublicTab;
   onChangeTab: (tab: SupplierPublicTab, replace?: boolean) => void;
   tabsRef: RefObject<HTMLDivElement | null>;
   isDemo?: boolean;
   demoHasAgenda?: boolean;
+  publicAgendaAvailable?: boolean | null;
 };
 
 export function SupplierModuleNavigation({
   supplierId,
   hasMenu,
   canShowProducts,
+  catalogTitle,
   activeTab,
   onChangeTab,
   tabsRef,
   isDemo = false,
   demoHasAgenda = false,
+  publicAgendaAvailable = null,
 }: SupplierModuleNavigationProps) {
   const [liveAgendaAvailable, setAgendaAvailable] =
-    useState(false);
+    useState<boolean | null>(null);
   const [liveAgendaLoading, setAgendaLoading] =
     useState(true);
-  const agendaAvailable = isDemo ? demoHasAgenda : liveAgendaAvailable;
-  const agendaLoading = !isDemo && liveAgendaLoading;
+  const publishedAgenda = publicAgendaAvailable ?? liveAgendaAvailable;
+  const agendaAvailable = isDemo ? demoHasAgenda : publishedAgenda === true;
+  const agendaUnavailable = isDemo ? !demoHasAgenda : publishedAgenda === false;
+  const agendaLoading = !isDemo && publishedAgenda === null && liveAgendaLoading;
 
   useEffect(() => {
-    if (isDemo) return;
+    if (isDemo || publicAgendaAvailable !== null) return;
     const controller = new AbortController();
 
     const loadAgenda = async () => {
       setAgendaLoading(true);
 
       try {
-        await agendaBookingService.listPublicServices(
-          supplierId,
-          controller.signal,
-        );
-
-        if (controller.signal.aborted) return;
-
-        // Una respuesta correcta significa que el negocio tiene Agenda
-        // publicada. La pestaña no debe desaparecer sólo porque el proveedor
-        // todavía no ha creado su primer servicio.
-        setAgendaAvailable(true);
-      } catch (error) {
-        if (
-          error instanceof DOMException &&
-          error.name === "AbortError"
-        ) {
-          return;
+        try {
+          await agendaBookingService.checkPublicAgendaAccess(supplierId, controller.signal);
+        } catch {
+          if (controller.signal.aborted) return;
+          // The public services endpoint also checks whether Agenda is published.
+          await agendaBookingService.listPublicServices(supplierId, controller.signal);
         }
-
-        setAgendaAvailable(false);
+        if (!controller.signal.aborted) setAgendaAvailable(true);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setAgendaAvailable(error instanceof AgendaBookingRequestError && error.status === 404 ? false : null);
       } finally {
         if (!controller.signal.aborted) {
           setAgendaLoading(false);
@@ -85,19 +82,19 @@ export function SupplierModuleNavigation({
     void loadAgenda();
 
     return () => controller.abort();
-  }, [supplierId, isDemo]);
+  }, [supplierId, isDemo, publicAgendaAvailable]);
 
   useEffect(() => {
     if (
       activeTab === "agenda" &&
       !agendaLoading &&
-      !agendaAvailable
+      agendaUnavailable
     ) {
       onChangeTab("main", true);
     }
   }, [
     activeTab,
-    agendaAvailable,
+    agendaUnavailable,
     agendaLoading,
     onChangeTab,
   ]);
@@ -182,7 +179,7 @@ export function SupplierModuleNavigation({
                       : "border-transparent text-gray-500 hover:text-[var(--supplier-heading,#004e28)]"
                   }`}
                 >
-                  Productos
+                  {catalogTitle}
                 </button>
               ) : null}
             </div>
@@ -208,7 +205,7 @@ export function SupplierModuleNavigation({
               </h2>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className={`grid gap-4 ${hasMenu && (agendaAvailable || agendaLoading) ? "sm:grid-cols-2" : ""}`}>
               {hasMenu ? (
                 <button
                   type="button"
@@ -265,7 +262,7 @@ export function SupplierModuleNavigation({
 
                   <span className="min-w-0 flex-1">
                     <span className="block font-[family-name:var(--font-varela-round)] text-lg font-black text-[var(--supplier-heading,#004e28)]">
-                      Ver agenda
+                      {isDemo ? "Probar agenda" : "Ver agenda"}
                     </span>
                     <span className="mt-1 block text-sm leading-5 text-gray-500">
                       Consulta servicios y entra a la pestaña de agenda.
