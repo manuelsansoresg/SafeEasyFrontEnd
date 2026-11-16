@@ -1,5 +1,6 @@
 "use client";
 
+import { catalogLabels } from "@/lib/catalogLabels";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -657,6 +658,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, publicP
   const observerTarget = useRef<HTMLDivElement | null>(null);
   const supplierId = supplier?.id ?? null;
   const supplierSlug = supplier?.slug ?? null;
+  const catalog = catalogLabels(supplier?.business_type);
   const supplierIsDirectory = supplierHasDirectorySubscription(supplier);
   const canShowProducts = publicProductAccess ?? (supplierAllowsProducts(supplier) || (isDemo && !supplierIsDirectory && initialProducts.length > 0));
 
@@ -828,7 +830,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, publicP
         if (!supplierId) {
           if (!append) setProducts([]);
           setHasMore(false);
-          setProductsError("No se pudieron cargar los productos.");
+          setProductsError(`No se pudieron cargar ${catalog.theItems}.`);
           return;
         }
 
@@ -845,7 +847,7 @@ export default function SupplierPage({ initialSupplier, initialProducts, publicP
         if (!fallback.ok) {
           if (!append) setProducts([]);
           setHasMore(false);
-          setProductsError("No se pudieron cargar los productos.");
+          setProductsError(`No se pudieron cargar ${catalog.theItems}.`);
           return;
         }
 
@@ -905,13 +907,13 @@ export default function SupplierPage({ initialSupplier, initialProducts, publicP
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Error fetching supplier products", error);
-      setProductsError("No se pudieron cargar los productos.");
+      setProductsError(`No se pudieron cargar ${catalog.theItems}.`);
       if (!append) setProducts([]);
       setHasMore(false);
     } finally {
       if (!signal?.aborted) setProductsLoading(false);
     }
-  }, [limit, supplierId, syncFavorites]);
+  }, [catalog.theItems, limit, supplierId, syncFavorites]);
 
   const fetchRatings = async (supplierSlug: string, skip: number = 0, append: boolean = false) => {
     try {
@@ -1431,7 +1433,7 @@ const contactHref = supplier?.phone
                 <div className="mb-6 flex w-full flex-col flex-wrap items-stretch justify-center gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4 md:justify-start">
                       {canShowProducts ? (
                         <Link href={`${supplierBasePath}productos/`} onClick={(event) => { event.preventDefault(); handleShowProducts(); }} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full supplier-surface-primary bg-[var(--supplier-primary-action,#168e00)] px-7 py-3 text-base font-bold text-[color:var(--supplier-inverse,#ffffff)] shadow-[0_0_30px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_60%,transparent)] transition-all hover:-translate-y-1 hover:bg-[var(--supplier-primary-hover,#137a00)] hover:shadow-[0_0_40px_-5px_color-mix(in_srgb,var(--supplier-shadow,#004e28)_80%,transparent)] font-[family-name:var(--font-varela-round)] sm:w-auto sm:px-8 sm:text-lg">
-                            Ver Catálogo <ArrowDown size={20} />
+                            {catalog.view} <ArrowDown size={20} />
                         </Link>
                       ) : null}
                       {isDirectory ? (
@@ -1488,6 +1490,7 @@ const contactHref = supplier?.phone
       </section>
 
       <SupplierModuleNavigation
+        catalogTitle={catalog.title}
         supplierId={supplier.id}
         hasMenu={hasMenu}
         canShowProducts={canShowProducts}
@@ -1686,7 +1689,7 @@ const contactHref = supplier?.phone
             <div className={`flex flex-col md:flex-row items-center justify-between gap-6 ${isDirectory ? "mb-10" : "mb-16"}`}>
                 <div className="max-w-2xl">
                     <h2 className={`${isDirectory ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl"} font-black text-[var(--supplier-heading,#004e28)] mb-4 font-[family-name:var(--font-varela-round)]`}>
-                        {isDirectory ? "Servicios" : "Productos"}
+                        {isDirectory ? "Servicios" : catalog.title}
                     </h2>
                 </div>
                 
@@ -1698,7 +1701,7 @@ const contactHref = supplier?.phone
                         </div>
                         <input
                             type="text"
-                            placeholder={isDirectory ? "Buscar servicios..." : "Buscar productos..."}
+                            placeholder={isDirectory ? "Buscar servicios..." : `Buscar ${catalog.plural}...`}
                             value={productSearchQuery}
                             onChange={(event) => {
                               setProductSearchQuery(event.target.value);
@@ -1713,7 +1716,7 @@ const contactHref = supplier?.phone
                                   setProductSearchQuery("");
                                   setPage(1);
                                 }}
-                                aria-label="Limpiar búsqueda de productos"
+                                aria-label={`Limpiar búsqueda de ${isDirectory ? "servicios" : catalog.plural}`}
                                 className="absolute inset-y-0 right-0 pr-3 flex items-center"
                             >
                                 <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
@@ -1726,7 +1729,7 @@ const contactHref = supplier?.phone
 
             <div className="mb-10 md:mb-12">
               <SupplierCatalogFilters
-                label="productos"
+                label={isDirectory ? "servicios" : catalog.plural}
                 categories={productCategories}
                 selectedCategory={selectedProductCategory}
                 selectedSubcategory={selectedProductSubcategory}
@@ -1764,10 +1767,10 @@ const contactHref = supplier?.phone
                 <div className="rounded-[3rem] supplier-surface-card bg-[var(--supplier-card-background,#ffffff)] py-20 text-center shadow-sm">
                     <p className="text-xl font-bold text-gray-400">
                       {productSearchQuery
-                        ? "No encontramos productos con esos filtros."
+                        ? `No encontramos ${catalog.plural} con esos filtros.`
                         : selectedProductCategory
-                          ? "No hay productos disponibles en esta categoría."
-                          : "No hay productos disponibles en este momento."}
+                          ? `No hay ${catalog.plural} disponibles en esta categoría.`
+                          : `No hay ${catalog.plural} disponibles en este momento.`}
                     </p>
                 </div>
             ) : (
@@ -1783,7 +1786,7 @@ const contactHref = supplier?.phone
                             product.subcategory?.thumbnail_url ||
                             ""
                           }
-                          minOrder={`${product.stock > 0 ? "1" : "10"} pzas`}
+                          minOrder={catalog.isRealEstate ? "" : `${product.stock > 0 ? "1" : "10"} pzas`}
                           slug={product.slug}
                           detailHref={isDemo ? `${supplierBasePath}productos/${encodeURIComponent(product.slug)}/${demoCampaign.size ? `?${demoCampaign}` : ""}` : undefined}
                           rating={product.average_rating || 5.0}
@@ -2089,7 +2092,7 @@ const contactHref = supplier?.phone
                   <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
                       <div className="text-left">
                           <h3 className="text-2xl md:text-3xl font-black mb-2 font-[family-name:var(--font-varela-round)]">
-                            ¿Tienes preguntas sobre nuestros {isDirectory ? "servicios" : "productos"}?
+                            ¿Tienes preguntas sobre {isDirectory ? "nuestros servicios" : catalog.isRealEstate ? "nuestras propiedades" : "nuestros productos"}?
                           </h3>
                           <p className="text-[color:var(--supplier-inverse-muted,#ffffff)] text-lg">Estamos listos para atenderte y resolver todas tus dudas al instante.</p>
                       </div>

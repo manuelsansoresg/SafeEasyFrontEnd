@@ -1,5 +1,6 @@
 "use client";
 
+import { useSupplierCatalogLabels } from "@/hooks/useSupplierCatalogLabels";
 import { useState, useEffect, useRef, type ClipboardEvent } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
@@ -121,6 +122,7 @@ async function readProductError(response: Response, fallback: string) {
 }
 
 export default function ProductForm({ initialData, isEditMode = false }: ProductFormProps) {
+  const catalog = useSupplierCatalogLabels();
   const { token, user } = useAuthStore();
   const router = useRouter();
   const isAdminUser = isAdminRole(user?.role);
@@ -211,7 +213,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
   const hasCover = Boolean(product?.image === undefined ? product?.thumbnail_url : product.image);
   const currentImages = Number(hasCover) + mediaList.filter((media) => media.type === "image").length;
   const coverAddsImage = Boolean(coverImage) && !hasCover;
-  const imageLimitMessage = `El límite de tu plan es de ${imageLimit} imágenes por producto, incluida la portada.`;
+  const imageLimitMessage = `El límite de tu plan es de ${imageLimit} imágenes por ${catalog.singular}, incluida la portada.`;
 
   const exceedsImageLimit = (files: File[], addsCover: boolean) => {
     const addedImages = Number(addsCover) + files.filter((file) => !file.type.toLowerCase().startsWith("video/")).length;
@@ -406,7 +408,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
         return;
     }
     if (isCreationBlockedBySubscription) {
-      setError(subscriptionError || "Tu suscripción actual no habilita la administración de productos.");
+      setError(subscriptionError || `Tu suscripción actual no habilita la administración de ${catalog.plural}.`);
       return;
     }
 
@@ -498,7 +500,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       });
 
       if (!response.ok) {
-        throw new Error(await readProductError(response, "Error al guardar producto"));
+        throw new Error(await readProductError(response, `Error al guardar ${catalog.theItem}`));
       }
 
       const persisted: Product = await response.json();
@@ -530,7 +532,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           await fetchMedia(productId);
           const detail = err instanceof Error ? err.message : "Error de conexión.";
           const partial = uploaded ? ` Se subieron ${uploaded} de ${selectedFiles.length} archivos.` : "";
-          throw new Error(`El producto se guardó, pero quedaron archivos pendientes.${partial} ${detail}`);
+          throw new Error(`${catalog.isRealEstate ? "La propiedad" : "El producto"} se guardó, pero quedaron archivos pendientes.${partial} ${detail}`);
         }
       }
 
@@ -551,13 +553,13 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
       <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         {isCreationBlockedBySubscription ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            Tu subscripción no está activa. Tus productos no deben mostrarse para compra y necesitas renovar tu plan para subir productos nuevos.
+            Tu subscripción no está activa. Renueva tu plan para publicar {catalog.plural}.
           </div>
         ) : null}
 
         {isSupplierUser && !subscriptionLoading && !canManageProducts ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            {subscriptionError || "Tu suscripción actual no habilita la administración de productos."}
+            {subscriptionError || `Tu suscripción actual no habilita la administración de ${catalog.plural}.`}
           </p>
         ) : null}
         {subscriptionLoading && isSupplierUser ? (
@@ -620,7 +622,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">SKU *</label>
+            <label className="text-sm font-medium text-gray-700">{catalog.reference} *</label>
             <input
               type="text"
               name="sku"
@@ -765,7 +767,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
               className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
             />
             <label htmlFor="is_active" className="text-sm font-medium text-gray-700 select-none cursor-pointer">
-              Producto Activo
+              {catalog.active}
             </label>
           </div>
         </div>
@@ -792,7 +794,7 @@ export default function ProductForm({ initialData, isEditMode = false }: Product
             ) : (
               <>
                 <CheckCircle size={18} />
-                Guardar Producto
+                {catalog.isRealEstate ? "Guardar propiedad" : "Guardar Producto"}
               </>
             )}
           </button>

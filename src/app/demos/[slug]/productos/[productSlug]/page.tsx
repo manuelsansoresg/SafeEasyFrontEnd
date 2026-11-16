@@ -48,6 +48,7 @@ export default async function DemoProductPage({ params, searchParams }: {
     <ProductDetailClient
       key={id}
       initialProduct={initialProduct}
+      businessType={supplier.business_type}
       demoCatalogHref={`/demos/${encodeURIComponent(slug)}/productos/${desde === "sell" ? "?desde=sell" : ""}`}
     />
   );

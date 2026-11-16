@@ -1,5 +1,7 @@
 "use client";
 
+import { catalogLabels } from "@/lib/catalogLabels";
+import type { AgendaBusinessType } from "@/lib/agendaTitle";
 import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
@@ -75,6 +77,7 @@ export interface ProductDetail {
   is_active: boolean;
   supplier_id: number;
   supplier_user_id?: number | string | null;
+  supplier_business_type?: AgendaBusinessType | null;
   has_store?: boolean | number | string | null;
   supplier_has_store?: boolean | number | string | null;
   accepts_delivery?: boolean | number | string | null;
@@ -97,6 +100,7 @@ export interface ProductDetail {
     transfer_accepted?: boolean;
     has_store?: boolean | number | string | null;
     is_directory?: boolean;
+    business_type?: AgendaBusinessType | null;
   };
   category_id: number | null;
   subcategory_id: number | null;
@@ -145,9 +149,10 @@ import { useChat } from "@/context/ChatContext";
 import { useChatStore } from "@/store/useChatStore";
 import { chatService } from "@/services/chatService";
 
-export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
+export default function ProductDetailPage({ initialProduct, demoCatalogHref, businessType }: {
   initialProduct: ProductDetail;
   demoCatalogHref?: string;
+  businessType?: AgendaBusinessType | null;
 }) {
   const isDemo = Boolean(demoCatalogHref);
   const slug = initialProduct.slug;
@@ -254,6 +259,14 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
   const [quantity, setQuantity] = useState(1);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [cartToast, setCartToast] = useState<null | { type: "success" | "error"; message: string }>(null);
+  const catalog = catalogLabels(
+    businessType ?? product?.supplier?.business_type ?? product?.supplier_business_type ??
+    initialProduct.supplier?.business_type ?? initialProduct.supplier_business_type,
+  );
+  const supplierSlug = product?.supplier?.slug || initialProduct.supplier?.slug;
+  const catalogHref = demoCatalogHref ?? (catalog.isRealEstate && supplierSlug
+    ? `/empresas/${encodeURIComponent(supplierSlug)}/productos/`
+    : null);
   const supplierHasStore =
     readOptionalBoolean(product?.has_store) ??
     readOptionalBoolean(product?.supplier_has_store) ??
@@ -466,7 +479,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
         const errorData = await res.json().catch(() => null);
         console.error(`[ProductDetail] Final fetch failed. Status: ${res.status}`, errorData);
 
-        let message = "El producto no se pudo cargar en este momento.";
+        let message = `No se pudo cargar ${catalog.theItem} en este momento.`;
 
         if (errorData && typeof errorData === "object") {
           const detail =
@@ -475,14 +488,14 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
             (typeof errorData.backend_response === "string" ? errorData.backend_response : null);
 
           if (detail && typeof detail === "string") {
-            message = `Producto no encontrado (${res.status}). ${detail}`;
+            message = `${catalog.notFound} (${res.status}). ${detail}`;
           } else if (errorData.status) {
-            message = `Producto no encontrado (${errorData.status}).`;
+            message = `${catalog.notFound} (${errorData.status}).`;
           }
         } else if (res.status === 404) {
-          message = "El producto que buscas no existe o ha sido eliminado.";
+          message = catalog.isRealEstate ? "La propiedad que buscas ya no está disponible." : "El producto que buscas no existe o ha sido eliminado.";
         } else if (res.status >= 500) {
-          message = "Tenemos un problema en el servidor al cargar este producto. Intenta de nuevo más tarde.";
+          message = `Tenemos un problema en el servidor al cargar ${catalog.thisItem}. Intenta de nuevo más tarde.`;
         }
 
         setError(message);
@@ -495,7 +508,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
       setProduct(data);
     } catch (err) {
       console.error("[ProductDetail] Error:", err);
-      setError(err instanceof Error ? err.message : "Error al cargar el producto");
+      setError(err instanceof Error ? err.message : `Error al cargar ${catalog.theItem}`);
     } finally {
       setLoading(false);
     }
@@ -664,7 +677,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-gray-500 font-medium">Cargando producto...</p>
+          <p className="text-gray-500 font-medium">Cargando {catalog.singular}...</p>
         </div>
       </div>
     );
@@ -675,13 +688,13 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md mx-auto p-6 bg-white rounded-2xl shadow-sm">
           <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Producto no encontrado</h2>
-          <p className="text-gray-500 mb-6">{error || "El producto que buscas no existe o ha sido eliminado."}</p>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">{catalog.notFound}</h2>
+          <p className="text-gray-500 mb-6">{error || (catalog.isRealEstate ? "La propiedad que buscas ya no está disponible." : "El producto que buscas no existe o ha sido eliminado.")}</p>
           <Link 
-            href="/"
+            href={catalogHref ?? "/"}
             className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-primary hover:bg-primary/90 transition-colors"
           >
-            Volver al catálogo
+            {catalog.isRealEstate ? "Volver a propiedades" : "Volver al catálogo"}
           </Link>
         </div>
       </div>
@@ -699,7 +712,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center text-sm text-gray-500">
-            <Link href={demoCatalogHref ?? "/"} className="hover:text-primary">{isDemo ? "Volver a productos" : "Inicio"}</Link>
+            <Link href={catalogHref ?? "/"} className="hover:text-primary">{catalogHref ? `Volver a ${catalog.plural}` : "Inicio"}</Link>
             <ChevronRight size={14} className="mx-2" />
             {product.category?.slug ? (
               <Link
@@ -811,7 +824,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
                 {supplierHasStore ? (
                   <div className="flex items-center gap-4 mb-6 text-sm text-gray-500">
                     <div className="flex items-center gap-1">
-                      <span className="font-medium text-gray-900">SKU:</span>
+                      <span className="font-medium text-gray-900">{catalog.reference}:</span>
                       <span className="font-mono">{product.sku}</span>
                     </div>
                       <div className="w-px h-4 bg-gray-300"></div>
@@ -926,7 +939,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
                 {/* Actions */}
                 {!supplierHasStore ? (
                   <div className="mb-8 border-l-4 border-[#004e28] bg-[#f2f3f4] px-6 py-5">
-                    <p className="mb-4 text-base font-bold text-gray-900">Descripción</p>
+                    <p className="mb-4 text-base font-bold text-gray-900">{catalog.isRealEstate ? "Detalles de la propiedad" : "Descripción"}</p>
                     <div className="text-[15px] leading-7 text-gray-700">
                       <div className="ql-snow w-full">
                         <div
@@ -1019,7 +1032,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
           <div className="border-t border-gray-100 p-6 lg:p-8 bg-gray-50/50">
             <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Package size={20} className="text-primary" />
-              Descripción
+              {catalog.isRealEstate ? "Detalles de la propiedad" : "Descripción"}
             </h3>
             <div className="text-gray-600 w-full">
               <div className="ql-snow w-full">
@@ -1083,7 +1096,7 @@ export default function ProductDetailPage({ initialProduct, demoCatalogHref }: {
         </div>
         {similarProducts.length > 0 && (
           <section className="mt-16 border-t pt-10">
-             <h2 className="text-2xl font-bold mb-6 text-gray-800">Productos Similares</h2>
+             <h2 className="text-2xl font-bold mb-6 text-gray-800">{catalog.isRealEstate ? "Publicaciones similares" : "Productos Similares"}</h2>
              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                {similarProducts.map((p) => (
                  <ProductCard 

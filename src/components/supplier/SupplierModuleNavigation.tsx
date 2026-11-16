@@ -23,6 +23,7 @@ type SupplierModuleNavigationProps = {
   supplierId: number;
   hasMenu: boolean;
   canShowProducts: boolean;
+  catalogTitle: string;
   activeTab: SupplierPublicTab;
   onChangeTab: (tab: SupplierPublicTab, replace?: boolean) => void;
   tabsRef: RefObject<HTMLDivElement | null>;
@@ -35,6 +36,7 @@ export function SupplierModuleNavigation({
   supplierId,
   hasMenu,
   canShowProducts,
+  catalogTitle,
   activeTab,
   onChangeTab,
   tabsRef,
@@ -177,7 +179,7 @@ export function SupplierModuleNavigation({
                       : "border-transparent text-gray-500 hover:text-[var(--supplier-heading,#004e28)]"
                   }`}
                 >
-                  Productos
+                  {catalogTitle}
                 </button>
               ) : null}
             </div>

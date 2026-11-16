@@ -1,5 +1,6 @@
 "use client";
 
+import { useSupplierCatalogLabels } from "@/hooks/useSupplierCatalogLabels";
 import { useState, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -38,6 +39,7 @@ export function AdminSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const catalog = useSupplierCatalogLabels();
   const isAdmin = user?.role === "admin" || user?.role === "superuser";
   const isSupplier = user?.role === "supplier";
   const { hasModule } = useSupplierModules(isSupplier);
@@ -76,7 +78,7 @@ export function AdminSidebar({
       ],
     },
     ...(!isSupplier || isDirectory || canManageProducts ? [{
-      title: isDirectory ? "Mis Servicios" : "Mis Productos",
+      title: isDirectory ? "Mis Servicios" : catalog.myCatalog,
       path: isDirectory ? "/admin/services" : "/admin/products",
       icon: isDirectory ? BriefcaseBusiness : Package,
       roles: ["admin", "superuser", "supplier"] as AdminRole[],

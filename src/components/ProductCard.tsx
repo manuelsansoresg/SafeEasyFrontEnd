@@ -205,7 +205,7 @@ export function ProductCard({
           <div className="flex items-baseline gap-1 mt-2">
              <span className="text-sm font-medium text-gray-400">$</span>
              <span className="text-2xl font-black text-[var(--supplier-heading,#004e28)] tracking-tight font-[family-name:var(--font-poppins)]">{displayPrice}</span>
-             <span className="text-xs text-gray-400 ml-1 font-normal">/ {minOrder}</span>
+             {minOrder && <span className="text-xs text-gray-400 ml-1 font-normal">/ {minOrder}</span>}
           </div>
         </div>
       </div>

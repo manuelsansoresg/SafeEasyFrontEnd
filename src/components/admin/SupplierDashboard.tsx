@@ -1,5 +1,6 @@
 "use client";
 
+import { useSupplierCatalogLabels } from "@/hooks/useSupplierCatalogLabels";
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Store, Image as ImageIcon, ShieldCheck, Package, BriefcaseBusiness } from 'lucide-react';
@@ -7,6 +8,7 @@ import { PageHero } from '@/components/ui/PageHero';
 import { useMyDirectorySubscription } from '@/hooks/useMyDirectorySubscription';
 
 export default function SupplierDashboard() {
+  const catalog = useSupplierCatalogLabels();
   const { isDirectory, canManageServices, canManageProducts } = useMyDirectorySubscription();
 
   return (
@@ -23,7 +25,7 @@ export default function SupplierDashboard() {
             subtitle={
               isDirectory
                 ? "Administra tu perfil profesional, presenta tus servicios y mantén actualizada la información de tu empresa."
-                : "Gestione su empresa, personalice su sitio y administre sus productos desde aquí."
+                : `Gestione su empresa, personalice su sitio y administre sus ${catalog.plural} desde aquí.`
             }
           />
         </div>
@@ -62,11 +64,11 @@ export default function SupplierDashboard() {
                 <Package className="w-8 h-8 text-primary" />
               )
             }
-            title={isDirectory ? "Mis Servicios" : "Mis Productos"}
+            title={isDirectory ? "Mis Servicios" : catalog.myCatalog}
             description={
               isDirectory
                 ? "Administra la galería de servicios de tu perfil profesional."
-                : "Administre su inventario de productos."
+                : catalog.isRealEstate ? "Administre su catálogo de propiedades." : "Administre su inventario de productos."
             }
             delay={0.4}
           /> : null}

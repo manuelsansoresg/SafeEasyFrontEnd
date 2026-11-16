@@ -1,3 +1,4 @@
+import { catalogLabels } from "@/lib/catalogLabels";
 import { notFound } from "next/navigation";
 import SupplierPageClient from "./SupplierPageClient";
 import { getPublicSupplierProfile } from "@/lib/supplierProfile";
@@ -11,6 +12,7 @@ export default async function SupplierPage({ params }: {
   const profile = await getPublicSupplierProfile(slug);
   if (!profile) notFound();
 
+  const catalog = catalogLabels(profile.supplier.business_type);
   const products = profile.products.map((product) => ({
     id: String(product.id),
     title: product.title,
@@ -29,7 +31,7 @@ export default async function SupplierPage({ params }: {
 
   return <>
     <nav aria-label={`Catálogo público de ${profile.supplier.name}`} className="sr-only focus-within:not-sr-only">
-      {profile.canShowProducts && <Link href={`/empresas/${profile.supplier.slug || profile.supplier.id}/productos`}>Ver catálogo de {profile.supplier.name}</Link>}
+      {profile.canShowProducts && <Link href={`/empresas/${profile.supplier.slug || profile.supplier.id}/productos`}>{catalog.isRealEstate ? catalog.view : "Ver catálogo"} de {profile.supplier.name}</Link>}
       {profile.canShowProducts && profile.products.filter((product) => product.is_active === true && product.slug).map((product) => (
         <Link key={String(product.id)} href={`/product/${product.slug}`}>{product.title}</Link>
       ))}

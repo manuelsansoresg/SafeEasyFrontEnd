@@ -1,5 +1,6 @@
 "use client";
 
+import { useSupplierCatalogLabels } from "@/hooks/useSupplierCatalogLabels";
 import { useState, useEffect } from "react";
 import ProductForm from "@/components/admin/ProductForm";
 import { PageHero } from "@/components/ui/PageHero";
@@ -44,6 +45,7 @@ function unwrapProducts(data: unknown): Product[] {
 export default function EditProductPage() {
   const params = useParams();
   const id = params.id;
+  const catalog = useSupplierCatalogLabels();
   const { token, user } = useAuthStore();
   
   const [product, setProduct] = useState<Product | null>(null);
@@ -66,7 +68,7 @@ export default function EditProductPage() {
         const assertCanEdit = (item: Product | null) => {
           if (!item) return null;
           if (currentSupplier?.id && Number(item.supplier_id) !== Number(currentSupplier.id)) {
-            setError("No puedes editar un producto que pertenece a otro proveedor.");
+            setError("Esta publicación pertenece a otro proveedor.");
             return null;
           }
           return item;
@@ -144,7 +146,7 @@ export default function EditProductPage() {
             console.warn("Direct fetch error response:", text); 
             
             // Set a user-friendly error
-            setError(`No se pudo cargar el producto. El servidor no permite acceso directo (${directStatus}) y no se encontró en el listado.`);
+            setError(`No se pudo cargar la publicación. El servidor no permite acceso directo (${directStatus}) y no se encontró en el listado.`);
         }
       } catch (err: unknown) {
         console.error(err);
@@ -169,7 +171,7 @@ export default function EditProductPage() {
   if (error || !product) {
     return (
       <div className="text-center py-12">
-        <p className="text-red-500 mb-4">{error || "Producto no encontrado"}</p>
+        <p className="text-red-500 mb-4">{error || catalog.notFound}</p>
         <Link href="/admin/products" className="text-primary hover:underline">
           Volver a la lista
         </Link>
@@ -180,8 +182,8 @@ export default function EditProductPage() {
   return (
     <div className="space-y-6">
       <PageHero
-        title="Editar Producto"
-        subtitle={`Modifica los datos del producto ${product.title}.`}
+        title={catalog.isRealEstate ? "Editar propiedad" : "Editar Producto"}
+        subtitle={catalog.isRealEstate ? "Modifica los datos de esta propiedad." : `Modifica los datos del producto ${product.title}.`}
         actions={
           <Link href="/admin/products" className="inline-flex items-center gap-1 text-sm font-semibold text-gray-600 hover:text-primary">
             <ArrowLeft size={16} />
