@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchWithAuth } from "@/lib/api";
+import { useLinkedCommissionEmail } from "@/hooks/useLinkedCommissionEmail";
 import { useAuthStore } from "@/store/useAuthStore";
 import { cn } from "@/lib/utils";
 import { ProviderShippingPermission } from "@/components/admin/shipping/ProviderShippingPermission";
@@ -94,8 +95,7 @@ const unwrapPlans = (data: unknown): AdminPlan[] => {
 };
 
 const formatUserLabel = (user: AdminUser) => {
-  const displayName = user.full_name || user.name || user.email || `Usuario #${user.id}`;
-  return user.email && displayName !== user.email ? `${displayName} (${user.email})` : displayName;
+  return user.email?.trim() || "Correo no disponible";
 };
 
 const getResponseMessage = async (res: Response, fallback: string) => {
@@ -205,6 +205,8 @@ export default function ConfiguracionPage() {
     subscriptionLinkedCommissionValue,
   ]);
 
+  const linkedUserEmail = useLinkedCommissionEmail(subscriptionLinkedCommissionUserId);
+
   const selectedLinkedUser = useMemo(
     () => users.find((linkedUser) => String(linkedUser.id) === subscriptionLinkedCommissionUserId),
     [subscriptionLinkedCommissionUserId, users],
@@ -216,7 +218,7 @@ export default function ConfiguracionPage() {
       : selectedLinkedUser
         ? formatUserLabel(selectedLinkedUser)
         : subscriptionLinkedCommissionUserId
-          ? `Usuario #${subscriptionLinkedCommissionUserId}`
+          ? linkedUserEmail
           : "";
 
   useEffect(() => {
@@ -260,20 +262,49 @@ export default function ConfiguracionPage() {
     };
   }, [token, isAdmin, userSearch, selectedPlanId, subscriptionLinkedCommissionIsActive]);
 
-  const loadSettings = async () => {
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    if (!isAdmin) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetchWithAuth("/api/admin/settings", { headers: { Accept: "application/json" } });
-      if (!res.ok) {
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      if (!isAdmin) {
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetchWithAuth("/api/admin/settings", { headers: { Accept: "application/json" } });
+        if (!res.ok) {
+          applySettings(DEFAULT_SETTINGS, {
+            setCommissionType,
+            setCommissionValue,
+            setMinDistanceKm,
+            setExtraCostPerKm,
+          });
+          setError(null);
+          return;
+        }
+        const data: unknown = await res.json().catch(() => null);
+        const src = pickSettingsRecord(data) || {};
+
+        const settings: AdminSettings = {
+          min_distance_km: Math.max(0, parseNumber(src.min_distance_km, 0)),
+          extra_cost_per_km: Math.max(0, parseNumber(src.extra_cost_per_km, 0)),
+          commission_type: (String(src.commission_type ?? "").trim() === "fixed" ? "fixed" : "percentage") as
+            | "percentage"
+            | "fixed",
+          commission_value: Math.max(0, parseNumber(src.commission_value, 0)),
+        };
+
+        applySettings(settings, {
+          setCommissionType,
+          setCommissionValue,
+          setMinDistanceKm,
+          setExtraCostPerKm,
+        });
+      } catch {
         applySettings(DEFAULT_SETTINGS, {
           setCommissionType,
           setCommissionValue,
@@ -281,41 +312,12 @@ export default function ConfiguracionPage() {
           setExtraCostPerKm,
         });
         setError(null);
-        return;
+      } finally {
+        setLoading(false);
       }
-      const data: unknown = await res.json().catch(() => null);
-      const src = pickSettingsRecord(data) || {};
+    };
 
-      const settings: AdminSettings = {
-        min_distance_km: Math.max(0, parseNumber(src.min_distance_km, 0)),
-        extra_cost_per_km: Math.max(0, parseNumber(src.extra_cost_per_km, 0)),
-        commission_type: (String(src.commission_type ?? "").trim() === "fixed" ? "fixed" : "percentage") as
-          | "percentage"
-          | "fixed",
-        commission_value: Math.max(0, parseNumber(src.commission_value, 0)),
-      };
-
-      applySettings(settings, {
-        setCommissionType,
-        setCommissionValue,
-        setMinDistanceKm,
-        setExtraCostPerKm,
-      });
-    } catch {
-      applySettings(DEFAULT_SETTINGS, {
-        setCommissionType,
-        setCommissionValue,
-        setMinDistanceKm,
-        setExtraCostPerKm,
-      });
-      setError(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadSettings();
+    void loadSettings();
   }, [token, isAdmin]);
 
   useEffect(() => {

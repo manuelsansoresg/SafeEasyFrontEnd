@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAuthStore";
 import { fetchWithAuth } from "@/lib/api";
+import { useLinkedCommissionEmail } from "@/hooks/useLinkedCommissionEmail";
 import { cn } from "@/lib/utils";
 import { CheckCircle, ChevronDown, Eye, FlaskConical, FolderTree, ImageIcon, Images, KeyRound, Loader2, Package, Repeat2, Search, Sparkles, ShieldCheck, X } from "lucide-react";
 
@@ -20,8 +21,7 @@ type AdminUser = {
 };
 
 const formatUserLabel = (user: AdminUser) => {
-  const displayName = user.full_name || user.name || user.email || `Usuario #${user.id}`;
-  return user.email && displayName !== user.email ? `${displayName} (${user.email})` : displayName;
+  return user.email?.trim() || "Correo no disponible";
 };
 
 interface PlanFormData {
@@ -141,6 +141,8 @@ export default function PlanForm({ initialData }: PlanFormProps) {
   const [userSearch, setUserSearch] = useState("");
   const [userSelectOpen, setUserSelectOpen] = useState(false);
 
+  const linkedUserEmail = useLinkedCommissionEmail(formData.subscription_linked_commission_user_id);
+
   const selectedLinkedUser = useMemo(
     () => users.find((u) => String(u.id) === formData.subscription_linked_commission_user_id),
     [formData.subscription_linked_commission_user_id, users],
@@ -151,7 +153,7 @@ export default function PlanForm({ initialData }: PlanFormProps) {
     : selectedLinkedUser
       ? formatUserLabel(selectedLinkedUser)
       : formData.subscription_linked_commission_user_id
-        ? `Usuario #${formData.subscription_linked_commission_user_id}`
+        ? linkedUserEmail
         : "";
 
   useEffect(() => {
